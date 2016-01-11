@@ -1,0 +1,159 @@
+{
+    "name": "lldb-adapter",
+    "displayName": "LLDB Debugger",
+    "version": "0.0.1",
+    "publisher": "vadimcn",
+    "description": "",
+    "author": {
+        "name": "vadimcn"
+    },
+    "engines": {
+        "vscode": "^0.10.1"
+    },
+    "icon": "images/mock-debug-icon.svg",
+    "categories": [
+        "Debuggers"
+    ],
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/vadimcn/vscode-lldb.git"
+    },
+    "bugs": {
+        "url": "https://github.com/vadimcn/vscode-lldb/issues"
+    },
+    "dependencies": {
+        "vscode-debugadapter": "^1.0.1",
+        "vscode-debugprotocol": "^1.0.1"
+    },
+    "devDependencies": {
+        "typescript": "^1.7.5",
+        "mocha": "*"
+    },
+    "scripts": {
+        "prepublish": "tsc -p ./src",
+        "compile": "tsc -p ./src",
+        "watch": "tsc -w -p ./src",
+        "test": "mocha out/tests"
+    },
+    "contributes": {
+        "debuggers": [
+            {
+                "type": "lldb",
+                "label": "LLDB debugger",
+                "enableBreakpointsFor": {
+                    "languageIds": [
+                        "rust", "c", "cpp"
+                    ]
+                },
+                "runtime": "python.exe",
+                "program": "./vscode-lldb.py",
+                "configurationAttributes": {
+                    "launch": {
+                        "required": [
+                            "program"
+                        ],
+                        "properties": {
+                            "debugger": {
+                                "type": "string",
+                                "description": "Path to the debugger.",
+                                "default": "gdb"
+                            },
+                            "debuggerArgs": {
+                                "type": "array",
+                                "description": "Override debugger command line parameters.  If you provide this parameter, be sure to to put debugger into the Machine Interface (MI) mode!",
+                                "default": []
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "Path to the program to debug."
+                            },
+                            "args": {
+                                "type": "array",
+                                "description": "Program arguments.",
+                                "default": []
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "Program working directory.",
+                                "default": null
+                            },
+                            "env": {
+                                "type": "object",
+                                "description": "Additional environment variables.",
+                                "default": null
+                            },
+                            "stdio": {
+                                "type": "string",
+                                "description": "Where to attach the program's stdio to: '*' = open a new terminal, '<path>' = attach to existing tty/fifo/etc (Linux and OSX only).",
+                                "default": "*"
+                            },
+                            "stopOnEntry": {
+                                "type": "boolean",
+                                "description": "Automatically stop debuggee after launch.",
+                                "default": true
+                            },
+                            "initCommands": {
+                                "type": "array",
+                                "description": "Initialization commands.",
+                                "default": []
+                            },
+                            "preRunCommands": {
+                                "type": "array",
+                                "description": "Commands to execute after loading the program, but before it is started",
+                                "default": []
+                            }
+                        }
+                    },
+                    "attach": {
+                        "required": [],
+                        "properties": {
+                            "debugger": {
+                                "type": "string",
+                                "description": "Path to the debugger.",
+                                "default": "gdb"
+                            },
+                            "debuggerArgs": {
+                                "type": "array",
+                                "description": "Override debugger command line parameters.  If you provide this parameter, be sure to to put debugger into the Machine Interface (MI) mode!",
+                                "default": []
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "Path to the program to attach to."
+                            },
+                            "pid": {
+                                "type": "number",
+                                "description": "Process id to attach to."
+                            },
+                            "stopOnEntry": {
+                                "type": "boolean",
+                                "description": "Automatically stop debuggee after launch.",
+                                "default": true
+                            },
+                            "initCommands": {
+                                "type": "array",
+                                "description": "Initialization commands.",
+                                "default": []
+                            },
+                            "preRunCommands": {
+                                "type": "array",
+                                "description": "Commands to execute after loading the program, but before it is started",
+                                "default": []
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "name": "LLDB",
+                        "type": "lldb",
+                        "request": "launch",
+                        "program": "readme.md",
+                        "stopOnEntry": true
+                    }
+                ]
+            }
+        ]
+    }
+}

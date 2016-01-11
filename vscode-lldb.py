@@ -46,26 +46,7 @@ class DebugSessionHandler(asynchat.async_chat):
             request = json.loads("".join(self.ibuffer))
             print request
             self.reading_headers = True
-            self.ibuffer = []
-
-                
-        # if self.reading_headers:
-        #     self.reading_headers = False
-        #     #self.parse_headers("".join(self.ibuffer))
-        #     self.ibuffer = []
-        #     if self.op.upper() == "POST":
-        #         clen = self.headers.getheader("content-length")
-        #         self.set_terminator(int(clen))
-        #     else:
-        #         self.handling = True
-        #         self.set_terminator(None)
-        #         self.handle_request()
-        # elif not self.handling:
-        #     self.set_terminator(None) # browsers sometimes over-send
-        #     self.cgi_data = parse(self.headers, "".join(self.ibuffer))
-        #     self.handling = True
-        #     self.ibuffer = []
-        #     #self.handle_request()            
+            self.ibuffer = []        
             
 server = DebugServer('localhost', 4711)
 asyncore.loop()

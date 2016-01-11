@@ -19,7 +19,7 @@ class DebugServer(asyncore.dispatcher):
             sock, addr = pair
             print 'Incoming connection from %s' % repr(addr)
             handler = DebugSessionHandler(sock)
-            
+
 class DebugSessionHandler(asynchat.async_chat):
 
     def __init__(self, sock):
@@ -41,12 +41,72 @@ class DebugSessionHandler(asynchat.async_chat):
                     clen = int(string.strip(line[15:]))
                     self.set_terminator(clen)
             self.reading_headers = False
-            self.ibuffer = []                    
+            self.ibuffer = []
         else:
             request = json.loads("".join(self.ibuffer))
-            print request
+            self.dispatch(request)
             self.reading_headers = True
-            self.ibuffer = []        
-            
+            self.ibuffer = []
+
+    def dispatch(self, request):
+        command =  request["command"]
+        args = request["arguments"]
+        self.dispatch_map[command](self, args)
+
+    def initialize_request(self, args):
+        pass
+    def launch_request(self, args):
+        pass
+    def attach_request(self, args):
+        pass
+    def disconnect_request(self, args):
+        pass
+    def set_breakpoints_request(self, args):
+        pass
+    def set_exception_breakpoints_request(self, args):
+        pass
+    def continue_request(self, args):
+        pass
+    def next_request(self, args):
+        pass
+    def step_in_request(self, args):
+        pass
+    def step_out_request(self, args):
+        pass
+    def pause_request(self, args):
+        pass
+    def stack_trace_request(self, args):
+        pass
+    def scopes_request(self, args):
+        pass
+    def variables_request(self, args):
+        pass
+    def source_request(self, args):
+        pass
+    def threads_request(self, args):
+        pass
+    def evaluate_request(self, args):
+        pass
+
+    dispatch_map = {
+        "initialize": initialize_request,
+        "launch": launch_request,
+        "attach": attach_request,
+        "disconnect": disconnect_request,
+        "setBreakpoints": set_breakpoints_request,
+        "setExceptionBreakpoints": set_exception_breakpoints_request,
+        "continue": continue_request,
+        "next": next_request,
+        "stepIn": step_in_request,
+        "stepOut": step_out_request,
+        "pause": pause_request,
+        "stackTrace": stack_trace_request,
+        "scopes": scopes_request,
+        "variables": variables_request,
+        "source": source_request,
+        "threads": threads_request,
+        "evaluate": evaluate_request,
+    }
+
 server = DebugServer('localhost', 4711)
 asyncore.loop()

@@ -3,4 +3,5 @@
     "files.trimTrailingWhitespace": true,
     "editor.insertSpaces": true,
     "editor.tabSize": 4,
+    "editor.autoClosingBrackets": false
 }

@@ -20,28 +20,13 @@
             "stopOnEntry": true
         },
         {
-            "name": "debug linux lldb",
-            "request": "launch",
-            "type": "lldb",
-            "debugger": "/usr/local/google/home/vadimcn/ll/build/bin/lldb-mi",
-            "program": "target/debug/debuggee",
-            "stdio": "*",
-            "stopOnEntry": false
-        },
-        {
             "name": "debug windows",
             "request": "launch",
             "type": "lldb",
             "debugger": "C:\\mingw-w64\\x86_64-4.9.3-win32-seh-rt_v4-rev0\\mingw64\\bin\\gdb.exe",
             "program": "target\\debug\\debuggee.exe",
             "stdio": "*",
-            "stopOnEntry": false,
-            "initCommands": [
-                "py import gdb, sys", 
-                "py sys.path.append(\"C:\\\\NW\\\\rust\\\\src\\\\etc\")",
-                "py import gdb_rust_pretty_printing",
-                "py gdb.pretty_printers.append(gdb_rust_pretty_printing.rust_pretty_printer_lookup_function)"
-            ]
+            "stopOnEntry": false
         }
     ]
 }

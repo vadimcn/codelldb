@@ -46,8 +46,9 @@
                         "rust", "c", "cpp"
                     ]
                 },
-                "runtime": "python.exe",
-                "program": "./vscode-lldb.py",
+                "runtime": "lldb-3.7",
+                "runtimeArgs": ["-S"],
+                "program": "./bootstrapper.lldb",
                 "configurationAttributes": {
                     "launch": {
                         "required": [

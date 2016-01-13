@@ -194,7 +194,7 @@ class DebugSession:
         # evaluate as debugger command
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
-        interp.HandleCommand(str(command), result)
+        interp.HandleCommand(str(expr), result)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
         self.send_event("output", { "category": "console", "output": output })
         return { "result": "" }
@@ -204,7 +204,6 @@ class DebugSession:
         if frame is None:
             return
         var = frame.EvaluateExpression(expr)
-        print "@@@ var", var.GetError()
         if var.GetError().Success():
             _, value, dtype, ref = self.parse_var(var)
             return { "result": value, "type": dtype, "variablesReference": ref }
@@ -215,6 +214,8 @@ class DebugSession:
     def parse_var(self, var):
         name = var.GetName()
         value = var.GetValue()
+        if value is None:
+            value = var.GetSummary()
         if value is None:
             value = "{...}"
         dtype = var.GetTypeName()

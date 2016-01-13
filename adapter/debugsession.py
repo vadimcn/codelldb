@@ -158,13 +158,16 @@ class DebugSession:
         elif type(obj) is lldb.SBValue:
             vars = obj
 
-        print "@@@", vars
-
         for var in vars:
-            variable = { "name": var.GetName(), "value": var.GetValue() }
-            if var.MightHaveChildren():
-                variable["variablesReference"] = self.var_refs.create(var)
+            name = var.GetName()
+            value = var.GetValue()
+            if value is None:
+                value = "{...}"
+            ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
+
+            variable = { "name": name, "value": value, "variablesReference": ref }
             variables.append(variable)
+
         return { "variables": variables }
 
     def evaluate_request(self, args):

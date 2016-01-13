@@ -46,7 +46,7 @@
                         "rust", "c", "cpp"
                     ]
                 },
-                "runtime": "lldb-3.7",
+                "runtime": "lldb",
                 "runtimeArgs": ["-S"],
                 "program": "./bootstrapper.lldb",
                 "configurationAttributes": {

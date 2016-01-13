@@ -36,7 +36,7 @@ class DebugSession:
         }
 
         handler = getattr(self, command + "_request", None)
-        if handler != None:
+        if handler is not None:
             response["body"] = handler(args)
             response["success"] = True
         else:
@@ -105,7 +105,20 @@ class DebugSession:
         self.process.Stop()
 
     def continue_request(self, args):
+        self.var_refs.reset()
         self.process.Continue()
+
+    def next_request(self, args):
+        self.var_refs.reset()
+        self.process.GetSelectedThread().StepOver()
+
+    def stepIn_request(self, args):
+        self.var_refs.reset()
+        self.process.GetSelectedThread().StepInto()
+
+    def stepOut_request(self, args):
+        self.var_refs.reset()
+        self.process.GetSelectedThread().StepOut()
 
     def threads_request(self, args):
         threads = []
@@ -159,30 +172,48 @@ class DebugSession:
             vars = obj
 
         for var in vars:
-            name = var.GetName()
-            value = var.GetValue()
-            if value is None:
-                value = "{...}"
-            ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
-
-            variable = { "name": name, "value": value, "variablesReference": ref }
+            name, value, dtype, ref = self.parse_var(var)
+            variable = { "name": name, "value": value, "type": dtype, "variablesReference": ref }
             variables.append(variable)
 
         return { "variables": variables }
 
     def evaluate_request(self, args):
-        if args["context"] == "repl":
-            command = args["expression"]
-            if command == "test":
-                self.target.BreakpointCreateByLocation("/usr/local/google/home/vadimcn/NW/vscode-lldb/debuggee/src/main.rs", 25)
-                return
+        context = args["context"]
+        expr = str(args["expression"])
+        if context == "watch":
+            return self.evaluate_expr(args, expr)
+        elif expr.startswith("?"): # "repl"
+            return self.evaluate_expr(args, expr[1:])
+        # evaluate as debugger command
+        interp = self.debugger.GetCommandInterpreter()
+        result = lldb.SBCommandReturnObject()
+        interp.HandleCommand(str(command), result)
+        output = result.GetOutput() if result.Succeeded() else result.GetError()
+        self.send_event("output", { "category": "console", "output": output })
+        return { "result": "" }
 
-            interp = self.debugger.GetCommandInterpreter()
-            result = lldb.SBCommandReturnObject()
-            interp.HandleCommand(str(command), result)
-            output = result.GetOutput() if result.Succeeded() else result.GetError()
+    def evaluate_expr(self, args, expr):
+        frame = self.var_refs.get(args.get("frameId", 0), None)
+        if frame is None:
+            return
+        var = frame.EvaluateExpression(expr)
+        print "@@@ var", var.GetError()
+        if var.GetError().Success():
+            _, value, dtype, ref = self.parse_var(var)
+            return { "result": value, "type": dtype, "variablesReference": ref }
+        else:
+            output = var.GetError().GetCString()
             self.send_event("output", { "category": "console", "output": output })
-            return { "result": "" }
+
+    def parse_var(self, var):
+        name = var.GetName()
+        value = var.GetValue()
+        if value is None:
+            value = "{...}"
+        dtype = var.GetTypeName()
+        ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
+        return (name, value, dtype, ref)
 
     def disconnect_request(self, args):
         self.process.Kill()

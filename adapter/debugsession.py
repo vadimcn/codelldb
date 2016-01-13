@@ -3,6 +3,7 @@ import logging
 import debugevents
 import itertools
 import handles
+import terminal
 import util
 
 log = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ class DebugSession:
             event_loop.dispatch1(self.on_target_event, event)
         self.listener_handler = debugevents.AsyncListener(self.event_listener, dispatch_event)
         self.var_refs = handles.Handles()
+        self.terminal = None
 
     def on_request(self, request):
         command =  request["command"]
@@ -81,16 +83,19 @@ class DebugSession:
         self.send_event("initialized", {})
 
     def do_launch(self):
-        error = lldb.SBError()
+        flags = 0
         args = opt_str(self.launch_args.get("args", None))
         env = opt_str(self.launch_args.get("env", None))
         work_dir = opt_str(self.launch_args.get("cwd", None))
         stop_on_entry = self.launch_args.get("stopOnEntry", False)
-        flags = 0
-        if self.launch_args.get("stdio", None) == "*":
-            flags != lldb.eLaunchFlagLaunchInTTY
+        stdio = opt_str(self.launch_args.get("stdio", None))
+        if stdio == "*":
+            self.terminal = terminal.create()
+            stdio = self.terminal.tty
+            #flags != lldb.eLaunchFlagLaunchInTTY
+        error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
-            args, env, None, None, None, work_dir, flags, stop_on_entry, error)
+            args, env, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
         assert self.process.IsValid()
 
     def setBreakpoints_request(self, args):
@@ -224,4 +229,5 @@ class DebugSession:
 
     def disconnect_request(self, args):
         self.process.Kill()
+        self.terminal = None
         self.event_loop.stop()

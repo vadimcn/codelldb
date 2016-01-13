@@ -8,12 +8,13 @@ struct Foo {
 }
 
 fn main() {
-    thread::spawn(thread_proc);
+    //thread::spawn(thread_proc);
     thread::sleep_ms(10);
     let x = 1;
     let y = 2;
     foo(x + y);
-    // println!("leaving main");
+    baz();
+    println!("leaving main");
 }
 
 fn foo(z: i32) {
@@ -23,6 +24,7 @@ fn foo(z: i32) {
     };
     println!("foo, w={:?}", w);
     bar();
+    baz();
     println!("leaving foo");
 }
 
@@ -34,6 +36,10 @@ fn bar() {
     io::stdin().read_line(&mut line);
     panic!("thread_proc() exiting");
 
+}
+
+fn baz() {
+    println!("baz");
 }
 
 fn thread_proc() {

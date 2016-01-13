@@ -27,7 +27,7 @@ fn foo(z: i32) {
 }
 
 fn bar() {
-    let sss = "after";
+    let sss = "starting";
     println!("bar {}", sss);
 
     let mut line = String::new();

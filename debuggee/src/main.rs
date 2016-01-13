@@ -8,10 +8,11 @@ struct Foo {
 }
 
 fn main() {
-    //thread::spawn(thread_proc);
+    thread::spawn(thread_proc);
     thread::sleep_ms(10);
     let x = 1;
     let y = 2;
+    let z = [1, 2, 3, 4, 5];
     foo(x + y);
     baz();
     println!("leaving main");

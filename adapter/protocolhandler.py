@@ -11,7 +11,7 @@ class ProtocolHandler:
     def __init__(self, read, write):
         self.read = read
         self.write = write
-        self.ibuffer = ""
+        self.ibuffer = ''
         self.stopping = False
 
     def start(self, handle_request):
@@ -26,18 +26,18 @@ class ProtocolHandler:
 
     def recv_headers(self):
         while True:
-            pos = self.ibuffer.find("\r\n\r\n")
+            pos = self.ibuffer.find('\r\n\r\n')
             if pos != -1:
                 headers = self.ibuffer[:pos]
                 self.ibuffer = self.ibuffer[pos+4:]
                 clen = None
-                for header in string.split(headers, "\r\n"):
-                    if header.startswith("Content-Length:"):
+                for header in string.split(headers, '\r\n'):
+                    if header.startswith('Content-Length:'):
                         clen = int(string.strip(header[15:]))
                 if clen != None:
                     return clen
                 else:
-                    log.error("No Content-Length header")
+                    log.error('No Content-Length header')
 
             data = self.read(1024)
             if len(data) == 0:
@@ -60,13 +60,13 @@ class ProtocolHandler:
                 clen = self.recv_headers()
                 data = self.recv_body(clen)
                 message = json.loads(data)
-                log.debug("-> %s", data)
+                log.debug('-> %s', data)
                 self.handle_request(message)
         except StopIteration: # Thrown when read() returns 0
             pass
 
     def send_message(self, message):
         data = json.dumps(message)
-        log.debug("<- %s", data)
-        self.write("Content-Length: %d\r\n\r\n" % len(data))
+        log.debug('<- %s', data)
+        self.write('Content-Length: %d\r\n\r\n' % len(data))
         self.write(data)

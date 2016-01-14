@@ -54,17 +54,28 @@ class DebugSession:
             type = event.GetType()
             if type == lldb.SBProcess.eBroadcastBitStateChanged:
                 state = lldb.SBProcess.GetStateFromEvent(event)
-                if state == lldb.eStateStopped:
-                    if all((thread.GetStopReason() == lldb.eStopReasonNone for thread in self.process)):
-                        return
-                    causing_thread = None
-                    for thread in self.process:
-                        if thread.GetStopReason() != lldb.eStopReasonNone:
-                            causing_thread = thread
-                        else:
-                            self.send_event("stopped", { "reason": "none", "threadId": thread.GetThreadID() })
 
-                    self.send_event("stopped", { "reason": "breakpoint", "threadId": causing_thread.GetThreadID() })
+                if state == lldb.eStateStopped:
+                    self.notify_target_stopped()
+                elif state == lldb.eStateExited:
+                    self.send_event("exited", { "exitCode": self.process.GetExitStatus() })
+                    self.send_event("terminated", {}) # VSCode doesn't seem to handle 'exited' for now
+                elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
+                    self.send_event("terminated", {})
+
+    def notify_target_stopped(self):
+        if all((thread.GetStopReason() == lldb.eStopReasonNone for thread in self.process)):
+            return
+
+        causing_thread = None
+        for thread in self.process:
+            if thread.GetStopReason() != lldb.eStopReasonNone:
+                causing_thread = thread
+            else:
+                self.send_event("stopped", { "reason": "none", "threadId": thread.GetThreadID() })
+
+        self.send_event("stopped", { "reason": "breakpoint", "threadId": causing_thread.GetThreadID() })
+
 
     def send_event(self, event, body):
         message = {
@@ -80,22 +91,24 @@ class DebugSession:
 
     def launch_request(self, args):
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args["program"]), lldb.LLDB_ARCH_DEFAULT)
-        self.launch_args = args
         self.send_event("initialized", {})
+        # defer actual launching till the setExceptionBreakpoints request,
+        # so that we could set initial breakpoints before the target starts running
+        self.do_launch = lambda: self.launch(args)
 
-    def do_launch(self):
+    def launch(self, args):
         flags = 0
 
-        args = self.launch_args.get("args", None)
-        if args is not None:
-            args = [str(arg) for arg in args]
+        target_args = args.get("args", None)
+        if target_args is not None:
+            target_args = [str(arg) for arg in args]
 
-        env = self.launch_args.get("env", None)
+        env = args.get("env", None)
         envp = None
         if (env is not None): # Convert dict to a list of "key=value" strings
             envp = ["%s=%s" % item for item in env.iteritems()]
 
-        stdio = opt_str(self.launch_args.get("stdio", None))
+        stdio = opt_str(args.get("stdio", None))
         if stdio == "*":
             if sys.platform == "darwin":
                 # OSX supports this natively
@@ -104,11 +117,11 @@ class DebugSession:
                 self.terminal = terminal.create()
                 stdio = self.terminal.tty
 
-        work_dir = opt_str(self.launch_args.get("cwd", None))
-        stop_on_entry = self.launch_args.get("stopOnEntry", False)
+        work_dir = opt_str(args.get("cwd", None))
+        stop_on_entry = args.get("stopOnEntry", False)
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
-            args, envp, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
+            target_args, envp, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
         assert self.process.IsValid()
 
     def setBreakpoints_request(self, args):
@@ -129,6 +142,8 @@ class DebugSession:
         self.process.Stop()
 
     def continue_request(self, args):
+        # variable handles will be invalid after running,
+        # so we may as well clean them up now
         self.var_refs.reset()
         self.process.Continue()
 

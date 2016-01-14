@@ -14,7 +14,7 @@ class Terminal:
 TIMEOUT = 1 # Timeout in seconds for child opening a socket and sending the tty name
 
 def create():
-    socket_path = '/tmp/mi-debug-%d.sock' % os.getpid()
+    socket_path = '/tmp/vscode-lldb-%d.sock' % os.getpid()
     try: os.unlink(socket_path)
     except OSError: pass
     ls = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -28,12 +28,12 @@ def create():
         os.unlink(socket_path)
 
         conn.settimeout(TIMEOUT)
-        data = ""
+        data = ''
         while True:
             data += conn.recv(32)
-            lines = string.split(data, "\n")
+            lines = string.split(data, '\n')
             if len(lines) > 1:
                 return Terminal(lines[0], conn)
 
     except (OSError, socket.timeout):
-        raise Exception("Failed to create a new terminal")
+        raise Exception('Failed to create a new terminal')

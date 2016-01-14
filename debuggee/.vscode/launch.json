@@ -21,6 +21,12 @@
             "stopOnEntry": true
         },
         {
+            "name": "Debug cpp",
+            "request": "launch",
+            "type": "lldb",
+            "program": "debuggee"  
+        },
+        {
             "name": "debug windows",
             "request": "launch",
             "type": "lldb",

@@ -5,6 +5,7 @@ import itertools
 import handles
 import terminal
 import util
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -84,7 +85,10 @@ class DebugSession:
 
     def do_launch(self):
         flags = 0
-        args = map(str, self.launch_args.get("args", []))
+
+        args = self.launch_args.get("args", None)
+        if args is not None:
+            args = [str(arg) for arg in args]
 
         env = self.launch_args.get("env", None)
         envp = None
@@ -93,8 +97,12 @@ class DebugSession:
 
         stdio = opt_str(self.launch_args.get("stdio", None))
         if stdio == "*":
-            self.terminal = terminal.create()
-            stdio = self.terminal.tty
+            if sys.platform == "darwin":
+                # OSX supports this natively
+                flags |= lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
+            else:
+                self.terminal = terminal.create()
+                stdio = self.terminal.tty
 
         work_dir = opt_str(self.launch_args.get("cwd", None))
         stop_on_entry = self.launch_args.get("stopOnEntry", False)

@@ -41,8 +41,19 @@ class DebugSession:
 
         handler = getattr(self, command + '_request', None)
         if handler is not None:
-            response['body'] = handler(args)
-            response['success'] = True
+            try:
+                response['body'] = handler(args)
+                response['success'] = True
+            except Exception as e:
+                log.error(repr(e))
+                response['success'] = False
+                response['body'] = {
+                    'error': {
+                        'id': 1,
+                        'format': str(e),
+                        'showUser': True
+                    }
+                }
         else:
             log.warning('No handler for %s', command)
 
@@ -123,7 +134,7 @@ class DebugSession:
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
-        assert self.process.IsValid()
+        assert self.process.IsValid(), 'process.IsValid()'
 
     def attach_request(self, args):
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
@@ -139,7 +150,7 @@ class DebugSession:
 
         if not error.Success():
             raise Exception(error.GetCString())
-        assert self.process.IsValid()
+        assert self.process.IsValid(), 'process.IsValid()'
 
     def setBreakpoints_request(self, args):
         file = str(args['source']['path'])

@@ -43,10 +43,10 @@ def server(port=4711, logLevel=10):
         log.info("Debug session ended. Waiting for new connections.")
 
 
-# Single-shot run using the specified input and output fds
+# Single-session run using the specified input and output fds
 def stdio(ifd, ofd, logLevel=10):
     configLogging(logLevel)
-    log.info("Single-shot mode on fds (%d,%d)", ifd, ofd)
+    log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
     r = lambda n: os.read(ifd, n)
     w = lambda data: os.write(ofd, data)
     run_session(r, w)

@@ -8,6 +8,7 @@
             "type": "lldb",
             "debugger": "gdb",
             "program": "target/debug/debuggee",
+            "args": ["test"],
             "stdio": "*",
             "stopOnEntry": false
         },

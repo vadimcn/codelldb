@@ -7,7 +7,7 @@ var fs = require('fs')
 var lldb_log = fs.openSync('/dev/pts/19', 'w');
 //var lldb_log = 'ignore'
 
-var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.stdio(3,4, 20)'], {
+var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.stdio(3,4)'], {
     // LLDB has readline attached to its stdin and sometimes spews debug messages to stdout,
     // all of which would interfere with debug session messaging.
     // Instead, we create two new pipes on fds 3 and 4 and connect them to launcher's stdin and stdout

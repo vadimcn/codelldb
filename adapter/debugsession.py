@@ -84,18 +84,23 @@ class DebugSession:
 
     def do_launch(self):
         flags = 0
-        args = opt_str(self.launch_args.get("args", None))
-        env = opt_str(self.launch_args.get("env", None))
-        work_dir = opt_str(self.launch_args.get("cwd", None))
-        stop_on_entry = self.launch_args.get("stopOnEntry", False)
+        args = map(str, self.launch_args.get("args", []))
+
+        env = self.launch_args.get("env", None)
+        envp = None
+        if (env is not None): # Convert dict to a list of "key=value" strings
+            envp = ["%s=%s" % item for item in env.iteritems()]
+
         stdio = opt_str(self.launch_args.get("stdio", None))
         if stdio == "*":
             self.terminal = terminal.create()
             stdio = self.terminal.tty
-            #flags != lldb.eLaunchFlagLaunchInTTY
+
+        work_dir = opt_str(self.launch_args.get("cwd", None))
+        stop_on_entry = self.launch_args.get("stopOnEntry", False)
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
-            args, env, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
+            args, envp, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
         assert self.process.IsValid()
 
     def setBreakpoints_request(self, args):

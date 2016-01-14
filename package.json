@@ -46,9 +46,10 @@
                         "rust", "c", "cpp"
                     ]
                 },
-                "runtime": "lldb",
-                "runtimeArgs": ["-S"],
-                "program": "./bootstrapper.lldb",
+
+                "runtime": "node",
+                "program": "launcher.js",
+
                 "configurationAttributes": {
                     "launch": {
                         "required": [

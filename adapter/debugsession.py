@@ -19,11 +19,11 @@ class DebugSession:
         self.debugger = lldb.debugger
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener("DebugSession")
-        def dispatch_event(event):
-            event_loop.dispatch1(self.on_target_event, event)
-        self.listener_handler = debugevents.AsyncListener(self.event_listener, dispatch_event)
+        self.listener_handler = debugevents.AsyncListener(self.event_listener,
+            lambda event: event_loop.dispatch1(self.on_target_event, event))
         self.var_refs = handles.Handles()
         self.terminal = None
+        self.handle_request = lambda msg: event_loop.dispatch1(self.on_request, msg)
 
     def on_request(self, request):
         command =  request["command"]

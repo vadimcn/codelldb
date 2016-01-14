@@ -2,23 +2,27 @@ import threading
 import json
 import string
 import logging
+import sys
 
 log = logging.getLogger(__name__)
 
-class V8SocketHandler:
+class ProtocolHandler:
 
-    def __init__(self, socket, handle_request):
-        self.socket = socket
-        self.handle_request = handle_request
+    def __init__(self, read, write):
+        self.read = read
+        self.write = write
         self.ibuffer = ""
         self.stopping = False
+
+    def start(self, handle_request):
+        self.handle_request = handle_request
         self.reader_thread = threading.Thread(None, self.pump_requests)
         self.reader_thread.start()
 
-    def __del__(self):
+    def shutdown(self):
         self.stopping = True
-        self.socket.close()
         self.reader_thread.join()
+        self.handle_request = None
 
     def recv_headers(self):
         while True:
@@ -35,27 +39,34 @@ class V8SocketHandler:
                 else:
                     log.error("No Content-Length header")
 
-            data = self.socket.recv(1024)
+            data = self.read(1024)
+            if len(data) == 0:
+                raise StopIteration()
             self.ibuffer += data
 
     def recv_body(self, clen):
         while len(self.ibuffer) < clen:
-            data = self.socket.recv(1024)
+            data = self.read(1024)
             self.ibuffer += data
         data = self.ibuffer[:clen]
+        if len(data) == 0:
+            raise StopIteration()
         self.ibuffer = self.ibuffer[clen:]
         return data
 
     def pump_requests(self):
-        while not self.stopping:
-            clen = self.recv_headers()
-            data = self.recv_body(clen)
-            message = json.loads(data)
-            log.info("-> %s", data)
-            self.handle_request(message)
+        try:
+            while not self.stopping:
+                clen = self.recv_headers()
+                data = self.recv_body(clen)
+                message = json.loads(data)
+                log.debug("-> %s", data)
+                self.handle_request(message)
+        except StopIteration: # Thrown when read() returns 0
+            pass
 
     def send_message(self, message):
         data = json.dumps(message)
-        log.info("<- %s", data)
-        self.socket.send("Content-Length: %d\r\n\r\n" % len(data))
-        self.socket.send(data)
+        log.debug("<- %s", data)
+        self.write("Content-Length: %d\r\n\r\n" % len(data))
+        self.write(data)

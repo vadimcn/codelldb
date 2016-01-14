@@ -3,8 +3,8 @@ var process = require('process');
 var fs = require('fs')
 
 // Point this to a file or a tty to see adapter's debug spew
-var lldb_log = fs.openSync('/dev/ttys001', 'w');
-//var lldb_log = 'ignore'
+var lldb_log = 'ignore'
+var lldb_log = fs.openSync('/dev/pts/19', 'w');
 
 var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.stdio(3,4)'], {
     // LLDB has readline attached to its stdin and sometimes spews debug messages to stdout,

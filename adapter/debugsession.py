@@ -1,11 +1,12 @@
+import sys
 import lldb
 import logging
 import debugevents
 import itertools
 import handles
 import terminal
+import subprocess
 import util
-import sys
 
 log = logging.getLogger(__name__)
 
@@ -122,6 +123,22 @@ class DebugSession:
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio, stdio, stdio, work_dir, flags, stop_on_entry, error)
+        assert self.process.IsValid()
+
+    def attach_request(self, args):
+        self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
+        self.send_event('initialized', {})
+        self.do_launch = lambda: self.attach(args)
+
+    def attach(self, args):
+        error = lldb.SBError()
+        if args.get('pid', None) is not None:
+            self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
+        else:
+            self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), True, error)
+
+        if not error.Success():
+            raise Exception(error.GetCString())
         assert self.process.IsValid()
 
     def setBreakpoints_request(self, args):

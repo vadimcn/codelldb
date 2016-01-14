@@ -56,19 +56,9 @@
                             "program"
                         ],
                         "properties": {
-                            "debugger": {
-                                "type": "string",
-                                "description": "Path to the debugger.",
-                                "default": "gdb"
-                            },
-                            "debuggerArgs": {
-                                "type": "array",
-                                "description": "Override debugger command line parameters.  If you provide this parameter, be sure to to put debugger into the Machine Interface (MI) mode!",
-                                "default": []
-                            },
                             "program": {
                                 "type": "string",
-                                "description": "Path to the program to debug."
+                                "description": "Path of the program to debug."
                             },
                             "args": {
                                 "type": "array",
@@ -108,21 +98,13 @@
                         }
                     },
                     "attach": {
-                        "required": [],
+                        "required": [
+                            "program"
+                        ],
                         "properties": {
-                            "debugger": {
-                                "type": "string",
-                                "description": "Path to the debugger.",
-                                "default": "gdb"
-                            },
-                            "debuggerArgs": {
-                                "type": "array",
-                                "description": "Override debugger command line parameters.  If you provide this parameter, be sure to to put debugger into the Machine Interface (MI) mode!",
-                                "default": []
-                            },
                             "program": {
                                 "type": "string",
-                                "description": "Path to the program to attach to."
+                                "description": "Path of the program to attach to."
                             },
                             "pid": {
                                 "type": "number",

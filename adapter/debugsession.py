@@ -76,16 +76,17 @@ class DebugSession:
                     self.send_event('terminated', {})
 
     def notify_target_stopped(self):
-        if all((thread.GetStopReason() == lldb.eStopReasonNone for thread in self.process)):
-            return
-
         causing_thread = None
         for thread in self.process:
             if thread.GetStopReason() != lldb.eStopReasonNone:
                 causing_thread = thread
-            else:
-                self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
 
+        if causing_thread is None:
+            return
+
+        for thread in self.process:
+            if thread is not causing_thread:
+                self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
         self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': causing_thread.GetThreadID() })
 
 

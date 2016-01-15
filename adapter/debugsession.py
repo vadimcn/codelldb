@@ -24,6 +24,7 @@ class DebugSession:
         self.listener_handler = debugevents.AsyncListener(self.event_listener,
             lambda event: event_loop.dispatch1(self.on_target_event, event))
         self.var_refs = handles.Handles()
+        self.breakpoints = {} # file -> line -> { verified, [actual]line }
         self.terminal = None
         self.handle_request = lambda msg: event_loop.dispatch1(self.on_request, msg)
 
@@ -155,14 +156,33 @@ class DebugSession:
 
     def setBreakpoints_request(self, args):
         file = str(args['source']['path'])
-        breakpoints = []
+
+        # "setBreakpoints" request is not incremental, it replaces all breakpoints in a file,
+        # which is wasteful if all you needed was to add or remove one breakpoint.
+        # Therefore, we perform a diff of the request and the existing debugger breakpoints:
+
+        # First, we delete existing breakpoints which are not in the new set.
+        file_bps = self.breakpoints.setdefault(file, {})
+        for line, bp_info in list(file_bps.items()):
+            if line not in args['lines']:
+                self.target.BreakpointDelete(bp_info['id'])
+                del file_bps[line]
+
+        # Next, create breakpoints which were not in the old set
+        result = [] # Must be in the same order as lines in the request
         for line in args['lines']:
-            bp = self.target.BreakpointCreateByLocation(file, line)
-            breakpoints.append({
-                'verified': bp.num_locations > 0,
-                'line': line
-            })
-        return { 'breakpoints': breakpoints }
+            bp_info = file_bps.get(line, None)
+            if bp_info is None:
+                bp = self.target.BreakpointCreateByLocation(file, line)
+                bp_info = {
+                    'id': bp.GetID(),
+                    'verified': bp.num_locations > 0,
+                    'line': line # TODO: find the the actual line
+                }
+                file_bps[line] = bp_info
+            result.append(bp_info)
+
+        return { 'breakpoints': result }
 
     def setExceptionBreakpoints_request(self, args):
         self.do_launch()

@@ -65,19 +65,19 @@ def print_event(event):
             stateStr = ''
             if type == lldb.SBProcess.eBroadcastBitStateChanged:
                 stateStr = process_states[state]
-            print '@@@ SBProcess Event', process_events[type], stateStr
+            print '--- SBProcess Event', process_events[type], stateStr
 
             if state == lldb.eStateStopped:
                 process = lldb.SBProcess.GetProcessFromEvent(event)
                 for thread in process:
                     stop_reason = thread.GetStopReason()
-                    print '@@@ Thread %d: %s' % (thread.GetThreadID(), stop_reasons[stop_reason])
+                    print '---   Thread %d: %s' % (thread.GetThreadID(), stop_reasons[stop_reason])
 
     elif lldb.SBThread.EventIsProcessEvent(event):
         type = lldb.SBThread.GetThreadEventTypeFromEvent(event);
-        print '@@@ SBThread Event', thread_events[type]
+        print '--- SBThread Event', thread_events[type]
     elif lldb.SBBreakpoint.EventIsProcessEvent(event):
         type = lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(event);
-        print '@@@ SBBreakpoint Event', breakpoint_events[type]
+        print '--- SBBreakpoint Event', breakpoint_events[type]
     else:
-        print '@@@ ??? event'
+        print '--- ??? event'

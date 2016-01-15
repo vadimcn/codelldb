@@ -146,8 +146,7 @@ class DebugSession:
 
     def setBreakpoints_request(self, args):
         file = str(args['source']['path'])
-
-        # "setBreakpoints" request is not incremental, it replaces all breakpoints in a file,
+        # The setBreakpoints request is not incremental, it replaces all breakpoints in a file,
         # which is wasteful if all you needed was to add or remove one breakpoint.
         # Therefore, we perform a diff of the request and the existing debugger breakpoints:
 

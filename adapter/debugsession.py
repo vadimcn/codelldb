@@ -69,27 +69,17 @@ class DebugSession:
                 state = lldb.SBProcess.GetStateFromEvent(event)
 
                 if state == lldb.eStateStopped:
-                    self.notify_target_stopped()
+                    self.notify_target_stopped(event)
                 elif state == lldb.eStateExited:
                     self.send_event('exited', { 'exitCode': self.process.GetExitStatus() })
                     self.send_event('terminated', {}) # VSCode doesn't seem to handle 'exited' for now
                 elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
                     self.send_event('terminated', {})
 
-    def notify_target_stopped(self):
-        causing_thread = None
-        for thread in self.process:
-            if thread.GetStopReason() != lldb.eStopReasonNone:
-                causing_thread = thread
-
-        if causing_thread is None:
-            return
-
-        for thread in self.process:
-            if thread is not causing_thread:
-                self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
-        self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': causing_thread.GetThreadID() })
-
+    def notify_target_stopped(self, event):
+        if not lldb.SBProcess.GetRestartedFromEvent(event):
+            for thread in self.process:
+                self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': thread.GetThreadID() })
 
     def send_event(self, event, body):
         message = {

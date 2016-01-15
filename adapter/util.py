@@ -65,7 +65,8 @@ def print_event(event):
             stateStr = ''
             if type == lldb.SBProcess.eBroadcastBitStateChanged:
                 stateStr = process_states[state]
-            print '--- SBProcess Event', process_events[type], stateStr
+            restarted = lldb.SBProcess.GetRestartedFromEvent(event)
+            print '--- SBProcess Event', process_events[type], stateStr, restarted
 
             if state == lldb.eStateStopped:
                 process = lldb.SBProcess.GetProcessFromEvent(event)

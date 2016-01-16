@@ -289,9 +289,10 @@ class DebugSession:
             value = var.GetSummary()
         if value is None:
             value = '{...}'
+        value = value.decode('latin1') # or else json will try to treat it as utf8
         dtype = var.GetTypeName()
         ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
-        return (name, value, dtype, ref)
+        return name, value, dtype, ref
 
     def disconnect_request(self, args):
         self.process.Kill()

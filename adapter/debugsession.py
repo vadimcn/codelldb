@@ -105,7 +105,7 @@ class DebugSession:
 
         target_args = args.get('args', None)
         if target_args is not None:
-            target_args = [str(arg) for arg in args]
+            target_args = [str(arg) for arg in target_args]
 
         env = args.get('env', None)
         envp = None

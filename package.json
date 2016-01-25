@@ -73,7 +73,7 @@
                             "env": {
                                 "type": "object",
                                 "description": "Additional environment variables.",
-                                "default": null
+                                "default": []
                             },
                             "stdio": {
                                 "type": "string",
@@ -87,12 +87,12 @@
                             },
                             "initCommands": {
                                 "type": "array",
-                                "description": "Initialization commands.",
+                                "description": "Initialization commands executed upon debugger startup.",
                                 "default": []
                             },
                             "preRunCommands": {
                                 "type": "array",
-                                "description": "Commands to execute after loading the program, but before it is started",
+                                "description": "Commands executed just before the program is launched or attached to.",
                                 "default": []
                             }
                         }
@@ -130,11 +130,10 @@
                 },
                 "initialConfigurations": [
                     {
-                        "name": "LLDB",
+                        "name": "Debug",
                         "type": "lldb",
                         "request": "launch",
-                        "program": "readme.md",
-                        "stopOnEntry": true
+                        "program": "<your program>"
                     }
                 ]
             }

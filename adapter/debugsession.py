@@ -94,6 +94,7 @@ class DebugSession:
         pass
 
     def launch_request(self, args):
+        self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
         self.send_event('initialized', {})
         # defer actual launching till the setExceptionBreakpoints request,
@@ -101,6 +102,7 @@ class DebugSession:
         self.do_launch = lambda: self.launch(args)
 
     def launch(self, args):
+        self.exec_commands(args.get('preRunCommands'))
         flags = 0
 
         target_args = args.get('args', None)
@@ -129,11 +131,14 @@ class DebugSession:
         assert self.process.IsValid(), 'process.IsValid()'
 
     def attach_request(self, args):
+        self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
         self.send_event('initialized', {})
         self.do_launch = lambda: self.attach(args)
 
     def attach(self, args):
+        self.exec_commands(args.get('preRunCommands'))
+
         error = lldb.SBError()
         if args.get('pid', None) is not None:
             self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
@@ -143,6 +148,15 @@ class DebugSession:
         if not error.Success():
             raise Exception(error.GetCString())
         assert self.process.IsValid(), 'process.IsValid()'
+
+    def exec_commands(self, commands):
+        if commands is not None:
+            interp = self.debugger.GetCommandInterpreter()
+            result = lldb.SBCommandReturnObject()
+            for command in commands:
+                interp.HandleCommand(str(command), result)
+                output = result.GetOutput() if result.Succeeded() else result.GetError()
+                self.send_event('output', { 'category': 'console', 'output': output })
 
     def setBreakpoints_request(self, args):
         file = str(args['source']['path'])

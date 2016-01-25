@@ -91,7 +91,8 @@ class DebugSession:
         self.send_message(message)
 
     def initialize_request(self, args):
-        pass
+        self.line_offset = 0 if args.get('linesStartAt1', True) else -1
+        self.col_offset = 0 if args.get('columnsStartAt1', True) else -1
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))

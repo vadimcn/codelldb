@@ -10,9 +10,6 @@ import util
 
 log = logging.getLogger(__name__)
 
-def opt_str(s):
-    return str(s) if s != None else None
-
 class DebugSession:
 
     def __init__(self, event_loop, send_message):
@@ -24,7 +21,7 @@ class DebugSession:
         self.listener_handler = debugevents.AsyncListener(self.event_listener,
             lambda event: event_loop.dispatch1(self.on_target_event, event))
         self.var_refs = handles.Handles()
-        self.breakpoints = {} # file -> line -> { verified, [actual]line }
+        self.breakpoints = {} # file -> line -> SBBreakpoint
         self.terminal = None
         self.handle_request = lambda msg: event_loop.dispatch1(self.on_request, msg)
 
@@ -93,6 +90,7 @@ class DebugSession:
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else -1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else -1
+        return { 'supportsConfigurationDoneRequest': True, 'supportEvaluateForHovers': True }
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -165,30 +163,40 @@ class DebugSession:
         # which is wasteful if all you needed was to add or remove one breakpoint.
         # Therefore, we perform a diff of the request and the existing debugger breakpoints:
 
+        bp_reqs = args['breakpoints']
+        bp_lines = [bp_req['line'] for bp_req in bp_reqs]
         # First, we delete existing breakpoints which are not in the new set.
         file_bps = self.breakpoints.setdefault(file, {})
-        for line, bp_info in list(file_bps.items()):
-            if line not in args['lines']:
-                self.target.BreakpointDelete(bp_info['id'])
+        for line, bp in list(file_bps.items()):
+            if line not in bp_lines:
+                self.target.BreakpointDelete(bp.GetID())
                 del file_bps[line]
 
         # Next, create breakpoints which were not in the old set
-        result = [] # Must be in the same order as lines in the request
-        for line in args['lines']:
-            bp_info = file_bps.get(line, None)
-            if bp_info is None:
+        result = []
+        for bp_req in bp_reqs:
+            line = bp_req['line']
+            bp = file_bps.get(line, None)
+            if bp is None:
                 bp = self.target.BreakpointCreateByLocation(file, line)
-                bp_info = {
-                    'id': bp.GetID(),
-                    'verified': bp.num_locations > 0,
-                    'line': line # TODO: find the the actual line
-                }
-                file_bps[line] = bp_info
-            result.append(bp_info)
+                file_bps[line] = bp
+            cond = bp_req.get('condition', None)
+            if cond is not None:
+                bp.SetCondition(str(cond))
+            bp_resp = {
+                'id': bp.GetID(),
+                'verified': bp.num_locations > 0,
+                'line': line # TODO: find the the actual line
+            }
+            result.append(bp_resp)
 
         return { 'breakpoints': result }
 
     def setExceptionBreakpoints_request(self, args):
+        #self.do_launch()
+        pass
+
+    def configurationDone_request(self, args):
         self.do_launch()
 
     def pause_request(self, args):
@@ -280,9 +288,9 @@ class DebugSession:
     def evaluate_request(self, args):
         context = args['context']
         expr = str(args['expression'])
-        if context == 'watch':
+        if context != 'repl': # i.e. 'watch' or 'hover'
             return self.evaluate_expr(args, expr)
-        elif expr.startswith('?'): # 'repl'
+        elif expr.startswith('?'):
             return self.evaluate_expr(args, expr[1:])
         # evaluate as debugger command
         interp = self.debugger.GetCommandInterpreter()
@@ -320,3 +328,6 @@ class DebugSession:
         self.process.Kill()
         self.terminal = None
         self.event_loop.stop()
+
+def opt_str(s):
+    return str(s) if s != None else None

@@ -290,13 +290,22 @@ class DebugSession:
         expr = str(args['expression'])
         if context != 'repl': # i.e. 'watch' or 'hover'
             return self.evaluate_expr(args, expr)
-        elif expr.startswith('?'):
+        elif expr.startswith('?'): # "?<expr>" in 'repl' context
             return self.evaluate_expr(args, expr[1:])
-        # evaluate as debugger command
+        # Else evaluate as debugger command
+
+        # set up evaluation context
+        frame = self.var_refs.get(args.get('frameId', 0), None)
+        assert frame is not None
+        thread = frame.GetThread()
+        self.process.SetSelectedThread(thread)
+        thread.SetSelectedFrame(frame.GetFrameID())
+        # evaluate
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
         interp.HandleCommand(str(expr), result)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
+        # returning output as result would encode all ends of lines as '\n'
         self.send_event('output', { 'category': 'console', 'output': output })
         return { 'result': '' }
 

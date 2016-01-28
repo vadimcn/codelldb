@@ -180,9 +180,9 @@ class DebugSession:
             if bp is None:
                 bp = self.target.BreakpointCreateByLocation(file, line)
                 file_bps[line] = bp
-            cond = bp_req.get('condition', None)
-            if cond is not None:
-                bp.SetCondition(str(cond))
+            cond = opt_str(bp_req.get('condition', None))
+            if cond != bp.GetCondition():
+                bp.SetCondition(cond)
             bp_resp = {
                 'id': bp.GetID(),
                 'verified': bp.num_locations > 0,

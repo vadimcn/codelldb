@@ -76,7 +76,7 @@
                                 "default": []
                             },
                             "stdio": {
-                                "type": "string",
+                                "type": "object",
                                 "description": "Where to attach the program's stdio to: '*' = open a new terminal, '<path>' = attach to existing tty/fifo/etc (Linux and OSX only).",
                                 "default": "*"
                             },

@@ -263,17 +263,17 @@ class DebugSession:
         elif type(obj) is lldb.SBValue:
             vars = obj
         else:
-            vars = obj[0].GetNonSyntheticValue()
+            vars = obj[1].GetNonSyntheticValue()
 
         for var in vars:
             name, value, dtype, ref = self.parse_var(var)
             variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
             variables.append(variable)
 
-        # if type(vars) is lldb.SBValue:
-        #     ref = self.var_refs.create((vars,))
-        #     variable = { 'name': '[raw]', 'value': '{...}', 'variablesReference': ref }
-        #     variables.append(variable)
+        if type(vars) is lldb.SBValue and vars.IsSynthetic():
+            ref = self.var_refs.create(('synthetic', vars))
+            variable = { 'name': '[raw]', 'value': vars.GetTypeName(), 'variablesReference': ref }
+            variables.append(variable)
 
         return { 'variables': variables }
 

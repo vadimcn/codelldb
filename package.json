@@ -3,6 +3,7 @@
     "displayName": "LLDB Debugger",
     "version": "0.0.1",
     "publisher": "vadimcn",
+    "iconUrl": "lldb.png",
     "description": "",
     "author": {
         "name": "vadimcn"
@@ -22,18 +23,10 @@
     "bugs": {
         "url": "https://github.com/vadimcn/vscode-lldb/issues"
     },
-    "dependencies": {
-        "vscode-debugadapter": "^1.0.1",
-        "vscode-debugprotocol": "^1.0.1"
-    },
     "devDependencies": {
-        "typescript": "^1.7.5",
         "mocha": "*"
     },
     "scripts": {
-        "prepublish": "tsc -p ./src",
-        "compile": "tsc -p ./src",
-        "watch": "tsc -w -p ./src",
         "test": "mocha out/tests"
     },
     "contributes": {
@@ -43,7 +36,14 @@
                 "label": "LLDB debugger",
                 "enableBreakpointsFor": {
                     "languageIds": [
-                        "rust", "c", "cpp"
+                        "rust",
+                        "c",
+                        "cpp",
+                        "d",
+						"objective-c",
+						"fortan",
+						"pascal",
+						"ada"
                     ]
                 },
 

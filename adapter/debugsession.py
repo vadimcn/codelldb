@@ -296,7 +296,7 @@ class DebugSession:
 
         # set up evaluation context
         frame = self.var_refs.get(args.get('frameId', 0), None)
-        assert frame is not None
+        assert frame is not None, 'frameId is valid'
         thread = frame.GetThread()
         self.process.SetSelectedThread(thread)
         thread.SetSelectedFrame(frame.GetFrameID())

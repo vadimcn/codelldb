@@ -1,6 +1,7 @@
 import os
 import logging
 import signal
+import lldb
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ def server(port=4711, logLevel=10):
     import socket
 
     configLogging(logLevel)
-    logging.info("Server mode on port %d (Ctrl-C to stop)", port)
+    log.info("Server mode on port %d (Ctrl-C to stop)", port)
+    log.info("%s", lldb.debugger.GetVersionString())
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     ls.bind(('127.0.0.1', port))
@@ -47,6 +49,7 @@ def server(port=4711, logLevel=10):
 def stdio(ifd, ofd, logLevel=10):
     configLogging(logLevel)
     log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
+    log.info("%s", lldb.debugger.GetVersionString())
     r = lambda n: os.read(ifd, n)
     w = lambda data: os.write(ofd, data)
     run_session(r, w)

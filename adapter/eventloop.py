@@ -5,8 +5,8 @@ class EventLoop:
         self.queue = Queue.Queue(qsize)
 
     def dispatch(self, target, args):
-        '''Dispatch to function with argument tuple'''
-        self.queue.put(target, args)
+        '''Dispatch to function with a tuple of arguments'''
+        self.queue.put((target, args))
 
     def dispatch1(self, target, arg):
         '''Dispatch to function with 1 argument'''

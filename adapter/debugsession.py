@@ -336,7 +336,7 @@ class DebugSession:
         result = lldb.SBCommandReturnObject()
         interp.HandleCommand(str(expr), result)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
-        # returning output as result would encode all ends of lines as '\n'
+        # returning output as result would display all line breaks as '\n'
         self.send_event('output', { 'category': 'console', 'output': output })
         return { 'result': '' }
 
@@ -357,6 +357,8 @@ class DebugSession:
         value = var.GetValue()
         if value is None:
             value = var.GetSummary()
+            if value is not None:
+                value = value.replace('\n', '') # VSCode won't display line breaks
         if value is None:
             value = '{...}'
         value = value.decode('latin1') # or else json will try to treat it as utf8

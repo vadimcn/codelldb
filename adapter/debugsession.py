@@ -96,8 +96,8 @@ class DebugSession:
         self.send_message(message)
 
     def initialize_request(self, args):
-        self.line_offset = 0 if args.get('linesStartAt1', True) else -1
-        self.col_offset = 0 if args.get('columnsStartAt1', True) else -1
+        self.line_offset = 0 if args.get('linesStartAt1', True) else 1
+        self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
         return { 'supportsConfigurationDoneRequest': True, 'supportEvaluateForHovers': True }
 
     def launch_request(self, args):

@@ -59,6 +59,9 @@ class DebugSession:
 
     def on_target_event(self, event):
         util.print_event(event)
+        descr = lldb.SBStream()
+        event.GetDescription(descr)
+        print '%%%%%', event.GetDataFlavor(), descr.GetData()
 
         if lldb.SBProcess.EventIsProcessEvent(event):
             type = event.GetType()
@@ -150,6 +153,13 @@ class DebugSession:
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
             raise Exception(error.GetCString())
+        print "%%%% ", self.event_listener.StartListeningForEvents(
+            self.process.GetBroadcaster(),
+            lldb.SBProcess.eBroadcastBitInterrupt |
+            lldb.SBProcess.eBroadcastBitProfileData |
+            lldb.SBProcess.eBroadcastBitStateChanged |
+            lldb.SBProcess.eBroadcastBitSTDERR |
+            lldb.SBProcess.eBroadcastBitSTDOUT)
         assert self.process.IsValid(), 'process.IsValid()'
 
     def attach_request(self, args):

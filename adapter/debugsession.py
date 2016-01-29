@@ -15,7 +15,7 @@ class DebugSession:
     def __init__(self, event_loop, send_message):
         self.event_loop = event_loop
         self.send_message = send_message
-        self.debugger = lldb.debugger
+        self.debugger = lldb.SBDebugger.Create()
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
         self.listener_handler = debugevents.AsyncListener(self.event_listener,
@@ -28,7 +28,7 @@ class DebugSession:
     def on_request(self, request):
         command =  request['command']
         args = request.get('arguments', None)
-        log.info('### %s ###', command)
+        log.debug('### %s ###', command)
 
         response = {
             'type': 'response',
@@ -58,23 +58,28 @@ class DebugSession:
         self.send_message(response)
 
     def on_target_event(self, event):
-        util.print_event(event)
-        descr = lldb.SBStream()
-        event.GetDescription(descr)
-        print '%%%%%', event.GetDataFlavor(), descr.GetData()
-
         if lldb.SBProcess.EventIsProcessEvent(event):
             type = event.GetType()
             if type == lldb.SBProcess.eBroadcastBitStateChanged:
                 state = lldb.SBProcess.GetStateFromEvent(event)
-
                 if state == lldb.eStateStopped:
                     self.notify_target_stopped(event)
                 elif state == lldb.eStateExited:
                     self.send_event('exited', { 'exitCode': self.process.GetExitStatus() })
-                    self.send_event('terminated', {}) # VSCode doesn't seem to handle 'exited' for now
+                    self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
                 elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
                     self.send_event('terminated', {})
+            elif type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
+                if type == lldb.SBProcess.eBroadcastBitSTDOUT:
+                    read_stream = self.process.GetSTDOUT
+                    category = 'stdout'
+                else:
+                    read_stream = self.process.GetSTDERR
+                    category = 'stderr'
+                output = read_stream(1024)
+                while len(output) != 0:
+                    self.send_event('output', { 'category': category, 'output': output })
+                    output = read_stream(1024)
 
     def notify_target_stopped(self, event):
         if not lldb.SBProcess.GetRestartedFromEvent(event):
@@ -153,13 +158,6 @@ class DebugSession:
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
             raise Exception(error.GetCString())
-        print "%%%% ", self.event_listener.StartListeningForEvents(
-            self.process.GetBroadcaster(),
-            lldb.SBProcess.eBroadcastBitInterrupt |
-            lldb.SBProcess.eBroadcastBitProfileData |
-            lldb.SBProcess.eBroadcastBitStateChanged |
-            lldb.SBProcess.eBroadcastBitSTDERR |
-            lldb.SBProcess.eBroadcastBitSTDOUT)
         assert self.process.IsValid(), 'process.IsValid()'
 
     def attach_request(self, args):

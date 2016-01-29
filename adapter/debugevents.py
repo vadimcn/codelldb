@@ -22,5 +22,9 @@ class AsyncListener:
         event = lldb.SBEvent()
         while not self.stopping:
             if self.listener.WaitForEvent(1, event):
+                if log.isEnabledFor(logging.DEBUG):
+                    descr = lldb.SBStream()
+                    event.GetDescription(descr)
+                    log.debug('Event: %s %s', event.GetDataFlavor(), descr.GetData())
                 self.event_sink(event)
                 event = lldb.SBEvent()

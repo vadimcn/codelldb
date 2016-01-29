@@ -114,17 +114,24 @@ class DebugSession:
             envp = ['%s=%s' % item for item in env.iteritems()]
         # stdio
         stdio = args.get('stdio', None)
+        missing = () # None is a valid value here, so we need a new one to designate 'missing'
         if type(stdio) is dict:
-            stdio = [stdio.get('stdin'), stdio.get('stdout'), stdio.get('stderr')]
+            stdio = [stdio.get('stdin', missing),
+                     stdio.get('stdout', missing),
+                     stdio.get('stderr', missing)]
         elif type(stdio) in [type(None), str, unicode]:
             stdio = [stdio] * 3
         elif type(stdio) is list:
-            stdio.extend([None] * (3-len(stdio))) # pad up to 3 items
+            stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
         else:
             raise Exception('stdio must be either a string, a list or an object')
-        stdio = map(opt_str, stdio) # convert unicode to ascii
+        # replace all missing's with the previous stream's value
+        for i in range(0, len(stdio)):
+            if stdio[i] == missing:
+                stdio[i] = stdio[i-1] if i > 0 else None
+        stdio = map(opt_str, stdio) # convert unicode strings to ascii
+        # open a new terminal window if needed
         if '*' in stdio:
-            # open a new terminal window
             if 'linux' in sys.platform:
                 self.terminal = terminal.create()
                 stdio = [self.terminal.tty if s == '*' else s for s in stdio]

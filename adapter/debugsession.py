@@ -140,7 +140,6 @@ class DebugSession:
                 # On Windows LLDB always creates new console window (even if stdio is redirected).
                 flags |= lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
                 stdio = [None if s == '*' else s for s in stdio]
-        log.info('stdio: %s %s %s', stdio[0], stdio[1], stdio[2])
         # working directory
         work_dir = opt_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)

@@ -25,6 +25,6 @@ class AsyncListener:
                 if log.isEnabledFor(logging.DEBUG):
                     descr = lldb.SBStream()
                     event.GetDescription(descr)
-                    log.debug('Event: %s %s', event.GetDataFlavor(), descr.GetData())
+                    log.debug('@@@ %s %s', event.GetDataFlavor(), descr.GetData())
                 self.event_sink(event)
                 event = lldb.SBEvent()

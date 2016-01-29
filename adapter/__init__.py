@@ -25,10 +25,10 @@ def configLogging(level):
     logging.basicConfig(level=level, stream=os.fdopen(2, "w"))
 
 # Run in socket server mode
-def server(port=4711, logLevel=0):
+def server(port=4711, loglevel=0):
     import socket
 
-    configLogging(logLevel)
+    configLogging(loglevel)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
     log.info("%s", lldb.debugger.GetVersionString())
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,8 +46,8 @@ def server(port=4711, logLevel=0):
 
 
 # Single-session run using the specified input and output fds
-def stdio(ifd, ofd, logLevel=40):
-    configLogging(logLevel)
+def stdio(ifd, ofd, loglevel=40):
+    configLogging(loglevel)
     log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
     log.info("%s", lldb.debugger.GetVersionString())
     r = lambda n: os.read(ifd, n)

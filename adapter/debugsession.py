@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 class DebugSession:
 
     def __init__(self, event_loop, send_message):
+        DebugSession.current = self
         self.event_loop = event_loop
         self.send_message = send_message
         self.debugger = lldb.SBDebugger.Create()
@@ -21,9 +22,13 @@ class DebugSession:
         self.listener_handler = debugevents.AsyncListener(self.event_listener,
             lambda event: event_loop.dispatch1(self.on_target_event, event))
         self.var_refs = handles.Handles()
-        self.breakpoints = {} # file -> line -> SBBreakpoint
+        self.breakpoints = dict() # {file => {line => SBBreakpoint}}
+        self.threads = set()
         self.terminal = None
         self.handle_request = lambda msg: event_loop.dispatch1(self.on_request, msg)
+        # register the 'allthreads' command
+        self.debugger.HandleCommand('script import adapter')
+        self.debugger.HandleCommand('command script add -f adapter.debugsession.allthreads_command allthreads')
 
     def on_request(self, request):
         command =  request['command']
@@ -59,32 +64,64 @@ class DebugSession:
 
     def on_target_event(self, event):
         if lldb.SBProcess.EventIsProcessEvent(event):
-            type = event.GetType()
-            if type == lldb.SBProcess.eBroadcastBitStateChanged:
+            ev_type = event.GetType()
+            if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:
                 state = lldb.SBProcess.GetStateFromEvent(event)
                 if state == lldb.eStateStopped:
-                    self.notify_target_stopped(event)
+                    if not lldb.SBProcess.GetRestartedFromEvent(event):
+                        self.notify_target_stopped(event)
                 elif state == lldb.eStateExited:
                     self.send_event('exited', { 'exitCode': self.process.GetExitStatus() })
                     self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
                 elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
                     self.send_event('terminated', {})
-            elif type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
-                if type == lldb.SBProcess.eBroadcastBitSTDOUT:
-                    read_stream = self.process.GetSTDOUT
-                    category = 'stdout'
-                else:
-                    read_stream = self.process.GetSTDERR
-                    category = 'stderr'
-                output = read_stream(1024)
-                while len(output) != 0:
-                    self.send_event('output', { 'category': category, 'output': output })
-                    output = read_stream(1024)
+            elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
+                self.notify_stdio(ev_type)
 
     def notify_target_stopped(self, event):
-        if not lldb.SBProcess.GetRestartedFromEvent(event):
-            for thread in self.process:
+        self.notify_live_threads()
+
+        # VSCode bug #40: On one hand VSCode won't display stacks of the thread that were not reported 'stopped',
+        # on the other hand, if we report more than one, the UI will choose which one is the current one
+        # seemingly randomly.  Which makes breakpoint stops confusing and stepping - nearly unusable.
+        # So here's the compromise: if this stop is due to hitting a breakpoint or stepping, we report only the
+        # thread that has caused it.  The user can still display all stacks via the 'allthreads' command.
+        # For other stops we report all threads, as the current selection is presumably irrelevant.
+        for thread in self.process:
+            stop_reason = thread.GetStopReason()
+            if stop_reason == lldb.eStopReasonBreakpoint:
                 self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': thread.GetThreadID() })
+                return
+            elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
+                self.send_event('stopped', { 'reason': 'step', 'threadId': thread.GetThreadID() })
+                return
+        # otherwise, report all threads
+        for thread in self.process:
+            self.send_event('stopped', { 'reason': 'pause', 'threadId': thread.GetThreadID() })
+
+    def notify_stdio(self, ev_type):
+        if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:
+            read_stream = self.process.GetSTDOUT
+            category = 'stdout'
+        else:
+            read_stream = self.process.GetSTDERR
+            category = 'stderr'
+        output = read_stream(1024)
+        while len(output) != 0:
+            self.send_event('output', { 'category': category, 'output': output })
+            output = read_stream(1024)
+
+    def notify_live_threads(self):
+        curr_threads = set((thread.GetThreadID() for thread in self.process))
+        for tid in self.threads - curr_threads:
+            self.send_event('thread', { 'reason': 'exited', 'threadId': tid })
+        for tid in curr_threads - self.threads:
+            self.send_event('thread', { 'reason': 'started', 'threadId': tid })
+        self.threads = curr_threads
+
+    def send_allthreads_stop(self):
+        for thread in self.process.threads:
+            self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
 
     def send_event(self, event, body):
         message = {
@@ -254,8 +291,8 @@ class DebugSession:
     def threads_request(self, args):
         threads = []
         for thread in self.process:
-            threads.append({ 'id': thread.GetThreadID(),
-                             'name': '%s:%d' % (thread.GetName(), thread.GetThreadID()) })
+            tid = thread.GetThreadID()
+            threads.append({ 'id': tid, 'name': '%s:%d' % (thread.GetName(), tid) })
         return { 'threads': threads }
 
     def stackTrace_request(self, args):
@@ -370,6 +407,10 @@ class DebugSession:
         self.process.Kill()
         self.terminal = None
         self.event_loop.stop()
+
+
+def allthreads_command(self, debugger, command, result, internal_dict):
+    DebugSession.current.send_allthreads_stop()
 
 def opt_str(s):
     return str(s) if s != None else None

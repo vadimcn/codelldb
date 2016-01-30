@@ -107,7 +107,7 @@ class DebugSession:
             read_stream = self.process.GetSTDERR
             category = 'stderr'
         output = read_stream(1024)
-        while len(output) != 0:
+        while output:
             self.send_event('output', { 'category': category, 'output': output })
             output = read_stream(1024)
 

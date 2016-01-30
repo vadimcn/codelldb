@@ -136,7 +136,9 @@ class DebugSession:
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
-        return { 'supportsConfigurationDoneRequest': True, 'supportEvaluateForHovers': True }
+        return { 'supportsConfigurationDoneRequest': True,
+                 'supportsEvaluateForHovers': True,
+                 'supportsFunctionBreakpoints': False } # TODO: what are those?
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -196,7 +198,7 @@ class DebugSession:
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
             raise Exception(error.GetCString())
-        assert self.process.IsValid(), 'process.IsValid()'
+        assert self.process.IsValid()
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -215,7 +217,7 @@ class DebugSession:
 
         if not error.Success():
             raise Exception(error.GetCString())
-        assert self.process.IsValid(), 'process.IsValid()'
+        assert self.process.IsValid()
 
     def exec_commands(self, commands):
         if commands is not None:
@@ -255,7 +257,7 @@ class DebugSession:
             bp_resp = {
                 'id': bp.GetID(),
                 'verified': bp.num_locations > 0,
-                'line': line # TODO: find the the actual line
+                'line': line # TODO: find out the the actual line
             }
             result.append(bp_resp)
 

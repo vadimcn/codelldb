@@ -339,6 +339,8 @@ class DebugSession:
     def variables_request(self, args):
         variables = []
         obj = self.var_refs.get(args['variablesReference'])
+        if obj is None:
+            raise Exception('Invalid variable reference')
 
         if type(obj) is lldb.SBFrame:
             vars = obj.GetVariables(True, True, False, True)

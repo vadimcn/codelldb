@@ -281,15 +281,18 @@ class DebugSession:
 
     def next_request(self, args):
         self.var_refs.reset()
-        self.process.GetSelectedThread().StepOver()
+        tid = args['threadId']
+        self.process.GetThreadByID(tid).StepOver()
 
     def stepIn_request(self, args):
         self.var_refs.reset()
-        self.process.GetSelectedThread().StepInto()
+        tid = args['threadId']
+        self.process.GetThreadByID(tid).StepInto()
 
     def stepOut_request(self, args):
         self.var_refs.reset()
-        self.process.GetSelectedThread().StepOut()
+        tid = args['threadId']
+        self.process.GetThreadByID(tid).StepOut()
 
     def threads_request(self, args):
         threads = []

@@ -197,7 +197,9 @@ class DebugSession:
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
-            raise Exception(error.GetCString())
+            self.send_event('output', { 'category': 'console', 'output': error.GetCString() })
+            self.send_event('terminated', {})
+            raise Exception('Process attach failed.')
         assert self.process.IsValid()
 
     def attach_request(self, args):
@@ -216,7 +218,9 @@ class DebugSession:
             self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), True, error)
 
         if not error.Success():
-            raise Exception(error.GetCString())
+            self.send_event('output', { 'category': 'console', 'output': error.GetCString() })
+            self.send_event('terminated', {})
+            raise Exception('Process attach failed.')
         assert self.process.IsValid()
 
     def exec_commands(self, commands):

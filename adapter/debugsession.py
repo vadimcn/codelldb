@@ -371,11 +371,11 @@ class DebugSession:
         # Else evaluate as debugger command
 
         # set up evaluation context
-        frame = self.var_refs.get(args.get('frameId', 0), None)
-        assert frame is not None, 'frameId is valid'
-        thread = frame.GetThread()
-        self.process.SetSelectedThread(thread)
-        thread.SetSelectedFrame(frame.GetFrameID())
+        frame = self.var_refs.get(args.get('frameId', None), None)
+        if frame is not None:
+            thread = frame.GetThread()
+            self.process.SetSelectedThread(thread)
+            thread.SetSelectedFrame(frame.GetFrameID())
         # evaluate
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()

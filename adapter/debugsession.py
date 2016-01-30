@@ -6,7 +6,7 @@ import itertools
 import handles
 import terminal
 import subprocess
-import util
+import traceback
 
 log = logging.getLogger(__name__)
 
@@ -48,12 +48,13 @@ class DebugSession:
                 response['body'] = handler(args)
                 response['success'] = True
             except Exception as e:
-                log.error(repr(e))
+                tb = traceback.format_exc(e)
+                log.error('Internal error:\n' + tb)
                 response['success'] = False
                 response['body'] = {
                     'error': {
                         'id': 1,
-                        'format': str(e),
+                        'format': 'Internal error: ' + str(e),
                         'showUser': True
                     }
                 }

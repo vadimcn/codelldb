@@ -17,6 +17,7 @@ class DebugSession:
         self.event_loop = event_loop
         self.send_message = send_message
         self.debugger = lldb.SBDebugger.Create()
+        log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
         self.listener_handler = debugevents.AsyncListener(self.event_listener,
@@ -72,7 +73,9 @@ class DebugSession:
                     if not lldb.SBProcess.GetRestartedFromEvent(event):
                         self.notify_target_stopped(event)
                 elif state == lldb.eStateExited:
-                    self.send_event('exited', { 'exitCode': self.process.GetExitStatus() })
+                    exit_code = self.process.GetExitStatus()
+                    self.console_msg('Process exited with code %d' % exit_code)
+                    self.send_event('exited', { 'exitCode': exit_code })
                     self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
                 elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
                     self.send_event('terminated', {})
@@ -109,7 +112,7 @@ class DebugSession:
             category = 'stderr'
         output = read_stream(1024)
         while output:
-            self.send_event('output', { 'category': category, 'output': output })
+            self.console_msg(output)
             output = read_stream(1024)
 
     def notify_live_threads(self):
@@ -132,6 +135,10 @@ class DebugSession:
             'body': body
         }
         self.send_message(message)
+
+    # Write a message to debug console
+    def console_msg(self, output):
+        self.send_event('output', { 'category': 'console', 'output': output })
 
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -197,7 +204,7 @@ class DebugSession:
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
-            self.send_event('output', { 'category': 'console', 'output': error.GetCString() })
+            self.console_msg(error.GetCString())
             self.send_event('terminated', {})
             raise Exception('Process attach failed.')
         assert self.process.IsValid()
@@ -218,7 +225,7 @@ class DebugSession:
             self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), True, error)
 
         if not error.Success():
-            self.send_event('output', { 'category': 'console', 'output': error.GetCString() })
+            self.console_msg(error.GetCString())
             self.send_event('terminated', {})
             raise Exception('Process attach failed.')
         assert self.process.IsValid()
@@ -230,7 +237,7 @@ class DebugSession:
             for command in commands:
                 interp.HandleCommand(str(command), result)
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
-                self.send_event('output', { 'category': 'console', 'output': output })
+                self.console_msg(output)
 
     def setBreakpoints_request(self, args):
         file = str(args['source']['path'])
@@ -386,7 +393,7 @@ class DebugSession:
         interp.HandleCommand(str(expr), result)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
         # returning output as result would display all line breaks as '\n'
-        self.send_event('output', { 'category': 'console', 'output': output })
+        self.console_msg(output)
         return { 'result': '' }
 
     def evaluate_expr(self, args, expr):
@@ -399,7 +406,7 @@ class DebugSession:
             return { 'result': value, 'type': dtype, 'variablesReference': ref }
         else:
             output = var.GetError().GetCString()
-            self.send_event('output', { 'category': 'console', 'output': output })
+            self.console_msg(output)
 
     def parse_var(self, var):
         name = var.GetName()

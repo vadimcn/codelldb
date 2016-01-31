@@ -47,8 +47,9 @@
                     ]
                 },
 
-                "runtime": "node",
-                "program": "launcher.js",
+                "runtime": "python",
+                "program": "adapter",
+                "args": ["--stdio"],
 
                 "configurationAttributes": {
                     "launch": {

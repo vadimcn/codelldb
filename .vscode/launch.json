@@ -13,20 +13,6 @@
 			"sourceMaps": true,
 			"outDir": "out",
 			"preLaunchTask": "npm"
-		},
-		{
-			"name": "Debug Launcher",
-			"type": "node",
-			"request": "launch",
-            "runtimeArgs": ["--harmony"],
-            "program": "${workspaceRoot}/launcher.js",
-            "stopOnEntry": false
-		},
-		{
-			"name": "Attach to Launcher",
-			"type": "node",
-			"request": "attach",
-            "port": 5858
 		}
 	]
 }

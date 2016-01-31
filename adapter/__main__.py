@@ -1,11 +1,14 @@
+import sys
 import os
 import logging
-import signal
-import lldb
+import subprocess
+import traceback
 
-log = logging.getLogger(__name__)
-
-signal.signal(signal.SIGINT, signal.SIG_DFL)
+def setup_lldb():
+    # Ask LLDB where its Python modules live
+    lldb_pypath = subprocess.check_output(['lldb', '--python-path']).strip()
+    log.info('LLDB python path: %s', lldb_pypath)
+    sys.path[:0] = [lldb_pypath]
 
 def run_session(read, write):
     import debugsession
@@ -21,16 +24,10 @@ def run_session(read, write):
     event_loop.run()
     proto_handler.shutdown()
 
-def configLogging(level):
-    logging.basicConfig(level=level, stream=os.fdopen(2, "w"))
-
 # Run in socket server mode
-def server(port=4711, loglevel=0):
+def run_tcp_server(port=4711):
     import socket
-
-    configLogging(loglevel)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
-    log.info("%s", lldb.debugger.GetVersionString())
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     ls.bind(('127.0.0.1', port))
@@ -44,13 +41,31 @@ def server(port=4711, loglevel=0):
         conn.close()
         log.info("Debug session ended. Waiting for new connections.")
 
-
 # Single-session run using the specified input and output fds
-def stdio(ifd, ofd, loglevel=40):
-    configLogging(loglevel)
+def run_stdio_session(ifd=0, ofd=1):
     log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
-    log.info("%s", lldb.debugger.GetVersionString())
     r = lambda n: os.read(ifd, n)
     w = lambda data: os.write(ofd, data)
     run_session(r, w)
     log.info("Debug session ended. Exiting.")
+
+# entry
+stdio_session = ('--stdio' in sys.argv)
+log_file = os.getenv('VSCODE_LLDB_LOG', None)
+log_level = 0
+if stdio_session and not log_file:
+    log_level = logging.ERROR
+logging.basicConfig(level=log_level, filename=log_file)
+log = logging.getLogger('main')
+
+try:
+    setup_lldb()
+    if stdio_session:
+        run_stdio_session()
+    else:
+        run_tcp_server()
+except KeyboardInterrupt:
+    pass
+except Exception as e:
+    tb = traceback.format_exc(e)
+    log.error(tb)

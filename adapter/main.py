@@ -3,6 +3,15 @@ import os
 import logging
 import traceback
 
+log = logging.getLogger(__name__)
+
+def init_logging(is_stdio_session):
+    log_file = os.getenv('VSCODE_LLDB_LOG', None)
+    log_level = 0
+    if is_stdio_session and not log_file:
+        log_level = logging.ERROR
+    logging.basicConfig(level=log_level, filename=log_file)
+
 def run_session(read, write):
     import debugsession
     import eventloop
@@ -20,6 +29,7 @@ def run_session(read, write):
 # Run in socket server mode
 def run_tcp_server(port=4711):
     import socket
+    init_logging(False)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -36,28 +46,9 @@ def run_tcp_server(port=4711):
 
 # Single-session run using the specified input and output fds
 def run_stdio_session(ifd=0, ofd=1):
+    init_logging(True)
     log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
     r = lambda n: os.read(ifd, n)
     w = lambda data: os.write(ofd, data)
     run_session(r, w)
     log.info("Debug session ended. Exiting.")
-
-# entry
-stdio_session = ('--stdio' in sys.argv)
-log_file = os.getenv('VSCODE_LLDB_LOG', None)
-log_level = 0
-if stdio_session and not log_file:
-    log_level = logging.ERROR
-logging.basicConfig(level=log_level, filename=log_file)
-log = logging.getLogger('main')
-
-try:
-    if stdio_session:
-        run_stdio_session()
-    else:
-        run_tcp_server()
-except KeyboardInterrupt:
-    pass
-except Exception as e:
-    tb = traceback.format_exc(e)
-    log.error(tb)

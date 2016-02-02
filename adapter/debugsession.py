@@ -6,10 +6,7 @@ import handles
 import terminal
 import subprocess
 import traceback
-
-# NB: lldb module is not imported until the 'initialize' request handler,
-# as that is the earliest point where we can report errors to the client.
-lldb = None
+import lldb
 
 log = logging.getLogger(__name__)
 
@@ -24,26 +21,17 @@ class DebugSession:
         self.threads = set()
         self.terminal = None
 
+    # handles messages from VSCode
     def handle_message(self, msg):
         self.event_loop.dispatch1(self.on_request, msg)
 
+    # handles debugger notifications
     def handle_event(self, event):
         self.event_loop.dispatch1(self.on_target_event, event)
 
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
-
-        global lldb
-        if lldb is None:
-            try:
-                lldb_pypath = subprocess.check_output(['lldb', '--python-path']).strip()
-            except OSError as e:
-                raise UserError('Could not locate lldb debugger')
-            log.info('LLDB python path: %s', lldb_pypath)
-            sys.path[:0] = [lldb_pypath]
-            import lldb
-
         self.debugger = lldb.SBDebugger.Create()
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
@@ -63,8 +51,8 @@ class DebugSession:
         if not self.target.IsValid():
             raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
-        # defer actual launching till the setExceptionBreakpoints request,
-        # so that we could set initial breakpoints before the target starts running
+        # defer actual launching till configurationDone request, so that
+        # we can receive and set initial breakpoints before the target starts running
         self.do_launch = lambda: self.launch(args)
 
     def launch(self, args):
@@ -96,7 +84,7 @@ class DebugSession:
         for i in range(0, len(stdio)):
             if stdio[i] == missing:
                 stdio[i] = stdio[i-1] if i > 0 else None
-        stdio = map(opt_str, stdio) # convert unicode strings to ascii
+        stdio = map(opt_str, stdio)
         # open a new terminal window if needed
         if '*' in stdio:
             if 'linux' in sys.platform:
@@ -289,7 +277,7 @@ class DebugSession:
     def evaluate_request(self, args):
         context = args['context']
         expr = str(args['expression'])
-        if context != 'repl': # i.e. 'watch' or 'hover'
+        if context in ['watch', 'hover']:
             return self.evaluate_expr(args, expr)
         elif expr.startswith('?'): # "?<expr>" in 'repl' context
             return self.evaluate_expr(args, expr[1:])
@@ -319,7 +307,7 @@ class DebugSession:
             _, value, dtype, ref = self.parse_var(var)
             return { 'result': value, 'type': dtype, 'variablesReference': ref }
         elif args['context'] != 'hover':
-            # Don't print errors for hover evals, as those evaluate random strings
+            # don't print errors for hover evals
             output = var.GetError().GetCString()
             self.console_msg(output)
 
@@ -347,12 +335,8 @@ class DebugSession:
         args = request.get('arguments', None)
         log.debug('### %s ###', command)
 
-        response = {
-            'type': 'response',
-            'command': command,
-            'request_seq': request['seq'],
-            'success': False,
-        }
+        response = { 'type': 'response', 'command': command,
+                     'request_seq': request['seq'], 'success': False }
 
         handler = getattr(self, command + '_request', None)
         if handler is not None:

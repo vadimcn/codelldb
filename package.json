@@ -46,9 +46,9 @@
                     ]
                 },
 
-                "runtime": "python",
-                "program": "adapter",
-                "args": ["--stdio"],
+                "runtime": "lldb",
+                "runtimeArgs": ["-b", "-S"],
+                "program": "adapter.lldb",
 
                 "configurationAttributes": {
                     "launch": {

@@ -1,14 +1,7 @@
 import sys
 import os
 import logging
-import subprocess
 import traceback
-
-def setup_lldb():
-    # Ask LLDB where its Python modules live
-    lldb_pypath = subprocess.check_output(['lldb', '--python-path']).strip()
-    log.info('LLDB python path: %s', lldb_pypath)
-    sys.path[:0] = [lldb_pypath]
 
 def run_session(read, write):
     import debugsession
@@ -20,7 +13,7 @@ def run_session(read, write):
     proto_handler = protocolhandler.ProtocolHandler(read, write)
     debug_session = debugsession.DebugSession(event_loop, proto_handler.send_message)
 
-    proto_handler.start(debug_session.handle_request)
+    proto_handler.start(debug_session.handle_message)
     event_loop.run()
     proto_handler.shutdown()
 
@@ -59,7 +52,6 @@ logging.basicConfig(level=log_level, filename=log_file)
 log = logging.getLogger('main')
 
 try:
-    setup_lldb()
     if stdio_session:
         run_stdio_session()
     else:

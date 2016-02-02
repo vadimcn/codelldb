@@ -1,5 +1,4 @@
 import sys
-import lldb
 import logging
 import debugevents
 import itertools
@@ -7,6 +6,10 @@ import handles
 import terminal
 import subprocess
 import traceback
+
+# NB: lldb module is not imported until the 'initialize' request handler,
+# as that is the earliest point where we can report errors to the client.
+lldb = None
 
 log = logging.getLogger(__name__)
 
@@ -16,133 +19,40 @@ class DebugSession:
         DebugSession.current = self
         self.event_loop = event_loop
         self.send_message = send_message
-        self.debugger = lldb.SBDebugger.Create()
-        log.info('LLDB version: %s', self.debugger.GetVersionString())
-        self.debugger.SetAsync(True)
-        self.event_listener = lldb.SBListener('DebugSession')
-        self.listener_handler = debugevents.AsyncListener(self.event_listener,
-            lambda event: event_loop.dispatch1(self.on_target_event, event))
         self.var_refs = handles.Handles()
         self.breakpoints = dict() # {file => {line => SBBreakpoint}}
         self.threads = set()
         self.terminal = None
-        self.handle_request = lambda msg: event_loop.dispatch1(self.on_request, msg)
-        # register the 'allthreads' command
-        self.debugger.HandleCommand('script import adapter')
-        self.debugger.HandleCommand('command script add -f adapter.debugsession.allthreads_command allthreads')
 
-    def on_request(self, request):
-        command =  request['command']
-        args = request.get('arguments', None)
-        log.debug('### %s ###', command)
+    def handle_message(self, msg):
+        self.event_loop.dispatch1(self.on_request, msg)
 
-        response = {
-            'type': 'response',
-            'command': command,
-            'request_seq': request['seq'],
-            'success': False,
-        }
-
-        handler = getattr(self, command + '_request', None)
-        if handler is not None:
-            try:
-                response['body'] = handler(args)
-                response['success'] = True
-            except Exception as e:
-                tb = traceback.format_exc(e)
-                log.error('Internal error:\n' + tb)
-                response['success'] = False
-                response['body'] = {
-                    'error': {
-                        'id': 1,
-                        'format': 'Internal error: ' + str(e),
-                        'showUser': True
-                    }
-                }
-        else:
-            log.warning('No handler for %s', command)
-
-        self.send_message(response)
-
-    def on_target_event(self, event):
-        if lldb.SBProcess.EventIsProcessEvent(event):
-            ev_type = event.GetType()
-            if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:
-                state = lldb.SBProcess.GetStateFromEvent(event)
-                if state == lldb.eStateStopped:
-                    if not lldb.SBProcess.GetRestartedFromEvent(event):
-                        self.notify_target_stopped(event)
-                elif state == lldb.eStateExited:
-                    exit_code = self.process.GetExitStatus()
-                    self.console_msg('Process exited with code %d' % exit_code)
-                    self.send_event('exited', { 'exitCode': exit_code })
-                    self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
-                elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
-                    self.send_event('terminated', {})
-            elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
-                self.notify_stdio(ev_type)
-
-    def notify_target_stopped(self, event):
-        self.notify_live_threads()
-
-        # VSCode bug #40: On one hand VSCode won't display stacks of the thread that were not reported 'stopped',
-        # on the other hand, if we report more than one, the UI will choose which one is the current one
-        # seemingly randomly.  Which makes breakpoint stops confusing and stepping - nearly unusable.
-        # So here's the compromise: if this stop is due to hitting a breakpoint or stepping, we report only the
-        # thread that has caused it.  The user can still display all stacks via the 'allthreads' command.
-        # For other stops we report all threads, as the current selection is presumably irrelevant.
-        for thread in self.process:
-            stop_reason = thread.GetStopReason()
-            if stop_reason == lldb.eStopReasonBreakpoint:
-                self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': thread.GetThreadID() })
-                return
-            elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                self.send_event('stopped', { 'reason': 'step', 'threadId': thread.GetThreadID() })
-                return
-        # otherwise, report all threads
-        for thread in self.process:
-            self.send_event('stopped', { 'reason': 'pause', 'threadId': thread.GetThreadID() })
-
-    def notify_stdio(self, ev_type):
-        if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:
-            read_stream = self.process.GetSTDOUT
-            category = 'stdout'
-        else:
-            read_stream = self.process.GetSTDERR
-            category = 'stderr'
-        output = read_stream(1024)
-        while output:
-            self.console_msg(output)
-            output = read_stream(1024)
-
-    def notify_live_threads(self):
-        curr_threads = set((thread.GetThreadID() for thread in self.process))
-        for tid in self.threads - curr_threads:
-            self.send_event('thread', { 'reason': 'exited', 'threadId': tid })
-        for tid in curr_threads - self.threads:
-            self.send_event('thread', { 'reason': 'started', 'threadId': tid })
-        self.threads = curr_threads
-
-    def send_allthreads_stop(self):
-        for thread in self.process.threads:
-            self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
-
-    def send_event(self, event, body):
-        message = {
-            'type': 'event',
-            'seq': 0,
-            'event': event,
-            'body': body
-        }
-        self.send_message(message)
-
-    # Write a message to debug console
-    def console_msg(self, output):
-        self.send_event('output', { 'category': 'console', 'output': output })
+    def handle_event(self, event):
+        self.event_loop.dispatch1(self.on_target_event, event)
 
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
+
+        global lldb
+        if lldb is None:
+            try:
+                lldb_pypath = subprocess.check_output(['lldb', '--python-path']).strip()
+            except OSError as e:
+                raise UserError('Could not locate lldb debugger')
+            log.info('LLDB python path: %s', lldb_pypath)
+            sys.path[:0] = [lldb_pypath]
+            import lldb
+
+        self.debugger = lldb.SBDebugger.Create()
+        log.info('LLDB version: %s', self.debugger.GetVersionString())
+        self.debugger.SetAsync(True)
+        self.event_listener = lldb.SBListener('DebugSession')
+        self.listener_handler = debugevents.AsyncListener(self.event_listener, self.handle_event)
+        # register the 'allthreads' command
+        self.debugger.HandleCommand('script import adapter')
+        self.debugger.HandleCommand('command script add -f adapter.debugsession.allthreads_command allthreads')
+
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': False } # TODO: what are those?
@@ -150,6 +60,8 @@ class DebugSession:
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
+        if not self.target.IsValid():
+            raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
         # defer actual launching till the setExceptionBreakpoints request,
         # so that we could set initial breakpoints before the target starts running
@@ -179,7 +91,7 @@ class DebugSession:
         elif type(stdio) is list:
             stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
         else:
-            raise Exception('stdio must be either a string, a list or an object')
+            raise UserError('stdio must be either a string, a list or an object')
         # replace all missing's with the previous stream's value
         for i in range(0, len(stdio)):
             if stdio[i] == missing:
@@ -206,12 +118,14 @@ class DebugSession:
         if not error.Success():
             self.console_msg(error.GetCString())
             self.send_event('terminated', {})
-            raise Exception('Process attach failed.')
+            raise UserError('Process launch failed.')
         assert self.process.IsValid()
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
+        if not self.target.IsValid():
+            raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
         self.do_launch = lambda: self.attach(args)
 
@@ -227,7 +141,7 @@ class DebugSession:
         if not error.Success():
             self.console_msg(error.GetCString())
             self.send_event('terminated', {})
-            raise Exception('Process attach failed.')
+            raise UserError('Process attach failed.')
         assert self.process.IsValid()
 
     def exec_commands(self, commands):
@@ -404,7 +318,8 @@ class DebugSession:
         if var.GetError().Success():
             _, value, dtype, ref = self.parse_var(var)
             return { 'result': value, 'type': dtype, 'variablesReference': ref }
-        else:
+        elif args['context'] != 'hover':
+            # Don't print errors for hover evals, as those evaluate random strings
             output = var.GetError().GetCString()
             self.console_msg(output)
 
@@ -427,9 +342,120 @@ class DebugSession:
         self.terminal = None
         self.event_loop.stop()
 
+    def on_request(self, request):
+        command =  request['command']
+        args = request.get('arguments', None)
+        log.debug('### %s ###', command)
+
+        response = {
+            'type': 'response',
+            'command': command,
+            'request_seq': request['seq'],
+            'success': False,
+        }
+
+        handler = getattr(self, command + '_request', None)
+        if handler is not None:
+            try:
+                response['body'] = handler(args)
+                response['success'] = True
+            except UserError as e:
+                response['success'] = False
+                response['body'] = { 'error': { 'id': 0, 'format': str(e), 'showUser': True } }
+            except Exception as e:
+                tb = traceback.format_exc(e)
+                log.error('Internal error:\n' + tb)
+                msg = 'Internal error: ' + str(e)
+                response['success'] = False
+                response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
+        else:
+            log.warning('No handler for %s', command)
+
+        self.send_message(response)
+
+    def on_target_event(self, event):
+        if lldb.SBProcess.EventIsProcessEvent(event):
+            ev_type = event.GetType()
+            if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:
+                state = lldb.SBProcess.GetStateFromEvent(event)
+                if state == lldb.eStateStopped:
+                    if not lldb.SBProcess.GetRestartedFromEvent(event):
+                        self.notify_target_stopped(event)
+                elif state == lldb.eStateExited:
+                    exit_code = self.process.GetExitStatus()
+                    self.console_msg('Process exited with code %d' % exit_code)
+                    self.send_event('exited', { 'exitCode': exit_code })
+                    self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
+                elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
+                    self.send_event('terminated', {})
+            elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
+                self.notify_stdio(ev_type)
+
+    def notify_target_stopped(self, event):
+        self.notify_live_threads()
+
+        # VSCode bug #40: On one hand VSCode won't display stacks of the thread that were not reported 'stopped',
+        # on the other hand, if we report more than one, the UI will choose which one is the current one
+        # seemingly randomly.  Which makes breakpoint stops confusing and stepping - nearly unusable.
+        # So here's the compromise: if this stop is due to hitting a breakpoint or stepping, we report only the
+        # thread that has caused it.  The user can still display all stacks via the 'allthreads' command.
+        # For other stops we report all threads, as the current selection is presumably irrelevant.
+        for thread in self.process:
+            stop_reason = thread.GetStopReason()
+            if stop_reason == lldb.eStopReasonBreakpoint:
+                self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': thread.GetThreadID() })
+                return
+            elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
+                self.send_event('stopped', { 'reason': 'step', 'threadId': thread.GetThreadID() })
+                return
+        # otherwise, report all threads
+        for thread in self.process:
+            self.send_event('stopped', { 'reason': 'pause', 'threadId': thread.GetThreadID() })
+
+    def notify_stdio(self, ev_type):
+        if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:
+            read_stream = self.process.GetSTDOUT
+            category = 'stdout'
+        else:
+            read_stream = self.process.GetSTDERR
+            category = 'stderr'
+        output = read_stream(1024)
+        while output:
+            self.console_msg(output)
+            output = read_stream(1024)
+
+    def notify_live_threads(self):
+        curr_threads = set((thread.GetThreadID() for thread in self.process))
+        for tid in self.threads - curr_threads:
+            self.send_event('thread', { 'reason': 'exited', 'threadId': tid })
+        for tid in curr_threads - self.threads:
+            self.send_event('thread', { 'reason': 'started', 'threadId': tid })
+        self.threads = curr_threads
+
+    def send_allthreads_stop(self):
+        for thread in self.process.threads:
+            self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
+
+    def send_event(self, event, body):
+        message = {
+            'type': 'event',
+            'seq': 0,
+            'event': event,
+            'body': body
+        }
+        self.send_message(message)
+
+    # Write a message to debug console
+    def console_msg(self, output):
+        self.send_event('output', { 'category': 'console', 'output': output })
+
+# For when we need to let user know they screwed up
+class UserError(Exception):
+    pass
 
 def allthreads_command(self, debugger, command, result, internal_dict):
     DebugSession.current.send_allthreads_stop()
 
 def opt_str(s):
     return str(s) if s != None else None
+

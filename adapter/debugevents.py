@@ -1,4 +1,3 @@
-import lldb
 import threading
 import logging
 
@@ -19,6 +18,7 @@ class AsyncListener:
         self.thread.join()
 
     def pump_events(self):
+        import lldb
         event = lldb.SBEvent()
         while not self.stopping:
             if self.listener.WaitForEvent(1, event):

@@ -3,15 +3,14 @@
     "displayName": "LLDB Debugger",
     "version": "0.0.1",
     "publisher": "vadimcn",
-    "iconUrl": "lldb.png",
     "description": "",
     "author": {
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^0.10.1"
+        "vscode": "^0.10.7"
     },
-    "icon": "images/mock-debug-icon.svg",
+    "icon": "lldb.png",
     "categories": [
         "Debuggers"
     ],

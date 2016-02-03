@@ -46,8 +46,8 @@
                     ]
                 },
 
-                "runtime": "sh",
-                "program": "adapter.sh",
+                "runtime": "node",
+                "program": "adapter.js",
 
                 "configurationAttributes": {
                     "launch": {

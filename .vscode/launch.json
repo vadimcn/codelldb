@@ -13,6 +13,14 @@
 			"sourceMaps": true,
 			"outDir": "out",
 			"preLaunchTask": "npm"
+		},
+		{
+            "name": "Debug Launcher",
+            "type": "node",
+            "request": "launch",
+            "runtimeArgs": ["--harmony"],
+            "program": "${workspaceRoot}/adapter.js",
+            "stopOnEntry": false
 		}
 	]
 }

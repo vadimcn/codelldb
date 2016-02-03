@@ -46,9 +46,8 @@
                     ]
                 },
 
-                "runtime": "lldb",
-                "runtimeArgs": ["-b", "-S"],
-                "program": "adapter.lldb",
+                "runtime": "sh",
+                "program": "adapter.sh",
 
                 "configurationAttributes": {
                     "launch": {

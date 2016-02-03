@@ -1,9 +1,10 @@
 import sys
 import os
 import logging
-import traceback
+import signal
 
 log = logging.getLogger(__name__)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def init_logging(is_stdio_session):
     log_file = os.getenv('VSCODE_LLDB_LOG', None)

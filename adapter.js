@@ -1,20 +1,12 @@
 var cp = require('child_process');
 var process = require('process');
-var fs = require('fs')
 
-// Point this to a file or a tty to see adapter's debug spew
-var lldb_log = 'ignore'
-//var lldb_log = fs.openSync('/dev/ttys001', 'w');
-
-var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session(3,4)'], {
-    // LLDB has readline attached to its stdin and sometimes spews debug messages to stdout,
-    // all of which would interfere with debug session messaging.
-    // Instead, we create two new pipes on fds 3 and 4 and connect them to launcher's stdin and stdout
-    stdio: ['ignore', lldb_log, lldb_log, 'pipe', 'pipe'],
+var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session()'], {
+    stdio: ['pipe', 'pipe', 'ignore'],
     cwd: __dirname
 });
-process.stdin.pipe(lldb.stdio[3]);
-lldb.stdio[4].pipe(process.stdout);
+process.stdin.pipe(lldb.stdio[0]);
+lldb.stdio[1].pipe(process.stdout);
 
 // When lldb exits, we exit too
 lldb.on('exit', (code) => {

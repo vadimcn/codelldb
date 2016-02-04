@@ -19,32 +19,33 @@ Create a new [launch configuration](https://code.visualstudio.com/Docs/editor/de
 with one of the following sets of parameters:
 
 ### Launch
-|parameter|type|req?|         |
-|---------|----|----|---------|
-|`name`   |string|Y| launch configuration name|
-|`type`   |string|Y| set to "lldb"|
-|`request`|string|Y| set to "launch"|
-|`program`|string|Y| path to debuggee executable|
-|`args`   |list of strings|| command line parameters|
-|`cwd`    |string|| working directory|
-|`env`    |dictionary|| additional environment variables|
-|`stdio`  |many|| debuggee's stdio configureation (see [below](#stdio-configuration))|
-|`stopOnEntry`  |boolean|| whether to stop debuggee immediately after launching|
-|`initCommands` |list of strings|| LLDB commands executed upon debugger startup|
-|`preRunCommands`|list of strings|| LLDB commands executed just before launching the program|
+|parameter|type|req |         |
+|---------|----|:--:|---------|
+|`name`   |string|Y| Launch configuration name.|
+|`type`   |string|Y| Set to "lldb".|
+|`request`|string|Y| Set to "launch".|
+|`program`|string|Y| Path to debuggee executable.|
+|`args`   |list of strings|| Command line parameters.|
+|`cwd`    |string|| Working directory.|
+|`env`    |dictionary|| Additional environment variables.|
+|`stdio`  |string, list or dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
+|`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
+|`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
+|`preRunCommands`|list of strings|| LLDB commands executed just before launching the program.|
+|`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used only for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Attach
-|parameter|type|req?|         |
-|---------|----|----|---------|
-|`name`   |string|Y| launch configuration name|
-|`type`   |string|Y| set to "lldb"|
-|`request`|string|Y| set to "launch"|
-|`program`|string|Y| path to debuggee executable|
-|`pid`    |number|| the process id to attach to.  `pid` may be omitted, in which case the debugger will attempt to locate an already running instance of the program|
-|`stopOnEntry`  |boolean|| whether to stop debuggee immediately after attaching|
-|`initCommands` |list of strings|| LLDB commands executed upon debugger startup|
-|`preRunCommands`|list of strings|| LLDB commands executed just before attaching|
-
+|parameter|type|req |         |
+|---------|----|:--:|---------|
+|`name`   |string|Y| Launch configuration name.|
+|`type`   |string|Y| Set to "lldb".|
+|`request`|string|Y| Set to "launch".|
+|`program`|string|Y| Path to debuggee executable.|
+|`pid`    |number|| The process id to attach to.  `pid` may be omitted, in which case the debugger will attempt to locate an already running instance of the program.|
+|`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after attaching.|
+|`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
+|`preRunCommands`|list of strings|| LLDB commands executed just before attaching.|
+|`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used only for setting exception breakpoints, since they tend to be language-specific.|
 ### stdio configuration
 The stdio configuration specifies the connections established for debuggee stdio streams.
 Each stream's configuration value may be one of the following:

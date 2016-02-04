@@ -94,6 +94,11 @@
                                 "type": "array",
                                 "description": "Commands executed just before the program is launched or attached to.",
                                 "default": []
+                            },
+                            "sourceLanguages": {
+                                "type": "array",
+                                "description": "A list of source languages used in the program.",
+                                "default": []
                             }
                         }
                     },
@@ -123,6 +128,11 @@
                             "preRunCommands": {
                                 "type": "array",
                                 "description": "Commands to execute after loading the program, but before it is started",
+                                "default": []
+                            },
+                            "sourceLanguages": {
+                                "type": "array",
+                                "description": "A list of source languages used in the program.",
                                 "default": []
                             }
                         }

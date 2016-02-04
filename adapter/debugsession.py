@@ -18,8 +18,10 @@ class DebugSession:
         self.send_message = send_message
         self.var_refs = handles.Handles()
         self.breakpoints = dict() # {file => {line => SBBreakpoint}}
+        self.exc_breakpoints = []
         self.threads = set()
         self.terminal = None
+        self.launch_args = None
 
     # handles messages from VSCode
     def handle_message(self, msg):
@@ -51,6 +53,7 @@ class DebugSession:
         if not self.target.IsValid():
             raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
+        self.launch_args = args
         # defer actual launching till configurationDone request, so that
         # we can receive and set initial breakpoints before the target starts running
         self.do_launch = lambda: self.launch(args)
@@ -115,6 +118,7 @@ class DebugSession:
         if not self.target.IsValid():
             raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
+        self.launch_args = args
         self.do_launch = lambda: self.attach(args)
 
     def attach(self, args):
@@ -177,8 +181,30 @@ class DebugSession:
         return { 'breakpoints': result }
 
     def setExceptionBreakpoints_request(self, args):
-        #self.do_launch()
-        pass
+        filters = args['filters']
+        for bp in self.exc_breakpoints:
+            self.target.BreakpointDelete(bp.GetID())
+        self.exc_breakpoints = []
+
+        source_languages = self.launch_args.get('sourceLanguages', [])
+        set_all = 'all' in filters
+        set_uncaught = 'uncaught' in filters
+        for lang in source_languages:
+            bp_setters = DebugSession.lang_exc_bps.get(lang)
+            if bp_setters is not None:
+                if set_all:
+                    bp = bp_setters[0](self.target)
+                    self.exc_breakpoints.append(bp)
+                if set_uncaught:
+                    bp = bp_setters[1](self.target)
+                    self.exc_breakpoints.append(bp)
+
+    lang_exc_bps = {
+        'rust': (lambda target: target.BreakpointCreateByName('rust_panic'),
+                 lambda target: target.BreakpointCreateByName('abort')),
+        'cpp': (lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, True, False),
+                lambda target: target.BreakpointCreateByName('terminate')),
+    }
 
     def configurationDone_request(self, args):
         self.do_launch()

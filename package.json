@@ -3,7 +3,7 @@
     "displayName": "LLDB Debugger",
     "version": "0.0.1",
     "publisher": "vadimcn",
-    "description": "",
+    "description": "Native debugging in Visual Studio code with LLDB debugger engine.",
     "author": {
         "name": "vadimcn"
     },
@@ -132,7 +132,8 @@
                         "name": "Debug",
                         "type": "lldb",
                         "request": "launch",
-                        "program": "<your program>"
+                        "program": "${workspaceRoot}/<your program>",
+                        "args": []
                     }
                 ]
             }

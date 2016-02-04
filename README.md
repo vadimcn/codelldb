@@ -1,7 +1,7 @@
 LLDB Front-End for Visual Studio Code
 ==========
 
-This extension provides native code debugging in Visual Studio Code via LLDB debugger engine.
+This extension provides native code debugging in Visual Studio Code via the [LLDB](http://lldb.llvm.org/) debugger engine.
 
 # Pre-requisites
 - Visual Studio Code 0.10.7 (January 2016)
@@ -19,28 +19,31 @@ Create a new [launch configuration](https://code.visualstudio.com/Docs/editor/de
 with one of the following sets of parameters:
 
 ### Launch
-- `name` (string, required): launch configuration name
-- `type` (string, required): set to "lldb"
-- `request` (string, required): set to "launch"
-- `program` (string, required): path to debuggee executable
-- `args` (list of strings): command line parameters
-- `cwd` (string): working directory
-- `env` (dictionary): additional environment variables
-- `stdio` (string, list of strings or dictionary): debuggee's stdio configureation (see [below](#stdio-configuration))
-- `stopOnEntry` (boolean): whether to stop debuggee immediately after launching
-- `initCommands` (list of strings): LLDB commands executed upon debugger startup
-- `preRunCommands` (list of strings): LLDB commands executed just before launching the program
+|parameter|type|req?|         |
+|---------|----|----|---------|
+|`name`   |string|Y| launch configuration name|
+|`type`   |string|Y| set to "lldb"|
+|`request`|string|Y| set to "launch"|
+|`program`|string|Y| path to debuggee executable|
+|`args`   |list of strings|| command line parameters|
+|`cwd`    |string|| working directory|
+|`env`    |dictionary|| additional environment variables|
+|`stdio`  |many|| debuggee's stdio configureation (see [below](#stdio-configuration))|
+|`stopOnEntry`  |boolean|| whether to stop debuggee immediately after launching|
+|`initCommands` |list of strings|| LLDB commands executed upon debugger startup|
+|`preRunCommands`|list of strings|| LLDB commands executed just before launching the program|
 
 ### Attach
-- `name` (string, required): launch configuration name
-- `type` (string, required): set to "lldb"
-- `request` (string, required): set to "attach"
-- `program` (string, required): path to debuggee executable
-- `pid` (number): the process id to attach to.  `pid` may be omitted, in which case the debugger will attempt
-  to locate an already running instance of the program.
-- `stopOnEntry` (boolean): whether to stop debuggee immediately after attaching
-- `initCommands` (list of strings): LLDB commands executed upon debugger startup
-- `preRunCommands` (list of strings): LLDB commands executed just before attaching
+|parameter|type|req?|         |
+|---------|----|----|---------|
+|`name`   |string|Y| launch configuration name|
+|`type`   |string|Y| set to "lldb"|
+|`request`|string|Y| set to "launch"|
+|`program`|string|Y| path to debuggee executable|
+|`pid`    |number|| the process id to attach to.  `pid` may be omitted, in which case the debugger will attempt to locate an already running instance of the program|
+|`stopOnEntry`  |boolean|| whether to stop debuggee immediately after attaching|
+|`initCommands` |list of strings|| LLDB commands executed upon debugger startup|
+|`preRunCommands`|list of strings|| LLDB commands executed just before attaching|
 
 ### stdio configuration
 The stdio configuration specifies the connections established for debuggee stdio streams.
@@ -81,7 +84,8 @@ and will not be persisted across debug sessions*.
 No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
 
-# Bugs and Issues
+# Issues and limitations
 - The true locations of resolved breakpoints are not reflected in the UI.
 - After a breakpoint stop or stepping, only call stack of the thread where event had occurred will be
   displayed.  To inspect other threads, use the `allthreads` command.  ([VS Code bug #40](https://github.com/Microsoft/vscode/issues/40))
+- Global and static variables are not exposed in the UI

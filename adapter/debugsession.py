@@ -1,12 +1,12 @@
 import sys
 import logging
-import debugevents
 import itertools
-import handles
-import terminal
 import subprocess
 import traceback
 import lldb
+from . import debugevents
+from . import handles
+from . import terminal
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class DebugSession:
         env = args.get('env', None)
         envp = None
         if (env is not None): # Convert dict to a list of 'key=value' strings
-            envp = ['%s=%s' % item for item in env.iteritems()]
+            envp = ['%s=%s' % item for item in env.items()]
         # stdio
         stdio = args.get('stdio', None)
         missing = () # None is a valid value here, so we need a new one to designate 'missing'
@@ -79,7 +79,7 @@ class DebugSession:
             stdio = [stdio.get('stdin', missing),
                      stdio.get('stdout', missing),
                      stdio.get('stderr', missing)]
-        elif type(stdio) in [type(None), str, unicode]:
+        elif type(stdio) in [type(None), str, str]:
             stdio = [stdio] * 3
         elif type(stdio) is list:
             stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
@@ -89,7 +89,7 @@ class DebugSession:
         for i in range(0, len(stdio)):
             if stdio[i] == missing:
                 stdio[i] = stdio[i-1] if i > 0 else None
-        stdio = map(opt_str, stdio)
+        stdio = list(map(opt_str, stdio))
         # open a new terminal window if needed
         if '*' in stdio:
             if 'linux' in sys.platform:

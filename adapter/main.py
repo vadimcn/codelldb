@@ -14,9 +14,9 @@ def init_logging(is_stdio_session):
     logging.basicConfig(level=log_level, filename=log_file)
 
 def run_session(read, write):
-    import debugsession
-    import eventloop
-    import protocolhandler
+    from . import debugsession
+    from . import eventloop
+    from . import protocolhandler
 
     event_loop = eventloop.EventLoop()
 

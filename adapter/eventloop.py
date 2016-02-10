@@ -1,8 +1,10 @@
-import Queue
+import sys
+if sys.version_info[0] > 2: import queue
+else: import Queue as queue
 
 class EventLoop:
     def __init__(self, qsize=10):
-        self.queue = Queue.Queue(qsize)
+        self.queue = queue.Queue(qsize)
 
     def dispatch(self, target, args):
         '''Dispatch to function with a tuple of arguments'''

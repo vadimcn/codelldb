@@ -19,6 +19,8 @@ class DebugSession:
         self.var_refs = handles.Handles()
         self.breakpoints = dict() # {file => {line => SBBreakpoint}}
         self.exc_breakpoints = []
+        self.target = None
+        self.process = None
         self.threads = set()
         self.terminal = None
         self.launch_args = None
@@ -352,7 +354,10 @@ class DebugSession:
         return name, value, dtype, ref
 
     def disconnect_request(self, args):
-        self.process.Kill()
+        if self.process:
+            self.process.Kill()
+        self.process = None
+        self.target = None
         self.terminal = None
         self.event_loop.stop()
 

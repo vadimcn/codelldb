@@ -1,5 +1,6 @@
 import sys
 import logging
+import os.path
 import itertools
 import subprocess
 import traceback
@@ -265,7 +266,9 @@ class DebugSession:
             le = frame.GetLineEntry()
             if le.IsValid():
                 fs = le.GetFileSpec()
-                stack_frame['source'] = { 'name': fs.GetFilename(), 'path': str(fs) }
+                # VSCode gets confused if the path contains funky stuff like a double-slash
+                full_path = os.path.normpath(fs.fullpath)
+                stack_frame['source'] = { 'name': fs.GetFilename(), 'path': full_path }
                 stack_frame['line'] = le.GetLine()
                 stack_frame['column'] = le.GetColumn()
 
@@ -473,4 +476,3 @@ def allthreads_command(self, debugger, command, result, internal_dict):
 
 def opt_str(s):
     return str(s) if s != None else None
-

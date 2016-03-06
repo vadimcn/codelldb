@@ -11,7 +11,7 @@ class ProtocolHandler:
     def __init__(self, read, write):
         self.read = read
         self.write = write
-        self.ibuffer = ''
+        self.ibuffer = b''
         self.stopping = False
 
     def start(self, handle_request):
@@ -26,14 +26,14 @@ class ProtocolHandler:
 
     def recv_headers(self):
         while True:
-            pos = self.ibuffer.find('\r\n\r\n')
+            pos = self.ibuffer.find(b'\r\n\r\n')
             if pos != -1:
                 headers = self.ibuffer[:pos]
                 self.ibuffer = self.ibuffer[pos+4:]
                 clen = None
-                for header in string.split(headers, '\r\n'):
-                    if header.startswith('Content-Length:'):
-                        clen = int(string.strip(header[15:]))
+                for header in headers.split(b'\r\n'):
+                    if header.startswith(b'Content-Length:'):
+                        clen = int(header[15:].strip())
                 if clen != None:
                     return clen
                 else:
@@ -59,14 +59,18 @@ class ProtocolHandler:
             while not self.stopping:
                 clen = self.recv_headers()
                 data = self.recv_body(clen)
-                message = json.loads(data)
+                data = data.decode('utf-8')
                 log.debug('-> %s', data)
+                message = json.loads(data)
                 self.handle_request(message)
         except StopIteration: # Thrown when read() returns 0
             pass
+        except Exception as e:
+            log.error(e)
 
     def send_message(self, message):
         data = json.dumps(message)
         log.debug('<- %s', data)
-        self.write('Content-Length: %d\r\n\r\n' % len(data))
+        data = data.encode('utf-8')
+        self.write(b'Content-Length: %d\r\n\r\n' % len(data))
         self.write(data)

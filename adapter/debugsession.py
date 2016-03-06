@@ -8,6 +8,7 @@ import lldb
 from . import debugevents
 from . import handles
 from . import terminal
+from . import PY2
 
 log = logging.getLogger(__name__)
 
@@ -78,13 +79,13 @@ class DebugSession:
         # stdio
         stdio = args.get('stdio', None)
         missing = () # None is a valid value here, so we need a new one to designate 'missing'
-        if type(stdio) is dict:
+        if isinstance(stdio, dict):
             stdio = [stdio.get('stdin', missing),
                      stdio.get('stdout', missing),
                      stdio.get('stderr', missing)]
-        elif type(stdio) in [type(None), str, unicode]:
+        elif stdio is None or isinstance(stdio, string_type):
             stdio = [stdio] * 3
-        elif type(stdio) is list:
+        elif isinstance(stdio, list):
             stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
         else:
             raise UserError('stdio must be either a string, a list or an object')
@@ -158,7 +159,7 @@ class DebugSession:
         # Existing breakpints indexed by line
         curr_bps = self.breakpoints.setdefault(file, {})
         # Existing breakpints that were removed
-        for line,bp in curr_bps.items():
+        for line,bp in list(curr_bps.items()):
             if line not in req_bp_lines:
                 self.target.BreakpointDelete(bp.GetID())
                 del curr_bps[line]
@@ -182,7 +183,7 @@ class DebugSession:
         req_bps =  args['breakpoints']
         req_bp_names = [req['name'] for req in req_bps]
         # Existing breakpints that were removed
-        for name,bp in self.fn_breakpoints.items():
+        for name,bp in list(self.fn_breakpoints.items()):
             if name not in req_bp_names:
                 self.target.BreakpointDelete(bp.GetID())
                 del self.fn_breakpoints[name]
@@ -380,7 +381,8 @@ class DebugSession:
                 value = value.replace('\n', '') # VSCode won't display line breaks
         if value is None:
             value = '{...}'
-        value = value.decode('latin1') # or else json will try to treat it as utf8
+        if PY2:
+            value = value.decode('latin1') # or else json will try to treat it as utf8
         dtype = var.GetTypeName()
         ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
         return name, value, dtype, ref
@@ -505,3 +507,5 @@ def allthreads_command(self, debugger, command, result, internal_dict):
 
 def opt_str(s):
     return str(s) if s != None else None
+
+string_type = basestring if PY2 else str

@@ -1,6 +1,6 @@
-import sys
-if sys.version_info[0] > 2: import queue
-else: import Queue as queue
+from . import PY2
+if PY2: import Queue as queue
+else: import queue
 
 class EventLoop:
     def __init__(self, qsize=10):

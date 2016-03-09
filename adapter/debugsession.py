@@ -18,7 +18,8 @@ class DebugSession:
         self.event_loop = event_loop
         self.send_message = send_message
         self.var_refs = handles.Handles()
-        self.breakpoints = dict() # {file => {line => SBBreakpoint}}
+        self.breakpoints = dict() # { file : { line : SBBreakpoint } }
+        self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
         self.target = None
         self.process = None
@@ -48,7 +49,8 @@ class DebugSession:
 
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
-                 'supportsFunctionBreakpoints': False } # TODO: what are those?
+                 'supportsFunctionBreakpoints': True,
+                 'supportsConditionalBreakpoints': True }
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -80,7 +82,7 @@ class DebugSession:
             stdio = [stdio.get('stdin', missing),
                      stdio.get('stdout', missing),
                      stdio.get('stderr', missing)]
-        elif type(stdio) in [type(None), str, str]:
+        elif type(stdio) in [type(None), str, unicode]:
             stdio = [stdio] * 3
         elif type(stdio) is list:
             stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
@@ -149,39 +151,66 @@ class DebugSession:
                 self.console_msg(output)
 
     def setBreakpoints_request(self, args):
-        file = str(args['source']['path'])
-        # The setBreakpoints request is not incremental, it replaces all breakpoints in a file,
-        # which is wasteful if all you needed was to add or remove one breakpoint.
-        # Therefore, we perform a diff of the request and the existing debugger breakpoints:
-
-        bp_reqs = args['breakpoints']
-        bp_lines = [bp_req['line'] for bp_req in bp_reqs]
-        # First, we delete existing breakpoints which are not in the new set.
-        file_bps = self.breakpoints.setdefault(file, {})
-        for line, bp in list(file_bps.items()):
-            if line not in bp_lines:
+        source = args['source']
+        file = str(source['path'])
+        req_bps = args['breakpoints']
+        req_bp_lines = [req['line'] for req in req_bps]
+        # Existing breakpints indexed by line
+        curr_bps = self.breakpoints.setdefault(file, {})
+        # Existing breakpints that were removed
+        for line,bp in curr_bps.items():
+            if line not in req_bp_lines:
                 self.target.BreakpointDelete(bp.GetID())
-                del file_bps[line]
-
-        # Next, create breakpoints which were not in the old set
+                del curr_bps[line]
+        # Added or updated
         result = []
-        for bp_req in bp_reqs:
-            line = bp_req['line']
-            bp = file_bps.get(line, None)
+        for req in req_bps:
+            line = req['line']
+            bp = curr_bps.get(line, None)
             if bp is None:
                 bp = self.target.BreakpointCreateByLocation(file, line)
-                file_bps[line] = bp
-            cond = opt_str(bp_req.get('condition', None))
+                curr_bps[line] = bp
+            cond = opt_str(req.get('condition', None))
             if cond != bp.GetCondition():
                 bp.SetCondition(cond)
-            bp_resp = {
-                'id': bp.GetID(),
-                'verified': bp.num_locations > 0,
-                'line': line # TODO: find out the the actual line
-            }
-            result.append(bp_resp)
+            result.append(self.make_bp_resp(bp))
 
         return { 'breakpoints': result }
+
+    def setFunctionBreakpoints_request(self, args):
+        # Breakpoint requests indexed by function name
+        req_bps =  args['breakpoints']
+        req_bp_names = [req['name'] for req in req_bps]
+        # Existing breakpints that were removed
+        for name,bp in self.fn_breakpoints.items():
+            if name not in req_bp_names:
+                self.target.BreakpointDelete(bp.GetID())
+                del self.fn_breakpoints[name]
+        # Added or updated
+        result = []
+        for req in req_bps:
+            name = req['name']
+            bp = self.fn_breakpoints.get(name, None)
+            if bp is None:
+                bp = self.target.BreakpointCreateByName(str(name))
+                self.fn_breakpoints[name] = bp
+            cond = opt_str(req.get('condition', None))
+            if cond != bp.GetCondition():
+                bp.SetCondition(cond)
+            result.append(self.make_bp_resp(bp))
+
+        return { 'breakpoints': result }
+
+    # Create breakpoint location info for a response message
+    def make_bp_resp(self, bp):
+        if bp.num_locations == 0:
+            return { 'id': bp.GetID(), 'verified': False }
+        le = bp.GetLocationAtIndex(0).GetAddress().GetLineEntry()
+        fs = le.GetFileSpec()
+        if not (le.IsValid() and fs.IsValid()):
+            return { 'id': bp.GetID(), 'verified': True }
+        source = { 'name': fs.basename, 'path': fs.fullpath }
+        return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
 
     def setExceptionBreakpoints_request(self, args):
         filters = args['filters']
@@ -268,7 +297,7 @@ class DebugSession:
                 fs = le.GetFileSpec()
                 # VSCode gets confused if the path contains funky stuff like a double-slash
                 full_path = os.path.normpath(fs.fullpath)
-                stack_frame['source'] = { 'name': fs.GetFilename(), 'path': full_path }
+                stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
                 stack_frame['line'] = le.GetLine()
                 stack_frame['column'] = le.GetColumn()
 

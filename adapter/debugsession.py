@@ -44,9 +44,6 @@ class DebugSession:
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
         self.listener_handler = debugevents.AsyncListener(self.event_listener, self.handle_event)
-        # register the 'allthreads' command
-        self.debugger.HandleCommand('script import adapter')
-        self.debugger.HandleCommand('command script add -f adapter.debugsession.allthreads_command allthreads')
 
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
@@ -101,7 +98,7 @@ class DebugSession:
                 stdio = [self.terminal.tty if s == '*' else s for s in stdio]
             else:
                 # OSX LLDB supports this natively.
-                # On Windows LLDB always creates new console window (even if stdio is redirected).
+                # On Windows LLDB always creates a new console window (even if stdio is redirected).
                 flags |= lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
                 stdio = [None if s == '*' else s for s in stdio]
         # working directory
@@ -275,14 +272,14 @@ class DebugSession:
 
     def stackTrace_request(self, args):
         thread = self.process.GetThreadByID(args['threadId'])
-        levels = args.get('levels', 0)
+        start_frame = args.get('startFrame', 0)
+        levels = args.get('levels', sys.maxsize)
+        if start_frame + levels > thread.num_frames:
+            levels = thread.num_frames - start_frame
         stack_frames = []
-        for i, frame in zip(itertools.count(), thread):
-            if levels > 0 and i > levels:
-                break
-
+        for i in range(start_frame, start_frame + levels):
+            frame = thread.frames[i]
             stack_frame = { 'id': self.var_refs.create(frame) }
-
             fn = frame.GetFunction()
             if fn.IsValid():
                 stack_frame['name'] = fn.GetName()
@@ -292,7 +289,6 @@ class DebugSession:
                     stack_frame['name'] = sym.GetName()
                 else:
                     stack_frame['name'] = str(frame.GetPCAddress())
-
             le = frame.GetLineEntry()
             if le.IsValid():
                 fs = le.GetFileSpec()
@@ -301,10 +297,8 @@ class DebugSession:
                 stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
                 stack_frame['line'] = le.GetLine()
                 stack_frame['column'] = le.GetColumn()
-
             stack_frames.append(stack_frame)
-
-        return { 'stackFrames': stack_frames }
+        return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
     def scopes_request(self, args):
         locals = { 'name': 'Locals', 'variablesReference': args['frameId'], 'expensive': False }
@@ -398,7 +392,7 @@ class DebugSession:
     def on_request(self, request):
         command =  request['command']
         args = request.get('arguments', None)
-        log.debug('### %s ###', command)
+        log.debug('### Handling command: %s', command)
 
         response = { 'type': 'response', 'command': command,
                      'request_seq': request['seq'], 'success': False }
@@ -442,24 +436,25 @@ class DebugSession:
 
     def notify_target_stopped(self, event):
         self.notify_live_threads()
-
-        # VSCode bug #40: On one hand VSCode won't display stacks of the thread that were not reported 'stopped',
-        # on the other hand, if we report more than one, the UI will choose which one is the current one
-        # seemingly randomly.  Which makes breakpoint stops confusing and stepping - nearly unusable.
-        # So here's the compromise: if this stop is due to hitting a breakpoint or stepping, we report only the
-        # thread that has caused it.  The user can still display all stacks via the 'allthreads' command.
-        # For other stops we report all threads, as the current selection is presumably irrelevant.
+        event = { 'allThreadsStopped': True } # LLDB always stops all threads
+        # Find the thread that caused this stop
         for thread in self.process:
             stop_reason = thread.GetStopReason()
             if stop_reason == lldb.eStopReasonBreakpoint:
-                self.send_event('stopped', { 'reason': 'breakpoint', 'threadId': thread.GetThreadID() })
-                return
+                event['reason'] = 'breakpoint'
+                event['threadId'] = thread.GetThreadID()
+                break
             elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                self.send_event('stopped', { 'reason': 'step', 'threadId': thread.GetThreadID() })
-                return
-        # otherwise, report all threads
-        for thread in self.process:
-            self.send_event('stopped', { 'reason': 'pause', 'threadId': thread.GetThreadID() })
+                event['reason'] = 'step'
+                event['threadId'] = thread.GetThreadID()
+                break
+            elif stop_reason == lldb.eStopReasonSignal:
+                event['reason'] = 'signal'
+                event['threadId'] = thread.GetThreadID()
+                break
+        else:
+            event['reason'] = 'unknown'
+        self.send_event('stopped', event)
 
     def notify_stdio(self, ev_type):
         if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:
@@ -481,10 +476,6 @@ class DebugSession:
             self.send_event('thread', { 'reason': 'started', 'threadId': tid })
         self.threads = curr_threads
 
-    def send_allthreads_stop(self):
-        for thread in self.process.threads:
-            self.send_event('stopped', { 'reason': 'none', 'threadId': thread.GetThreadID() })
-
     def send_event(self, event, body):
         message = {
             'type': 'event',
@@ -501,9 +492,6 @@ class DebugSession:
 # For when we need to let user know they screwed up
 class UserError(Exception):
     pass
-
-def allthreads_command(self, debugger, command, result, internal_dict):
-    DebugSession.current.send_allthreads_stop()
 
 def opt_str(s):
     return str(s) if s != None else None

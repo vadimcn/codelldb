@@ -6,7 +6,7 @@
     "tasks": [
         {
             "taskName": "build-debuggee",
-            "args": ["c++ tests/debuggee.cpp -g -o tests/out/debuggee"]
+            "args": ["c++ tests/debuggee.cpp -std=c++11 -g -o tests/out/debuggee"]
         },
         {
             "taskName": "build-tests",

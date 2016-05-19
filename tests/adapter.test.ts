@@ -45,14 +45,24 @@ test('should stop on entry', () => {
 
 test('should stop on a breakpoint', () => {
     let bp_line = findMarker(debuggeeSource, '#BP1');
+    return dc.hitBreakpoint(
+        { program: 'tests/out/debuggee' },
+        { path: debuggeeSource, line: bp_line, verified: true });
+});
+
+test('should page stack', () => {
+    let bp_line = findMarker(debuggeeSource, '#BP2');
     return Promise.all([
-        dc.waitForEvent('initialized').then(() =>
-            dc.setBreakpointsRequest({
-                source: { path: debuggeeSource },
-                breakpoints: [{ line: bp_line }]
-            })),
-        dc.configurationSequence(),
-        dc.launch({ program: 'tests/out/debuggee' }),
-        dc.assertStoppedLocation('breakpoint', { path: debuggeeSource, line: bp_line })
+        dc.waitForEvent('stopped').then(async (response1) => {
+            let response2 = await dc.stackTraceRequest({ threadId: response1.body.threadId, startFrame: 20, levels: 10 });
+            assert(response2.body.stackFrames.length == 10)
+            let response3 = await dc.scopesRequest({ frameId: response2.body.stackFrames[0].id });
+            let response4 = await dc.variablesRequest({ variablesReference: response3.body.scopes[0].variablesReference });
+            assert(response4.body.variables[0].name == 'levelsToGo');
+            assert(response4.body.variables[0].value == '20');
+        }),
+        dc.hitBreakpoint(
+            { program: 'tests/out/debuggee', args: ['deepstack'] },
+            { path: debuggeeSource, line: bp_line, verified: true })
     ]);
 });

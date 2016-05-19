@@ -24,10 +24,14 @@
         "url": "https://github.com/vadimcn/vscode-lldb/issues"
     },
     "devDependencies": {
-        "mocha": "*"
+        "vscode-debugadapter-testsupport": "^1.8.0",
+        "typescript": "^1.8.10",
+        "mocha": "^2.4.5"
     },
     "scripts": {
-        "test": "mocha out/tests"
+        "compile": "tsc -p ./tests",
+        "watch": "tsc -w -p ./tests",
+        "test": "mocha -u tdd ./tests/out"
     },
     "contributes": {
         "debuggers": [

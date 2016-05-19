@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "moduleResolution": "node",
+		"noImplicitAny": true,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"sourceMap": true,
+		"outDir": "out"
+	},
+	"exclude": [
+		"typings/browser",
+		"typings/browser.d.ts"
+	]
+}

@@ -1,9 +1,20 @@
 {
     "version": "0.1.0",
-    "command": "npm",
-    "isShellCommand": true,
-    "args": ["run", "watch"],
-    //"showOutput": "silent",
-    "isWatching": true,
-    "problemMatcher": "$tsc-watch"
+    "command": "bash",
+    "args": ["-c"],
+    "suppressTaskName": true,
+    "tasks": [
+        {
+            "taskName": "build-debuggee",
+            "args": ["c++ tests/debuggee.cpp -g -o tests/out/debuggee"]
+        },
+        {
+            "taskName": "build-tests",
+            "args": ["npm run compile"]
+        },
+        {
+            "taskName": "run-test",
+            "args": ["npm run test"]
+        }
+    ]
 }

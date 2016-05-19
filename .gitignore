@@ -56,5 +56,7 @@ docs/_build/
 # PyBuilder
 target/
 
+node_modules/
+tests/out/
 debuggee/
 .DS_Store

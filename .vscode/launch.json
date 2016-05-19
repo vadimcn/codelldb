@@ -1,5 +1,6 @@
 {
 	"version": "0.2.0",
+	//"debugServer": 4711,
 	"configurations": [
 		{
 			"name": "Launch Extension",
@@ -10,17 +11,42 @@
 				"--extensionDevelopmentPath=${workspaceRoot}"
 			],
 			"stopOnEntry": false,
-			"sourceMaps": true,
-			"outDir": "out",
-			"preLaunchTask": "npm"
+			"sourceMaps": true
 		},
 		{
             "name": "Debug Launcher",
             "type": "node",
             "request": "launch",
-            "runtimeArgs": ["--harmony"],
             "program": "${workspaceRoot}/adapter.js",
+			"cwd": "${workspaceRoot}",
             "stopOnEntry": false
+		},
+        {
+			"name": "Run Tests",
+			"preLaunchTask": "build-tests",
+			"type": "node",
+			"request": "launch",
+			"cwd": "${workspaceRoot}",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"runtimeArgs": [ "--nolazy", "--harmony" ],
+			"args": [
+				"-u", "tdd",
+				"--timeout", "999999",
+				"--colors",
+				"./tests/out"
+			],
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/tests/out"
+		},
+		{
+			"name": "Launch debuggee",
+			"preLaunchTask": "build-debuggee",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/tests/out/debuggee",
+			"args": ["deepstack"],
+			"cwd": "${workspaceRoot}",
+			"stopOnEntry": false
 		}
 	]
 }

@@ -390,6 +390,11 @@ class DebugSession:
         self.event_loop.stop()
 
     def on_request(self, request):
+        if request is None:
+            # Client connection lost; treat this the same as a normal disconnect.
+            self.disconnect_request(None)
+            return
+
         command =  request['command']
         args = request.get('arguments', None)
         log.debug('### Handling command: %s', command)

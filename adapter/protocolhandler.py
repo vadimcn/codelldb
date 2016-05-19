@@ -8,12 +8,19 @@ log = logging.getLogger(__name__)
 
 class ProtocolHandler:
 
+    # `read(N)`: callback to read up to N bytes from the input stream.
+    # `write(buffer)`: callback to write bytes into the output stream.
     def __init__(self, read, write):
         self.read = read
         self.write = write
         self.ibuffer = b''
         self.stopping = False
 
+    # Starts a thread that reads bytes via `read`, parses them and passes
+    # messages to the `handle_request` callback.
+    # The thread will pump messages until either `shutdown()` is called,
+    # or `read` returns zero, in which case `handle_request` will be invoked
+    # one last time with the `None` argument.
     def start(self, handle_request):
         self.handle_request = handle_request
         self.reader_thread = threading.Thread(None, self.pump_requests)
@@ -64,9 +71,10 @@ class ProtocolHandler:
                 message = json.loads(data)
                 self.handle_request(message)
         except StopIteration: # Thrown when read() returns 0
-            pass
+            self.handle_request(None)
         except Exception as e:
             log.error(e)
+            elf.handle_request(None)
 
     def send_message(self, message):
         data = json.dumps(message)

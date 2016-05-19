@@ -19,16 +19,6 @@ function findMarker(file: string, marker: string): number {
     throw Error('Marker not found');
 }
 
-async function configure_and_launch(configure: () => Promise<any>, launchArgs: any) {
-    return Promise.all([
-        dc.waitForEvent('initialized')
-            .then(() => configure())
-            .then(() => dc.configurationDoneRequest()),
-        dc.initializeRequest(),
-        dc.launchRequest(launchArgs),
-    ]);
-}
-
 setup(() => {
     dc = new DebugClient('node', './adapter.js', 'node');
     return dc.start(4711);
@@ -52,15 +42,17 @@ test('should stop on entry', () => {
     ]);
 });
 
+
 test('should stop on a breakpoint', () => {
     let bp_line = findMarker(debuggeeSource, '#BP1');
     return Promise.all([
-        configure_and_launch(() =>
+        dc.waitForEvent('initialized').then(() =>
             dc.setBreakpointsRequest({
                 source: { path: debuggeeSource },
                 breakpoints: [{ line: bp_line }]
-            }),
-            { program: 'tests/out/debuggee' }),
+            })),
+        dc.configurationSequence(),
+        dc.launch({ program: 'tests/out/debuggee' }),
         dc.assertStoppedLocation('breakpoint', { path: debuggeeSource, line: bp_line })
     ]);
 });

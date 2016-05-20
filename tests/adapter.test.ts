@@ -20,8 +20,8 @@ function findMarker(file: string, marker: string): number {
 }
 
 setup(() => {
-    dc = new DebugClient('node', './adapter.js', 'node');
-    return dc.start(4711);
+    dc = new DebugClient('node', './adapter.js', 'lldb');
+    return dc.start();
 });
 
 teardown(() => dc.stop());

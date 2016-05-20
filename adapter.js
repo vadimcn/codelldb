@@ -1,12 +1,12 @@
 var cp = require('child_process');
 var process = require('process');
 
-var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session()'], {
-    stdio: ['pipe', 'pipe', 'inherit'],
+var lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session(3,4)'], {
+    stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
     cwd: __dirname
 });
-process.stdin.pipe(lldb.stdio[0]);
-lldb.stdio[1].pipe(process.stdout);
+process.stdin.pipe(lldb.stdio[3]);
+lldb.stdio[4].pipe(process.stdout);
 
 // When lldb exits, we exit too
 lldb.on('exit', (code) => {

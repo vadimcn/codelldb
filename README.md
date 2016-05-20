@@ -84,9 +84,3 @@ and will not be persisted across debug sessions*.
 ## Windows
 No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
-
-# Issues and limitations
-- The true locations of resolved breakpoints are not reflected in the UI.
-- After a breakpoint stop or stepping, only call stack of the thread where event had occurred will be
-  displayed.  To inspect other threads, use the `allthreads` command.  ([VS Code bug #40](https://github.com/Microsoft/vscode/issues/40))
-- Global and static variables are not exposed in the UI

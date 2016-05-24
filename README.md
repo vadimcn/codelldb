@@ -4,7 +4,7 @@ LLDB Front-End for Visual Studio Code
 This extension provides native code debugging in Visual Studio Code via the [LLDB](http://lldb.llvm.org/) debugger engine.
 
 # Pre-requisites
-- Visual Studio Code 0.10.7 (January 2016)
+- Visual Studio Code 1.1.0.
 - LLDB with Python scripting support.  Make sure it's on you PATH.
   Please refer to [Installing LLDB](#installing-lldb) section for installation instructions.
   Verify installation by running `lldb --version`.

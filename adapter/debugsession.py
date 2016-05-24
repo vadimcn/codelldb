@@ -44,7 +44,6 @@ class DebugSession:
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
         self.listener_handler = debugevents.AsyncListener(self.event_listener, self.handle_event)
-
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
@@ -232,7 +231,7 @@ class DebugSession:
     lang_exc_bps = {
         'rust': (lambda target: target.BreakpointCreateByName('rust_panic'),
                  lambda target: target.BreakpointCreateByName('abort')),
-        'cpp': (lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, True, False),
+        'cpp': (lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
                 lambda target: target.BreakpointCreateByName('terminate')),
     }
 
@@ -311,6 +310,7 @@ class DebugSession:
             raise Exception('Invalid variable reference')
 
         if type(obj) is lldb.SBFrame:
+            # args, locals, statics, in_scope_only
             vars = obj.GetVariables(True, True, False, True)
         elif type(obj) is lldb.SBValue:
             vars = obj
@@ -441,25 +441,36 @@ class DebugSession:
 
     def notify_target_stopped(self, event):
         self.notify_live_threads()
-        event = { 'allThreadsStopped': True } # LLDB always stops all threads
-        # Find the thread that caused this stop
+        ev_body = { 'allThreadsStopped': True } # LLDB always stops all threads
+        # Find the thread that has caused this stop
         for thread in self.process:
             stop_reason = thread.GetStopReason()
             if stop_reason == lldb.eStopReasonBreakpoint:
-                event['reason'] = 'breakpoint'
-                event['threadId'] = thread.GetThreadID()
+                ev_body['threadId'] = thread.GetThreadID()
+                bp_id = thread.GetStopReasonDataAtIndex(0)
+                for bp in self.exc_breakpoints:
+                    if bp.GetID() == bp_id:
+                        ev_body['reason'] = 'exception'
+                        break;
+                else:
+                    ev_body['reason'] = 'breakpoint'
+                break
+            elif stop_reason == lldb.eStopReasonException:
+                ev_body['threadId'] = thread.GetThreadID()
+                ev_body['reason'] = 'exception'
                 break
             elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                event['reason'] = 'step'
-                event['threadId'] = thread.GetThreadID()
+                ev_body['threadId'] = thread.GetThreadID()
+                ev_body['reason'] = 'step'
                 break
             elif stop_reason == lldb.eStopReasonSignal:
-                event['reason'] = 'signal'
-                event['threadId'] = thread.GetThreadID()
+                ev_body['threadId'] = thread.GetThreadID()
+                ev_body['reason'] = 'signal'
+                ev_body['text'] = thread.GetStopReasonDataAtIndex(0)
                 break
         else:
             event['reason'] = 'unknown'
-        self.send_event('stopped', event)
+        self.send_event('stopped', ev_body)
 
     def notify_stdio(self, ev_type):
         if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:

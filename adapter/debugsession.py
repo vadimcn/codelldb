@@ -114,6 +114,10 @@ class DebugSession:
             self.send_event('terminated', {})
             raise UserError('Process launch failed.')
         assert self.process.IsValid()
+        # On Linux LLDB doesn't seem to automatically generate a stop event for stop_on_entry.
+        if self.process.GetState() == lldb.eStateStopped:
+            assert stop_on_entry
+            self.notify_target_stopped(None)
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -440,38 +444,38 @@ class DebugSession:
             elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
                 self.notify_stdio(ev_type)
 
-    def notify_target_stopped(self, event):
+    def notify_target_stopped(self, lldb_event):
         self.notify_live_threads()
-        ev_body = { 'allThreadsStopped': True } # LLDB always stops all threads
+        event = { 'allThreadsStopped': True } # LLDB always stops all threads
         # Find the thread that has caused this stop
         for thread in self.process:
             stop_reason = thread.GetStopReason()
             if stop_reason == lldb.eStopReasonBreakpoint:
-                ev_body['threadId'] = thread.GetThreadID()
+                event['threadId'] = thread.GetThreadID()
                 bp_id = thread.GetStopReasonDataAtIndex(0)
                 for bp in self.exc_breakpoints:
                     if bp.GetID() == bp_id:
-                        ev_body['reason'] = 'exception'
+                        event['reason'] = 'exception'
                         break;
                 else:
-                    ev_body['reason'] = 'breakpoint'
+                    event['reason'] = 'breakpoint'
                 break
             elif stop_reason == lldb.eStopReasonException:
-                ev_body['threadId'] = thread.GetThreadID()
-                ev_body['reason'] = 'exception'
+                event['threadId'] = thread.GetThreadID()
+                event['reason'] = 'exception'
                 break
             elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                ev_body['threadId'] = thread.GetThreadID()
-                ev_body['reason'] = 'step'
+                event['threadId'] = thread.GetThreadID()
+                event['reason'] = 'step'
                 break
             elif stop_reason == lldb.eStopReasonSignal:
-                ev_body['threadId'] = thread.GetThreadID()
-                ev_body['reason'] = 'signal'
-                ev_body['text'] = thread.GetStopReasonDataAtIndex(0)
+                event['threadId'] = thread.GetThreadID()
+                event['reason'] = 'signal'
+                event['text'] = thread.GetStopReasonDataAtIndex(0)
                 break
         else:
             event['reason'] = 'unknown'
-        self.send_event('stopped', ev_body)
+        self.send_event('stopped', event)
 
     def notify_stdio(self, ev_type):
         if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:

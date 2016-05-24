@@ -74,7 +74,7 @@ class ProtocolHandler:
             self.handle_request(None)
         except Exception as e:
             log.error(e)
-            elf.handle_request(None)
+            self.handle_request(None)
 
     def send_message(self, message):
         data = json.dumps(message)

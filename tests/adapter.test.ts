@@ -34,6 +34,15 @@ test('should run program to the end', () => {
     ]);
 });
 
+test('should run program with modified environment', () => {
+    return Promise.all([
+        dc.configurationSequence(),
+        dc.assertOutput('stdout', 'FOO=bar'),
+        dc.launch({ program: 'tests/out/debuggee', args: ['show_env', 'FOO'], env: {'FOO':'bar'} }),
+        dc.waitForEvent('terminated')
+    ]);
+});
+
 test('should stop on entry', () => {
     return Promise.all([
         dc.configurationSequence(),
@@ -41,7 +50,6 @@ test('should stop on entry', () => {
         dc.assertStoppedLocation('signal', { path: null, line: null, column: null })
     ]);
 });
-
 
 test('should stop on a breakpoint', () => {
     let bp_line = findMarker(debuggeeSource, '#BP1');

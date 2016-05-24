@@ -71,7 +71,8 @@ class DebugSession:
         env = args.get('env', None)
         envp = None
         if (env is not None): # Convert dict to a list of 'key=value' strings
-            envp = ['%s=%s' % item for item in env.items()]
+            envp = ([str('%s=%s' % pair) for pair in os.environ.items()] +
+                    [str('%s=%s' % pair) for pair in env.items()])
         # stdio
         stdio = args.get('stdio', None)
         missing = () # None is a valid value here, so we need a new one to designate 'missing'
@@ -481,7 +482,7 @@ class DebugSession:
             category = 'stderr'
         output = read_stream(1024)
         while output:
-            self.console_msg(output)
+            self.send_event('output', { 'category': category, 'output': output })
             output = read_stream(1024)
 
     def notify_live_threads(self):

@@ -44,7 +44,8 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/tests/out/debuggee",
-			"args": ["env"],
+			"env": { "FOO": "bar" },
+			"args": ["show_env", "FOO"],
 			"cwd": "${workspaceRoot}",
 			"stopOnEntry": false
 		}

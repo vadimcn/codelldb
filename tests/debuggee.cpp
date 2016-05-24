@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 #include <thread>
 #include <vector>
 
@@ -26,6 +27,11 @@ void threads(int num_threads) {
     }
 }
 
+void show_env(const char* env_name) {
+    const char* val = getenv(env_name);
+    printf("%s=%s\n", env_name, val);
+}
+
 int main(int argc, char* argv[]) {
     if (argc > 1) { // #BP1
         const char* testcase = argv[1];
@@ -33,6 +39,8 @@ int main(int argc, char* argv[]) {
             deepstack(50);
         } else if (strcmp(testcase, "threads") == 0) {
             threads(15);
+        } else if (strcmp(testcase, "show_env") == 0) {
+            show_env(argv[2]);
         }
     }
     return 0;

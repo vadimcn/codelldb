@@ -3,7 +3,7 @@
 	//"debugServer": 4711,
 	"configurations": [
 		{
-			"name": "Launch Extension",
+			"name": "extension",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
@@ -14,7 +14,7 @@
 			"sourceMaps": true
 		},
 		{
-            "name": "Debug Launcher",
+            "name": "adapter.js",
             "type": "node",
             "request": "launch",
             "program": "${workspaceRoot}/adapter.js",
@@ -22,8 +22,8 @@
             "stopOnEntry": false
 		},
         {
-			"name": "Run Tests",
-			"preLaunchTask": "build-tests",
+			"name": "tests",
+			"preLaunchTask": "build:tests",
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",
@@ -39,12 +39,12 @@
 			"outDir": "${workspaceRoot}/tests/out"
 		},
 		{
-			"name": "Launch debuggee",
-			"preLaunchTask": "build-debuggee",
+			"name": "debuggee",
+			"preLaunchTask": "build:debuggee",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/tests/out/debuggee",
-			"args": ["deepstack"],
+			"args": ["env"],
 			"cwd": "${workspaceRoot}",
 			"stopOnEntry": false
 		}

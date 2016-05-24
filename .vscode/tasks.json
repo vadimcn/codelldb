@@ -1,20 +1,21 @@
 {
-    "version": "0.1.0",
-    "command": "bash",
-    "args": ["-c"],
-    "suppressTaskName": true,
-    "tasks": [
-        {
-            "taskName": "build-debuggee",
-            "args": ["c++ tests/debuggee.cpp -std=c++11 -g -o tests/out/debuggee"]
-        },
-        {
-            "taskName": "build-tests",
-            "args": ["npm run compile"]
-        },
-        {
-            "taskName": "run-test",
-            "args": ["npm run test"]
-        }
-    ]
+  "version": "0.1.0",
+  "command": "npm",
+  "windows": {
+    "command": "npm.cmd"
+  },
+  "args": [ "run" ],
+  "tasks": [
+    {
+      "taskName": "test",
+      "isTestCommand": true
+    },
+    {
+      // pre-launch task for debugging tests
+      "taskName": "build:tests"
+    },
+    {
+      "taskName": "build:debuggee"
+    }
+  ]
 }

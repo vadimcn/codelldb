@@ -29,9 +29,10 @@
         "mocha": "^2.4.5"
     },
     "scripts": {
-        "compile": "tsc -p ./tests",
-        "watch": "tsc -w -p ./tests",
-        "test": "mocha -u tdd ./tests/out"
+        "build:debuggee": "c++ tests/debuggee.cpp -pthread -std=c++11 -g -o tests/out/debuggee",
+        "build:tests": "npm run build:debuggee && tsc -p ./tests",
+        "watch:tests": "tsc -w -p ./tests",
+        "test": "npm run build:tests && mocha -u tdd --timeout 5000 ./tests/out"
     },
     "contributes": {
         "debuggers": [

@@ -1,5 +1,2 @@
-debuggee/**
 **/*.pyc
-run_server.sh
-.gitignore
-.vscode/**
+

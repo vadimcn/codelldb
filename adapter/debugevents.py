@@ -15,7 +15,7 @@ class AsyncListener:
 
     def __del__(self):
         self.stopping = True
-        self.thread.join()
+        self.read_thread.join()
 
     def pump_events(self):
         import lldb

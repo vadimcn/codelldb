@@ -69,10 +69,9 @@ class DebugSession:
             target_args = [str(arg) for arg in target_args]
         # environment
         env = args.get('env', None)
-        envp = None
+        envp = [str('%s=%s' % pair) for pair in os.environ.items()]
         if (env is not None): # Convert dict to a list of 'key=value' strings
-            envp = ([str('%s=%s' % pair) for pair in os.environ.items()] +
-                    [str('%s=%s' % pair) for pair in env.items()])
+            envp = envp + ([str('%s=%s' % pair) for pair in env.items()])
         # stdio
         stdio = args.get('stdio', None)
         missing = () # None is a valid value here, so we need a new one to designate 'missing'

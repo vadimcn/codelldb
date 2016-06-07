@@ -275,15 +275,11 @@ class DebugSession:
         for i in range(start_frame, start_frame + levels):
             frame = thread.frames[i]
             stack_frame = { 'id': self.var_refs.create(frame) }
-            fn = frame.GetFunction()
-            if fn.IsValid():
-                stack_frame['name'] = fn.GetName()
-            else:
-                sym = frame.GetSymbol()
-                if sym.IsValid():
-                    stack_frame['name'] = sym.GetName()
-                else:
-                    stack_frame['name'] = str(frame.GetPCAddress())
+            fn_name = frame.GetFunctionName()
+            if fn_name is None:
+                fn_name = str(frame.GetPCAddress())
+            stack_frame['name'] = fn_name
+
             le = frame.GetLineEntry()
             if le.IsValid():
                 fs = le.GetFileSpec()

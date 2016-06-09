@@ -28,14 +28,6 @@ class DebugSession:
         self.terminal = None
         self.launch_args = None
 
-    # handles messages from VSCode
-    def handle_message(self, msg):
-        self.event_loop.dispatch1(self.on_request, msg)
-
-    # handles debugger notifications
-    def handle_event(self, event):
-        self.event_loop.dispatch1(self.on_target_event, event)
-
     def initialize_request(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
@@ -43,7 +35,8 @@ class DebugSession:
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
-        self.listener_handler = debugevents.AsyncListener(self.event_listener, self.handle_event)
+        self.listener_handler = debugevents.AsyncListener(self.event_listener,
+                self.event_loop.make_dispatcher(self.handle_debugger_event))
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
@@ -115,7 +108,6 @@ class DebugSession:
         assert self.process.IsValid()
         # On Linux LLDB doesn't seem to automatically generate a stop event for stop_on_entry.
         if self.process.GetState() == lldb.eStateStopped:
-            assert stop_on_entry
             self.notify_target_stopped(None)
 
     def attach_request(self, args):
@@ -393,7 +385,8 @@ class DebugSession:
         self.terminal = None
         self.event_loop.stop()
 
-    def on_request(self, request):
+    # handles messages from VSCode
+    def handle_message(self, request):
         if request is None:
             # Client connection lost; treat this the same as a normal disconnect.
             self.disconnect_request(None)
@@ -425,7 +418,8 @@ class DebugSession:
 
         self.send_message(response)
 
-    def on_target_event(self, event):
+    # handles debugger notifications
+    def handle_debugger_event(self, event):
         if lldb.SBProcess.EventIsProcessEvent(event):
             ev_type = event.GetType()
             if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:

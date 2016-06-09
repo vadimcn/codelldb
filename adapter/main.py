@@ -22,10 +22,9 @@ def run_session(read, write):
 
     proto_handler = protocolhandler.ProtocolHandler(read, write)
     debug_session = debugsession.DebugSession(event_loop, proto_handler.send_message)
-
-    proto_handler.start(debug_session.handle_message)
+    proto_handler.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
+    proto_handler.start()
     event_loop.run()
-    proto_handler.shutdown()
 
 # Run in socket server mode
 def run_tcp_server(port=4711):

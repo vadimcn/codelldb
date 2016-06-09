@@ -3,28 +3,33 @@ import logging
 
 log = logging.getLogger(__name__)
 
-class AsyncListener:
-    def __init__(self, listener, event_sink):
-        assert listener.IsValid()
-        self.listener = listener
-        self.event_sink = event_sink
-
+class ReaderThread(threading.Thread):
+    def __init__(self, *args):
+        threading.Thread.__init__(self, target = self.thread_proc, args = args)
         self.stopping = False
-        self.read_thread = threading.Thread(None, self.pump_events)
-        self.read_thread.start()
+        self.start()
 
     def __del__(self):
         self.stopping = True
-        self.read_thread.join()
+        self.join()
 
-    def pump_events(self):
+class AsyncListener(ReaderThread):
+    def thread_proc(self, listener, event_sink):
         import lldb
         event = lldb.SBEvent()
         while not self.stopping:
-            if self.listener.WaitForEvent(1, event):
+            if listener.WaitForEvent(1, event):
                 if log.isEnabledFor(logging.DEBUG):
                     descr = lldb.SBStream()
                     event.GetDescription(descr)
                     log.debug('### Debug event: %s %s', event.GetDataFlavor(), descr.GetData())
-                self.event_sink(event)
+                event_sink(event)
                 event = lldb.SBEvent()
+
+class PipeReader(ReaderThread):
+    def thread_proc(self, pipe, data_sink):
+        while not self.stopping:
+            data = pipe.read(256)
+            if len(data) == 0:
+                break
+            data_sink(data)

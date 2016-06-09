@@ -1,35 +1,41 @@
-import threading
 import json
 import string
 import logging
 import sys
+import threading
 
 log = logging.getLogger(__name__)
 
-class ProtocolHandler:
-
+class ProtocolHandler(threading.Thread):
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write(buffer)`: callback to write bytes into the output stream.
     def __init__(self, read, write):
+        threading.Thread.__init__(self)
         self.read = read
         self.write = write
         self.ibuffer = b''
-        self.stopping = False
+       	self.stopping = False
+        self.handle_message = None
 
-    # Starts a thread that reads bytes via `read`, parses them and passes
-    # messages to the `handle_request` callback.
-    # The thread will pump messages until either `shutdown()` is called,
-    # or `read` returns zero, in which case `handle_request` will be invoked
-    # one last time with the `None` argument.
-    def start(self, handle_request):
-        self.handle_request = handle_request
-        self.reader_thread = threading.Thread(None, self.pump_requests)
-        self.reader_thread.start()
-
-    def shutdown(self):
+    def __del__(self):
         self.stopping = True
-        self.reader_thread.join()
-        self.handle_request = None
+        self.join()
+
+    def run(self):
+        assert self.handle_message is not None
+        try:
+            while not self.stopping:
+                clen = self.recv_headers()
+                data = self.recv_body(clen)
+                data = data.decode('utf-8')
+                log.debug('-> %s', data)
+                message = json.loads(data)
+                self.handle_message(message)
+        except StopIteration: # Thrown when read() returns 0
+            self.handle_message(None)
+        except Exception as e:
+            log.error(e)
+            self.handle_message(None)
 
     def recv_headers(self):
         while True:
@@ -60,21 +66,6 @@ class ProtocolHandler:
             raise StopIteration()
         self.ibuffer = self.ibuffer[clen:]
         return data
-
-    def pump_requests(self):
-        try:
-            while not self.stopping:
-                clen = self.recv_headers()
-                data = self.recv_body(clen)
-                data = data.decode('utf-8')
-                log.debug('-> %s', data)
-                message = json.loads(data)
-                self.handle_request(message)
-        except StopIteration: # Thrown when read() returns 0
-            self.handle_request(None)
-        except Exception as e:
-            log.error(e)
-            self.handle_request(None)
 
     def send_message(self, message):
         data = json.dumps(message)

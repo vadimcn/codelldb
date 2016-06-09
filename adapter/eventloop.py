@@ -6,13 +6,12 @@ class EventLoop:
     def __init__(self, qsize=10):
         self.queue = queue.Queue(qsize)
 
-    def dispatch(self, target, args):
-        '''Dispatch to function with a tuple of arguments'''
-        self.queue.put((target, args))
-
-    def dispatch1(self, target, arg):
-        '''Dispatch to function with 1 argument'''
-        self.queue.put((target, (arg,)))
+    # Returns callable object that will dispatch a call to `target`
+    # via this event loop's queue.
+    def make_dispatcher(self, target):
+        def dispatcher(*args):
+            self.queue.put((target,args))
+        return dispatcher
 
     def run(self):
         self.stopping = False

@@ -311,9 +311,11 @@ class DebugSession:
 
         for var in vars:
             name, value, dtype, ref = self.parse_var(var)
-            if value is None: value = dtype
-            variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
-            variables.append(variable)
+            # Sometimes LLDB returns junk entries with empty names and values
+            if name is not None:
+                if value is None: value = dtype
+                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
+                variables.append(variable)
 
         if type(vars) is lldb.SBValue and vars.IsSynthetic():
             ref = self.var_refs.create(('synthetic', vars))
@@ -370,7 +372,7 @@ class DebugSession:
         if value is None:
             value = var.GetSummary()
             if value is not None:
-                value = value.replace('\n', '; ') # VSCode won't display line breaks
+                value = value.replace('\n', '') # VSCode won't display line breaks
         if PY2 and value is not None:
             value = value.decode('latin1') # or else json will try to treat it as utf8
         ref = self.var_refs.create(var) if var.MightHaveChildren() else 0

@@ -311,6 +311,7 @@ class DebugSession:
 
         for var in vars:
             name, value, dtype, ref = self.parse_var(var)
+            if value is None: value = dtype
             variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
             variables.append(variable)
 
@@ -350,26 +351,28 @@ class DebugSession:
         if frame is None:
             return
         var = frame.EvaluateExpression(expr)
-        if var.GetError().Success():
+        error = var.GetError()
+        if error.Success():
             _, value, dtype, ref = self.parse_var(var)
-            return { 'result': value, 'type': dtype, 'variablesReference': ref }
-        elif args['context'] != 'hover':
-            # don't print errors for hover evals
-            output = var.GetError().GetCString()
-            self.console_msg(output)
+            if value is None: value = dtype
+            return { 'result': value, 'variablesReference': ref }
+        else:
+            message = error.GetCString()
+            if args['context'] == 'repl':
+                self.console_msg(message)
+            else:
+                raise UserError(message.replace('\n', '; '))
 
     def parse_var(self, var):
         name = var.GetName()
         value = var.GetValue()
+        dtype = var.GetTypeName()
         if value is None:
             value = var.GetSummary()
             if value is not None:
-                value = value.replace('\n', '') # VSCode won't display line breaks
-        if value is None:
-            value = '{...}'
-        if PY2:
+                value = value.replace('\n', '; ') # VSCode won't display line breaks
+        if PY2 and value is not None:
             value = value.decode('latin1') # or else json will try to treat it as utf8
-        dtype = var.GetTypeName()
         ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
         return name, value, dtype, ref
 

@@ -25,6 +25,7 @@
     },
     "devDependencies": {
         "vscode-debugadapter-testsupport": "^1.8.0",
+        "vscode-debugprotocol": "^1.8.0",
         "typescript": "^1.8.10",
         "mocha": "^2.4.5"
     },

@@ -1,6 +1,9 @@
+import logging
 from . import PY2
 if PY2: import Queue as queue
 else: import queue
+
+log = logging.getLogger('eventloop')
 
 class EventLoop:
     def __init__(self, qsize=10):

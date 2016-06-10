@@ -1,7 +1,7 @@
 import threading
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('debugevents')
 
 class ReaderThread(threading.Thread):
     def __init__(self, *args):

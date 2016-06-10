@@ -2,6 +2,9 @@ import os
 import socket
 import subprocess
 import string
+import logging
+
+log = logging.getLogger('terminal')
 
 class Terminal:
     def __init__(self, tty, socket):

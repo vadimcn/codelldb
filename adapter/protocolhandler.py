@@ -4,7 +4,7 @@ import logging
 import sys
 import threading
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('protocolhandler')
 
 class ProtocolHandler(threading.Thread):
     # `read(N)`: callback to read up to N bytes from the input stream.

@@ -3,7 +3,7 @@ import os
 import logging
 import signal
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def init_logging(is_stdio_session):
@@ -11,7 +11,8 @@ def init_logging(is_stdio_session):
     log_level = 0
     if is_stdio_session and not log_file:
         log_level = logging.ERROR
-    logging.basicConfig(level=log_level, filename=log_file)
+    logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
+                        format='[%(asctime)s %(name)s] %(message)s')
 
 def run_session(read, write):
     from . import debugsession

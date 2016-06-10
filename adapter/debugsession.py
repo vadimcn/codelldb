@@ -10,7 +10,7 @@ from . import handles
 from . import terminal
 from . import PY2
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('debugsession')
 
 class DebugSession:
 

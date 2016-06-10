@@ -109,9 +109,6 @@ class DebugSession:
 
         assert self.process.IsValid()
         self.process_launched = True
-        # On Linux LLDB doesn't seem to automatically generate a stop event for stop_on_entry.
-        if self.process.GetState() == lldb.eStateStopped:
-            self.notify_target_stopped(None)
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -130,9 +127,7 @@ class DebugSession:
         if args.get('pid', None) is not None:
             self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
         else:
-            name = os.path.basename(args['program'])
-            log.info('Attaching to %s', name)
-            self.process = self.target.AttachToProcessWithName(self.event_listener, str(name), True, error)
+            self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), False, error)
 
         if not error.Success():
             self.console_msg(error.GetCString())
@@ -140,8 +135,6 @@ class DebugSession:
 
         assert self.process.IsValid()
         self.process_launched = False
-        if self.process.GetState() == lldb.eStateStopped:
-            self.notify_target_stopped(None)
 
     def exec_commands(self, commands):
         if commands is not None:
@@ -247,6 +240,9 @@ class DebugSession:
             result = e
         # do_launch is asynchronous so we need to send its result
         self.send_response(self.launch_args['response'], result)
+        # On Linux, LLDB doesn't seem to automatically generate a stop event for stop_on_entry
+        if self.process.GetState() == lldb.eStateStopped:
+            self.notify_target_stopped(None)
 
     def pause_request(self, args):
         self.process.Stop()

@@ -22,38 +22,6 @@ function findMarker(file: string, marker: string): number {
     throw Error('Marker not found');
 }
 
-setup(() => {
-    dc = new DebugClient('node', './adapter.js', 'lldb');
-    return dc.start();
-});
-
-teardown(() => dc.stop());
-
-test('should run program to the end', () => {
-    return Promise.all([
-        dc.configurationSequence(),
-        dc.launch({ program: DEBUGGEE }),
-        dc.waitForEvent('terminated')
-    ]);
-});
-
-test('should run program with modified environment', () => {
-    return Promise.all([
-        dc.configurationSequence(),
-        dc.assertOutput('stdout', 'FOO=bar'),
-        dc.launch({ program: DEBUGGEE, args: ['show_env', 'FOO'], env: { 'FOO': 'bar' } }),
-        dc.waitForEvent('terminated')
-    ]);
-});
-
-test('should stop on entry', () => {
-    return Promise.all([
-        dc.configurationSequence(),
-        dc.launch({ program: DEBUGGEE, stopOnEntry: true }),
-        dc.assertStoppedLocation('signal', { path: null, line: null, column: null })
-    ]);
-});
-
 async function attach(dc: DebugClient, attachArgs: dp.AttachRequestArguments): Promise<dp.AttachResponse> {
     let waitForInit = dc.waitForEvent('initialized');
     await dc.initializeRequest()
@@ -63,22 +31,46 @@ async function attach(dc: DebugClient, attachArgs: dp.AttachRequestArguments): P
     return attachResp;
 }
 
-test('should attach', async () => {
-    let debuggee = cp.spawn(DEBUGGEE, ['inf_loop'], {});
-    let asyncWaitStopped = dc.waitForEvent('stopped');
-    let attachResp = await attach(dc, { program: DEBUGGEE, pid: debuggee.pid });
-    assert(attachResp.success);
-    await asyncWaitStopped;
+setup(() => {
+    dc = new DebugClient('node', './adapter.js', 'lldb');
+    return dc.start();
 });
 
-test('should stop on a breakpoint', () => {
+teardown(() => dc.stop());
+
+test('run program to the end', () => {
+    return Promise.all([
+        dc.configurationSequence(),
+        dc.launch({ program: DEBUGGEE }),
+        dc.waitForEvent('terminated')
+    ]);
+});
+
+test('run program with modified environment', () => {
+    return Promise.all([
+        dc.configurationSequence(),
+        dc.assertOutput('stdout', 'FOO=bar'),
+        dc.launch({ program: DEBUGGEE, args: ['show_env', 'FOO'], env: { 'FOO': 'bar' } }),
+        dc.waitForEvent('terminated')
+    ]);
+});
+
+test('stop on entry', () => {
+    return Promise.all([
+        dc.configurationSequence(),
+        dc.launch({ program: DEBUGGEE, stopOnEntry: true }),
+        dc.assertStoppedLocation('signal', { path: null, line: null, column: null })
+    ]);
+});
+
+test('stop on a breakpoint', () => {
     let bp_line = findMarker(debuggeeSource, '#BP1');
     return dc.hitBreakpoint(
         { program: DEBUGGEE },
         { path: debuggeeSource, line: bp_line, verified: true });
 });
 
-test('should page stack', () => {
+test('page stack', () => {
     let bp_line = findMarker(debuggeeSource, '#BP2');
     return Promise.all([
         dc.waitForEvent('stopped').then(async (response1) => {
@@ -94,3 +86,30 @@ test('should page stack', () => {
             { path: debuggeeSource, line: bp_line, verified: true })
     ]);
 });
+
+suite('attach tests - these may fail if your system has a locked-down ptrace() syscall', () => {
+    var debuggee: cp.ChildProcess;
+
+    suiteSetup(() => {
+        debuggee = cp.spawn(DEBUGGEE, ['inf_loop'], {});
+    })
+
+    suiteTeardown(() => {
+        debuggee.kill()
+    })
+
+    test('attach by pid', async () => {
+        let asyncWaitStopped = dc.waitForEvent('stopped');
+        let attachResp = await attach(dc, { program: DEBUGGEE, pid: debuggee.pid });
+        assert(attachResp.success);
+        await asyncWaitStopped;
+    });
+
+    test('attach by name - may fail if a copy of debuggee is already running', async () => {
+        let asyncWaitStopped = dc.waitForEvent('stopped');
+        let attachResp = await attach(dc, { program: DEBUGGEE });
+        assert(attachResp.success);
+        await asyncWaitStopped;
+        debuggee.kill()
+    });
+})

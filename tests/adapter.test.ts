@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import {DebugClient} from 'vscode-debugadapter-testsupport';
+import {DebugProtocol as dp} from 'vscode-debugprotocol';
 
 var dc: DebugClient;
 var debuggeeSource = path.join(process.cwd(), 'tests', 'debuggee.cpp');
@@ -38,7 +39,7 @@ test('should run program with modified environment', () => {
     return Promise.all([
         dc.configurationSequence(),
         dc.assertOutput('stdout', 'FOO=bar'),
-        dc.launch({ program: 'tests/out/debuggee', args: ['show_env', 'FOO'], env: {'FOO':'bar'} }),
+        dc.launch({ program: 'tests/out/debuggee', args: ['show_env', 'FOO'], env: { 'FOO': 'bar' } }),
         dc.waitForEvent('terminated')
     ]);
 });
@@ -49,6 +50,23 @@ test('should stop on entry', () => {
         dc.launch({ program: 'tests/out/debuggee', stopOnEntry: true }),
         dc.assertStoppedLocation('signal', { path: null, line: null, column: null })
     ]);
+});
+
+async function attach(dc: DebugClient, attachArgs: dp.AttachRequestArguments): Promise<dp.AttachResponse> {
+    let waitForInit = dc.waitForEvent('initialized');
+    await dc.initializeRequest()
+    let attachResp = dc.attachRequest(attachArgs);
+    await waitForInit;
+    dc.configurationDoneRequest();
+    return attachResp;
+}
+
+test('should attach', async () => {
+    let debuggee = cp.spawn('tests/out/debuggee', ['inf_loop'], {});
+    let asyncWaitStopped = dc.waitForEvent('stopped');
+    let attachResp = await attach(dc, { program: 'tests/out/debuggee', pid: debuggee.pid });
+    assert(attachResp.success);
+    await asyncWaitStopped;
 });
 
 test('should stop on a breakpoint', () => {

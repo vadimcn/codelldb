@@ -1,8 +1,8 @@
 #include <cstdlib>
-#include <cstring>
 #include <cstdio>
 #include <thread>
 #include <vector>
+#include <string>
 
 void deepstack(int levelsToGo) {
     if (levelsToGo > 0) {
@@ -34,13 +34,15 @@ void show_env(const char* env_name) {
 
 int main(int argc, char* argv[]) {
     if (argc > 1) { // #BP1
-        const char* testcase = argv[1];
-        if (strcmp(testcase, "deepstack") == 0) {
+        std::string testcase = argv[1];
+        if (testcase == "deepstack") {
             deepstack(50);
-        } else if (strcmp(testcase, "threads") == 0) {
+        } else if (testcase == "threads") {
             threads(15);
-        } else if (strcmp(testcase, "show_env") == 0) {
+        } else if (testcase == "show_env") {
             show_env(argv[2]);
+        } else if (testcase == "inf_loop") {
+            inf_loop();
         }
     }
     return 0;

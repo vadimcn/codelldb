@@ -46,8 +46,14 @@
 			"program": "${workspaceRoot}/tests/out/debuggee",
 			"env": { "FOO": "bar" },
 			"args": ["show_env", "FOO"],
-			"cwd": "${workspaceRoot}",
-			"stopOnEntry": false
+			"cwd": "${workspaceRoot}"
+		},
+		{
+			"name": "debuggee attach",
+			"preLaunchTask": "build:debuggee",
+			"type": "lldb",
+			"request": "attach",
+			"program": "${workspaceRoot}/tests/out/debuggee"
 		}
 	]
 }

@@ -48,10 +48,11 @@ class DebugSession:
         if not self.target.IsValid():
             raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
-        self.launch_args = args
         # defer actual launching till configurationDone request, so that
         # we can receive and set initial breakpoints before the target starts running
-        self.do_launch = lambda: self.launch(args)
+        self.do_launch = self.launch
+        self.launch_args = args
+        return AsyncResponse
 
     def launch(self, args):
         self.exec_commands(args.get('preRunCommands'))
@@ -105,7 +106,9 @@ class DebugSession:
             self.console_msg(error.GetCString())
             self.send_event('terminated', {})
             raise UserError('Process launch failed.')
+
         assert self.process.IsValid()
+        self.process_launched = True
         # On Linux LLDB doesn't seem to automatically generate a stop event for stop_on_entry.
         if self.process.GetState() == lldb.eStateStopped:
             self.notify_target_stopped(None)
@@ -116,8 +119,9 @@ class DebugSession:
         if not self.target.IsValid():
             raise UserError('Could not initialize debug target (is the program path correct?)')
         self.send_event('initialized', {})
+        self.do_launch = self.attach
         self.launch_args = args
-        self.do_launch = lambda: self.attach(args)
+        return AsyncResponse
 
     def attach(self, args):
         self.exec_commands(args.get('preRunCommands'))
@@ -126,13 +130,18 @@ class DebugSession:
         if args.get('pid', None) is not None:
             self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
         else:
-            self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), True, error)
+            name = os.path.basename(args['program'])
+            log.info('Attaching to %s', name)
+            self.process = self.target.AttachToProcessWithName(self.event_listener, str(name), True, error)
 
         if not error.Success():
             self.console_msg(error.GetCString())
-            self.send_event('terminated', {})
-            raise UserError('Process attach failed.')
+            raise UserError('Failed to attach to process.')
+
         assert self.process.IsValid()
+        self.process_launched = False
+        if self.process.GetState() == lldb.eStateStopped:
+            self.notify_target_stopped(None)
 
     def exec_commands(self, commands):
         if commands is not None:
@@ -232,7 +241,12 @@ class DebugSession:
     }
 
     def configurationDone_request(self, args):
-        self.do_launch()
+        try:
+            result = self.do_launch(self.launch_args)
+        except Exception as e:
+            result = e
+        # do_launch is asynchronous so we need to send its result
+        self.send_response(self.launch_args['response'], result)
 
     def pause_request(self, args):
         self.process.Stop()
@@ -380,7 +394,10 @@ class DebugSession:
 
     def disconnect_request(self, args):
         if self.process:
-            self.process.Kill()
+            if self.process_launched:
+                self.process.Kill()
+            else:
+                self.process.Detach()
         self.process = None
         self.target = None
         self.terminal = None
@@ -394,29 +411,43 @@ class DebugSession:
             return
 
         command =  request['command']
-        args = request.get('arguments', None)
+        args = request.get('arguments', {})
         log.debug('### Handling command: %s', command)
 
         response = { 'type': 'response', 'command': command,
                      'request_seq': request['seq'], 'success': False }
+        args['response'] = response
 
         handler = getattr(self, command + '_request', None)
         if handler is not None:
             try:
-                response['body'] = handler(args)
-                response['success'] = True
-            except UserError as e:
-                response['success'] = False
-                response['body'] = { 'error': { 'id': 0, 'format': str(e), 'showUser': True } }
+                result = handler(args)
+                # `result` being an AsyncResponse means that the handler is asynchronous and
+                # will respond at a later time.
+                if result is AsyncResponse: return
             except Exception as e:
-                tb = traceback.format_exc(e)
-                log.error('Internal error:\n' + tb)
-                msg = 'Internal error: ' + str(e)
-                response['success'] = False
-                response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
+                result = e
         else:
             log.warning('No handler for %s', command)
+            result = None
+        self.send_response(response, result)
 
+    # sends response with `result` as a body
+    def send_response(self, response, result):
+        if result is None or isinstance(result, dict):
+            response['success'] = True
+            response['body'] = result
+        elif isinstance(result, UserError):
+            response['success'] = False
+            response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
+        elif isinstance(result, Exception):
+            tb = traceback.format_exc(result)
+            log.error('Internal error:\n' + tb)
+            msg = 'Internal error: ' + str(result)
+            response['success'] = False
+            response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
+        else:
+            assert False, "Invalid result type: %s" % result
         self.send_message(response)
 
     # handles debugger notifications
@@ -506,6 +537,10 @@ class DebugSession:
 
 # For when we need to let user know they screwed up
 class UserError(Exception):
+    pass
+
+# Result type for async handlers
+class AsyncResponse:
     pass
 
 def opt_str(s):

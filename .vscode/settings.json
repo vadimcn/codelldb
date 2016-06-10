@@ -3,5 +3,11 @@
     "files.trimTrailingWhitespace": true,
     "editor.insertSpaces": true,
     "editor.tabSize": 4,
-    "editor.autoClosingBrackets": false
+    "editor.autoClosingBrackets": false,
+    "editor.rulers": [100],
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/*.pyc": true
+    }
 }

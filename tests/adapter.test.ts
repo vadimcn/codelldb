@@ -7,6 +7,8 @@ import * as fs from 'fs';
 import {DebugClient} from 'vscode-debugadapter-testsupport';
 import {DebugProtocol as dp} from 'vscode-debugprotocol';
 
+const DEBUGGEE = 'tests/out/debuggee'
+
 var dc: DebugClient;
 var debuggeeSource = path.join(process.cwd(), 'tests', 'debuggee.cpp');
 
@@ -30,7 +32,7 @@ teardown(() => dc.stop());
 test('should run program to the end', () => {
     return Promise.all([
         dc.configurationSequence(),
-        dc.launch({ program: 'tests/out/debuggee' }),
+        dc.launch({ program: DEBUGGEE }),
         dc.waitForEvent('terminated')
     ]);
 });
@@ -39,7 +41,7 @@ test('should run program with modified environment', () => {
     return Promise.all([
         dc.configurationSequence(),
         dc.assertOutput('stdout', 'FOO=bar'),
-        dc.launch({ program: 'tests/out/debuggee', args: ['show_env', 'FOO'], env: { 'FOO': 'bar' } }),
+        dc.launch({ program: DEBUGGEE, args: ['show_env', 'FOO'], env: { 'FOO': 'bar' } }),
         dc.waitForEvent('terminated')
     ]);
 });
@@ -47,7 +49,7 @@ test('should run program with modified environment', () => {
 test('should stop on entry', () => {
     return Promise.all([
         dc.configurationSequence(),
-        dc.launch({ program: 'tests/out/debuggee', stopOnEntry: true }),
+        dc.launch({ program: DEBUGGEE, stopOnEntry: true }),
         dc.assertStoppedLocation('signal', { path: null, line: null, column: null })
     ]);
 });
@@ -62,9 +64,9 @@ async function attach(dc: DebugClient, attachArgs: dp.AttachRequestArguments): P
 }
 
 test('should attach', async () => {
-    let debuggee = cp.spawn('tests/out/debuggee', ['inf_loop'], {});
+    let debuggee = cp.spawn(DEBUGGEE, ['inf_loop'], {});
     let asyncWaitStopped = dc.waitForEvent('stopped');
-    let attachResp = await attach(dc, { program: 'tests/out/debuggee', pid: debuggee.pid });
+    let attachResp = await attach(dc, { program: DEBUGGEE, pid: debuggee.pid });
     assert(attachResp.success);
     await asyncWaitStopped;
 });
@@ -72,7 +74,7 @@ test('should attach', async () => {
 test('should stop on a breakpoint', () => {
     let bp_line = findMarker(debuggeeSource, '#BP1');
     return dc.hitBreakpoint(
-        { program: 'tests/out/debuggee' },
+        { program: DEBUGGEE },
         { path: debuggeeSource, line: bp_line, verified: true });
 });
 
@@ -88,7 +90,7 @@ test('should page stack', () => {
             assert(response4.body.variables[0].value == '20');
         }),
         dc.hitBreakpoint(
-            { program: 'tests/out/debuggee', args: ['deepstack'] },
+            { program: DEBUGGEE, args: ['deepstack'] },
             { path: debuggeeSource, line: bp_line, verified: true })
     ]);
 });

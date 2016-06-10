@@ -1,15 +1,24 @@
 LLDB Front-End for Visual Studio Code
-==========
+=====================================
 
-This extension provides native code debugging in Visual Studio Code via the [LLDB](http://lldb.llvm.org/) debugger engine.
+Native debugging in Visual Studio Code via [LLDB debugger engine](http://lldb.llvm.org/).
 
-# Pre-requisites
-- Visual Studio Code 1.1.0.
-- LLDB with Python scripting support.  Make sure it's on you PATH.
-  Please refer to [Installing LLDB](#installing-lldb) section for installation instructions.
-  Verify installation by running `lldb --version`.
+Features:
+- Attach or Launch
+- Breakpoints (function, conditional)
+- Expression evaluation
+- Hover Tips
+- Watch
+- Call Stacks
+- Multiple Threads
+- Stepping
+- LLDB Commands
 
-# How To Use
+# Prerequisites
+- Visual Studio Code 1.1.1.
+- LLDB with Python scripting support. ([Installing LLDB](#installing-lldb))
+
+# Debugging
 
 See [VS Code Debugging](https://code.visualstudio.com/Docs/editor/debugging) page for general instructions.
 
@@ -50,25 +59,24 @@ on some systems.  You may need to adjust system configuration to enable attachin
 |`preRunCommands`|list of strings|| LLDB commands executed just before attaching.|
 |`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
-### stdio
-The stdio configuration specifies connections established for debuggee stdio streams.
+### Stdio
+The stdio configuration specifies connections established for debuggee's stdio streams.
 Each stream's configuration value may be one of the following:
-- `null`: Debugger captures the stream, `stdout` and `stderr` output are sent to debugger console;
-  `stdin` is always empty.
-- `"/some/path"`: Connects stream to a file, a pipe or a TTY (not supported on Windows).
-Hint: use `tty` command to find out the TTY device name for a terminal window.
-- `"*"`: Creates a new terminal window and connects stream to that terminal.
-  On Windows, debuggee is always launched in a new window, however stdio streams may still be configured as described above.
 
+|value         |         |
+|--------------|---------
+|`null`        | Debugger captures the stream, `stdout` and `stderr` output are sent to debugger console; `stdin` is always empty.|
+|`"*"`         | Creates a new terminal window and connects stream to that terminal.|
+|`"/some/path"`| Connects stream to a file, a pipe or a TTY (not supported on Windows). Hint: use `tty` command to find out the TTY device name for a terminal window.|
 
-When the `stdio` parameter is assigned a single value, all three streams are configured identically.
+Fro example, `"stdio": ["*", null, "/tmp/my.log"]` will connect `stdin` to a new terminal, send `stdout` to debugger console,
+and `stderr` - to a log file.
+- You may also use dictionary syntax: `"stdio": { "stdin": "*", "stdout": null, "stderr": "/tmp/my.log" }`.
+- A single value will configure all three streams identically: `"stdio": "*"`.
 
-It is possible to configure them independently: `"stdio": ["*", null, "/tmp/my.log"]`
-will connect stdin to a new terminal, send stdout to debugger console, and stderr - to a log file.
+On Windows debuggee is always launched in a new window, however stdio streams may still be configured as described above.
 
-You may also use dictionary syntax: `"stdio": { "stdin": "*", "stdout": null, "stderr": "/tmp/my.log" }`
-
-## Debugging
+## LLDB Commands
 VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features
 you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the debugger console window.
 If you would like to evaluate an expression instead, prefix it with '`?`'.
@@ -78,8 +86,8 @@ and will not be persisted across debug sessions*.
 
 # Installing LLDB
 ## Linux
-- On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install lldb-x.y`, where x.y is LLDB version.
-  See [this page](http://llvm.org/apt/) for more info.
+- On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install lldb-x.y`, where x.y is the LLDB version.
+  See [this page](http://lldb.llvm.org/download.html) for more info.
 
 ## Mac OSX
 - [Download](https://developer.apple.com/xcode/download/) and install XCode.
@@ -88,3 +96,9 @@ and will not be persisted across debug sessions*.
 ## Windows
 No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
+
+
+# Release Notes
+
+## 0.1.0
+First released version.

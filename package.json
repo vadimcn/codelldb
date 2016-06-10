@@ -1,19 +1,24 @@
 {
-    "name": "lldb-adapter",
+    "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "publisher": "vadimcn",
-    "description": "Native debugging in Visual Studio code via the LLDB debugger engine.",
+    "description": "LLDB front-end for VSCode",
     "license": "MIT",
     "author": {
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^0.10.7"
+        "vscode": "^1.1.1"
     },
     "icon": "lldb.png",
     "categories": [
         "Debuggers"
+    ],
+    "keywords": [
+        "Debug",
+        "Debugger",
+        "LLDB"
     ],
     "private": true,
     "repository": {
@@ -30,7 +35,7 @@
         "mocha": "^2.4.5"
     },
     "scripts": {
-        "build:debuggee": "mkdir -p tests/out && c++ tests/debuggee.cpp -pthread -std=c++11 -g -o tests/out/debuggee",
+        "build:debuggee": "c++ tests/debuggee.cpp -pthread -std=c++11 -g -o tests/out/debuggee",
         "build:tests": "npm run build:debuggee && tsc -p ./tests",
         "watch:tests": "tsc -w -p ./tests",
         "test": "npm run build:tests && mocha -u tdd --timeout 5000 ./tests/out"
@@ -39,23 +44,21 @@
         "debuggers": [
             {
                 "type": "lldb",
-                "label": "LLDB debugger",
+                "label": "LLDB Debugger",
                 "enableBreakpointsFor": {
                     "languageIds": [
-                        "rust",
+                        "ada",
                         "c",
                         "cpp",
                         "d",
-						"objective-c",
-						"fortan",
-						"pascal",
-						"ada"
+                        "fortan",
+                        "objective-c",
+                        "pascal",
+                        "rust"
                     ]
                 },
-
                 "runtime": "node",
                 "program": "adapter.js",
-
                 "configurationAttributes": {
                     "launch": {
                         "required": [
@@ -64,7 +67,7 @@
                         "properties": {
                             "program": {
                                 "type": "string",
-                                "description": "Path of the program to debug."
+                                "description": "Path to the program to debug."
                             },
                             "args": {
                                 "type": "array",
@@ -82,8 +85,13 @@
                                 "default": []
                             },
                             "stdio": {
-                                "type": ["null", "string", "array", "object"],
-                                "description": "Where to attach the program's stdio to: '*' = open a new terminal, '<path>' = attach to existing tty/fifo/etc (Linux and OSX only).",
+                                "type": [
+                                    "null",
+                                    "string",
+                                    "array",
+                                    "object"
+                                ],
+                                "description": "Where to attach stdio streams: null = debugger console, '*' = open a new terminal, '<path>' = attach to a file/tty/fifo.",
                                 "default": "*"
                             },
                             "stopOnEntry": {
@@ -98,7 +106,7 @@
                             },
                             "preRunCommands": {
                                 "type": "array",
-                                "description": "Commands executed just before the program is launched or attached to.",
+                                "description": "Commands executed just before the program is launched.",
                                 "default": []
                             },
                             "sourceLanguages": {
@@ -115,7 +123,7 @@
                         "properties": {
                             "program": {
                                 "type": "string",
-                                "description": "Path of the program to attach to."
+                                "description": "Path to the program to attach to."
                             },
                             "pid": {
                                 "type": "number",
@@ -123,17 +131,17 @@
                             },
                             "stopOnEntry": {
                                 "type": "boolean",
-                                "description": "Automatically stop debuggee after launch.",
+                                "description": "Automatically stop debuggee after attach.",
                                 "default": true
                             },
                             "initCommands": {
                                 "type": "array",
-                                "description": "Initialization commands.",
+                                "description": "Initialization commands executed upon debugger startup.",
                                 "default": []
                             },
                             "preRunCommands": {
                                 "type": "array",
-                                "description": "Commands to execute after loading the program, but before it is started",
+                                "description": "Commands executed just before the program is attached to.",
                                 "default": []
                             },
                             "sourceLanguages": {

@@ -16,7 +16,7 @@ Features:
 
 # Prerequisites
 - Visual Studio Code 1.1.1.
-- LLDB with Python scripting support. ([Installing LLDB](#installing-lldb))
+- LLDB with Python scripting support on system PATH. ([Installing LLDB](#installing-lldb))
 
 # Debugging
 

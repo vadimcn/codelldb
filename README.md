@@ -1,6 +1,8 @@
 LLDB Front-End for Visual Studio Code
 =====================================
 
+**Note: Due to a VSCode [bug](https://github.com/Microsoft/vscode/issues/7327), use `ext install LLDB` to find this extension.**
+
 Native debugging in Visual Studio Code via [LLDB debugger engine](http://lldb.llvm.org/).
 
 Features:

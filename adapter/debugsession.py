@@ -44,9 +44,7 @@ class DebugSession:
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
-        self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
-        if not self.target.IsValid():
-            raise UserError('Could not initialize debug target (is the program path correct?)')
+        self.target = self.create_target(args)
         self.send_event('initialized', {})
         # defer actual launching till configurationDone request, so that
         # we can receive and set initial breakpoints before the target starts running
@@ -112,9 +110,7 @@ class DebugSession:
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))
-        self.target = self.debugger.CreateTargetWithFileAndArch(str(args['program']), lldb.LLDB_ARCH_DEFAULT)
-        if not self.target.IsValid():
-            raise UserError('Could not initialize debug target (is the program path correct?)')
+        self.target = self.create_target(args)
         self.send_event('initialized', {})
         self.do_launch = self.attach
         self.launch_args = args
@@ -136,6 +132,21 @@ class DebugSession:
         assert self.process.IsValid()
         self.process_launched = False
 
+    def create_target(self, args):
+        program = args['program']
+        load_dependents = not args.get('noDebug', False)
+        error = lldb.SBError()
+        target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
+        if not error.Success() and 'win' in sys.platform:
+            # On Windows, try appending '.exe' extension, to make launch configs more uniform.
+            program += '.exe'
+            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
+            if error.Success():
+                args['program'] = program
+        if not error.Success():
+            raise UserError('Could not initialize debug target: ' + error.GetCString())
+        return target
+
     def exec_commands(self, commands):
         if commands is not None:
             interp = self.debugger.GetCommandInterpreter()
@@ -146,53 +157,56 @@ class DebugSession:
                 self.console_msg(output)
 
     def setBreakpoints_request(self, args):
-        source = args['source']
-        file = str(source['path'])
-        req_bps = args['breakpoints']
-        req_bp_lines = [req['line'] for req in req_bps]
-        # Existing breakpints indexed by line
-        curr_bps = self.breakpoints.setdefault(file, {})
-        # Existing breakpints that were removed
-        for line,bp in list(curr_bps.items()):
-            if line not in req_bp_lines:
-                self.target.BreakpointDelete(bp.GetID())
-                del curr_bps[line]
-        # Added or updated
         result = []
-        for req in req_bps:
-            line = req['line']
-            bp = curr_bps.get(line, None)
-            if bp is None:
-                bp = self.target.BreakpointCreateByLocation(file, line)
-                curr_bps[line] = bp
-            cond = opt_str(req.get('condition', None))
-            if cond != bp.GetCondition():
-                bp.SetCondition(cond)
-            result.append(self.make_bp_resp(bp))
+        if not self.launch_args.get('noDebug', False):
+            source = args['source']
+            file = str(source['path'])
+            req_bps = args['breakpoints']
+            req_bp_lines = [req['line'] for req in req_bps]
+            # Existing breakpints indexed by line
+            curr_bps = self.breakpoints.setdefault(file, {})
+            # Existing breakpints that were removed
+            for line,bp in list(curr_bps.items()):
+                if line not in req_bp_lines:
+                    self.target.BreakpointDelete(bp.GetID())
+                    del curr_bps[line]
+            # Added or updated
+            for req in req_bps:
+                line = req['line']
+                bp = curr_bps.get(line, None)
+                if bp is None:
+                    bp = self.target.BreakpointCreateByLocation(file, line)
+                    curr_bps[line] = bp
+                cond = opt_str(req.get('condition', None))
+                if cond != bp.GetCondition():
+                    bp.SetCondition(cond)
+                result.append(self.make_bp_resp(bp))
 
         return { 'breakpoints': result }
 
     def setFunctionBreakpoints_request(self, args):
-        # Breakpoint requests indexed by function name
-        req_bps =  args['breakpoints']
-        req_bp_names = [req['name'] for req in req_bps]
-        # Existing breakpints that were removed
-        for name,bp in list(self.fn_breakpoints.items()):
-            if name not in req_bp_names:
-                self.target.BreakpointDelete(bp.GetID())
-                del self.fn_breakpoints[name]
-        # Added or updated
         result = []
-        for req in req_bps:
-            name = req['name']
-            bp = self.fn_breakpoints.get(name, None)
-            if bp is None:
-                bp = self.target.BreakpointCreateByName(str(name))
-                self.fn_breakpoints[name] = bp
-            cond = opt_str(req.get('condition', None))
-            if cond != bp.GetCondition():
-                bp.SetCondition(cond)
-            result.append(self.make_bp_resp(bp))
+        if not self.launch_args.get('noDebug', False):
+            # Breakpoint requests indexed by function name
+            req_bps =  args['breakpoints']
+            req_bp_names = [req['name'] for req in req_bps]
+            # Existing breakpints that were removed
+            for name,bp in list(self.fn_breakpoints.items()):
+                if name not in req_bp_names:
+                    self.target.BreakpointDelete(bp.GetID())
+                    del self.fn_breakpoints[name]
+            # Added or updated
+            result = []
+            for req in req_bps:
+                name = req['name']
+                bp = self.fn_breakpoints.get(name, None)
+                if bp is None:
+                    bp = self.target.BreakpointCreateByName(str(name))
+                    self.fn_breakpoints[name] = bp
+                cond = opt_str(req.get('condition', None))
+                if cond != bp.GetCondition():
+                    bp.SetCondition(cond)
+                result.append(self.make_bp_resp(bp))
 
         return { 'breakpoints': result }
 
@@ -208,23 +222,24 @@ class DebugSession:
         return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
 
     def setExceptionBreakpoints_request(self, args):
-        filters = args['filters']
-        for bp in self.exc_breakpoints:
-            self.target.BreakpointDelete(bp.GetID())
-        self.exc_breakpoints = []
+        if not self.launch_args.get('noDebug', False):
+            filters = args['filters']
+            for bp in self.exc_breakpoints:
+                self.target.BreakpointDelete(bp.GetID())
+            self.exc_breakpoints = []
 
-        source_languages = self.launch_args.get('sourceLanguages', [])
-        set_all = 'all' in filters
-        set_uncaught = 'uncaught' in filters
-        for lang in source_languages:
-            bp_setters = DebugSession.lang_exc_bps.get(lang)
-            if bp_setters is not None:
-                if set_all:
-                    bp = bp_setters[0](self.target)
-                    self.exc_breakpoints.append(bp)
-                if set_uncaught:
-                    bp = bp_setters[1](self.target)
-                    self.exc_breakpoints.append(bp)
+            source_languages = self.launch_args.get('sourceLanguages', [])
+            set_all = 'all' in filters
+            set_uncaught = 'uncaught' in filters
+            for lang in source_languages:
+                bp_setters = DebugSession.lang_exc_bps.get(lang)
+                if bp_setters is not None:
+                    if set_all:
+                        bp = bp_setters[0](self.target)
+                        self.exc_breakpoints.append(bp)
+                    if set_uncaught:
+                        bp = bp_setters[1](self.target)
+                        self.exc_breakpoints.append(bp)
 
     lang_exc_bps = {
         'rust': (lambda target: target.BreakpointCreateByName('rust_panic'),
@@ -373,7 +388,7 @@ class DebugSession:
             if args['context'] == 'repl':
                 self.console_msg(message)
             else:
-                raise UserError(message.replace('\n', '; '))
+                raise UserError(message.replace('\n', '; '), no_console=True)
 
     def parse_var(self, var):
         name = var.GetName()
@@ -434,12 +449,15 @@ class DebugSession:
             response['success'] = True
             response['body'] = result
         elif isinstance(result, UserError):
+            if not result.no_console:
+                self.console_msg('Error: ' + str(result))
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
         elif isinstance(result, Exception):
             tb = traceback.format_exc(result)
             log.error('Internal error:\n' + tb)
             msg = 'Internal error: ' + str(result)
+            self.console_msg(msg)
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
         else:
@@ -533,7 +551,10 @@ class DebugSession:
 
 # For when we need to let user know they screwed up
 class UserError(Exception):
-    pass
+    def __init__(self, message, no_console=False):
+        Exception.__init__(self, message)
+        # Don't copy error message to debug console if this is set
+        self.no_console = no_console
 
 # Result type for async handlers
 class AsyncResponse:

@@ -438,10 +438,11 @@ class DebugSession:
                 if result is AsyncResponse: return
             except Exception as e:
                 result = e
+            self.send_response(response, result)
         else:
             log.warning('No handler for %s', command)
-            result = None
-        self.send_response(response, result)
+            response['success'] = False
+            self.send_message(response)
 
     # sends response with `result` as a body
     def send_response(self, response, result):

@@ -24,7 +24,6 @@ class DebugSession:
         self.exc_breakpoints = []
         self.target = None
         self.process = None
-        self.threads = set()
         self.terminal = None
         self.launch_args = None
 
@@ -489,7 +488,6 @@ class DebugSession:
                 self.notify_stdio(ev_type)
 
     def notify_target_stopped(self, lldb_event):
-        self.notify_live_threads()
         event = { 'allThreadsStopped': True } # LLDB always stops all threads
         # Find the thread that has caused this stop
         for thread in self.process:
@@ -532,14 +530,6 @@ class DebugSession:
         while output:
             self.send_event('output', { 'category': category, 'output': output })
             output = read_stream(1024)
-
-    def notify_live_threads(self):
-        curr_threads = set((thread.GetThreadID() for thread in self.process))
-        for tid in self.threads - curr_threads:
-            self.send_event('thread', { 'reason': 'exited', 'threadId': tid })
-        for tid in curr_threads - self.threads:
-            self.send_event('thread', { 'reason': 'started', 'threadId': tid })
-        self.threads = curr_threads
 
     def send_event(self, event, body):
         message = {

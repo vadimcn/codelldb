@@ -36,9 +36,10 @@
     },
     "scripts": {
         "build:debuggee": "c++ tests/debuggee.cpp -pthread -std=c++11 -g -o tests/out/debuggee",
-        "build:tests": "npm run build:debuggee && tsc -p ./tests",
+        "build:tests": "tsc -p ./tests",
         "watch:tests": "tsc -w -p ./tests",
-        "test": "npm run build:tests && mocha -u tdd --timeout 5000 ./tests/out"
+        "run:tests": "mocha -u tdd --timeout 5000 ./tests/out",
+        "test": "npm run build:debuggee && npm run build:tests && npm run run:tests"
     },
     "contributes": {
         "debuggers": [

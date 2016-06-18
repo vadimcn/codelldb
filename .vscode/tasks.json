@@ -11,11 +11,13 @@
       "isTestCommand": true
     },
     {
-      // pre-launch task for debugging tests
       "taskName": "build:tests"
     },
     {
       "taskName": "build:debuggee"
+    },
+    {
+      "taskName": "watch:tests"
     }
   ]
 }

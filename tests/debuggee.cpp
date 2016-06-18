@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <cstdio>
-#include <thread>
 #include <vector>
 #include <string>
 
@@ -18,32 +17,30 @@ void inf_loop() {
 }
 
 void threads(int num_threads) {
-    std::vector<std::thread> ts;
-    for (int i = 0; i < num_threads; ++i) {
-        ts.emplace_back(inf_loop);
-    }
-    for (int i = 0; i < num_threads; ++i) {
-        ts[i].join();
-    }
 }
 
-void show_env(const char* env_name) {
+bool check_env(const char* env_name, const char* expected) {
     const char* val = getenv(env_name);
     printf("%s=%s\n", env_name, val);
+    return val && std::string(val) == std::string(expected);
 }
 
 int main(int argc, char* argv[]) {
-    if (argc > 1) { // #BP1
-        std::string testcase = argv[1];
-        if (testcase == "deepstack") {
-            deepstack(50);
-        } else if (testcase == "threads") {
-            threads(15);
-        } else if (testcase == "show_env") {
-            show_env(argv[2]);
-        } else if (testcase == "inf_loop") {
-            inf_loop();
+    if (argc < 2) { // #BP1
+        return -1;
+    }
+    std::string testcase = argv[1];
+    if (testcase == "deepstack") {
+        deepstack(50);
+    } else if (testcase == "threads") {
+        threads(15);
+    } else if (testcase == "check_env") {
+        if (argc < 4) {
+            return -1;
         }
+        return (int)check_env(argv[2], argv[3]);
+    } else if (testcase == "inf_loop") {
+        inf_loop();
     }
     return 0;
 }

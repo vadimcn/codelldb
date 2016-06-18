@@ -65,23 +65,7 @@ class DebugSession:
         if (env is not None): # Convert dict to a list of 'key=value' strings
             envp = envp + ([str('%s=%s' % pair) for pair in env.items()])
         # stdio
-        stdio = args.get('stdio', None)
-        missing = () # None is a valid value here, so we need a new one to designate 'missing'
-        if isinstance(stdio, dict):
-            stdio = [stdio.get('stdin', missing),
-                     stdio.get('stdout', missing),
-                     stdio.get('stderr', missing)]
-        elif stdio is None or isinstance(stdio, string_type):
-            stdio = [stdio] * 3
-        elif isinstance(stdio, list):
-            stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
-        else:
-            raise UserError('stdio must be either a string, a list or an object')
-        # replace all missing's with the previous stream's value
-        for i in range(0, len(stdio)):
-            if stdio[i] == missing:
-                stdio[i] = stdio[i-1] if i > 0 else None
-        stdio = list(map(opt_str, stdio))
+        stdio = self.get_stdio_config(args)
         # open a new terminal window if needed
         if '*' in stdio:
             if 'linux' in sys.platform:
@@ -107,6 +91,26 @@ class DebugSession:
 
         assert self.process.IsValid()
         self.process_launched = True
+
+    def get_stdio_config(self, args):
+        stdio = args.get('stdio', None)
+        missing = () # None is a valid value here, so we need a new one to designate 'missing'
+        if isinstance(stdio, dict): # Flatten it into a list
+            stdio = [stdio.get('stdin', missing),
+                     stdio.get('stdout', missing),
+                     stdio.get('stderr', missing)]
+        elif stdio is None or isinstance(stdio, string_type):
+            stdio = [stdio] * 3
+        elif isinstance(stdio, list):
+            stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
+        else:
+            raise UserError('stdio must be either a string, a list or an object')
+        # replace all missing's with the previous stream's value
+        for i in range(0, len(stdio)):
+            if stdio[i] == missing:
+                stdio[i] = stdio[i-1] if i > 0 else None
+        stdio = list(map(opt_str, stdio))
+        return stdio
 
     def attach_request(self, args):
         self.exec_commands(args.get('initCommands'))

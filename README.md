@@ -61,20 +61,21 @@ on some systems.  You may need to adjust system configuration to enable attachin
 
 ### Stdio
 The stdio configuration specifies connections established for debuggee's stdio streams.
-Each stream's configuration value may be one of the following:
+Each stream may be set to one of the following:
 
-|value         |         |
-|--------------|---------
+|              |         |
+|--------------|---------|
 |`null`        | Debugger captures the stream, `stdout` and `stderr` output are sent to debugger console; `stdin` is always empty.|
-|`"*"`         | Creates a new terminal window and connects stream to that terminal.|
-|`"/some/path"`| Connects stream to a file, a pipe or a TTY (not supported on Windows). Hint: use `tty` command to find out the TTY device name for a terminal window.|
+|`"*"`         | Creates a new terminal window and connects the stream to that terminal.|
+|`"/some/path"`| Connects the stream to a file, a pipe or a TTY (not supported on Windows). Hint: use `tty` command inside a terminal window to find out its TTY device path.|
 
-Fro example, `"stdio": ["*", null, "/tmp/my.log"]` will connect `stdin` to a new terminal, send `stdout` to debugger console,
+For example, `"stdio": ["*", null, "/tmp/my.log"]` will connect `stdin` to a new terminal, send `stdout` to debugger console,
 and `stderr` - to a log file.
 - You may also use dictionary syntax: `"stdio": { "stdin": "*", "stdout": null, "stderr": "/tmp/my.log" }`.
 - A single value will configure all three streams identically: `"stdio": "*"`.
 
-On Windows debuggee is always launched in a new window, however stdio streams may still be configured as described above.
+On Windows, the debuggee is always launched in a new window, however stdio streams may still be redirected
+as described above.
 
 ## LLDB Commands
 VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features
@@ -86,8 +87,10 @@ and will not be persisted across debug sessions*.
 
 # Installing LLDB
 ## Linux
-- On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install lldb-x.y`, where x.y is the LLDB version.
-  See [this page](http://lldb.llvm.org/download.html) for more info.
+On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install python-lldb-x.y`, where x.y is the LLDB version.
+You may need to create symlinks to `lldb` and `lldb-server` manually.
+
+See [this page](http://lldb.llvm.org/download.html) for installing nightlies.
 
 ## Mac OSX
 - [Download](https://developer.apple.com/xcode/download/) and install XCode.
@@ -97,8 +100,18 @@ and will not be persisted across debug sessions*.
 No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
 
+# Note for Rust Language Users
+There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
+you won't be able to step through code or inspect variables if you have this version.
+The workaround is to use either LLDB 3.7 or 3.9.  On OSX, LLDB shipped with Xcode 8 is known to
+have this problem fixed.
+
 
 # Release Notes
 
 ## 0.1.0
 First released version.
+
+## 0.1.2
+- Infer `.exe` target extension on Windows.
+- `args` may now be a string.

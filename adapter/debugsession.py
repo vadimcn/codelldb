@@ -34,8 +34,9 @@ class DebugSession:
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
         self.event_listener = lldb.SBListener('DebugSession')
-        self.listener_handler = debugevents.AsyncListener(self.event_listener,
+        listener_handler = debugevents.AsyncListener(self.event_listener,
                 self.event_loop.make_dispatcher(self.handle_debugger_event))
+        self.listener_handler_token = listener_handler.start()
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,

@@ -2,24 +2,20 @@ import json
 import string
 import logging
 import sys
-import threading
+from .workerthread import WorkerThread
 
 log = logging.getLogger('protocolhandler')
 
-class ProtocolHandler(threading.Thread):
+class ProtocolHandler(WorkerThread):
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write(buffer)`: callback to write bytes into the output stream.
     def __init__(self, read, write):
-        threading.Thread.__init__(self)
+        WorkerThread.__init__(self)
         self.read = read
         self.write = write
         self.ibuffer = b''
        	self.stopping = False
         self.handle_message = None
-
-    def __del__(self):
-        self.stopping = True
-        self.join()
 
     def run(self):
         assert self.handle_message is not None
@@ -28,9 +24,10 @@ class ProtocolHandler(threading.Thread):
                 clen = self.recv_headers()
                 data = self.recv_body(clen)
                 data = data.decode('utf-8')
-                log.debug('-> %s', data)
+                log.debug('rx: %s', data)
                 message = json.loads(data)
                 self.handle_message(message)
+            log.debug('Shutting down')
         except StopIteration: # Thrown when read() returns 0
             self.handle_message(None)
         except Exception as e:
@@ -69,7 +66,7 @@ class ProtocolHandler(threading.Thread):
 
     def send_message(self, message):
         data = json.dumps(message)
-        log.debug('<- %s', data)
+        log.debug('tx: %s', data)
         data = data.encode('utf-8')
         self.write(b'Content-Length: %d\r\n\r\n' % len(data))
         self.write(data)

@@ -33,10 +33,10 @@ to either launch your program or attach to already running process:
 |`type`   |string|Y| Set to "lldb".|
 |`request`|string|Y| Set to "launch".|
 |`program`|string|Y| Path to debuggee executable.|
-|`args`   |list of strings|| Command line parameters.|
+|`args`   |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
 |`cwd`    |string|| Working directory.|
 |`env`    |dictionary|| Additional environment variables.|
-|`stdio`  |string, list or dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
+|`stdio`  |string &#124; list &#124; dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
 |`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
 |`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
 |`preRunCommands`|list of strings|| LLDB commands executed just before launching the program.|

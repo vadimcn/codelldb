@@ -71,7 +71,7 @@
                                 "description": "Path to the program to debug."
                             },
                             "args": {
-                                "type": "array",
+                                "type": ["array", "string"],
                                 "description": "Program arguments.",
                                 "default": []
                             },

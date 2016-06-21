@@ -2,7 +2,7 @@ import sys
 import logging
 import os.path
 import itertools
-import subprocess
+import shlex
 import traceback
 import lldb
 from . import debugevents
@@ -58,6 +58,8 @@ class DebugSession:
         # argumetns
         target_args = args.get('args', None)
         if target_args is not None:
+            if isinstance(target_args, string_type):
+                target_args = shlex.split(target_args)
             target_args = [str(arg) for arg in target_args]
         # environment
         env = args.get('env', None)

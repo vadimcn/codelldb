@@ -1,7 +1,5 @@
 import json
-import string
 import logging
-import sys
 from .workerthread import WorkerThread
 
 log = logging.getLogger('protocolhandler')

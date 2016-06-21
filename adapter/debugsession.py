@@ -1,7 +1,6 @@
 import sys
 import logging
 import os.path
-import itertools
 import shlex
 import traceback
 import lldb

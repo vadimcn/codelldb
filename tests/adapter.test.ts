@@ -7,14 +7,20 @@ import * as fs from 'fs';
 import {DebugClient} from 'vscode-debugadapter-testsupport';
 import {DebugProtocol as dp} from 'vscode-debugprotocol';
 
+var dc: DebugClient;
+
 const debuggee = 'tests/out/debuggee'
 const debuggeeSource = path.normalize(path.join(process.cwd(), 'tests', 'debuggee.cpp'));
 
-var dc: DebugClient;
+var port: number = null;
+if (process.env.DEBUG_SERVER) {
+    port = parseInt(process.env.DEBUG_SERVER)
+    console.log('Debug server port:', port)
+}
 
 setup(() => {
     dc = new DebugClient('node', './adapter.js', 'lldb');
-    return dc.start(4711);
+    return dc.start(port);
 });
 
 teardown(() => dc.stop());

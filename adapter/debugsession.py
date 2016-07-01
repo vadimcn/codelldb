@@ -142,11 +142,12 @@ class DebugSession:
         load_dependents = not args.get('noDebug', False)
         error = lldb.SBError()
         target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
-        if not error.Success() and 'win' in sys.platform:
+        if not error.Success() and 'win32' in sys.platform:
             # On Windows, try appending '.exe' extension, to make launch configs more uniform.
             program += '.exe'
-            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
-            if error.Success():
+            error2 = lldb.SBError()
+            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
+            if error2.Success():
                 args['program'] = program
         if not error.Success():
             raise UserError('Could not initialize debug target: ' + error.GetCString())

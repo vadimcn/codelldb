@@ -18,6 +18,7 @@ class DebugSession:
         self.event_loop = event_loop
         self.send_message = send_message
         self.var_refs = handles.Handles()
+        self.ignore_bp_events = False
         self.breakpoints = dict() # { file : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
@@ -63,7 +64,7 @@ class DebugSession:
         # environment
         env = args.get('env', None)
         envp = [str('%s=%s' % pair) for pair in os.environ.items()]
-        if (env is not None): # Convert dict to a list of 'key=value' strings
+        if env is not None: # Convert dict to a list of 'key=value' strings
             envp = envp + ([str('%s=%s' % pair) for pair in env.items()])
         # stdio
         stdio = self.get_stdio_config(args)
@@ -151,6 +152,7 @@ class DebugSession:
                 args['program'] = program
         if not error.Success():
             raise UserError('Could not initialize debug target: ' + error.GetCString())
+        target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         return target
 
     def exec_commands(self, commands):
@@ -165,6 +167,7 @@ class DebugSession:
     def setBreakpoints_request(self, args):
         result = []
         if not self.launch_args.get('noDebug', False):
+            self.ignore_bp_events = True
             source = args['source']
             file = str(source['path'])
             req_bps = args['breakpoints']
@@ -172,7 +175,7 @@ class DebugSession:
             # Existing breakpints indexed by line
             curr_bps = self.breakpoints.setdefault(file, {})
             # Existing breakpints that were removed
-            for line,bp in list(curr_bps.items()):
+            for line, bp in list(curr_bps.items()):
                 if line not in req_bp_lines:
                     self.target.BreakpointDelete(bp.GetID())
                     del curr_bps[line]
@@ -187,14 +190,16 @@ class DebugSession:
                 if cond != bp.GetCondition():
                     bp.SetCondition(cond)
                 result.append(self.make_bp_resp(bp))
+            self.ignore_bp_events = False
 
         return { 'breakpoints': result }
 
     def setFunctionBreakpoints_request(self, args):
         result = []
         if not self.launch_args.get('noDebug', False):
+            self.ignore_bp_events = True
             # Breakpoint requests indexed by function name
-            req_bps =  args['breakpoints']
+            req_bps = args['breakpoints']
             req_bp_names = [req['name'] for req in req_bps]
             # Existing breakpints that were removed
             for name,bp in list(self.fn_breakpoints.items()):
@@ -207,12 +212,13 @@ class DebugSession:
                 name = req['name']
                 bp = self.fn_breakpoints.get(name, None)
                 if bp is None:
-                    bp = self.target.BreakpointCreateByName(str(name))
+                    bp = self.target.BreakpointCreateByRegex(str(name))
                     self.fn_breakpoints[name] = bp
                 cond = opt_str(req.get('condition', None))
                 if cond != bp.GetCondition():
                     bp.SetCondition(cond)
                 result.append(self.make_bp_resp(bp))
+            self.ignore_bp_events = False
 
         return { 'breakpoints': result }
 
@@ -489,6 +495,8 @@ class DebugSession:
                     self.send_event('terminated', {})
             elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
                 self.notify_stdio(ev_type)
+        elif lldb.SBBreakpoint.EventIsBreakpointEvent(event) and not self.ignore_bp_events:
+            self.notify_breakpoint(event)
 
     def notify_target_stopped(self, lldb_event):
         event = { 'allThreadsStopped': True } # LLDB always stops all threads
@@ -533,6 +541,11 @@ class DebugSession:
         while output:
             self.send_event('output', { 'category': category, 'output': output })
             output = read_stream(1024)
+
+    def notify_breakpoint(self, event):
+        bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        bp_info = self.make_bp_resp(bp)
+        self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_info })
 
     def send_event(self, event, body):
         message = {

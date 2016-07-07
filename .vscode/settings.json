@@ -9,5 +9,6 @@
         "**/.git": true,
         "**/.DS_Store": true,
         "**/*.pyc": true
-    }
+    },
+    "python.linting.enabled": false
 }

@@ -25,6 +25,14 @@ bool check_env(const char* env_name, const char* expected) {
     return val && std::string(val) == std::string(expected);
 }
 
+void echo() {
+    char buffer[1024];
+    do {
+        fgets(buffer, sizeof(buffer), stdin);
+        fputs(buffer, stdout);
+    } while (buffer[0] != '\n'); // till empty line is read
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) { // #BP1
         return -1;
@@ -41,6 +49,8 @@ int main(int argc, char* argv[]) {
         return (int)check_env(argv[2], argv[3]);
     } else if (testcase == "inf_loop") {
         inf_loop();
+    } else if (testcase == "echo") {
+        echo();
     }
     return 0;
 }

@@ -14,29 +14,33 @@ class Terminal:
     def __del__(self):
         self.socket.close()
 
-TIMEOUT = 1 # Timeout in seconds for child opening a socket and sending the tty name
+TIMEOUT = 3 # Timeout in seconds for child opening a socket and sending the tty name
 
 def create():
-    socket_path = '/tmp/vscode-lldb-%d.sock' % os.getpid()
-    try: os.unlink(socket_path)
-    except OSError: pass
-    ls = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    ls.bind(socket_path)
+    ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ls.bind(('127.0.0.1', 0))
     ls.listen(1)
-    subprocess.Popen(['x-terminal-emulator', '-e', 'bash -c "tty | nc -U %s -q -1"' % socket_path]);
+    addr, port = ls.getsockname()
+    # Open a TCP connection, send output of `tty`, wait till the socket gets closed from our end
+    command = 'exec 3<>/dev/tcp/127.0.0.1/%d; tty >&3; read <&3' % port
+    subprocess.Popen(['x-terminal-emulator', '-e', 'bash -c "%s"' % command]);
 
     try:
         ls.settimeout(TIMEOUT)
         conn, addr = ls.accept()
-        os.unlink(socket_path)
-
         conn.settimeout(TIMEOUT)
-        data = ''
+        output = ''
         while True:
-            data += conn.recv(32)
-            lines = string.split(data, '\n')
+            data = conn.recv(32)
+            if len(data) == 0:
+                reason = 'connection aborted'
+                break
+            log.info('received %s', data)
+            output += data
+            lines = string.split(output, '\n')
             if len(lines) > 1:
                 return Terminal(lines[0], conn)
-
     except (OSError, socket.timeout):
-        raise Exception('Failed to create a new terminal')
+        reason = 'timeout'
+
+    raise Exception('Failed to create a new terminal: %s' % reason)

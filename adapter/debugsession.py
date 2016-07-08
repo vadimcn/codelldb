@@ -263,13 +263,13 @@ class DebugSession:
     def configurationDone_request(self, args):
         try:
             result = self.do_launch(self.launch_args)
+            # On Linux, LLDB doesn't seem to automatically generate a stop event for stop_on_entry
+            if self.process.GetState() == lldb.eStateStopped:
+                self.notify_target_stopped(None)
         except Exception as e:
             result = e
         # do_launch is asynchronous so we need to send its result
         self.send_response(self.launch_args['response'], result)
-        # On Linux, LLDB doesn't seem to automatically generate a stop event for stop_on_entry
-        if self.process.GetState() == lldb.eStateStopped:
-            self.notify_target_stopped(None)
 
     def pause_request(self, args):
         self.process.Stop()

@@ -33,6 +33,28 @@ void echo() {
     } while (buffer[0] != '\n'); // till empty line is read
 }
 
+void vars() {
+    struct Struct {
+        int a;
+        char b;
+        float c;
+    };
+
+    int a = 10;
+    int b = 20;
+    {
+        int a = 30;
+        int b = 40;
+        const char c[] = "foobar";
+        char buffer[10240] = {0};
+        std::vector<std::vector<int>> v(10, {1, 2, 3, 4, 5});
+        Struct s = { 1, 'a', 3.0f };
+        std::vector<Struct> vs(3, { 2, 'b', 4.0f});
+        std::string str = "The quick brown fox";
+        int zzz = 0;
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) { // #BP1
         return -1;
@@ -51,6 +73,8 @@ int main(int argc, char* argv[]) {
         inf_loop();
     } else if (testcase == "echo") {
         echo();
+    } else if (testcase == "vars") {
+        vars();
     }
     return 0;
 }

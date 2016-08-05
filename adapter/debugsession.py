@@ -40,7 +40,8 @@ class DebugSession:
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
-                 'supportsConditionalBreakpoints': True }
+                 'supportsConditionalBreakpoints': True,
+                 'supportsSetVariable': True }
 
     def launch_request(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -343,7 +344,7 @@ class DebugSession:
             vars = obj.GetVariables(True, True, False, True)
         elif type(obj) is lldb.SBValue:
             vars = obj
-        else:
+        else: # ('synthetic', var)
             vars = obj[1].GetNonSyntheticValue()
 
         for var in vars:
@@ -404,16 +405,45 @@ class DebugSession:
 
     def parse_var(self, var):
         name = var.GetName()
-        value = var.GetValue()
+        value = self.get_var_value(var)
         dtype = var.GetTypeName()
+        ref = self.var_refs.create(var) if var.GetNumChildren() > 0 else 0
+        return name, value, dtype, ref
+
+    def get_var_value(self, var):
+        value = var.GetValue()
         if value is None:
             value = var.GetSummary()
             if value is not None:
                 value = value.replace('\n', '') # VSCode won't display line breaks
         if PY2 and value is not None:
             value = value.decode('latin1') # or else json will try to treat it as utf8
-        ref = self.var_refs.create(var) if var.MightHaveChildren() else 0
-        return name, value, dtype, ref
+        return value
+
+    def setVariable_request(self, args):
+        obj = self.var_refs.get(args['variablesReference'])
+        if obj is None:
+            raise Exception('Invalid variable reference')
+
+        name = str(args['name'])
+        if type(obj) is lldb.SBFrame:
+            # args, locals, statics, in_scope_only
+            var = obj.FindVariable(name)
+        elif type(obj) is lldb.SBValue:
+            var = obj.GetChildMemberWithName(name)
+            if not var.IsValid():
+                var = obj.GetValueForExpressionPath(name)
+        else: # ('synthetic', var)
+            var = obj[1]
+
+        if not var.IsValid():
+            raise Exception('Could not get a child with name ' + name)
+
+        error = lldb.SBError()
+        if not var.SetValueFromCString(str(args['value']), error):
+            self.console_msg(error.GetCString())
+            raise UserError(error.GetCString())
+        return { 'value': self.get_var_value(var) }
 
     def disconnect_request(self, args):
         if self.process:

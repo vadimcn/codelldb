@@ -10,6 +10,7 @@ from . import terminal
 from . import PY2
 
 log = logging.getLogger('debugsession')
+log.info('Imported')
 
 class DebugSession:
 
@@ -351,7 +352,6 @@ class DebugSession:
             name, value, dtype, ref = self.parse_var(var)
             # Sometimes LLDB returns junk entries with empty names and values
             if name is not None:
-                if value is None: value = dtype
                 variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
                 variables.append(variable)
 
@@ -394,8 +394,7 @@ class DebugSession:
         error = var.GetError()
         if error.Success():
             _, value, dtype, ref = self.parse_var(var)
-            if value is None: value = dtype
-            return { 'result': value, 'variablesReference': ref }
+            return { 'result': value, 'type': dtype, 'variablesReference': ref }
         else:
             message = error.GetCString()
             if args['context'] == 'repl':
@@ -407,7 +406,14 @@ class DebugSession:
         name = var.GetName()
         value = self.get_var_value(var)
         dtype = var.GetTypeName()
-        ref = self.var_refs.create(var) if var.GetNumChildren() > 0 else 0
+        if var.GetNumChildren() > 0:
+            ref = self.var_refs.create(var)
+            if value is None:
+                value = dtype
+        else:
+            ref = 0
+            if value is None:
+                value = "<not available>"
         return name, value, dtype, ref
 
     def get_var_value(self, var):
@@ -441,7 +447,6 @@ class DebugSession:
 
         error = lldb.SBError()
         if not var.SetValueFromCString(str(args['value']), error):
-            self.console_msg(error.GetCString())
             raise UserError(error.GetCString())
         return { 'value': self.get_var_value(var) }
 

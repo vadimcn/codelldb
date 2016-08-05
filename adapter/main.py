@@ -27,7 +27,7 @@ def run_session(read, write):
     event_loop.run()
 
 # Run in socket server mode
-def run_tcp_server(port=4711):
+def run_tcp_server(port=4711, multiple=True):
     import socket
     init_logging(False)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
@@ -42,7 +42,12 @@ def run_tcp_server(port=4711):
         log.info("New connection from %s", addr)
         run_session(conn.recv, conn.send)
         conn.close()
-        log.info("Debug session ended. Waiting for new connections.")
+        if multiple:
+            log.info("Debug session ended. Waiting for new connections.")
+        else:
+            log.info("Debug session ended.")
+            break
+    ls.close()
 
 # Single-session run using the specified input and output fds
 def run_stdio_session(ifd=0, ofd=1):

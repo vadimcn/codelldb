@@ -35,7 +35,7 @@ to either launch your program or attach to already running process:
 |`program`|string|Y| Path to debuggee executable.|
 |`args`   |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
 |`cwd`    |string|| Working directory.|
-|`env`    |dictionary|| Additional environment variables.|
+|`env`    |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VAR}`.|
 |`stdio`  |string &#124; list &#124; dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
 |`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
 |`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
@@ -77,6 +77,12 @@ and `stderr` - to a log file.
 On Windows, the debuggee is always launched in a new window, however stdio streams may still be redirected
 as described above.
 
+## Regex Breakpoints
+When setting a function breakpoint, if the first character of the function name is '`/`',
+the rest of the string is interpreted as a regular expression.  Thus shall cause a breakpoint to
+be set in every function matching the expression (the list of locations may be examined
+using the `break list` command).
+
 ## LLDB Commands
 VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features
 you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the debugger console window.
@@ -115,3 +121,7 @@ First released version.
 ## 0.1.2
 - Infer `.exe` target extension on Windows.
 - `args` may now be a string.
+
+## 0.1.3
+- Added support for setting variable values (primitive types only).
+- Added [regex breakpoints](#regex-breakpoints)

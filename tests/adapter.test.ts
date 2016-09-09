@@ -76,6 +76,19 @@ test('page stack', async () => {
     assert.equal(response4.body.variables[0].value, '20');
 });
 
+test('set variable', async() => {
+    let bp_line = findMarker(debuggeeSource, '#BP3');
+    let hitBreakpointAsync = hitBreakpoint(debuggeeSource, bp_line);
+    await launch({ program: debuggee, args: ['vars'] });
+    let stoppedEvent = await hitBreakpointAsync;
+    let vars = await readVariables(stoppedEvent.body.threadId);
+    assert.equal(vars['a'], '30');
+    assert.equal(vars['b'], '40');
+    await dc.send('setVariable', {variablesReference: vars._containerRef, name: 'a', value: '100'});
+    let vars2 = await readVariables(stoppedEvent.body.threadId);
+    assert.equal(vars2['a'], '100');
+});
+
 suite('attach tests - these may fail if your system has a locked-down ptrace() syscall', () => {
     var debuggeeProc: cp.ChildProcess;
 
@@ -146,4 +159,16 @@ async function hitBreakpoint(file: string, line: number): Promise<dp.StoppedEven
     let topFrame = stackResp.body.stackFrames[0];
     assert.equal(topFrame.line, line);
     return <dp.StoppedEvent>stopEvent;
+}
+
+async function readVariables(threadId: number): Promise<any> {
+    let response1 = await dc.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });
+    let response2 = await dc.scopesRequest({ frameId: response1.body.stackFrames[0].id });
+    let response3 = await dc.variablesRequest({ variablesReference: response2.body.scopes[0].variablesReference });
+    let vars: any = {}
+    for (var v of response3.body.variables) {
+        vars[v.name] = v.value;
+    }
+    vars._containerRef = response2.body.scopes[0].variablesReference;
+    return vars;
 }

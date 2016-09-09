@@ -51,7 +51,7 @@ void vars() {
         Struct s = { 1, 'a', 3.0f };
         std::vector<Struct> vs(3, { 2, 'b', 4.0f});
         std::string str = "The quick brown fox";
-        int zzz = 0;
+        int zzz = 0; // #BP3
     }
 }
 

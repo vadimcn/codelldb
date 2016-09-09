@@ -214,7 +214,10 @@ class DebugSession:
                 name = req['name']
                 bp = self.fn_breakpoints.get(name, None)
                 if bp is None:
-                    bp = self.target.BreakpointCreateByRegex(str(name))
+                    if name.startswith('/'):
+                        bp = self.target.BreakpointCreateByRegex(str(name[1:]))
+                    else:
+                        bp = self.target.BreakpointCreateByName(str(name))
                     self.fn_breakpoints[name] = bp
                 cond = opt_str(req.get('condition', None))
                 if cond != bp.GetCondition():

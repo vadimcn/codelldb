@@ -16,11 +16,11 @@ def init_logging(is_stdio_session):
 def run_session(read, write):
     from . import debugsession
     from . import eventloop
-    from . import protocolhandler
+    from . import wireprotocol
 
     event_loop = eventloop.EventLoop()
 
-    proto_handler = protocolhandler.ProtocolHandler(read, write)
+    proto_handler = wireprotocol.WireProtocolHandler(read, write)
     debug_session = debugsession.DebugSession(event_loop, proto_handler.send_message)
     proto_handler.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
     token = proto_handler.start()

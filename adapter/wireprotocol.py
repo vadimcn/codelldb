@@ -2,9 +2,9 @@ import json
 import logging
 from .workerthread import WorkerThread
 
-log = logging.getLogger('protocolhandler')
+log = logging.getLogger('wireprotocol')
 
-class ProtocolHandler(WorkerThread):
+class WireProtocolHandler(WorkerThread):
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write(buffer)`: callback to write bytes into the output stream.
     def __init__(self, read, write):

@@ -392,7 +392,7 @@ class DebugSession:
     def evaluate_expr(self, args, expr):
         frame = self.var_refs.get(args.get('frameId', 0), None)
         if frame is None:
-            return
+            raise Exception('Missing frameId')
         var = frame.EvaluateExpression(expr)
         error = var.GetError()
         if error.Success():
@@ -402,6 +402,7 @@ class DebugSession:
             message = error.GetCString()
             if args['context'] == 'repl':
                 self.console_msg(message)
+                return None
             else:
                 raise UserError(message.replace('\n', '; '), no_console=True)
 

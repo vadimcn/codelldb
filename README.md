@@ -79,9 +79,9 @@ as described above.
 
 ## Regex Breakpoints
 When setting a function breakpoint, if the first character of the function name is '`/`',
-the rest of the string is interpreted as a regular expression.  Thus shall cause a breakpoint to
+the rest of the string is interpreted as a regular expression.  This shall cause a breakpoint to
 be set in every function matching the expression (the list of locations may be examined
-using the `break list` command).
+using `break list` command).
 
 ## LLDB Commands
 VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features

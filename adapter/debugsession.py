@@ -334,22 +334,25 @@ class DebugSession:
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
     def scopes_request(self, args):
-        locals = { 'name': 'Locals', 'variablesReference': args['frameId'], 'expensive': False }
-        return { 'scopes': [locals] }
+        frame_id = args['frameId']
+        locals = { 'name': 'Locals', 'variablesReference': frame_id, 'expensive': False }
+        frame = self.var_refs.get(frame_id)
+        regs_scope_ref = self.var_refs.create(RegistersScope(frame))
+        registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_ref, 'expensive': True }
+        return { 'scopes': [locals, registers] }
 
     def variables_request(self, args):
         variables = []
-        obj = self.var_refs.get(args['variablesReference'])
-        if obj is None:
-            raise Exception('Invalid variable reference')
-
-        if type(obj) is lldb.SBFrame:
+        container = self.var_refs.get(args['variablesReference'])
+        if container is None:
+            raise Exception('Invalid variables reference')
+        if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
-            vars = obj.GetVariables(True, True, False, True)
-        elif type(obj) is lldb.SBValue:
-            vars = obj
-        else: # ('synthetic', var)
-            vars = obj[1].GetNonSyntheticValue()
+            vars = container.GetVariables(True, True, False, True)
+        elif isinstance(container, RegistersScope):
+            vars = container.frame.GetRegisters()
+        elif isinstance(container, lldb.SBValue):
+            vars = container
 
         for var in vars:
             name, value, dtype, ref = self.parse_var(var)
@@ -358,8 +361,10 @@ class DebugSession:
                 variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
                 variables.append(variable)
 
-        if type(vars) is lldb.SBValue and vars.IsSynthetic():
-            ref = self.var_refs.create(('synthetic', vars))
+        # If this node was synthetic (i.e. a product of a visualizer),
+        # append a [raw] child, which can be expended to snow raw data.
+        if isinstance(vars, lldb.SBValue) and vars.IsSynthetic():
+            ref = self.var_refs.create(vars.GetNonSyntheticValue())
             variable = { 'name': '[raw]', 'value': vars.GetTypeName(), 'variablesReference': ref }
             variables.append(variable)
 
@@ -375,7 +380,7 @@ class DebugSession:
         # Else evaluate as debugger command
 
         # set up evaluation context
-        frame = self.var_refs.get(args.get('frameId', None), None)
+        frame = self.var_refs.get(args.get('frameId'), None)
         if frame is not None:
             thread = frame.GetThread()
             self.process.SetSelectedThread(thread)
@@ -390,7 +395,7 @@ class DebugSession:
         return { 'result': '' }
 
     def evaluate_expr(self, args, expr):
-        frame = self.var_refs.get(args.get('frameId', 0), None)
+        frame = self.var_refs.get(args.get('frameId'), None)
         if frame is None:
             raise Exception('Missing frameId')
         var = frame.EvaluateExpression(expr)
@@ -414,10 +419,12 @@ class DebugSession:
             ref = self.var_refs.create(var)
             if value is None:
                 value = dtype
+            if value is None:
+                value = ''
         else:
             ref = 0
             if value is None:
-                value = "<not available>"
+                value = '<not available>'
         return name, value, dtype, ref
 
     def get_var_value(self, var):
@@ -431,21 +438,18 @@ class DebugSession:
         return value
 
     def setVariable_request(self, args):
-        obj = self.var_refs.get(args['variablesReference'])
-        if obj is None:
-            raise Exception('Invalid variable reference')
+        container = self.var_refs.get(args['variablesReference'])
+        if container is None:
+            raise Exception('Invalid variables reference')
 
         name = str(args['name'])
-        if type(obj) is lldb.SBFrame:
+        if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
-            var = obj.FindVariable(name)
-        elif type(obj) is lldb.SBValue:
-            var = obj.GetChildMemberWithName(name)
+            var = container.FindVariable(name)
+        elif isinstance(container, lldb.SBValue):
+            var = container.GetChildMemberWithName(name)
             if not var.IsValid():
-                var = obj.GetValueForExpressionPath(name)
-        else: # ('synthetic', var)
-            var = obj[1]
-
+                var = container.GetValueForExpressionPath(name)
         if not var.IsValid():
             raise Exception('Could not get a child with name ' + name)
 
@@ -609,6 +613,10 @@ class UserError(Exception):
 # Result type for async handlers
 class AsyncResponse:
     pass
+
+class RegistersScope:
+    def __init__(self, frame):
+        self.frame = frame
 
 def opt_str(s):
     return str(s) if s != None else None

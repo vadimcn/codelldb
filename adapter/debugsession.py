@@ -398,10 +398,18 @@ class DebugSession:
         frame = self.var_refs.get(args.get('frameId'), None)
         if frame is None:
             raise Exception('Missing frameId')
+
+        format = lldb.eFormatDefault
+        for suffix, fmt in self.format_codes:
+            if expr.endswith(suffix):
+                format = fmt
+                expr = expr[:-len(suffix)]
+                break
+
         var = frame.EvaluateExpression(expr)
         error = var.GetError()
         if error.Success():
-            _, value, dtype, ref = self.parse_var(var)
+            _, value, dtype, ref = self.parse_var(var, format)
             return { 'result': value, 'type': dtype, 'variablesReference': ref }
         else:
             message = error.GetCString()
@@ -411,9 +419,21 @@ class DebugSession:
             else:
                 raise UserError(message.replace('\n', '; '), no_console=True)
 
-    def parse_var(self, var):
+    format_codes = [(',h', lldb.eFormatHex),
+                    (',x', lldb.eFormatHex),
+                    (',o', lldb.eFormatOctal),
+                    (',d', lldb.eFormatDecimal),
+                    (',b', lldb.eFormatBinary),
+                    (',f', lldb.eFormatFloat),
+                    (',p', lldb.eFormatPointer),
+                    (',u', lldb.eFormatUnsigned),
+                    (',s', lldb.eFormatCString),
+                    (',y', lldb.eFormatBytes),
+                    (',Y', lldb.eFormatBytesWithASCII)]
+
+    def parse_var(self, var, format=lldb.eFormatDefault):
         name = var.GetName()
-        value = self.get_var_value(var)
+        value = self.get_var_value(var, format)
         dtype = var.GetTypeName()
         if var.GetNumChildren() > 0:
             ref = self.var_refs.create(var)
@@ -427,7 +447,8 @@ class DebugSession:
                 value = '<not available>'
         return name, value, dtype, ref
 
-    def get_var_value(self, var):
+    def get_var_value(self, var, format=lldb.eFormatDefault):
+        var.SetFormat(format)
         value = var.GetValue()
         if value is None:
             value = var.GetSummary()

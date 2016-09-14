@@ -1,4 +1,5 @@
 import logging
+import traceback
 from threading import Thread
 
 log = logging.getLogger('workerthread')
@@ -26,5 +27,11 @@ class WorkerThread(Thread):
         self.join()
 
     def run(self):
-        while not self.stopping:
-            self.run_iteration()
+        try:
+            self.thread_proc()
+        except Exception as e:
+            tb = traceback.format_exc(e)
+            log.error('Unhandled error on a worker thread: %s', tb)
+
+    def thread_proc():
+        pass

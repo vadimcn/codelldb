@@ -1,6 +1,7 @@
 'use strict';
 
 import * as cp from 'child_process';
+import * as os from 'os';
 import {Readable, Writable} from 'stream';
 
 let lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session(3,4)'], {

@@ -83,6 +83,31 @@ the rest of the string is interpreted as a regular expression.  This shall cause
 be set in every function matching the expression (the list of locations may be examined
 using `break list` command).
 
+## Dissassembly View
+When stepping into a compile unit that does not have debug info, vscode-lldb will instead display
+disassemby of the current function.  This behavior may be controlled using 'LLDB: Show Disassembly'
+and 'LLDB Toggle Disassembly' commands.  The former allows to choose between `never`,
+`auto` (the default) and `always`, the latter toggles between `auto` and `always`.
+
+## Formatting
+You may change the default display format using the `LLDB: Display Format` command.
+When evaluating expressions from Debug Console or in the 'Watch' view, you may also control
+formatting of individual expressions by adding a suffix, for example `$rax,x`.
+Here's the full list:
+|suffix  |format |
+|--------|-------|
+|`x`     | Hex |
+|`o`     | Octal |
+|`d`     | Decimal |
+|`u`     | Unsigned decimal |
+|`b`     | Binary |
+|`f`     | Float (reinterprets bits, no casting is done) |
+|`p`     | Pointer |
+|`s`     | C string |
+|`y`     | Bytes |
+|`Y`     | Bytes with ASCII |
+
+
 ## LLDB Commands
 VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features
 you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the debugger console window.

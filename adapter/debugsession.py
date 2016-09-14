@@ -5,6 +5,7 @@ import shlex
 import traceback
 import lldb
 from . import debugevents
+from . import disassembly
 from . import handles
 from . import terminal
 from . import PY2
@@ -14,21 +15,26 @@ log.info('Imported')
 
 class DebugSession:
 
-    def __init__(self, event_loop, send_message):
+    def __init__(self, event_loop, send_message, send_extension_message):
         DebugSession.current = self
         self.event_loop = event_loop
         self.send_message = send_message
+        self.send_extension_message = send_extension_message
         self.var_refs = handles.Handles()
         self.ignore_bp_events = False
-        self.breakpoints = dict() # { file : { line : SBBreakpoint } }
+        self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
         self.target = None
         self.process = None
         self.terminal = None
         self.launch_args = None
+        self.show_disassembly = 'auto' # never | auto | always
+        self.global_format = lldb.eFormatDefault
+        self.disassembly_by_id = handles.Handles()
+        self.disassembly_by_addr = {}
 
-    def initialize_request(self, args):
+    def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
         self.debugger = lldb.SBDebugger.Create()
@@ -44,7 +50,7 @@ class DebugSession:
                  'supportsConditionalBreakpoints': True,
                  'supportsSetVariable': True }
 
-    def launch_request(self, args):
+    def DEBUG_launch(self, args):
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
         self.send_event('initialized', {})
@@ -116,7 +122,7 @@ class DebugSession:
         stdio = list(map(opt_str, stdio))
         return stdio
 
-    def attach_request(self, args):
+    def DEBUG_attach(self, args):
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
         self.send_event('initialized', {})
@@ -166,16 +172,25 @@ class DebugSession:
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
                 self.console_msg(output)
 
-    def setBreakpoints_request(self, args):
+    def DEBUG_setBreakpoints(self, args):
+        if self.launch_args.get('noDebug', False):
+            return
+
         result = []
-        if not self.launch_args.get('noDebug', False):
-            self.ignore_bp_events = True
-            source = args['source']
-            file = str(source['path'])
+        self.ignore_bp_events = True
+        source = args['source']
+
+        in_disasm = True
+        file_id = source.get('sourceReference')
+        if file_id is None:
+            file_id = opt_str(source.get('path'))
+            in_disasm = False
+
+        if file_id is not None:
             req_bps = args['breakpoints']
             req_bp_lines = [req['line'] for req in req_bps]
             # Existing breakpints indexed by line
-            curr_bps = self.breakpoints.setdefault(file, {})
+            curr_bps = self.breakpoints.setdefault(file_id, {})
             # Existing breakpints that were removed
             for line, bp in list(curr_bps.items()):
                 if line not in req_bp_lines:
@@ -186,51 +201,64 @@ class DebugSession:
                 line = req['line']
                 bp = curr_bps.get(line, None)
                 if bp is None:
-                    bp = self.target.BreakpointCreateByLocation(file, line)
-                    curr_bps[line] = bp
-                cond = opt_str(req.get('condition', None))
-                if cond != bp.GetCondition():
-                    bp.SetCondition(cond)
-                result.append(self.make_bp_resp(bp))
-            self.ignore_bp_events = False
-
-        return { 'breakpoints': result }
-
-    def setFunctionBreakpoints_request(self, args):
-        result = []
-        if not self.launch_args.get('noDebug', False):
-            self.ignore_bp_events = True
-            # Breakpoint requests indexed by function name
-            req_bps = args['breakpoints']
-            req_bp_names = [req['name'] for req in req_bps]
-            # Existing breakpints that were removed
-            for name,bp in list(self.fn_breakpoints.items()):
-                if name not in req_bp_names:
-                    self.target.BreakpointDelete(bp.GetID())
-                    del self.fn_breakpoints[name]
-            # Added or updated
-            result = []
-            for req in req_bps:
-                name = req['name']
-                bp = self.fn_breakpoints.get(name, None)
-                if bp is None:
-                    if name.startswith('/'):
-                        bp = self.target.BreakpointCreateByRegex(str(name[1:]))
+                    if not in_disasm:
+                        bp = self.target.BreakpointCreateByLocation(file_id, line)
                     else:
-                        bp = self.target.BreakpointCreateByName(str(name))
-                    self.fn_breakpoints[name] = bp
-                cond = opt_str(req.get('condition', None))
-                if cond != bp.GetCondition():
-                    bp.SetCondition(cond)
+                        disasm = self.disassembly_by_id.get(file_id)
+                        addr = disasm.address_by_line_num(line)
+                        bp = self.target.BreakpointCreateByAddress(addr)
+                        bp.dont_resolve = True
+                    self.set_bp_condition(bp, req)
+                    curr_bps[line] = bp
                 result.append(self.make_bp_resp(bp))
-            self.ignore_bp_events = False
+        else:
+            result.append({'verified': False})
+
+        self.ignore_bp_events = False
+        return { 'breakpoints': result }
+
+    def DEBUG_setFunctionBreakpoints(self, args):
+        if self.launch_args.get('noDebug', False):
+            return
+
+        result = []
+        self.ignore_bp_events = True
+        # Breakpoint requests indexed by function name
+        req_bps = args['breakpoints']
+        req_bp_names = [req['name'] for req in req_bps]
+        # Existing breakpints that were removed
+        for name,bp in list(self.fn_breakpoints.items()):
+            if name not in req_bp_names:
+                self.target.BreakpointDelete(bp.GetID())
+                del self.fn_breakpoints[name]
+        # Added or updated
+        result = []
+        for req in req_bps:
+            name = req['name']
+            bp = self.fn_breakpoints.get(name, None)
+            if bp is None:
+                if name.startswith('/'):
+                    bp = self.target.BreakpointCreateByRegex(str(name[1:]))
+                else:
+                    bp = self.target.BreakpointCreateByName(str(name))
+                self.set_bp_condition(bp, req)
+                self.fn_breakpoints[name] = bp
+            result.append(self.make_bp_resp(bp))
+        self.ignore_bp_events = False
 
         return { 'breakpoints': result }
+
+    def set_bp_condition(self, bp, req):
+        cond = opt_str(req.get('condition', None))
+        if cond != bp.GetCondition():
+            bp.SetCondition(cond)
 
     # Create breakpoint location info for a response message
     def make_bp_resp(self, bp):
         if bp.num_locations == 0:
             return { 'id': bp.GetID(), 'verified': False }
+        if getattr(bp, 'dont_resolve', False): # these originate from disassembly
+             return { 'id': bp.GetID(), 'verified': True }
         le = bp.GetLocationAtIndex(0).GetAddress().GetLineEntry()
         fs = le.GetFileSpec()
         if not (le.IsValid() and fs.IsValid()):
@@ -238,7 +266,7 @@ class DebugSession:
         source = { 'name': fs.basename, 'path': fs.fullpath }
         return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
 
-    def setExceptionBreakpoints_request(self, args):
+    def DEBUG_setExceptionBreakpoints(self, args):
         if not self.launch_args.get('noDebug', False):
             filters = args['filters']
             for bp in self.exc_breakpoints:
@@ -265,7 +293,7 @@ class DebugSession:
                 lambda target: target.BreakpointCreateByName('terminate')),
     }
 
-    def configurationDone_request(self, args):
+    def DEBUG_configurationDone(self, args):
         try:
             result = self.do_launch(self.launch_args)
             # On Linux, LLDB doesn't seem to automatically generate a stop event for stop_on_entry
@@ -276,38 +304,47 @@ class DebugSession:
         # do_launch is asynchronous so we need to send its result
         self.send_response(self.launch_args['response'], result)
 
-    def pause_request(self, args):
+    def DEBUG_pause(self, args):
         self.process.Stop()
 
-    def continue_request(self, args):
+    def DEBUG_continue(self, args):
         # variable handles will be invalid after running,
         # so we may as well clean them up now
         self.var_refs.reset()
         self.process.Continue()
 
-    def next_request(self, args):
+    def DEBUG_next(self, args):
         self.var_refs.reset()
         tid = args['threadId']
-        self.process.GetThreadByID(tid).StepOver()
+        thread = self.process.GetThreadByID(tid)
+        if not self.in_disassembly(thread.GetFrameAtIndex(0)):
+            thread.StepOver()
+        else:
+            thread.StepInstruction(True)
 
-    def stepIn_request(self, args):
+    def DEBUG_stepIn(self, args):
         self.var_refs.reset()
         tid = args['threadId']
-        self.process.GetThreadByID(tid).StepInto()
+        thread = self.process.GetThreadByID(tid)
+        if not self.in_disassembly(thread.GetFrameAtIndex(0)):
+            thread.StepInto()
+        else:
+            thread.StepInstruction(False)
 
-    def stepOut_request(self, args):
+    def DEBUG_stepOut(self, args):
         self.var_refs.reset()
         tid = args['threadId']
-        self.process.GetThreadByID(tid).StepOut()
+        thread = self.process.GetThreadByID(tid)
+        thread.StepOut()
 
-    def threads_request(self, args):
+    def DEBUG_threads(self, args):
         threads = []
         for thread in self.process:
             tid = thread.GetThreadID()
             threads.append({ 'id': tid, 'name': '%s:%d' % (thread.GetName(), tid) })
         return { 'threads': threads }
 
-    def stackTrace_request(self, args):
+    def DEBUG_stackTrace(self, args):
         thread = self.process.GetThreadByID(args['threadId'])
         start_frame = args.get('startFrame', 0)
         levels = args.get('levels', sys.maxsize)
@@ -322,18 +359,47 @@ class DebugSession:
                 fn_name = str(frame.GetPCAddress())
             stack_frame['name'] = fn_name
 
-            le = frame.GetLineEntry()
-            if le.IsValid():
-                fs = le.GetFileSpec()
-                # VSCode gets confused if the path contains funky stuff like a double-slash
-                full_path = os.path.normpath(fs.fullpath)
-                stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
-                stack_frame['line'] = le.GetLine()
-                stack_frame['column'] = le.GetColumn()
+            if not self.in_disassembly(frame):
+                le = frame.GetLineEntry()
+                if le.IsValid():
+                    fs = le.GetFileSpec()
+                    # VSCode gets confused if the path contains funky stuff like a double-slash
+                    full_path = os.path.normpath(fs.fullpath)
+                    stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
+                    stack_frame['line'] = le.GetLine()
+                    stack_frame['column'] = le.GetColumn()
+            else:
+                symbol = frame.GetSymbol()
+                sym_load_addr = symbol.GetStartAddress().GetLoadAddress(self.target)
+                disasm = self.disassembly_by_addr.get(sym_load_addr)
+                if disasm is None:
+                    disasm = disassembly.Disassembly(symbol, frame.GetLineEntry(), self.target)
+                    self.disassembly_by_addr[disasm.get_address()] = disasm
+                    disasm.source_ref = self.disassembly_by_id.create(disasm)
+                pc_load_addr = frame.GetPCAddress().GetLoadAddress(self.target)
+                stack_frame['source'] = disasm.get_source_ref()
+                stack_frame['line'] = disasm.line_num_by_address(pc_load_addr)
+                stack_frame['column'] = 0
+
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
-    def scopes_request(self, args):
+    def in_disassembly(self, frame):
+        le = frame.GetLineEntry()
+        if self.show_disassembly == 'never':
+            return False
+        elif self.show_disassembly == 'always':
+            return True
+        else:
+            return not le.IsValid()
+
+    def DEBUG_source(self, args):
+        sourceRef = int(args['sourceReference'])
+        disasm = self.disassembly_by_id.get(sourceRef)
+        return { 'content': disasm.get_source_text(), 'mimeType': 'text/x-lldb.disassembly',
+                 'adapterData': disasm.addresses }
+
+    def DEBUG_scopes(self, args):
         frame_id = args['frameId']
         locals = { 'name': 'Locals', 'variablesReference': frame_id, 'expensive': False }
         frame = self.var_refs.get(frame_id)
@@ -341,7 +407,7 @@ class DebugSession:
         registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_ref, 'expensive': True }
         return { 'scopes': [locals, registers] }
 
-    def variables_request(self, args):
+    def DEBUG_variables(self, args):
         variables = []
         container = self.var_refs.get(args['variablesReference'])
         if container is None:
@@ -355,7 +421,7 @@ class DebugSession:
             vars = container
 
         for var in vars:
-            name, value, dtype, ref = self.parse_var(var)
+            name, value, dtype, ref = self.parse_var(var, self.global_format)
             # Sometimes LLDB returns junk entries with empty names and values
             if name is not None:
                 variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
@@ -370,7 +436,7 @@ class DebugSession:
 
         return { 'variables': variables }
 
-    def evaluate_request(self, args):
+    def DEBUG_evaluate(self, args):
         context = args['context']
         expr = str(args['expression'])
         if context in ['watch', 'hover']:
@@ -399,7 +465,7 @@ class DebugSession:
         if frame is None:
             raise Exception('Missing frameId')
 
-        format = lldb.eFormatDefault
+        format = self.global_format
         for suffix, fmt in self.format_codes:
             if expr.endswith(suffix):
                 format = fmt
@@ -431,7 +497,7 @@ class DebugSession:
                     (',y', lldb.eFormatBytes),
                     (',Y', lldb.eFormatBytesWithASCII)]
 
-    def parse_var(self, var, format=lldb.eFormatDefault):
+    def parse_var(self, var, format):
         name = var.GetName()
         value = self.get_var_value(var, format)
         dtype = var.GetTypeName()
@@ -447,7 +513,7 @@ class DebugSession:
                 value = '<not available>'
         return name, value, dtype, ref
 
-    def get_var_value(self, var, format=lldb.eFormatDefault):
+    def get_var_value(self, var, format):
         var.SetFormat(format)
         value = var.GetValue()
         if value is None:
@@ -458,7 +524,7 @@ class DebugSession:
             value = value.decode('latin1') # or else json will try to treat it as utf8
         return value
 
-    def setVariable_request(self, args):
+    def DEBUG_setVariable(self, args):
         container = self.var_refs.get(args['variablesReference'])
         if container is None:
             raise Exception('Invalid variables reference')
@@ -477,9 +543,9 @@ class DebugSession:
         error = lldb.SBError()
         if not var.SetValueFromCString(str(args['value']), error):
             raise UserError(error.GetCString())
-        return { 'value': self.get_var_value(var) }
+        return { 'value': self.get_var_value(var, self.global_format) }
 
-    def disconnect_request(self, args):
+    def DEBUG_disconnect(self, args):
         if self.process:
             if self.process_launched:
                 self.process.Kill()
@@ -490,7 +556,37 @@ class DebugSession:
         self.terminal = None
         self.event_loop.stop()
 
-    # handles messages from VSCode
+    def EXTENSION_test(self, args):
+        self.console_msg('TEST\n')
+
+    def EXTENSION_showDisassembly(self, args):
+        value = args.get('value', 'toggle')
+        if value == 'toggle':
+            self.show_disassembly = 'auto' if self.show_disassembly != 'auto' else 'always'
+        else:
+            self.show_disassembly = value
+        self.refresh_client_display()
+
+    def EXTENSION_displayFormat(self, args):
+        value = args.get('value', 'auto')
+        if value == 'hex':
+            self.global_format = lldb.eFormatHex
+        elif value == 'decimal':
+            self.global_format = lldb.eFormatDecimal
+        elif value == 'binary':
+            self.global_format = lldb.eFormatBinary
+        else:
+            self.global_format = lldb.eFormatDefault
+        self.refresh_client_display()
+
+    # Fake a target stop to force VSCode to refresh the display
+    def refresh_client_display(self):
+        thread_id = self.process.GetSelectedThread().GetThreadID()
+        self.send_event('stopped', { 'reason': 'unknown',
+                                     'threadId': thread_id,
+                                     'allThreadsStopped': True })
+
+    # handles messages from VSCode debug client
     def handle_message(self, request):
         if request is None:
             # Client connection lost; treat this the same as a normal disconnect.
@@ -499,13 +595,12 @@ class DebugSession:
 
         command =  request['command']
         args = request.get('arguments', {})
-        log.debug('### Handling command: %s', command)
-
         response = { 'type': 'response', 'command': command,
                      'request_seq': request['seq'], 'success': False }
         args['response'] = response
 
-        handler = getattr(self, command + '_request', None)
+        log.debug('### Handling command: %s', command)
+        handler = getattr(self, 'DEBUG_' + command, None)
         if handler is not None:
             try:
                 result = handler(args)
@@ -541,7 +636,37 @@ class DebugSession:
             assert False, "Invalid result type: %s" % result
         self.send_message(response)
 
-    # handles debugger notifications
+    # Handle messages from VSCode extension
+    def handle_extension_message(self, request):
+        if request is None:
+            return # the client has disconnected
+        command =  request['command']
+        args = request.get('arguments', {})
+        response = { 'type': 'response', 'command': command,
+                     'request_seq': request['seq'], 'success': False }
+        args['response'] = response
+
+        log.debug('### Handling extension command: %s', command)
+        handler = getattr(self, 'EXTENSION_' + command, None)
+        if handler is not None:
+            try:
+                result = handler(args)
+                response['success'] = True
+                response['body'] = result
+                self.send_extension_message(response)
+            except Exception as e:
+                tb = traceback.format_exc(e)
+                log.error('Internal error:\n' + tb)
+                msg = str(e)
+                response['success'] = False
+                response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
+                self.send_extension_message(response)
+        else:
+            log.warning('No handler for extension command %s', command)
+            response['success'] = False
+            self.send_extension_message(response)
+
+    # Handles debugger notifications
     def handle_debugger_event(self, event):
         if lldb.SBProcess.EventIsProcessEvent(event):
             ev_type = event.GetType()
@@ -607,6 +732,7 @@ class DebugSession:
             output = read_stream(1024)
 
     def notify_breakpoint(self, event):
+        return
         bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
         bp_info = self.make_bp_resp(bp)
         self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_info })

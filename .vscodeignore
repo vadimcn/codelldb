@@ -1,5 +1,9 @@
 .vscode/**
 .gitignore
-**/*.pyc
-tests/**
 run_server.sh
+tsconfig.json
+**/*.pyc
+**/*.js.map
+src/**
+typings/**
+out/tests/**

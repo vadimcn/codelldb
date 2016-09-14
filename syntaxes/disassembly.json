@@ -1,0 +1,31 @@
+{
+    "name": "LLDB Disassembly",
+    "scopeName": "source.disassembly",
+    "uuid": "db74b3e8-fa2c-4b4e-b973-1ecc54d45ed0",
+    "patterns": [
+        {
+            "comment": "Address, bytes and opcode",
+            "name": "meta.instruction",
+            "match": "^([A-Za-z0-9]+):\\s([A-Z0-9]{2}\\s)+\\s+(\\w+)",
+            "captures": {
+                "1": { "name": "constant.numeric" },
+                "3": { "name": "keyword.opcode" }
+            }
+        },
+        {
+            "comment": "Numeric constant",
+            "name": "constant.numeric",
+            "match": "(\\$|\\b)((0x)|[0-9])[A-Za-z0-9]+\\b"
+        },
+        {
+            "comment": "Register",
+            "name": "variable.language",
+            "match": "%[A-Za-z][A-Za-z0-9]*"
+        },
+        {
+            "comment": "End of line comment",
+            "name": "comment.line.semicolon",
+            "match": ";.*$"
+        }
+    ]
+}

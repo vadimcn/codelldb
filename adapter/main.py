@@ -1,6 +1,7 @@
 import os
 import logging
 import signal
+import socket
 
 log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -14,21 +15,36 @@ def init_logging(is_stdio_session):
                         format='[%(asctime)s %(name)s] %(message)s')
 
 def run_session(read, write):
-    from . import debugsession
-    from . import eventloop
-    from . import wireprotocol
+    from .wireprotocol import DebugServer, ExtensionServer
+    from .debugsession import DebugSession
+    from .eventloop import EventLoop
 
-    event_loop = eventloop.EventLoop()
+    event_loop = EventLoop()
 
-    proto_handler = wireprotocol.WireProtocolHandler(read, write)
-    debug_session = debugsession.DebugSession(event_loop, proto_handler.send_message)
-    proto_handler.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
-    token = proto_handler.start()
+    # Attach debug protocol listener to the main communication channel
+    debug_server = DebugServer()
+    debug_server.reset(read, write)
+
+    # Create extension server and announce its port number
+    ext_server = ExtensionServer()
+    open('/tmp/vscode-lldb-session', 'wb').write(str(ext_server.port))
+
+    # Create DebugSession, tell it how to send messages back to the clients
+    debug_session = DebugSession(event_loop, debug_server.send_message, ext_server.send_message)
+
+    # Wire up the received message handlers
+    debug_server.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
+    ext_server.handle_message = event_loop.make_dispatcher(debug_session.handle_extension_message)
+
+    # Start up worker threads
+    token1 = debug_server.start()
+    token2 = ext_server.start()
+
+    # Run event loop until DebugSession breaks it
     event_loop.run()
 
 # Run in socket server mode
 def run_tcp_server(port=4711, multiple=True):
-    import socket
     init_logging(False)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

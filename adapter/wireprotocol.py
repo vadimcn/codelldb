@@ -1,21 +1,22 @@
 import json
 import logging
+import socket
 from .workerthread import WorkerThread
 
 log = logging.getLogger('wireprotocol')
 
-class WireProtocolHandler(WorkerThread):
+# Wire protocol handler for the main debug connection
+class DebugServer(WorkerThread):
+    handle_message = None
+
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write(buffer)`: callback to write bytes into the output stream.
-    def __init__(self, read, write):
-        WorkerThread.__init__(self)
+    def reset(self, read, write):
         self.read = read
         self.write = write
         self.ibuffer = b''
-       	self.stopping = False
-        self.handle_message = None
 
-    def run(self):
+    def thread_proc(self):
         assert self.handle_message is not None
         try:
             while not self.stopping:
@@ -27,10 +28,17 @@ class WireProtocolHandler(WorkerThread):
                 self.handle_message(message)
             log.debug('Shutting down')
         except StopIteration: # Thrown when read() returns 0
+            log.debug('Disconnected')
             self.handle_message(None)
-        except Exception as e:
-            log.error(e)
-            self.handle_message(None)
+
+    # Execute I/O operation, which may have a timeout associated with it.
+    def with_timeout(self, operation, *args):
+        while not self.stopping:
+            try:
+                return operation(*args)
+            except socket.timeout:
+                pass
+        raise StopIteration()
 
     def recv_headers(self):
         while True:
@@ -47,18 +55,18 @@ class WireProtocolHandler(WorkerThread):
                 else:
                     log.error('No Content-Length header')
 
-            data = self.read(1024)
+            data = self.with_timeout(self.read, 1024)
             if len(data) == 0:
                 raise StopIteration()
             self.ibuffer += data
 
     def recv_body(self, clen):
         while len(self.ibuffer) < clen:
-            data = self.read(1024)
+            data = self.with_timeout(self.read, 1024)
+            if len(data) == 0:
+                raise StopIteration()
             self.ibuffer += data
         data = self.ibuffer[:clen]
-        if len(data) == 0:
-            raise StopIteration()
         self.ibuffer = self.ibuffer[clen:]
         return data
 
@@ -66,5 +74,27 @@ class WireProtocolHandler(WorkerThread):
         data = json.dumps(message)
         log.debug('tx: %s', data)
         data = data.encode('utf-8')
-        self.write(b'Content-Length: %d\r\n\r\n' % len(data))
-        self.write(data)
+        self.with_timeout(self.write, b'Content-Length: %d\r\n\r\n' % len(data))
+        self.with_timeout(self.write, data)
+
+
+# Wire protocol handler for the auxilary connection to VSCode extension
+class ExtensionServer(DebugServer):
+    def __init__(self):
+        DebugServer.__init__(self)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind(('127.0.0.1', 0))
+        self.sock.listen(1)
+        addr, port = self.sock.getsockname()
+        self.port = port
+
+    def thread_proc(self):
+        try:
+            self.sock.settimeout(0.3)
+            conn, addr = self.with_timeout(self.sock.accept)
+            conn.settimeout(0.3)
+            self.sock.close()
+            DebugServer.reset(self, conn.recv, conn.send)
+            DebugServer.thread_proc(self)
+        except StopIteration:
+            pass

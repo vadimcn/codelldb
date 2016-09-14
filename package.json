@@ -30,8 +30,8 @@
     },
     "devDependencies": {
         "vscode": "^0.11.0",
-        "vscode-debugadapter-testsupport": "^1.8.0",
-        "vscode-debugprotocol": "^1.8.0",
+        "vscode-debugprotocol": "^1.12.0",
+        "vscode-debugadapter-testsupport": "^1.12.0",
         "typescript": "^1.8.10",
         "mocha": "^2.4.5"
     },
@@ -43,7 +43,45 @@
         "run:tests": "mocha -u tdd --timeout 5000 ./out/tests",
         "test": "npm run build && npm run build:debuggee && npm run run:tests"
     },
+    "main": "./out/extension",
+    "activationEvents": [
+        "onCommand:lldb.showDisassembly",
+        "onCommand:lldb.toggleDisassembly",
+        "onCommand:lldb.displayFormat"
+    ],
     "contributes": {
+        "commands": [
+            {
+                "command": "lldb.showDisassembly",
+                "title": "LLDB: Show Disassembly ..."
+            },
+            {
+                "command": "lldb.toggleDisassembly",
+                "title": "LLDB: Toggle Disassembly"
+            },
+            {
+                "command": "lldb.displayFormat",
+                "title": "LLDB: Display Format ..."
+            }
+        ],
+        "languages": [
+            {
+                "id": "lldb.disassembly",
+                "aliases": [
+                    "Disassembly"
+                ],
+                "extensions": [
+                    ".disasm"
+                ]
+            }
+        ],
+        "grammars": [
+            {
+                "language": "lldb.disassembly",
+                "scopeName": "source.disassembly",
+                "path": "./syntaxes/disassembly.json"
+            }
+        ],
         "debuggers": [
             {
                 "type": "lldb",
@@ -57,7 +95,8 @@
                         "fortan",
                         "objective-c",
                         "pascal",
-                        "rust"
+                        "rust",
+                        "lldb.disassembly"
                     ]
                 },
                 "runtime": "node",
@@ -73,7 +112,10 @@
                                 "description": "Path to the program to debug."
                             },
                             "args": {
-                                "type": ["array", "string"],
+                                "type": [
+                                    "array",
+                                    "string"
+                                ],
                                 "description": "Program arguments.",
                                 "default": []
                             },

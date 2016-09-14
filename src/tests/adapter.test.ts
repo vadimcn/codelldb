@@ -9,8 +9,8 @@ import {DebugProtocol as dp} from 'vscode-debugprotocol';
 
 var dc: DebugClient;
 
-const debuggee = 'tests/out/debuggee'
-const debuggeeSource = path.normalize(path.join(process.cwd(), 'tests', 'debuggee.cpp'));
+const debuggee = 'out/tests/debuggee'
+const debuggeeSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'debuggee.cpp'));
 
 var port: number = null;
 if (process.env.DEBUG_SERVER) {
@@ -19,7 +19,7 @@ if (process.env.DEBUG_SERVER) {
 }
 
 setup(() => {
-    dc = new DebugClient('node', './adapter.js', 'lldb');
+    dc = new DebugClient('node', './out/adapter.js', 'lldb');
     return dc.start(port);
 });
 
@@ -90,6 +90,8 @@ test('set variable', async() => {
 });
 
 suite('attach tests - these may fail if your system has a locked-down ptrace() syscall', () => {
+    // Many Linux systems restrict tracing to parent processes only, which lldb in this case isn't.
+    // To allow unrestricted tracing run `echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope`.
     var debuggeeProc: cp.ChildProcess;
 
     suiteSetup(() => {
@@ -108,6 +110,7 @@ suite('attach tests - these may fail if your system has a locked-down ptrace() s
     });
 
     test('attach by name - may fail if a copy of debuggee is already running', async () => {
+        // To fix, run `killall debuggee` or equivalent.
         let asyncWaitStopped = dc.waitForEvent('stopped');
         let attachResp = await attach({ program: debuggee });
         assert(attachResp.success);

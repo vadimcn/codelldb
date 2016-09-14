@@ -15,7 +15,7 @@ Features:
 - LLDB Commands
 
 # Prerequisites
-- Visual Studio Code 1.1.1.
+- Visual Studio Code 1.4.0.
 - LLDB with Python scripting support on system PATH. ([Installing LLDB](#installing-lldb))
 
 # Debugging

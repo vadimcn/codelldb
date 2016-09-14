@@ -9,7 +9,7 @@
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^1.1.1"
+        "vscode": "^1.4.0"
     },
     "icon": "lldb.png",
     "categories": [
@@ -29,17 +29,19 @@
         "url": "https://github.com/vadimcn/vscode-lldb/issues"
     },
     "devDependencies": {
+        "vscode": "^0.11.0",
         "vscode-debugadapter-testsupport": "^1.8.0",
         "vscode-debugprotocol": "^1.8.0",
         "typescript": "^1.8.10",
         "mocha": "^2.4.5"
     },
     "scripts": {
-        "build:debuggee": "c++ tests/debuggee.cpp -pthread -std=c++11 -g -o tests/out/debuggee",
-        "build:tests": "tsc -p ./tests",
-        "watch:tests": "tsc -w -p ./tests",
-        "run:tests": "mocha -u tdd --timeout 5000 ./tests/out",
-        "test": "npm run build:debuggee && npm run build:tests && npm run run:tests"
+        "postinstall": "node ./node_modules/vscode/bin/install",
+        "build": "tsc -p .",
+        "watch": "tsc -w -p .",
+        "build:debuggee": "c++ src/tests/debuggee.cpp -pthread -std=c++11 -g -o out/tests/debuggee",
+        "run:tests": "mocha -u tdd --timeout 5000 ./out/tests",
+        "test": "npm run build && npm run build:debuggee && npm run run:tests"
     },
     "contributes": {
         "debuggers": [
@@ -59,7 +61,7 @@
                     ]
                 },
                 "runtime": "node",
-                "program": "adapter.js",
+                "program": "out/adapter.js",
                 "configurationAttributes": {
                     "launch": {
                         "required": [

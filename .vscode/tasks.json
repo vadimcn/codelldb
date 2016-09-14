@@ -11,13 +11,14 @@
       "isTestCommand": true
     },
     {
-      "taskName": "build:tests"
+      "taskName": "build",
+      "isBuildCommand":  true
     },
     {
       "taskName": "build:debuggee"
     },
     {
-      "taskName": "watch:tests"
+      "taskName": "watch"
     }
   ]
 }

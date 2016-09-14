@@ -4,6 +4,7 @@
 	"configurations": [
 		{
 			"name": "extension",
+			"preLaunchTask": "build",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
@@ -15,11 +16,12 @@
 		},
 		{
             "name": "adapter.js",
+			"preLaunchTask": "build",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/adapter.js",
+            "program": "${workspaceRoot}/out/adapter.js",
 			"cwd": "${workspaceRoot}",
-            "stopOnEntry": false
+            "stopOnEntry": true
 		},
         {
 			"name": "tests",
@@ -36,24 +38,22 @@
 				"./tests/out"
 			],
 			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/tests/out"
+			"outDir": "${workspaceRoot}/out/tests"
 		},
 		{
 			"name": "debuggee",
-			"preLaunchTask": "build:debuggee",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/tests/out/debuggee",
+			"program": "${workspaceRoot}/out/tests/debuggee",
 			"env": { "FOO": "bar" },
-			"args": ["show_env", "FOO"],
+			"args": ["vars"],
 			"cwd": "${workspaceRoot}"
 		},
 		{
 			"name": "debuggee attach",
-			"preLaunchTask": "build:debuggee",
 			"type": "lldb",
 			"request": "attach",
-			"program": "${workspaceRoot}/tests/out/debuggee"
+			"program": "${workspaceRoot}/out/tests/debuggee"
 		}
 	]
 }

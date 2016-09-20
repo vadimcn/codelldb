@@ -3,6 +3,8 @@ LLDB Front-End for Visual Studio Code
 
 Native debugging in Visual Studio Code via [LLDB debugger engine](http://lldb.llvm.org/).
 
+[See what's new.](#whats-new)
+
 Features:
 - Attach or Launch
 - Breakpoints (function, conditional)
@@ -12,6 +14,8 @@ Features:
 - Call Stacks
 - Multiple Threads
 - Stepping
+- Disassembly View
+- Variable Formatting
 - LLDB Commands
 
 # Prerequisites
@@ -85,15 +89,16 @@ using `break list` command).
 
 ## Dissassembly View
 When stepping into a compile unit that does not have debug info, vscode-lldb will instead display
-disassemby of the current function.  This behavior may be controlled using 'LLDB: Show Disassembly'
-and 'LLDB Toggle Disassembly' commands.  The former allows to choose between `never`,
+disassemby of the current function.  This behavior may be controlled using `LLDB: Show Disassembly`
+and `LLDB: Toggle Disassembly` commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
 
 ## Formatting
-You may change the default display format using the `LLDB: Display Format` command.
+You may change the default display format of variables using the `LLDB: Display Format` command.
 When evaluating expressions from Debug Console or in the 'Watch' view, you may also control
-formatting of individual expressions by adding a suffix, for example `$rax,x`.
-Here's the full list:
+formatting of individual expressions by adding a suffix. For example `$rax,x` will format the value
+as hex. Here's the full list:
+
 |suffix  |format |
 |--------|-------|
 |`x`     | Hex |
@@ -113,8 +118,8 @@ VS Code UI does not support all the bells and whistles that the underlying LLDB 
 you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the debugger console window.
 If you would like to evaluate an expression instead, prefix it with '`?`'.
 
-Note that any debugger state changes that you make directly through LLDB commands *will not be reflected in the UI
-and will not be persisted across debug sessions*.
+Note that any debugger state changes that you make directly through LLDB commands will not be reflected in the UI
+and will not be persisted across debug sessions.
 
 # Installing LLDB
 ## Linux
@@ -138,15 +143,19 @@ The workaround is to use either LLDB 3.7 or 3.9.  On OSX, LLDB shipped with Xcod
 have this problem fixed.
 
 
-# Release Notes
+# What's New?
 
-## 0.1.0
-First released version.
+## 0.2.0
+- Added [disassembly view](#dissassembly-view).
+- Added [variable formatting](#formatting).
+
+## 0.1.3
+- Added support for setting variable values (primitive types only).
+- Added [regex breakpoints](#regex-breakpoints).
 
 ## 0.1.2
 - Infer `.exe` target extension on Windows.
 - `args` may now be a string.
 
-## 0.1.3
-- Added support for setting variable values (primitive types only).
-- Added [regex breakpoints](#regex-breakpoints)
+## 0.1.0
+First released version.

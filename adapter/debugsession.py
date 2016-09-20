@@ -20,7 +20,7 @@ class DebugSession:
         self.event_loop = event_loop
         self.send_message = send_message
         self.send_extension_message = send_extension_message
-        self.var_refs = handles.Handles()
+        self.var_refs = handles.StableHandles()
         self.ignore_bp_events = False
         self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
@@ -353,7 +353,7 @@ class DebugSession:
         stack_frames = []
         for i in range(start_frame, start_frame + levels):
             frame = thread.frames[i]
-            stack_frame = { 'id': self.var_refs.create(frame) }
+            stack_frame = { 'id': self.var_refs.create(frame, frame.GetFP(), None) }
             fn_name = frame.GetFunctionName()
             if fn_name is None:
                 fn_name = str(frame.GetPCAddress())
@@ -401,15 +401,15 @@ class DebugSession:
 
     def DEBUG_scopes(self, args):
         frame_id = args['frameId']
-        locals = { 'name': 'Locals', 'variablesReference': frame_id, 'expensive': False }
+        locals = { 'name': 'Local', 'variablesReference': frame_id, 'expensive': False }
         frame = self.var_refs.get(frame_id)
-        regs_scope_ref = self.var_refs.create(RegistersScope(frame))
-        registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_ref, 'expensive': True }
+        regs_scope_handle = self.var_refs.create(RegistersScope(frame), 'regs', frame_id)
+        registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_handle, 'expensive': False }
         return { 'scopes': [locals, registers] }
 
     def DEBUG_variables(self, args):
-        variables = []
-        container = self.var_refs.get(args['variablesReference'])
+        container_handle = args['variablesReference']
+        container = self.var_refs.get(container_handle)
         if container is None:
             raise Exception('Invalid variables reference')
         if isinstance(container, lldb.SBFrame):
@@ -420,18 +420,19 @@ class DebugSession:
         elif isinstance(container, lldb.SBValue):
             vars = container
 
+        variables = []
         for var in vars:
-            name, value, dtype, ref = self.parse_var(var, self.global_format)
+            name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
             # Sometimes LLDB returns junk entries with empty names and values
             if name is not None:
-                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': ref }
+                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
                 variables.append(variable)
 
         # If this node was synthetic (i.e. a product of a visualizer),
         # append a [raw] child, which can be expended to snow raw data.
         if isinstance(vars, lldb.SBValue) and vars.IsSynthetic():
-            ref = self.var_refs.create(vars.GetNonSyntheticValue())
-            variable = { 'name': '[raw]', 'value': vars.GetTypeName(), 'variablesReference': ref }
+            handle = self.var_refs.create(vars.GetNonSyntheticValue(), '[raw]', container_handle)
+            variable = { 'name': '[raw]', 'value': vars.GetTypeName(), 'variablesReference': handle }
             variables.append(variable)
 
         return { 'variables': variables }
@@ -475,8 +476,8 @@ class DebugSession:
         var = frame.EvaluateExpression(expr)
         error = var.GetError()
         if error.Success():
-            _, value, dtype, ref = self.parse_var(var, format)
-            return { 'result': value, 'type': dtype, 'variablesReference': ref }
+            _, value, dtype, handle = self.parse_var(var, format)
+            return { 'result': value, 'type': dtype, 'variablesReference': handle }
         else:
             message = error.GetCString()
             if args['context'] == 'repl':
@@ -497,21 +498,21 @@ class DebugSession:
                     (',y', lldb.eFormatBytes),
                     (',Y', lldb.eFormatBytesWithASCII)]
 
-    def parse_var(self, var, format):
+    def parse_var(self, var, format, parent_handle=None):
         name = var.GetName()
         value = self.get_var_value(var, format)
         dtype = var.GetTypeName()
         if var.GetNumChildren() > 0:
-            ref = self.var_refs.create(var)
+            handle = self.var_refs.create(var, name, parent_handle)
             if value is None:
                 value = dtype
             if value is None:
                 value = ''
         else:
-            ref = 0
+            handle = 0
             if value is None:
                 value = '<not available>'
-        return name, value, dtype, ref
+        return name, value, dtype, handle
 
     def get_var_value(self, var, format):
         var.SetFormat(format)

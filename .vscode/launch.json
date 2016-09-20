@@ -15,7 +15,7 @@
 			"sourceMaps": true
 		},
 		{
-            "name": "adapter.js",
+            "name": "adapter launcher",
 			"preLaunchTask": "build",
             "type": "node",
             "request": "launch",

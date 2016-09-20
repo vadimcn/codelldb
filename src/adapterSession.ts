@@ -49,8 +49,8 @@ async function createConnection(): Promise<MyProtocolClient> {
         let client = new MyProtocolClient();
         await client.start(port);
         return client;
-    } catch (e) {
-        await window.showErrorMessage('Could not establish connection to debug adapter: ' + e.message);
-        throw e;
+    } catch (err) {
+        await window.showErrorMessage('Could not establish connection to debug adapter: ' + err.message);
+        throw err;
     }
 }

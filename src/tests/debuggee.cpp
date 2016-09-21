@@ -42,16 +42,17 @@ void vars() {
 
     int a = 10;
     int b = 20;
+    for (int i = 0; i < 10; i++)
     {
         int a = 30;
         int b = 40;
         const char c[] = "foobar";
         char buffer[10240] = {0};
-        std::vector<std::vector<int>> v(10, {1, 2, 3, 4, 5});
-        Struct s = { 1, 'a', 3.0f };
-        std::vector<Struct> vs(3, { 2, 'b', 4.0f});
+        std::vector<std::vector<int>> v(10, {i*1, i*2, i*3, i*4, i*5});
+        Struct s = { i+1, 'a', 3.0f };
+        std::vector<Struct> vs(3, { i*2, 'b', 4.0f});
         std::string str = "The quick brown fox";
-        int zzz = 0; // #BP3
+        int zzz = i; // #BP3
     }
 }
 

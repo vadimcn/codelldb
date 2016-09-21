@@ -414,7 +414,7 @@ class DebugSession:
             raise Exception('Invalid variables reference')
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
-            vars = container.GetVariables(True, True, False, True)
+            vars = container.GetVariables(True, True, True, True)
         elif isinstance(container, RegistersScope):
             vars = container.frame.GetRegisters()
         elif isinstance(container, lldb.SBValue):
@@ -583,7 +583,7 @@ class DebugSession:
     # Fake a target stop to force VSCode to refresh the display
     def refresh_client_display(self):
         thread_id = self.process.GetSelectedThread().GetThreadID()
-        self.send_event('stopped', { 'reason': 'unknown',
+        self.send_event('stopped', { 'reason': 'mode switch',
                                      'threadId': thread_id,
                                      'allThreadsStopped': True })
 
@@ -691,33 +691,39 @@ class DebugSession:
     def notify_target_stopped(self, lldb_event):
         event = { 'allThreadsStopped': True } # LLDB always stops all threads
         # Find the thread that has caused this stop
+        thread_id = None
+        stopped_thread = None
+        stop_reason = 'unknown'
         for thread in self.process:
             stop_reason = thread.GetStopReason()
             if stop_reason == lldb.eStopReasonBreakpoint:
+                stopped_thread = thread
                 event['threadId'] = thread.GetThreadID()
                 bp_id = thread.GetStopReasonDataAtIndex(0)
                 for bp in self.exc_breakpoints:
                     if bp.GetID() == bp_id:
-                        event['reason'] = 'exception'
+                        stop_reason = 'exception'
                         break;
                 else:
-                    event['reason'] = 'breakpoint'
+                    stop_reason = 'breakpoint'
                 break
             elif stop_reason == lldb.eStopReasonException:
-                event['threadId'] = thread.GetThreadID()
-                event['reason'] = 'exception'
+                stopped_thread = thread
+                stop_reason = 'exception'
                 break
             elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                event['threadId'] = thread.GetThreadID()
-                event['reason'] = 'step'
+                stopped_thread = thread
+                stop_reason = 'step'
                 break
             elif stop_reason == lldb.eStopReasonSignal:
-                event['threadId'] = thread.GetThreadID()
-                event['reason'] = 'signal'
+                stopped_thread = thread
+                stop_reason = 'signal'
                 event['text'] = thread.GetStopReasonDataAtIndex(0)
                 break
-        else:
-            event['reason'] = 'unknown'
+        event['reason'] = stop_reason
+        if thread is not None:
+            self.process.SetSelectedThread(stopped_thread)
+            event['threadId'] = stopped_thread.GetThreadID()
         self.send_event('stopped', event)
 
     def notify_stdio(self, ev_type):

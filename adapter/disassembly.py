@@ -4,6 +4,8 @@ import bisect
 
 log = logging.getLogger('disassembly')
 
+MAX_INSTR_BYTES = 8 # Max number of instruction bytes to show
+
 class Disassembly:
     def __init__(self, symbol, line_entry, target):
         self.symbol = symbol
@@ -39,9 +41,13 @@ class Disassembly:
         for instr in self.symbol.GetInstructions(self.target):
             addr = instr.GetAddress().GetLoadAddress(self.target)
             dump = ''
-            for b in instr.GetData(self.target).uint8:
+            for i,b in enumerate(instr.GetData(self.target).uint8):
+                if i >= MAX_INSTR_BYTES:
+                    dump += '>'
+                    break
                 dump += '%02X ' % b
-            line = '%08X: %-25s %-6s %s' % (addr, dump,
+            dump = dump.ljust(MAX_INSTR_BYTES * 3 + 2)
+            line = '%08X: %s %-6s %s' % (addr, dump,
                 instr.GetMnemonic(self.target), instr.GetOperands(self.target))
             comment = instr.GetComment(self.target)
             if len(comment) > 0:

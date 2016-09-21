@@ -6,7 +6,7 @@
         {
             "comment": "Address, bytes and opcode",
             "name": "meta.instruction",
-            "match": "^([A-Za-z0-9]+):\\s([A-Z0-9]{2}\\s)+\\s+(\\w+)",
+            "match": "^([A-Za-z0-9]+):\\s([A-Z0-9]{2}\\s)+>?\\s+(\\w+)",
             "captures": {
                 "1": { "name": "constant.numeric" },
                 "3": { "name": "keyword.opcode" }

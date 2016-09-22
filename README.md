@@ -142,6 +142,7 @@ you won't be able to step through code or inspect variables if you have this ver
 The workaround is to use either LLDB 3.7 or 3.9.  On OSX, LLDB shipped with Xcode 8 is known to
 have this problem fixed.
 
+# [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
 
 # What's New?
 

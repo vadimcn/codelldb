@@ -9,7 +9,7 @@
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^1.4.0"
+        "vscode": "^1.5.0"
     },
     "icon": "lldb.png",
     "categories": [
@@ -47,7 +47,8 @@
     "activationEvents": [
         "onCommand:lldb.showDisassembly",
         "onCommand:lldb.toggleDisassembly",
-        "onCommand:lldb.displayFormat"
+        "onCommand:lldb.displayFormat",
+        "onCommand:lldb.launchDebugServer"
     ],
     "contributes": {
         "commands": [
@@ -62,6 +63,10 @@
             {
                 "command": "lldb.displayFormat",
                 "title": "LLDB: Display Format ..."
+            },
+            {
+                "command": "lldb.launchDebugServer",
+                "title": "LLDB: Launch Debug Server"
             }
         ],
         "languages": [

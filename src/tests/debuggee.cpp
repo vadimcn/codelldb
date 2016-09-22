@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <unistd.h>
 
 void deepstack(int levelsToGo) {
     if (levelsToGo > 0) {
@@ -12,6 +13,9 @@ void deepstack(int levelsToGo) {
 void inf_loop() {
     long long i = 0;
     for (;;) {
+        printf("\r%lld ", i);
+        fflush(stdout);
+        sleep(1);
         i += 1;
     }
 }

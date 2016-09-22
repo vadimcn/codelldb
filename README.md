@@ -19,7 +19,7 @@ Features:
 - LLDB Commands
 
 # Prerequisites
-- Visual Studio Code 1.4.0.
+- Visual Studio Code 1.5.0.
 - LLDB with Python scripting support on system PATH. ([Installing LLDB](#installing-lldb))
 
 # Debugging
@@ -31,16 +31,17 @@ Create a new [launch configuration](https://code.visualstudio.com/Docs/editor/de
 to either launch your program or attach to already running process:
 
 ### Launching
-|parameter|type|req |         |
-|---------|----|:--:|---------|
-|`name`   |string|Y| Launch configuration name.|
-|`type`   |string|Y| Set to "lldb".|
-|`request`|string|Y| Set to "launch".|
-|`program`|string|Y| Path to debuggee executable.|
-|`args`   |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
-|`cwd`    |string|| Working directory.|
-|`env`    |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VAR}`.|
-|`stdio`  |string &#124; list &#124; dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
+|parameter |type|req |         |
+|----------|----|:--:|---------|
+|`name`    |string|Y| Launch configuration name.|
+|`type`    |string|Y| Set to "lldb".|
+|`request` |string|Y| Set to "launch".|
+|`program` |string|Y| Path to debuggee executable.|
+|`args`    |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
+|`cwd`     |string|| Working directory.|
+|`env`     |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VARIABLE}`.|
+|`stdio`   |string &#124; list &#124; dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
+|`terminal`|string|| Destination for debuggee's stdio streams: `console` (default) for VSCode debugger console, `integrated` for VSCode integrated terminal, `external` for a new terminal window'.|
 |`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
 |`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
 |`preRunCommands`|list of strings|| LLDB commands executed just before launching the program.|
@@ -69,8 +70,7 @@ Each stream may be set to one of the following:
 
 |              |         |
 |--------------|---------|
-|`null`        | Debugger captures the stream, `stdout` and `stderr` output are sent to debugger console; `stdin` is always empty.|
-|`"*"`         | Creates a new terminal window and connects the stream to that terminal.|
+|`null`        | Connect to a terminal (as specified by the `terminal` launch property).|
 |`"/some/path"`| Connects the stream to a file, a pipe or a TTY (not supported on Windows). Hint: use `tty` command inside a terminal window to find out its TTY device path.|
 
 For example, `"stdio": ["*", null, "/tmp/my.log"]` will connect `stdin` to a new terminal, send `stdout` to debugger console,
@@ -144,6 +144,9 @@ have this problem fixed.
 
 
 # What's New?
+
+## 0.2.X
+- Added 'terminal' launch config option. '*' in stdio config now behaves identically to null.
 
 ## 0.2.0
 - Added [disassembly view](#dissassembly-view).

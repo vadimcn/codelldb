@@ -29,10 +29,13 @@ class DebugSession:
         self.process = None
         self.terminal = None
         self.launch_args = None
+        self.process_launched = False
         self.show_disassembly = 'auto' # never | auto | always
         self.global_format = lldb.eFormatDefault
         self.disassembly_by_id = handles.Handles()
         self.disassembly_by_addr = {}
+        self.request_seq = 1
+        self.pending_requests = {} # { seq : on_complete }
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -61,6 +64,7 @@ class DebugSession:
         return AsyncResponse
 
     def launch(self, args):
+        log.info('Launching...')
         self.exec_commands(args.get('preRunCommands'))
         flags = 0
         # argumetns
@@ -75,17 +79,8 @@ class DebugSession:
         if env is not None: # Convert dict to a list of 'key=value' strings
             envp = envp + ([str('%s=%s' % pair) for pair in env.items()])
         # stdio
-        stdio = self.get_stdio_config(args)
-        # open a new terminal window if needed
-        if '*' in stdio:
-            if 'linux' in sys.platform:
-                self.terminal = terminal.create()
-                stdio = [self.terminal.tty if s == '*' else s for s in stdio]
-            else:
-                # OSX LLDB supports this natively.
-                # On Windows LLDB always creates a new console window (even if stdio is redirected).
-                flags |= lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
-                stdio = [None if s == '*' else s for s in stdio]
+        stdio, extra_flags = self.configure_stdio(args)
+        flags |= extra_flags
         # working directory
         work_dir = opt_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)
@@ -102,7 +97,7 @@ class DebugSession:
         assert self.process.IsValid()
         self.process_launched = True
 
-    def get_stdio_config(self, args):
+    def configure_stdio(self, args):
         stdio = args.get('stdio', None)
         missing = () # None is a valid value here, so we need a new one to designate 'missing'
         if isinstance(stdio, dict): # Flatten it into a list
@@ -119,8 +114,34 @@ class DebugSession:
         for i in range(0, len(stdio)):
             if stdio[i] == missing:
                 stdio[i] = stdio[i-1] if i > 0 else None
-        stdio = list(map(opt_str, stdio))
-        return stdio
+        # Map '*' to None
+        stdio = [None if s == '*' else s for s in stdio]
+        # open a new terminal window if needed
+        extra_flags = 0
+        if None in stdio:
+            term_type = args.get('terminal', 'console')
+            if term_type == 'external':
+                if 'linux' in sys.platform:
+                    self.terminal = terminal.create()
+                    term_fd = self.terminal.tty
+                else:
+                    # OSX LLDB supports this natively.
+                    # On Windows LLDB always creates a new console window (even if stdio is redirected).
+                    extra_flags = lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
+                    term_fd = None
+            elif term_type == 'integrated':
+                self.terminal = terminal.create(self.spawn_vscode_terminal)
+                term_fd = self.terminal.tty
+            else:
+                term_fd = None # that'll send them to VSCode debug console
+            stdio = [term_fd if s is None else str(s) for s in stdio]
+        return stdio, extra_flags
+
+    def spawn_vscode_terminal(self, command):
+        on_complete = lambda ok, body: None
+        self.send_request('runInTerminal', {
+            'kind': 'external', 'cwd': None,
+            'args': ['bash', '-c', command] }, on_complete)
 
     def DEBUG_attach(self, args):
         self.exec_commands(args.get('initCommands'))
@@ -131,6 +152,7 @@ class DebugSession:
         return AsyncResponse
 
     def attach(self, args):
+        log.info('Attaching...')
         self.exec_commands(args.get('preRunCommands'))
 
         error = lldb.SBError()
@@ -588,33 +610,46 @@ class DebugSession:
                                      'allThreadsStopped': True })
 
     # handles messages from VSCode debug client
-    def handle_message(self, request):
-        if request is None:
+    def handle_message(self, message):
+        if message is None:
             # Client connection lost; treat this the same as a normal disconnect.
             self.disconnect_request(None)
             return
 
-        command =  request['command']
-        args = request.get('arguments', {})
-        response = { 'type': 'response', 'command': command,
-                     'request_seq': request['seq'], 'success': False }
-        args['response'] = response
+        if message['type'] == 'response':
+            seq = message['request_seq']
+            on_complete = self.pending_requests.get(seq)
+            if on_complete is None:
+                log.error('Received response without pending request, seq=%d', seq)
+                return
+            del self.pending_requests[seq]
+            if message['success']:
+                on_complete(True, message.get('body'))
+            else:
+                on_complete(False, message.get('message'))
+        else: # request
+            command =  message['command']
+            args = message.get('arguments', {})
+            # Prepare response - in case the handler is async
+            response = { 'type': 'response', 'command': command,
+                         'request_seq': message['seq'], 'success': False }
+            args['response'] = response
 
-        log.debug('### Handling command: %s', command)
-        handler = getattr(self, 'DEBUG_' + command, None)
-        if handler is not None:
-            try:
-                result = handler(args)
-                # `result` being an AsyncResponse means that the handler is asynchronous and
-                # will respond at a later time.
-                if result is AsyncResponse: return
-            except Exception as e:
-                result = e
-            self.send_response(response, result)
-        else:
-            log.warning('No handler for %s', command)
-            response['success'] = False
-            self.send_message(response)
+            log.debug('### Handling command: %s', command)
+            handler = getattr(self, 'DEBUG_' + command, None)
+            if handler is not None:
+                try:
+                    result = handler(args)
+                    # `result` being an AsyncResponse means that the handler is asynchronous and
+                    # will respond at a later time.
+                    if result is AsyncResponse: return
+                except Exception as e:
+                    result = e
+                self.send_response(response, result)
+            else:
+                log.warning('No handler for %s', command)
+                response['success'] = False
+                self.send_message(response)
 
     # sends response with `result` as a body
     def send_response(self, response, result):
@@ -636,6 +671,15 @@ class DebugSession:
         else:
             assert False, "Invalid result type: %s" % result
         self.send_message(response)
+
+    # send a request to VSCode. When response is received, on_complete(True, request.body)
+    # will be called on success, or on_complete(False, request.message) on failure.
+    def send_request(self, command, args, on_complete):
+        request = { 'type': 'request', 'seq': self.request_seq, 'command': command,
+                    'arguments': args }
+        self.pending_requests[self.request_seq] = on_complete
+        self.request_seq += 1
+        self.send_message(request)
 
     # Handle messages from VSCode extension
     def handle_extension_message(self, request):

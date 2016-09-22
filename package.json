@@ -144,6 +144,12 @@
                                 "description": "Where to attach stdio streams: null = debugger console, '*' = open a new terminal, '<path>' = attach to a file/tty/fifo.",
                                 "default": "*"
                             },
+                            "terminal": {
+                                "type": "string",
+                                "enum": ["integrated", "external", "console"],
+                                "default": "integrated",
+                                "description": "Terminal type to use for the program."
+                            },
                             "stopOnEntry": {
                                 "type": "boolean",
                                 "description": "Automatically stop debuggee after launch.",

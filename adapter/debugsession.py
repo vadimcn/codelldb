@@ -423,11 +423,13 @@ class DebugSession:
 
     def DEBUG_scopes(self, args):
         frame_id = args['frameId']
-        locals = { 'name': 'Local', 'variablesReference': frame_id, 'expensive': False }
         frame = self.var_refs.get(frame_id)
-        regs_scope_handle = self.var_refs.create(RegistersScope(frame), 'regs', frame_id)
+        locals = { 'name': 'Local', 'variablesReference': frame_id, 'expensive': False }
+        statics_scope_handle = self.var_refs.create(StaticsScope(frame), '[stat]', frame_id)
+        statics = { 'name': 'Static', 'variablesReference': statics_scope_handle, 'expensive': False }
+        regs_scope_handle = self.var_refs.create(RegistersScope(frame), '[regs]', frame_id)
         registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_handle, 'expensive': False }
-        return { 'scopes': [locals, registers] }
+        return { 'scopes': [locals, statics, registers] }
 
     def DEBUG_variables(self, args):
         container_handle = args['variablesReference']
@@ -436,7 +438,9 @@ class DebugSession:
             raise Exception('Invalid variables reference')
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
-            vars = container.GetVariables(True, True, True, True)
+            vars = container.GetVariables(True, True, False, True)
+        elif isinstance(container, StaticsScope):
+            vars = container.frame.GetVariables(False, False, True, True)
         elif isinstance(container, RegistersScope):
             vars = container.frame.GetRegisters()
         elif isinstance(container, lldb.SBValue):
@@ -811,6 +815,10 @@ class UserError(Exception):
 # Result type for async handlers
 class AsyncResponse:
     pass
+
+class StaticsScope:
+    def __init__(self, frame):
+        self.frame = frame
 
 class RegistersScope:
     def __init__(self, frame):

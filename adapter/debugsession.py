@@ -160,13 +160,13 @@ class DebugSession:
             self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
         else:
             self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), False, error)
-
         if not error.Success():
             self.console_msg(error.GetCString())
             raise UserError('Failed to attach to process.')
-
         assert self.process.IsValid()
         self.process_launched = False
+        if not args.get('stopOnEntry', False):
+            self.process.Continue()
 
     def create_target(self, args):
         program = args['program']
@@ -318,13 +318,13 @@ class DebugSession:
     def DEBUG_configurationDone(self, args):
         try:
             result = self.do_launch(self.launch_args)
-            # On Linux, LLDB doesn't seem to automatically generate a stop event for stop_on_entry
-            if self.process.GetState() == lldb.eStateStopped:
-                self.notify_target_stopped(None)
         except Exception as e:
             result = e
         # do_launch is asynchronous so we need to send its result
         self.send_response(self.launch_args['response'], result)
+        # LLDB doesn't seem to automatically generate a stop event for stop_on_entry
+        if self.process.IsValid() and self.process.GetState() == lldb.eStateStopped:
+            self.notify_target_stopped(None)
 
     def DEBUG_pause(self, args):
         self.process.Stop()

@@ -104,15 +104,15 @@ suite('attach tests - these may fail if your system has a locked-down ptrace() s
 
     test('attach by pid', async () => {
         let asyncWaitStopped = dc.waitForEvent('stopped');
-        let attachResp = await attach({ program: debuggee, pid: debuggeeProc.pid });
+        let attachResp = await attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
     });
 
     test('attach by name - may fail if a copy of debuggee is already running', async () => {
-        // To fix, run `killall debuggee` or equivalent.
+        // To fix, try running `killall debuggee` (`taskkill /im debuggee.exe` on Windows)
         let asyncWaitStopped = dc.waitForEvent('stopped');
-        let attachResp = await attach({ program: debuggee });
+        let attachResp = await attach({ program: debuggee, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
         debuggeeProc.kill()

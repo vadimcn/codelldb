@@ -323,7 +323,7 @@ class DebugSession:
         # do_launch is asynchronous so we need to send its result
         self.send_response(self.launch_args['response'], result)
         # LLDB doesn't seem to automatically generate a stop event for stop_on_entry
-        if self.process.IsValid() and self.process.GetState() == lldb.eStateStopped:
+        if self.process is not None and self.process.GetState() == lldb.eStateStopped:
             self.notify_target_stopped(None)
 
     def DEBUG_pause(self, args):
@@ -667,9 +667,9 @@ class DebugSession:
             response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
         elif isinstance(result, Exception):
             tb = traceback.format_exc(result)
-            log.error('Internal error:\n' + tb)
-            msg = 'Internal error: ' + str(result)
-            self.console_msg(msg)
+            log.error('Internal debugger error:\n' + tb)
+            self.console_msg('Internal debugger error:\n' + tb)
+            msg = 'Internal debugger error: ' + str(result)
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
         else:
@@ -705,7 +705,7 @@ class DebugSession:
                 self.send_extension_message(response)
             except Exception as e:
                 tb = traceback.format_exc(e)
-                log.error('Internal error:\n' + tb)
+                log.error('Internal debugger error:\n' + tb)
                 msg = str(e)
                 response['success'] = False
                 response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }

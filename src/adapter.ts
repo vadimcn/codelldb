@@ -4,7 +4,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import {Readable, Writable} from 'stream';
 
-function send_error_msg(message: string) {
+function send_error_msg(slideout: string, message: string) {
     // Send this info as a console event
     let event = JSON.stringify({
         type: 'event', seq: 0, event: 'output', body:
@@ -15,7 +15,7 @@ function send_error_msg(message: string) {
     // Also, fake out a response to 'initialize' message, which will be shown on a slide-out.
     let response = JSON.stringify({
         type: 'response', command: 'initialize', request_seq: 1, success: false, body:
-            { error: { id: 0, format: message, showUser: true } }
+            { error: { id: 0, format: slideout, showUser: true } }
     });
     process.stdout.write('Content-Length: ' + response.length.toString() + '\r\n\r\n');
     process.stdout.write(response);
@@ -28,7 +28,7 @@ let lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_std
 
 // In case there are problems with launching...
 lldb.on('error', (err: any) => {
-    send_error_msg('Failed to launch LLDB: ' + err.message);
+    send_error_msg('Failed to launch LLDB: ' + err.message, err.message);
     process.exit(1);
 });
 
@@ -37,8 +37,14 @@ lldb.on('error', (err: any) => {
 lldb.stdout.setEncoding('utf8');
 lldb.stdout.on('data', (data: string) => {
     if (data.indexOf('Traceback') >= 0) {
-        send_error_msg(data);
+        send_error_msg('Failed to launch LLDB: check debug console for error messages.', data);
+        process.exit(1);
     }
+});
+
+// When lldb exits, we exit too
+lldb.on('exit', (code: number) => {
+    process.exit(code);
 });
 
 process.stdin.pipe(<Writable>lldb.stdio[3]);

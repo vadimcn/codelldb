@@ -146,8 +146,11 @@ have this problem fixed.
 
 # What's New?
 
-## 0.2.X
+## 0.2.1
 - Added 'terminal' launch config option. '*' in stdio config now behaves identically to null.
+- Moved static variables out to their own scope.
+- Disassembly in symbolless locations should work now.
+- Resume debuggee after attach, unless stopOnEntry is true.
 
 ## 0.2.0
 - Added [disassembly view](#dissassembly-view).

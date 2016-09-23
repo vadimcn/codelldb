@@ -1,4 +1,5 @@
 .vscode/**
+.github/**
 .gitignore
 run_server.sh
 tsconfig.json

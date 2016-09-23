@@ -32,8 +32,8 @@ class DebugSession:
         self.process_launched = False
         self.show_disassembly = 'auto' # never | auto | always
         self.global_format = lldb.eFormatDefault
-        self.disassembly_by_id = handles.Handles()
-        self.disassembly_by_addr = {}
+        self.disassembly_by_handle = handles.Handles()
+        self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
 
@@ -202,11 +202,11 @@ class DebugSession:
         self.ignore_bp_events = True
         source = args['source']
 
-        in_disasm = True
+        in_dasm = True
         file_id = source.get('sourceReference')
         if file_id is None:
             file_id = opt_str(source.get('path'))
-            in_disasm = False
+            in_dasm = False
 
         if file_id is not None:
             req_bps = args['breakpoints']
@@ -223,11 +223,11 @@ class DebugSession:
                 line = req['line']
                 bp = curr_bps.get(line, None)
                 if bp is None:
-                    if not in_disasm:
+                    if not in_dasm:
                         bp = self.target.BreakpointCreateByLocation(file_id, line)
                     else:
-                        disasm = self.disassembly_by_id.get(file_id)
-                        addr = disasm.address_by_line_num(line)
+                        dasm = self.disassembly_by_handle.get(file_id)
+                        addr = dasm.address_by_line_num(line)
                         bp = self.target.BreakpointCreateByAddress(addr)
                         bp.dont_resolve = True
                     self.set_bp_condition(bp, req)
@@ -391,16 +391,15 @@ class DebugSession:
                     stack_frame['line'] = le.GetLine()
                     stack_frame['column'] = le.GetColumn()
             else:
-                symbol = frame.GetSymbol()
-                sym_load_addr = symbol.GetStartAddress().GetLoadAddress(self.target)
-                disasm = self.disassembly_by_addr.get(sym_load_addr)
-                if disasm is None:
-                    disasm = disassembly.Disassembly(symbol, frame.GetLineEntry(), self.target)
-                    self.disassembly_by_addr[disasm.get_address()] = disasm
-                    disasm.source_ref = self.disassembly_by_id.create(disasm)
-                pc_load_addr = frame.GetPCAddress().GetLoadAddress(self.target)
-                stack_frame['source'] = disasm.get_source_ref()
-                stack_frame['line'] = disasm.line_num_by_address(pc_load_addr)
+                pc_addr = frame.GetPCAddress().GetLoadAddress(self.target)
+                dasm = disassembly.find(self.disassembly_by_addr, pc_addr)
+                if dasm is None:
+                    log.info('Creating new disassembly for %x', pc_addr)
+                    dasm = disassembly.Disassembly(frame, self.target)
+                    disassembly.insert(self.disassembly_by_addr, dasm)
+                    dasm.source_ref = self.disassembly_by_handle.create(dasm)
+                stack_frame['source'] = dasm.get_source_ref()
+                stack_frame['line'] = dasm.line_num_by_address(pc_addr)
                 stack_frame['column'] = 0
 
             stack_frames.append(stack_frame)
@@ -417,9 +416,8 @@ class DebugSession:
 
     def DEBUG_source(self, args):
         sourceRef = int(args['sourceReference'])
-        disasm = self.disassembly_by_id.get(sourceRef)
-        return { 'content': disasm.get_source_text(), 'mimeType': 'text/x-lldb.disassembly',
-                 'adapterData': disasm.addresses }
+        dasm = self.disassembly_by_handle.get(sourceRef)
+        return { 'content': dasm.get_source_text(), 'mimeType': 'text/x-lldb.disassembly' }
 
     def DEBUG_scopes(self, args):
         frame_id = args['frameId']

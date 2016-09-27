@@ -767,7 +767,7 @@ class DebugSession:
                 event['text'] = thread.GetStopReasonDataAtIndex(0)
                 break
         event['reason'] = stop_reason
-        if thread is not None:
+        if stopped_thread is not None:
             self.process.SetSelectedThread(stopped_thread)
             event['threadId'] = stopped_thread.GetThreadID()
         self.send_event('stopped', event)

@@ -15,25 +15,43 @@
 			"sourceMaps": true
 		},
 		{
-            "name": "adapter launcher",
+			"name": "adapter launcher",
 			"preLaunchTask": "build",
-            "type": "node",
-            "request": "launch",
-            "program": "${workspaceRoot}/out/adapter.js",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/adapter.js",
 			"cwd": "${workspaceRoot}",
-            "stopOnEntry": true
+			"stopOnEntry": true
 		},
-        {
+		{
+			"name": "adapter",
+			"type": "python",
+			"request": "launch",
+			"pythonPath": "${config.python.pythonPath}",
+			"console": "integratedTerminal",
+			"program": "${workspaceRoot}/tools/debug_adapter.py",
+			"cwd": "${workspaceRoot}",
+			"debugOptions": [
+				"WaitOnAbnormalExit",
+				"WaitOnNormalExit"
+			]
+		},
+		{
 			"name": "tests",
 			"preLaunchTask": "build:tests",
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeArgs": [ "--nolazy", "--harmony" ],
+			"runtimeArgs": [
+				"--nolazy",
+				"--harmony"
+			],
 			"args": [
-				"-u", "tdd",
-				"--timeout", "999999",
+				"-u",
+				"tdd",
+				"--timeout",
+				"999999",
 				"--colors",
 				"./tests/out"
 			],
@@ -45,8 +63,12 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			"env": { "FOO": "bar" },
-			"args": ["vars"],
+			"env": {
+				"FOO": "bar"
+			},
+			"args": [
+				"vars"
+			],
 			"cwd": "${workspaceRoot}"
 		},
 		{

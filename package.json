@@ -1,7 +1,7 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "publisher": "vadimcn",
     "description": "LLDB front-end for VSCode",
     "license": "MIT",

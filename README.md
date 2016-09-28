@@ -146,6 +146,9 @@ have this problem fixed.
 
 # What's New?
 
+## 0.2.2
+- Bug fixes.
+
 ## 0.2.1
 - Added 'terminal' launch config option. '*' in stdio config now behaves identically to null.
 - Moved static variables out to their own scope.

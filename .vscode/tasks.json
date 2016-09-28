@@ -4,7 +4,9 @@
   "windows": {
     "command": "npm.cmd"
   },
-  "args": [ "run" ],
+  "args": [
+    "run"
+  ],
   "tasks": [
     {
       "taskName": "test",
@@ -12,10 +14,13 @@
     },
     {
       "taskName": "build",
-      "isBuildCommand":  true
+      "isBuildCommand": true
     },
     {
       "taskName": "build:debuggee"
+    },
+    {
+      "taskName": "build:rusttypes"
     },
     {
       "taskName": "watch"

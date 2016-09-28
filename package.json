@@ -42,6 +42,7 @@
         "build": "tsc -p .",
         "watch": "tsc -w -p .",
         "build:debuggee": "c++ src/tests/debuggee.cpp -pthread -std=c++11 -g -o out/tests/debuggee",
+        "build:rusttypes": "rustc src/tests/rusttypes.rs -g --out-dir out/tests",
         "run:tests": "mocha -u tdd --timeout 5000 ./out/tests",
         "test": "npm run build && npm run build:debuggee && npm run run:tests"
     },

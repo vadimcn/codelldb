@@ -8,6 +8,7 @@ from . import debugevents
 from . import disassembly
 from . import handles
 from . import terminal
+from . import formatters
 from . import PY2
 
 log = logging.getLogger('debugsession')
@@ -63,6 +64,14 @@ class DebugSession:
         self.launch_args = args
         return AsyncResponse
 
+    def pre_launch(self):
+        for lang in self.launch_args.get('sourceLanguages', []):
+            language = languages.get(lang.lower())
+            if language is not None:
+                init_formatters = language['init_formatters']
+                if init_formatters is not None:
+                    init_formatters(self.debugger)
+                
     def launch(self, args):
         log.info('Launching...')
         self.exec_commands(args.get('preRunCommands'))
@@ -296,28 +305,23 @@ class DebugSession:
                 self.target.BreakpointDelete(bp.GetID())
             self.exc_breakpoints = []
 
-            source_languages = self.launch_args.get('sourceLanguages', [])
             set_all = 'all' in filters
             set_uncaught = 'uncaught' in filters
-            for lang in source_languages:
-                bp_setters = DebugSession.lang_exc_bps.get(lang)
-                if bp_setters is not None:
+            for lang in self.launch_args.get('sourceLanguages', []):
+                language = languages.get(lang.lower())
+                if language is not None:
                     if set_all:
-                        bp = bp_setters[0](self.target)
+                        bp = language['ef_throw'](self.target)
                         self.exc_breakpoints.append(bp)
                     if set_uncaught:
-                        bp = bp_setters[1](self.target)
+                        bp = language['ef_uncaught'](self.target)
                         self.exc_breakpoints.append(bp)
-
-    lang_exc_bps = {
-        'rust': (lambda target: target.BreakpointCreateByName('rust_panic'),
-                 lambda target: target.BreakpointCreateByName('abort')),
-        'cpp': (lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
-                lambda target: target.BreakpointCreateByName('terminate')),
-    }
+                else:
+                    self.console_msg('Unknown source language: %s' % lang)
 
     def DEBUG_configurationDone(self, args):
         try:
+            self.pre_launch()
             result = self.do_launch(self.launch_args)
         except Exception as e:
             result = e
@@ -827,3 +831,14 @@ def opt_str(s):
     return str(s) if s != None else None
 
 string_type = basestring if PY2 else str
+
+languages = {
+    'rust': { 'init_formatters': lambda debugger: formatters.rust.initialize(debugger),
+               'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
+               'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
+    },
+    'cpp': {
+            'ef_throw': lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
+            'ef_uncaught': lambda target: target.BreakpointCreateByName('terminate'),
+    }
+}

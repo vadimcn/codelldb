@@ -72,6 +72,16 @@
 			"cwd": "${workspaceRoot}"
 		},
 		{
+			"name": "rusttypes",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/tests/rusttypes",
+			"cwd": "${workspaceRoot}",
+			"sourceLanguages": [
+				"rust"
+			]
+		},
+		{
 			"name": "debuggee attach",
 			"type": "lldb",
 			"request": "attach",

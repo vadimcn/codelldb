@@ -70,8 +70,9 @@ class DebugServer(WorkerThread):
         self.ibuffer = self.ibuffer[clen:]
         return data
 
+    json_separators = (',', ':')
     def send_message(self, message):
-        data = json.dumps(message)
+        data = json.dumps(message, separators=self.json_separators)
         log.debug('tx: %s', data)
         data = data.encode('utf-8')
         self.with_timeout(self.write, b'Content-Length: %d\r\n\r\n' % len(data))

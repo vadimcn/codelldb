@@ -376,7 +376,7 @@ class DebugSession:
         stack_frames = []
         for i in range(start_frame, start_frame + levels):
             frame = thread.frames[i]
-            stack_frame = { 'id': self.var_refs.create(frame, frame.GetFP(), None) }
+            stack_frame = { 'id': self.var_refs.create(frame, (thread.GetThreadID(), i), None) }
             fn_name = frame.GetFunctionName()
             if fn_name is None:
                 fn_name = str(frame.GetPCAddress())

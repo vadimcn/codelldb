@@ -323,10 +323,10 @@ class DebugSession:
         try:
             self.pre_launch()
             result = self.do_launch(self.launch_args)
+            # do_launch is asynchronous so we need to send its result
+            self.send_response(self.launch_args['response'], result)
         except Exception as e:
-            result = e
-        # do_launch is asynchronous so we need to send its result
-        self.send_response(self.launch_args['response'], result)
+            self.send_response(self.launch_args['response'], e)
         # LLDB doesn't seem to automatically generate a stop event for stop_on_entry
         if self.process is not None and self.process.GetState() == lldb.eStateStopped:
             self.notify_target_stopped(None)
@@ -650,9 +650,9 @@ class DebugSession:
                     # `result` being an AsyncResponse means that the handler is asynchronous and
                     # will respond at a later time.
                     if result is AsyncResponse: return
+                    self.send_response(response, result)
                 except Exception as e:
-                    result = e
-                self.send_response(response, result)
+                    self.send_response(response, e)
             else:
                 log.warning('No handler for %s', command)
                 response['success'] = False
@@ -669,7 +669,7 @@ class DebugSession:
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
         elif isinstance(result, Exception):
-            tb = traceback.format_exc(result)
+            tb = traceback.format_exc()
             log.error('Internal debugger error:\n' + tb)
             self.console_msg('Internal debugger error:\n' + tb)
             msg = 'Internal debugger error: ' + str(result)
@@ -707,7 +707,7 @@ class DebugSession:
                 response['body'] = result
                 self.send_extension_message(response)
             except Exception as e:
-                tb = traceback.format_exc(e)
+                tb = traceback.format_exc()
                 log.error('Internal debugger error:\n' + tb)
                 msg = str(e)
                 response['success'] = False

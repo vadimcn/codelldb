@@ -57,7 +57,7 @@ def string_from_ptr(pointer, length):
     if error.Success():
         return data.decode(encoding='UTF-8')
     else:
-        log.error(error.GetCString())
+        log.error('%s', error.GetCString())
 
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
 # This trick allows us to share data extraction logic between synth providers and their
@@ -252,7 +252,7 @@ class ArrayLikeSynthProvider:
             self.item_type = self.ptr.GetType().GetPointeeType()
             self.item_size = self.item_type.GetByteSize()
         except Exception as e:
-            log.error(str(e))
+            log.error('%s', e)
             raise
 
     def num_children(self):
@@ -268,14 +268,14 @@ class ArrayLikeSynthProvider:
             offset = index * self.item_size
             return self.ptr.CreateChildAtOffset('['+str(index)+']', offset, self.item_type)
         except Exception as e:
-            log.error(str(e))
+            log.error('%s', e)
             raise
 
     def get_child_index(self, name):
         try:
             return int(name.lstrip('[').rstrip(']'))
         except Exception as e:
-            log.error(str(e))
+            log.error('%s', e)
             raise
 
 class StdVectorSynthProvider(ArrayLikeSynthProvider):

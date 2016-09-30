@@ -30,8 +30,7 @@ class WorkerThread(Thread):
         try:
             self.thread_proc()
         except Exception as e:
-            tb = traceback.format_exc(e)
-            log.error('Unhandled error on a worker thread: %s', tb)
+            log.error('%s', traceback.format_exc())
 
     def thread_proc():
         pass

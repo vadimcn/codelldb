@@ -180,6 +180,7 @@ class DebugSession:
             target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
             if error2.Success():
                 args['program'] = program
+                error.Clear()
         if not error.Success():
             raise UserError('Could not initialize debug target: ' + error.GetCString())
         target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)

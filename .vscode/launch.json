@@ -38,7 +38,7 @@
 		},
 		{
 			"name": "tests",
-			"preLaunchTask": "build:tests",
+			"preLaunchTask": "build",
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",
@@ -53,7 +53,7 @@
 				"--timeout",
 				"999999",
 				"--colors",
-				"./tests/out"
+				"./out/tests"
 			],
 			"sourceMaps": true,
 			"outDir": "${workspaceRoot}/out/tests"

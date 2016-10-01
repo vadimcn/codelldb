@@ -2,6 +2,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as path from 'path';
 import {Readable, Writable} from 'stream';
 
 function send_error_msg(slideout: string, message: string) {
@@ -21,7 +22,9 @@ function send_error_msg(slideout: string, message: string) {
     process.stdout.write(response);
 }
 
-let lldb = cp.spawn('lldb', ['-b', '-O', 'script import adapter; adapter.run_stdio_session(3,4)'], {
+let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
+let launchScript = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')';
+let lldb = cp.spawn('lldb', ['-b', '-O', launchScript], {
     stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'],
     cwd: __dirname + '/..'
 });

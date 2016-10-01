@@ -14,7 +14,7 @@ def init_logging(is_stdio_session):
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
 
-def run_session(read, write):
+def run_session(read, write, extinfo):
     from .wireprotocol import DebugServer, ExtensionServer
     from .debugsession import DebugSession
     from .eventloop import EventLoop
@@ -27,7 +27,8 @@ def run_session(read, write):
 
     # Create extension server and announce its port number
     ext_server = ExtensionServer()
-    open('/tmp/vscode-lldb-session', 'wb').write(str(ext_server.port))
+    if extinfo is not None:
+        open(extinfo, 'wb').write(str(ext_server.port))
 
     # Create DebugSession, tell it how to send messages back to the clients
     debug_session = DebugSession(event_loop, debug_server.send_message, ext_server.send_message)
@@ -44,7 +45,7 @@ def run_session(read, write):
     event_loop.run()
 
 # Run in socket server mode
-def run_tcp_server(port=4711, multiple=True):
+def run_tcp_server(port=4711, multiple=True, extinfo=None):
     init_logging(False)
     log.info("Server mode on port %d (Ctrl-C to stop)", port)
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,7 +57,7 @@ def run_tcp_server(port=4711, multiple=True):
         conn, addr = ls.accept()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info("New connection from %s", addr)
-        run_session(conn.recv, conn.send)
+        run_session(conn.recv, conn.send, extinfo)
         conn.close()
         if multiple:
             log.info("Debug session ended. Waiting for new connections.")
@@ -66,10 +67,10 @@ def run_tcp_server(port=4711, multiple=True):
     ls.close()
 
 # Single-session run using the specified input and output fds
-def run_stdio_session(ifd=0, ofd=1):
+def run_stdio_session(ifd=0, ofd=1, extinfo=None):
     init_logging(True)
     log.info("Single-session mode on fds (%d,%d)", ifd, ofd)
     r = lambda n: os.read(ifd, n)
     w = lambda data: os.write(ofd, data)
-    run_session(r, w)
+    run_session(r, w, extinfo)
     log.info("Debug session ended. Exiting.")

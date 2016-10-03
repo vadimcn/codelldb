@@ -4,6 +4,7 @@ import os.path
 import shlex
 import traceback
 import lldb
+from . import expressions
 from . import debugevents
 from . import disassembly
 from . import handles
@@ -502,13 +503,23 @@ class DebugSession:
                 expr = expr[:-len(suffix)]
                 break
 
-        var = frame.EvaluateExpression(expr)
-        error = var.GetError()
-        if error.Success():
-            _, value, dtype, handle = self.parse_var(var, format)
-            return { 'result': value, 'type': dtype, 'variablesReference': handle }
-        else:
-            message = error.GetCString()
+        Value = expressions.Value
+
+        globals = {}
+        for var in frame.GetVariables(True, True, True, True):
+            name = var.GetName()
+            if name is not None:
+                globals[name] = Value(var)
+        
+        try:
+            result = eval(expr, globals)
+            if isinstance(result, Value):
+                _, value, dtype, handle = self.parse_var(result.sbvalue, format)
+                return { 'result': value, 'type': dtype, 'variablesReference': handle }
+            else:
+                return { 'result': str(result), 'variablesReference': 0 }
+        except Exception as e:
+            message = str(e)
             if args['context'] == 'repl':
                 self.console_msg(message)
                 return None

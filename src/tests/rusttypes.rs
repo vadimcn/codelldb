@@ -36,8 +36,8 @@ fn make_hash() -> HashMap<String, i32> {
 }
 
 fn main() {
-    let int = 0;
-    let float = 1.0;
+    let int = 17;
+    let float = 3.1415926535;
 
     let tuple = (1, "a", 42.0);
     let ref_tuple = &(1, "a", 42.0);
@@ -58,7 +58,7 @@ fn main() {
     let vec_int = vec![1,2,3,4,5,6,7,8,9,10];
     let vec_str = vec!["111", "2222", "3333", "4444", "5555"];
 
-    let string = String::from("String");
+    let string = String::from("A String");
     let str_slice = "String slice";
     let cstring = std::ffi::CString::new("C String").unwrap();
     let cstr = &cstring[..];

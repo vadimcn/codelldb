@@ -503,23 +503,36 @@ class DebugSession:
                 expr = expr[:-len(suffix)]
                 break
 
-        Value = expressions.Value
-
-        globals = {}
-        for var in frame.GetVariables(True, True, True, True):
-            name = var.GetName()
-            if name is not None:
-                globals[name] = Value(var)
-        
-        try:
-            result = eval(expr, globals)
-            if isinstance(result, Value):
-                _, value, dtype, handle = self.parse_var(result.sbvalue, format)
-                return { 'result': value, 'type': dtype, 'variablesReference': handle }
+        error_message = None
+        if not expr.startswith('?'):
+            # Using Python evaluator 
+            Value = expressions.Value
+            globals = { '__builtins__': __builtins__ }
+            for var in frame.GetVariables(True, True, True, True):
+                name = var.GetName()
+                if name is not None:
+                    globals[name] = Value(var)
+            try:
+                result = eval(expr, globals)
+                if isinstance(result, Value):
+                    _, value, dtype, handle = self.parse_var(result.sbvalue, format)
+                else:
+                    value, dtype, handle = str(result), None, 0
+            except Exception as e:
+                error_message = str(e)
+        else:
+            # Using LLDB evaluator
+            expr = expr[1:]
+            result = frame.EvaluateExpression(expr) 
+            error = result.GetError()
+            if error.Success(): 
+                _, value, dtype, handle = self.parse_var(result, format)
             else:
-                return { 'result': str(result), 'variablesReference': 0 }
-        except Exception as e:
-            message = str(e)
+                error_message = error.GetCString()
+
+        if error_message is None:
+            return { 'result': value, 'type': dtype, 'variablesReference': handle }
+        else:
             if args['context'] == 'repl':
                 self.console_msg(message)
                 return None

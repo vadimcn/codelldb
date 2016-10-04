@@ -171,6 +171,9 @@ class Value(object):
             return float(self.sbvalue.GetValue())
         else:
             return float(self.sbvalue.GetValueAsSigned())
+    
+    def __index__(self):
+        return self.__int__()
 
     def __oct__(self):
         return '0%o' % self.sbvalue.GetValueAsUnsigned()
@@ -222,7 +225,10 @@ def get_value(v):
             else:
                 return v.sbvalue.GetValueAsUnsigned()
         else:
-            return v.__str__()
+            str_val = v.sbvalue.GetSummary()
+            if str_val.startswith('"') and str_val.endswith('"') and len(str_val) > 1:
+                str_val = str_val[1:-1]
+            return str_val 
     else:
         return v
 

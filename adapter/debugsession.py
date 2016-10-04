@@ -38,6 +38,7 @@ class DebugSession:
         self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
+        self.eval_contexts = {} # { frame_id : vars }
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -72,7 +73,7 @@ class DebugSession:
                 init_formatters = language['init_formatters']
                 if init_formatters is not None:
                     init_formatters(self.debugger)
-                
+
     def launch(self, args):
         log.info('Launching...')
         self.exec_commands(args.get('preRunCommands'))
@@ -336,13 +337,11 @@ class DebugSession:
         self.process.Stop()
 
     def DEBUG_continue(self, args):
-        # variable handles will be invalid after running,
-        # so we may as well clean them up now
-        self.var_refs.reset()
+        self.before_resume()
         self.process.Continue()
 
     def DEBUG_next(self, args):
-        self.var_refs.reset()
+        self.before_resume()
         tid = args['threadId']
         thread = self.process.GetThreadByID(tid)
         if not self.in_disassembly(thread.GetFrameAtIndex(0)):
@@ -351,7 +350,7 @@ class DebugSession:
             thread.StepInstruction(True)
 
     def DEBUG_stepIn(self, args):
-        self.var_refs.reset()
+        self.before_resume()
         tid = args['threadId']
         thread = self.process.GetThreadByID(tid)
         if not self.in_disassembly(thread.GetFrameAtIndex(0)):
@@ -360,7 +359,7 @@ class DebugSession:
             thread.StepInstruction(False)
 
     def DEBUG_stepOut(self, args):
-        self.var_refs.reset()
+        self.before_resume()
         tid = args['threadId']
         thread = self.process.GetThreadByID(tid)
         thread.StepOut()
@@ -492,10 +491,11 @@ class DebugSession:
         return { 'result': '' }
 
     def evaluate_expr(self, args, expr):
-        frame = self.var_refs.get(args.get('frameId'), None)
+        frame_id = args.get('frameId')
+        frame = self.var_refs.get(frame_id, None)
         if frame is None:
             raise Exception('Missing frameId')
-
+        # parse format suffix, if any
         format = self.global_format
         for suffix, fmt in self.format_codes:
             if expr.endswith(suffix):
@@ -505,27 +505,23 @@ class DebugSession:
 
         error_message = None
         if not expr.startswith('?'):
-            # Using Python evaluator 
-            Value = expressions.Value
-            globals = { '__builtins__': __builtins__ }
-            for var in frame.GetVariables(True, True, True, True):
-                name = var.GetName()
-                if name is not None:
-                    globals[name] = Value(var)
+            # Using Python evaluator
+            context = self.get_eval_context(frame_id)
             try:
-                result = eval(expr, globals)
-                if isinstance(result, Value):
+                result = eval(expr, context)
+                if isinstance(result, expressions.Value):
                     _, value, dtype, handle = self.parse_var(result.sbvalue, format)
                 else:
                     value, dtype, handle = str(result), None, 0
             except Exception as e:
+                log.error(traceback.format_exc())
                 error_message = str(e)
         else:
             # Using LLDB evaluator
             expr = expr[1:]
-            result = frame.EvaluateExpression(expr) 
+            result = frame.EvaluateExpression(expr)
             error = result.GetError()
-            if error.Success(): 
+            if error.Success():
                 _, value, dtype, handle = self.parse_var(result, format)
             else:
                 error_message = error.GetCString()
@@ -534,10 +530,10 @@ class DebugSession:
             return { 'result': value, 'type': dtype, 'variablesReference': handle }
         else:
             if args['context'] == 'repl':
-                self.console_msg(message)
+                self.console_msg(error_message)
                 return None
             else:
-                raise UserError(message.replace('\n', '; '), no_console=True)
+                raise UserError(error_message.replace('\n', '; '), no_console=True)
 
     format_codes = [(',h', lldb.eFormatHex),
                     (',x', lldb.eFormatHex),
@@ -577,6 +573,29 @@ class DebugSession:
         if PY2 and value is not None:
             value = value.decode('latin1') # or else json will try to treat it as utf8
         return value
+
+    # Creates and caches expression evaluation context for a frame
+    def get_eval_context(self, frame_id):
+        context = self.eval_contexts.get(frame_id)
+        if context is not None:
+            return context
+        frame = self.var_refs.get(frame_id)
+        context = { '__builtins__': __builtins__ }
+        context['vars'] = context
+        context['_vars'] = context
+        for var in frame.GetVariables(True, True, True, True):
+            name = var.GetName()
+            if name is not None:
+                context[name] = expressions.Value(var)
+        self.eval_contexts[frame_id] = context
+        return context
+
+    # Clears out cached state that become invalid once debuggee resumes.
+    def before_resume(self):
+        self.var_refs.reset()
+        for _, context in self.eval_contexts.iteritems():
+            context.clear() # break circular references
+        self.eval_contexts.clear()
 
     def DEBUG_setVariable(self, args):
         container = self.var_refs.get(args['variablesReference'])

@@ -6,7 +6,7 @@ import re
 log = logging.getLogger('rust')
 
 def initialize(debugger):
-    log.info('register_providers')
+    log.info('initialize')
     global rust_category
     debugger.HandleCommand('command script import adapter.formatters.rust')
     rust_category = debugger.CreateCategory('Rust')
@@ -19,13 +19,13 @@ def initialize(debugger):
     attach_summary_to_type('get_string_summary', 'collections::string::String')
     attach_synthetic_to_type('StdStringSynthProvider', 'collections::string::String')
 
-    attach_summary_to_type('get_array_summary', '^.*\\[[0-9]+\\]$', True)
+    attach_summary_to_type('get_array_summary', r'^.*\[[0-9]+\]$', True)
 
-    attach_summary_to_type('get_vector_summary', '^collections::vec::Vec<.+>$', True)
-    attach_synthetic_to_type('StdVectorSynthProvider', '^collections::vec::Vec<.+>$', True)
+    attach_summary_to_type('get_vector_summary', r'^collections::vec::Vec<.+>$', True)
+    attach_synthetic_to_type('StdVectorSynthProvider', r'^collections::vec::Vec<.+>$', True)
 
-    attach_summary_to_type('get_slice_summary', '^&(mut\\s*)?\\[.*\\]$', True)
-    attach_synthetic_to_type('SliceSynthProvider', '^&(mut\\s*)?\\[.*\\]$', True)
+    attach_summary_to_type('get_slice_summary', r'^&(mut\s*)?\[.*\]$', True)
+    attach_synthetic_to_type('SliceSynthProvider', r'^&(mut\s*)?\[.*\]$', True)
 
     attach_summary_to_type('get_cstring_summary', 'std::ffi::c_str::CString')
     attach_synthetic_to_type('StdCStringSynthProvider', 'std::ffi::c_str::CString')
@@ -33,18 +33,53 @@ def initialize(debugger):
     attach_summary_to_type('get_osstring_summary', 'std::ffi::os_str::OsString')
     attach_synthetic_to_type('StdOsStringSynthProvider', 'std::ffi::os_str::OsString')
 
-    attach_summary_to_type('rust_summary_provider', '.*', True)
+    #attach_summary_to_type('rust_summary_provider', '.*', True)
 
-def attach_summary_to_type(summary_fn, obj_type, is_regex=False):
+
+# Enums and tuples cannot be recognized based on type name.  
+# These require deeper runtime analysis to tease them apart.
+ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
+ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
+analyzed = {}
+def classify_type(qual_obj_type):
+    global analyzed
+    if analyzed.has_key(qual_obj_type.GetName()):
+        return
+    #log.info('classify_type for %s %d', qual_obj_type.GetName(), qual_obj_type.GetTypeClass())
+    obj_type = qual_obj_type.GetUnqualifiedType()
+    type_class = obj_type.GetTypeClass()
+    if type_class == lldb.eTypeClassUnion:
+        num_fields = obj_type.GetNumberOfFields()
+        if num_fields == 1:
+            first_variant_name = obj_type.GetFieldAtIndex(0).GetName()
+            if first_variant_name is None:
+                # Singleton
+                attach_summary_to_type('get_singleton_enum_summary', obj_type.GetName())
+            else:
+                assert first_variant_name.startswith(ENCODED_ENUM_PREFIX)
+                attach_summary_to_type('get_encoded_enum_summary', obj_type.GetName())
+                attach_synthetic_to_type('EncodedEnumProvider', obj_type.GetName())
+        else:
+            attach_summary_to_type('get_regular_enum_summary', obj_type.GetName())
+            attach_synthetic_to_type('RegularEnumProvider', obj_type.GetName())            
+    elif type_class == lldb.eTypeClassStruct:
+        if obj_type.GetFieldAtIndex(0).GetName() == ENUM_DISCRIMINANT:
+            attach_summary_to_type('get_enum_variant_summary', obj_type.GetName())
+        elif obj_type.GetFieldAtIndex(0).GetName() == '__0':
+            attach_summary_to_type('get_tuple_summary', obj_type.GetName())
+    analyzed[qual_obj_type.GetName()] = obj_type
+
+def attach_summary_to_type(summary_fn, type_name, is_regex=False):
     summary = lldb.SBTypeSummary.CreateWithFunctionName('adapter.formatters.rust.' + summary_fn)
     summary.SetOptions(lldb.eTypeOptionCascade)
-    assert rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(obj_type, is_regex), summary)
+    assert rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
 
-def attach_synthetic_to_type(synth_class, obj_type, is_regex=False):
+def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     synth = lldb.SBTypeSynthetic.CreateWithClassName('adapter.formatters.rust.' + synth_class)
     synth.SetOptions(lldb.eTypeOptionCascade)
-    assert rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(obj_type, is_regex), synth)
+    assert rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
 
+# Chained GetChildMemberWithName lookups
 def gcm(valobj, *chain):
     for name in chain:
         valobj = valobj.GetChildMemberWithName(name)
@@ -59,6 +94,14 @@ def string_from_ptr(pointer, length):
     else:
         log.error('%s', error.GetCString())
 
+def get_obj_summary(valobj):
+    classify_type(valobj.GetType())
+    summary = valobj.GetSummary()
+    if summary is not None:
+        return summary
+    else:
+        return valobj.GetValue()
+
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
 # This trick allows us to share data extraction logic between synth providers and their
 # sibling summary providers.
@@ -71,64 +114,21 @@ def print_array_elements(valobj, maxsize=32):
     s = ''
     for i in range(0, valobj.GetNumChildren()):
         if len(s) > 0: s += ', '
-        summary = valobj.GetChildAtIndex(i).GetSummary()
+        summary = get_obj_summary(valobj.GetChildAtIndex(i))
         s += summary if summary is not None else '?'
         if len(s) > maxsize:
             s += ' ...'
             break
     return s
 
-# Enums and tuples cannot be recognized based on type name.  For those we have this catch-all
-# summary provider which performs deeper analysis.
-ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
-ENUM_DISR_FIELD_NAME = 'RUST$ENUM$DISR'
-def rust_summary_provider(valobj, dict):
-    log.info('rust_summary_provider for %s %d', valobj.GetType().GetName(), valobj.GetType().GetTypeClass())
-    try:
-        obj_type = valobj.GetType().GetUnqualifiedType()
-        type_class = obj_type.GetTypeClass()
-        if type_class == lldb.eTypeClassUnion:
-            return get_enum_summary(valobj, dict)
-        elif type_class == lldb.eTypeClassPointer or type_class == lldb.eTypeClassReference:
-            return get_pointer_summary(valobj, dict)
-        elif type_class == lldb.eTypeClassStruct:
-            if obj_type.GetFieldAtIndex(0).GetName() == ENUM_DISR_FIELD_NAME:
-                return get_enum_variant_summary(valobj, dict)
-            elif obj_type.GetFieldAtIndex(0).GetName() == '__0':
-                return get_tuple_summary(valobj, dict)
-        val = valobj.GetValue()
-        if val is None:
-            val = get_unqualified_type_name(valobj.GetType().GetName())
-        return val
-    except Exception as e:
-        log.error('summary provider error: %s', str(e))
-        raise
+def get_singleton_enum_summary(valobj, dict):
+    return get_obj_summary(valobj.GetChildAtIndex(0))
 
-def get_enum_summary(valobj, dict):
-    valobj = valobj.GetNonSyntheticValue()
-    obj_type = valobj.GetType()
-    num_fields = obj_type.GetNumberOfFields()
-    if num_fields == 0:
-        return '()'
-    elif num_fields == 1:
-        first_variant_name = obj_type.GetFieldAtIndex(0).GetName()
-        if first_variant_name is None:
-            # Singleton
-            return valobj.GetChildAtIndex(0)
-        else:
-            assert first_variant_name.startswith(ENCODED_ENUM_PREFIX)
-            # 'Compressed' enums always have two variants, of which one contains no data,
-            # and the other one contains a field (not necessarily at the top level) that implements
-            # Zeroable.  This field is then used as a two-state discriminant.
-            attach_synthetic_to_type('CompressedEnumProvider', obj_type.GetName())
-            return get_synth_summary(CompressedEnumProvider, valobj, dict)
-    else:
-        # Regular enums are represented as unions of structs, containing the discriminant in the
-        # first field.
-        discriminant = valobj.GetChildAtIndex(0).GetChildAtIndex(0).GetValueAsUnsigned()
-        variant = valobj.GetChildAtIndex(discriminant)
-        attach_synthetic_to_type('RegularEnumProvider', obj_type.GetName())
-        return variant.GetSummary()
+def get_encoded_enum_summary(valobj, dict):
+    return get_synth_summary(EncodedEnumProvider, valobj, dict)
+
+def get_regular_enum_summary(valobj, doct):
+    return get_synth_summary(RegularEnumProvider, valobj, dict)
 
 def get_enum_variant_summary(valobj, dict):
     obj_type = valobj.GetType()
@@ -136,16 +136,16 @@ def get_enum_variant_summary(valobj, dict):
     unqual_type_name = get_unqualified_type_name(obj_type.GetName())
     if num_fields == 1:
         return unqual_type_name
-    elif obj_type.GetFieldAtIndex(1).GetName().startswith('__'):
-        fields = ', '.join([valobj.GetChildAtIndex(i).GetSummary() for i in range(1, num_fields)])
+    elif obj_type.GetFieldAtIndex(1).GetName().startswith('__'): # tuple variant
+        fields = ', '.join([get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(1, num_fields)])
         return '%s(%s)' % (unqual_type_name, fields)
-    else:
+    else: # struct variant
         fields = [valobj.GetChildAtIndex(i) for i in range(1, num_fields)]
-        fields = ', '.join(['%s:%s' % (f.GetName(), f.GetSummary()) for f in fields])
+        fields = ', '.join(['%s:%s' % (f.GetName(), get_obj_summary(f)) for f in fields])
         return '%s{%s}' % (unqual_type_name, fields)
 
 def get_tuple_summary(valobj, dict):
-    fields = [valobj.GetChildAtIndex(i).GetSummary() for i in range(0, valobj.GetNumChildren())]
+    fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
     return '(%s)' % ', '.join(fields)
 
 def get_str_slice_summary(valobj, dict):
@@ -164,25 +164,26 @@ def get_vector_summary(valobj, dict):
     return 'vec![%s]' % print_array_elements(valobj)
 
 def get_array_summary(valobj, dict):
-    log.info('get_array_summary %d', valobj.GetNumChildren())
     return '[%s]' % print_array_elements(valobj)
 
 def get_slice_summary(valobj, dict):
-    log.info('get_slice_summary %d', valobj.GetNumChildren())
     return '&[%s]' % print_array_elements(valobj)
 
 def get_pointer_summary(valobj, dict):
     return valobj.Dereference().Summary()
 
 UNQUAL_TYPE_MARKERS = ["(", "[", "&", "*"]
-UNQUAL_TYPE_REGEX = re.compile('^(?:[A-Za-z0-9]+::)*([A-Za-z0-9]+).*')
+UNQUAL_TYPE_REGEX = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
 def get_unqualified_type_name(type_name):
     if type_name[0] in UNQUAL_TYPE_MARKERS:
         return type_name
     return UNQUAL_TYPE_REGEX.match(type_name).group(1)
 
-class CompressedEnumProvider:
+class EncodedEnumProvider:
     def __init__(self, valobj, dict):
+        # 'Encoded' enums always have two variants, of which one contains no data,
+        # and the other one contains a field (not necessarily at the top level) that implements
+        # Zeroable.  This field is then used as a two-state discriminant.
         self.valobj = valobj
         variant_name = valobj.GetType().GetFieldAtIndex(0).GetName()
         last_separator_index = variant_name.rfind("$")
@@ -219,13 +220,15 @@ class CompressedEnumProvider:
             return self.null_variant_name
         else:
             unqual_type_name = get_unqualified_type_name(self.valobj.GetChildAtIndex(0).GetType().GetName())
-            return '%s%s' % (unqual_type_name, self.variant.GetSummary())
+            return '%s%s' % (unqual_type_name, get_obj_summary(self.variant))
 
 class RegularEnumProvider:
     def __init__(self, valobj, dict):
         self.valobj = valobj
 
     def update(self):
+        # Regular enums are represented as unions of structs, containing discriminant in the
+        # first field.
         discriminant = self.valobj.GetChildAtIndex(0).GetChildAtIndex(0).GetValueAsUnsigned()
         self.variant = self.valobj.GetChildAtIndex(discriminant)
 
@@ -240,6 +243,9 @@ class RegularEnumProvider:
 
     def get_child_index(self, name):
         return self.variant.GetIndexOfChildWithName(name) - 1
+
+    def get_summary(self):
+        return get_obj_summary(self.variant)
 
 # Base class for providers that represent array-like objects
 class ArrayLikeSynthProvider:

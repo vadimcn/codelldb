@@ -70,9 +70,12 @@ class DebugSession:
         for lang in self.launch_args.get('sourceLanguages', []):
             language = languages.get(lang.lower())
             if language is not None:
-                init_formatters = language['init_formatters']
+                init_formatters = language.get('init_formatters')
                 if init_formatters is not None:
                     init_formatters(self.debugger)
+                classify_type = language.get('classify_type')
+                if classify_type is not None:
+                    expressions.classify_type = classify_type
 
     def launch(self, args):
         log.info('Launching...')
@@ -508,7 +511,9 @@ class DebugSession:
             # Using Python evaluator
             context = self.get_eval_context(frame_id)
             try:
-                result = eval(expr, context)
+                expr = expressions.preprocess(expr)
+                log.debug('Evaluating %s', expr)
+                result = eval(expr, globals(), context)
                 if isinstance(result, expressions.Value):
                     _, value, dtype, handle = self.parse_var(result.sbvalue, format)
                 else:
@@ -564,6 +569,7 @@ class DebugSession:
         return name, value, dtype, handle
 
     def get_var_value(self, var, format):
+        expressions.classify_type(var.GetType())
         var.SetFormat(format)
         value = var.GetValue()
         if value is None:
@@ -580,9 +586,7 @@ class DebugSession:
         if context is not None:
             return context
         frame = self.var_refs.get(frame_id)
-        context = { '__builtins__': __builtins__ }
-        context['vars'] = context
-        context['_vars'] = context
+        context = {}
         for var in frame.GetVariables(True, True, True, True):
             name = var.GetName()
             if name is not None:
@@ -593,8 +597,6 @@ class DebugSession:
     # Clears out cached state that become invalid once debuggee resumes.
     def before_resume(self):
         self.var_refs.reset()
-        for _, context in self.eval_contexts.iteritems():
-            context.clear() # break circular references
         self.eval_contexts.clear()
 
     def DEBUG_setVariable(self, args):
@@ -876,9 +878,10 @@ def opt_str(s):
 string_type = basestring if PY2 else str
 
 languages = {
-    'rust': { 'init_formatters': lambda debugger: formatters.rust.initialize(debugger),
-               'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
-               'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
+    'rust': { 'init_formatters': formatters.rust.initialize,
+              'classify_type': formatters.rust.classify_type,
+              'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
+              'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
     },
     'cpp': {
             'ef_throw': lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),

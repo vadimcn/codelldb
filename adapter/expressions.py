@@ -1,14 +1,22 @@
+import logging
+import keyword
+import re
 import lldb
+
+log = logging.getLogger('expressions')
+
+classify_type = lambda sbtype: None
 
 class Value(object):
     def __init__(self, sbvalue):
         self.sbvalue = sbvalue
+        classify_type(sbvalue.GetType())
 
     def __nonzero__(self):
         return self.sbvalue.__nonzero__()
 
     def __str__(self):
-        return str(self.sbvalue.GetValue())
+        return str(get_value(self))
 
     def __getitem__(self, key):
         # Allow array access if this value has children...
@@ -171,7 +179,7 @@ class Value(object):
             return float(self.sbvalue.GetValue())
         else:
             return float(self.sbvalue.GetValueAsSigned())
-    
+
     def __index__(self):
         return self.__int__()
 
@@ -187,6 +195,8 @@ class Value(object):
     def __eq__(self, other):
         if type(other) is int:
             return int(self) == other
+        elif type(other) is float:
+            return float(self) == other
         elif type(other) is str:
             return str(self) == other
         elif type(other) is Value:
@@ -214,6 +224,7 @@ class ValueIter(object):
         self.index += 1
         return Value(child_sbvalue)
 
+# Converts a Value to an int, a float or a string
 def get_value(v):
     if type(v) is Value:
         is_num, is_signed, is_float = is_numeric_type(v.sbvalue.GetType().GetCanonicalType().GetBasicType())
@@ -228,9 +239,9 @@ def get_value(v):
             str_val = v.sbvalue.GetSummary()
             if str_val.startswith('"') and str_val.endswith('"') and len(str_val) > 1:
                 str_val = str_val[1:-1]
-            return str_val 
+            return str_val
     else:
-        return v
+        return v # passthrough
 
 # given an lldb.SBBasicType it returns a tuple (is_numeric, is_signed, is_float)
 def is_numeric_type(basic_type):
@@ -269,3 +280,56 @@ type_traits = {
     lldb.eBasicTypeObjCSel: (False, False, False),
     lldb.eBasicTypeNullPtr: (False, False, False),
 }
+
+# Replaces Python keywords with either `locals()["<ident>"]` or `.__getattr__("<ident>")`.
+# Replaces qualified identifiers (e.g. `foo::bar::baz`) with `locals()["<ident>"]`.
+# Replaces `@<ident>` with simply `<ident>`.
+def preprocess(expr):
+    return preprocess_regex.sub(replacer, expr)
+
+pystrings = '|'.join([
+    r'(?:"(?:\\"|\\\\|[^"])*")',
+    r"(?:'(?:\\'|\\\\|[^'])*')",
+    r'(?:r"[^"]*")',
+    r"(?:r'[^']*')",
+])
+keywords = '|'.join(keyword.kwlist)
+qualified_ident = r'((?:\w+::)+\w+)'
+preprocess_regex = re.compile(r'([\.@])?\b(%(keywords)s|%(qualified_ident)s)\b|%(pystrings)s' % locals())
+
+def replacer(match):
+    prefix = match.group(1)
+    ident = match.group(2)
+    if ident is not None:
+        if prefix is None:
+            return 'locals()["%s"]' % ident
+        elif prefix == '.':
+            return '.__getattr__("%s")' % ident
+        elif prefix == '@':
+            return ident
+        else:
+            assert False
+    else: # a string - return unchanged
+        return match.group(0)
+
+
+def test():
+    expr =     """
+        class = from.global.finally
+        [@for x @in y]
+        local::bar::__BAZ()
+        local_string()
+        "continue.exec = pass.print; yield.with = 3"
+    """
+    expected = """
+        locals()["class"] = locals()["from"].__getattr__("global").__getattr__("finally")
+        [for x in y]
+        locals()["local::bar::__BAZ"]()
+        local_string()
+        "continue.exec = pass.print; yield.with = 3"
+    """
+    prepr = preprocess(expr)
+    if prepr != expected:
+        print expected
+        print prepr
+    assert prepr == expected

@@ -14,7 +14,7 @@ enum CStyleEnum {
     C = 2
 }
 
-enum CompressedEnum<T> {
+enum EncodedEnum<T> {
     Some(T),
     Nothing
 }
@@ -25,6 +25,13 @@ struct RegularStruct<'a> {
     a: i32,
     b: &'a str,
     c: f32
+}
+
+struct PyKeywords {
+    finally: i32,
+    import: i32,
+    lambda: i32,
+    raise: i32,
 }
 
 fn make_hash() -> HashMap<String, i32> {
@@ -44,11 +51,11 @@ fn main() {
 
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
-    let reg_enum3 = RegularEnum::C{x:10.0, y:20.0};
+    let reg_enum3 = RegularEnum::C{x:11.35, y:20.5};
     let cstyle_enum1 = CStyleEnum::A;
     let cstyle_enum2 = CStyleEnum::B;
-    let comp_enum1: CompressedEnum<&str> = CompressedEnum::Some("string");
-    let comp_enum2: CompressedEnum<&str> = CompressedEnum::Nothing;
+    let enc_enum1: EncodedEnum<&str> = EncodedEnum::Some("string");
+    let enc_enum2: EncodedEnum<&str> = EncodedEnum::Nothing;
 
     let tuple_struct = TupleStruct(3, "xxx", -3.0);
     let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0 };
@@ -66,6 +73,13 @@ fn main() {
     let osstr = &osstring[..];
 
     let hash = make_hash();
+
+    let class = PyKeywords {
+        finally: 1,
+        import: 2,
+        lambda: 3,
+        raise: 4,
+    };
 
     println!("---");
     println!("---");

@@ -1,22 +1,23 @@
-LLDB Front-End for Visual Studio Code
-=====================================
+CodeLLDB: a LLDB front end for Visual Studio Code
+=================================================
 
-Native debugging in Visual Studio Code via [LLDB debugger engine](http://lldb.llvm.org/).
+[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.0/README.md) (working hyperlinks!)
 
 [See what's new.](#whats-new)
 
-Features:
-- Attach or Launch
-- Breakpoints (function, conditional)
-- Expression evaluation
-- Hover Tips
+# Features
+- [Attach](#attaching) or [Launch](#launching)
+- Redirect [debuggee stdio](#stdio) to a file or a terminal.
+- Breakpoints ([function](https://code.visualstudio.com/Docs/editor/debugging#_function-breakpoints), conditional, [regex](#regex-breakpoints))
+- [Disassembly View](#disassembly-view)
+- Line or instruction stepping
+- Hover tips
 - Watch
-- Call Stacks
-- Multiple Threads
-- Stepping
-- Disassembly View
-- Variable Formatting
-- LLDB Commands
+- Multiple threads
+- [Configurable variable formatting](#formatting)
+- [LLDB commands](#lldb-commands)
+- [Expression evaluation](#expressions)
+- [Rust language support](#rust-language-support)
 
 # Prerequisites
 - Visual Studio Code 1.5.0.
@@ -40,8 +41,8 @@ to either launch your program or attach to already running process:
 |`args`    |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
 |`cwd`     |string|| Working directory.|
 |`env`     |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VARIABLE}`.|
-|`stdio`   |string &#124; list &#124; dictionary|| Debuggee's stdio configureation (see [below](#stdio-configuration)).|
-|`terminal`|string|| Destination for debuggee's stdio streams: `console` (default) for VSCode debugger console, `integrated` for VSCode integrated terminal, `external` for a new terminal window'.|
+|`stdio`   |string &#124; list &#124; dictionary|| Stdio configuration (see [below](#stdio)).|
+|`terminal`|string|| Destination for debuggee's stdio streams: `console` (default) for Debug Console, `integrated` for VSCode integrated terminal, `external` for a new terminal window.|
 |`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
 |`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
 |`preRunCommands`|list of strings|| LLDB commands executed just before launching the program.|
@@ -50,7 +51,7 @@ to either launch your program or attach to already running process:
 ### Attaching
 
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
-on some systems.  You may need to adjust system configuration to enable attaching.
+on some systems.  You may need to adjust system configuration to enable it.
 
 |parameter|type|req |         |
 |---------|----|:--:|---------|
@@ -65,21 +66,18 @@ on some systems.  You may need to adjust system configuration to enable attachin
 |`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Stdio
-The stdio configuration specifies connections established for debuggee's stdio streams.
-Each stream may be set to one of the following:
+The `stdio` property is a list of redirection targets for each of debuggee's stdio streams: 
+- `null` (default) will connect the stream to a terminal (as specified by the `terminal` launch property)<sup>1</sup>.
+- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or TTY device <sup>2</sup>.
 
-|              |         |
-|--------------|---------|
-|`null`        | Connect to a terminal (as specified by the `terminal` launch property).|
-|`"/some/path"`| Connects the stream to a file, a pipe or a TTY (not supported on Windows). Hint: use `tty` command inside a terminal window to find out its TTY device path.|
+For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
+stderr to the a file.
+- You may also use dictionary syntax (`"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`).
+- A scalar value will configure all three streams identically (`"stdio": null`).
 
-For example, `"stdio": ["*", null, "/tmp/my.log"]` will connect `stdin` to a new terminal, send `stdout` to debugger console,
-and `stderr` - to a log file.
-- You may also use dictionary syntax: `"stdio": { "stdin": "*", "stdout": null, "stderr": "/tmp/my.log" }`.
-- A single value will configure all three streams identically: `"stdio": "*"`.
-
-On Windows, the debuggee is always launched in a new window, however stdio streams may still be redirected
-as described above.
+<sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
+as described above.  
+<sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.  
 
 ## Regex Breakpoints
 When setting a function breakpoint, if the first character of the function name is '`/`',
@@ -87,11 +85,14 @@ the rest of the string is interpreted as a regular expression.  This shall cause
 be set in every function matching the expression (the list of locations may be examined
 using `break list` command).
 
-## Dissassembly View
-When stepping into a compile unit that does not have debug info, vscode-lldb will instead display
-disassemby of the current function.  This behavior may be controlled using `LLDB: Show Disassembly`
+## Disassembly View
+When stepping into a compile unit which does not have a debug info, CodeLLDB will instead display
+disassembly of the current function.  This behavior may be controlled using `LLDB: Show Disassembly`
 and `LLDB: Toggle Disassembly` commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
+
+When is disassembly view, the 'step over' and 'step into' debug actions will step by instruction
+instead of by line.
 
 ## Formatting
 You may change the default display format of variables using the `LLDB: Display Format` command.
@@ -114,12 +115,39 @@ as hex. Here's the full list:
 
 
 ## LLDB Commands
-VS Code UI does not support all the bells and whistles that the underlying LLDB engine does. To access advanced features
-you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the debugger console window.
+VS Code UI does not provide access to all the bells and whistles of the underlying LLDB engine. To access advanced features
+you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) into Debug Console.
 If you would like to evaluate an expression instead, prefix it with '`?`'.
 
 Note that any debugger state changes that you make directly through LLDB commands will not be reflected in the UI
 and will not be persisted across debug sessions.
+
+## Expressions
+*(New in v0.3.0)* CodeLLDB leverages Python interpreter to evaluate expressions in Debug Console and the Watch view.
+The debuggee variables are represented by a special wrapper class that implements 
+most of the usual Python operators on top of the view provided by LLDB variable formatters.
+This means that things like indexing a `std::vector` with an integer, or comparing a `std::string` 
+to a string literal, just work!  
+Unlike regular Python scripts, though, all identifiers are interpreted as variable names. If you need
+to use an actual Python keyword, prefix it with '@'.  For example: `[sqrt(x) @for x @in y]`.
+
+## C++ Expressions
+You may *also* use the LLDB's built-in C++ expression evaluator.  Just add an extra `?` in front of 
+the expression (i.e. `??` in Debug Console and `?` in Watch).  Note, however, that C++ evaluator
+ignores variable formatters, so you will have to operate on raw data structures.
+
+# Rust Language Support
+
+CodeLLDB supports visualization of most common Rust data types:
+- Built-in types: tuples, enums, arrays, array and string slices.
+- Standard library types: `Vec`, `String`, `CString`, `OSString`.
+
+To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
+
+Note: There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
+you won't be able to step through code or inspect variables if you have this version.
+The workaround is to use either LLDB 3.7 or 3.9.  On OSX, LLDB shipped with Xcode 8 is known to
+have this problem fixed.
 
 # Installing LLDB
 ## Linux
@@ -136,15 +164,14 @@ See [this page](http://lldb.llvm.org/download.html) for installing nightlies.
 No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
 
-# Note for Rust Language Users
-There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
-you won't be able to step through code or inspect variables if you have this version.
-The workaround is to use either LLDB 3.7 or 3.9.  On OSX, LLDB shipped with Xcode 8 is known to
-have this problem fixed.
-
 # [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
 
 # What's New?
+
+## 0.3.0
+- [Variable visualizers for Rust](#rust-language-support).
+- New [expression evaluator](#expressions).
+- Bug fixes.
 
 ## 0.2.2
 - Bug fixes.
@@ -156,7 +183,7 @@ have this problem fixed.
 - Resume debuggee after attach, unless stopOnEntry is true.
 
 ## 0.2.0
-- Added [disassembly view](#dissassembly-view).
+- Added [disassembly view](#disassembly-view).
 - Added [variable formatting](#formatting).
 
 ## 0.1.3

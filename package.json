@@ -1,9 +1,9 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.2.2",
+    "version": "0.3.0",
     "publisher": "vadimcn",
-    "description": "LLDB front-end for VSCode",
+    "description": "A LLDB front end for native debugging in Visual Studio Code.",
     "license": "MIT",
     "author": {
         "name": "vadimcn"
@@ -18,7 +18,8 @@
     "keywords": [
         "Debug",
         "Debugger",
-        "LLDB"
+        "LLDB",
+        "Rust"
     ],
     "private": true,
     "repository": {

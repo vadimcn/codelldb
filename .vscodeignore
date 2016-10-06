@@ -7,4 +7,5 @@ tsconfig.json
 **/*.js.map
 src/**
 typings/**
+tools/**
 out/tests/**

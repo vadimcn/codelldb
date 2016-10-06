@@ -399,11 +399,12 @@ class DebugSession:
                     stack_frame['line'] = le.GetLine()
                     stack_frame['column'] = le.GetColumn()
             else:
-                pc_addr = frame.GetPCAddress().GetLoadAddress(self.target)
+                pc_sbaddr = frame.GetPCAddress()
+                pc_addr = pc_sbaddr.GetLoadAddress(self.target)
                 dasm = disassembly.find(self.disassembly_by_addr, pc_addr)
                 if dasm is None:
                     log.info('Creating new disassembly for %x', pc_addr)
-                    dasm = disassembly.Disassembly(frame, self.target)
+                    dasm = disassembly.Disassembly(pc_sbaddr, self.target)
                     disassembly.insert(self.disassembly_by_addr, dasm)
                     dasm.source_ref = self.disassembly_by_handle.create(dasm)
                 stack_frame['source'] = dasm.get_source_ref()

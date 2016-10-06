@@ -30,7 +30,8 @@ def find(a, address):
     i  = upper_bound(a, address, lambda dasm: dasm.start_address) - 1
     if i >= 0 and a[i].start_address <= address < a[i].end_address:
         return a[i]
-    return None
+    else:
+        return None
 
 # Insert Dissassembly in sorted order
 def insert(a, dasm):
@@ -39,25 +40,28 @@ def insert(a, dasm):
     a.insert(i, dasm)
 
 class Disassembly:
-    start_address = None
-    end_address = None
+    start_sbaddr = None # SBAddress
+    start_address = None # physical address
+    end_address = None # physical address
+    target = None
     source_ref = None
 
-    def __init__(self, frame, target):
+    def __init__(self, pc_sbaddr, target):
         self.target = target
-        symbol = frame.GetSymbol()
-        self.symbol = symbol
-        self.line_entry = frame.GetLineEntry()
+        self.symbol = symbol = pc_sbaddr.GetSymbol()
         if symbol.IsValid():
-            self.start_address = symbol.GetStartAddress().GetLoadAddress(self.target)
+            self.start_sbaddr = symbol.GetStartAddress()
+            self.start_address = self.start_sbaddr.GetLoadAddress(self.target)
             self.source_name = '%s @%x' % (symbol.GetName(), self.start_address)
             self.instructions = symbol.GetInstructions(self.target)
         else:
-            self.start_address = frame.GetPCAddress().GetLoadAddress(self.target)
+            self.start_sbaddr = pc_sbaddr
+            self.start_address = pc_sbaddr.GetLoadAddress(self.target)
             self.source_name = "@%x" % self.start_address
-            self.instructions = self.target.ReadInstructions(frame.GetPCAddress(), 32)
+            self.instructions = self.target.ReadInstructions(pc_sbaddr, 32)
         last_instr = self.instructions[len(self.instructions)-1]
         self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
+        assert self.start_address <= pc_sbaddr.GetLoadAddress(self.target) < self.end_address
         self.addresses = [-1, -1] # addresses corresponding to source lines (-1 = comment)
         for instr in self.instructions:
             self.addresses.append(instr.GetAddress().GetLoadAddress(self.target))
@@ -72,8 +76,9 @@ class Disassembly:
         return { 'name': self.source_name, 'sourceReference': self.source_ref }
 
     def get_source_text(self):
-        if self.line_entry.IsValid():
-            source_location = '%s:%d' % (self.line_entry.GetFileSpec(), self.line_entry.GetLine())
+        line_entry = self.start_sbaddr.GetLineEntry()
+        if line_entry.IsValid():
+            source_location = '%s:%d' % (line_entry.GetFileSpec(), line_entry.GetLine())
         else:
             source_location = 'unknown'
         if self.symbol.IsValid():

@@ -519,7 +519,7 @@ class DebugSession:
                 else:
                     value, dtype, handle = str(result), None, 0
             except Exception as e:
-                log.error(traceback.format_exc())
+                log.debug('Evaluation error: %s', traceback.format_exc())
                 error_message = str(e)
         else:
             # Using LLDB evaluator
@@ -715,7 +715,7 @@ class DebugSession:
             response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
         elif isinstance(result, Exception):
             tb = traceback.format_exc()
-            log.error('Internal debugger error:\n' + tb)
+            log.error('Internal debugger error:\n%s', tb)
             self.console_msg('Internal debugger error:\n' + tb)
             msg = 'Internal debugger error: ' + str(result)
             response['success'] = False
@@ -753,7 +753,7 @@ class DebugSession:
                 self.send_extension_message(response)
             except Exception as e:
                 tb = traceback.format_exc()
-                log.error('Internal debugger error:\n' + tb)
+                log.error('Internal debugger error:\n%s', tb)
                 msg = str(e)
                 response['success'] = False
                 response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }

@@ -25,7 +25,7 @@ function send_error_msg(slideout: string, message: string) {
 let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
 let launchScript = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')';
 let lldb = cp.spawn('lldb', ['-b', '-O', launchScript], {
-    stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'ignore', 'pipe', 'pipe'],
     cwd: __dirname + '/..'
 });
 
@@ -41,7 +41,6 @@ lldb.stdout.setEncoding('utf8');
 lldb.stdout.on('data', (data: string) => {
     if (data.indexOf('Traceback') >= 0) {
         send_error_msg('Failed to launch LLDB: check debug console for error messages.', data);
-        process.exit(1);
     }
 });
 

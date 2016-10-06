@@ -665,7 +665,7 @@ class DebugSession:
     def handle_message(self, message):
         if message is None:
             # Client connection lost; treat this the same as a normal disconnect.
-            self.disconnect_request(None)
+            self.DEBUG_disconnect(None)
             return
 
         if message['type'] == 'response':

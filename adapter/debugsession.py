@@ -444,16 +444,16 @@ class DebugSession:
             raise Exception('Invalid variables reference')
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
-            vars = container.GetVariables(True, True, False, True)
+            vars_iter = SBValueListIter(container.GetVariables(True, True, False, True))
         elif isinstance(container, StaticsScope):
-            vars = container.frame.GetVariables(False, False, True, True)
+            vars_iter = SBValueListIter(container.frame.GetVariables(False, False, True, True))
         elif isinstance(container, RegistersScope):
-            vars = container.frame.GetRegisters()
+            vars_iter = SBValueListIter(container.frame.GetRegisters())
         elif isinstance(container, lldb.SBValue):
-            vars = container
+            vars_iter = SBValueChildrenIter(container)
 
         variables = []
-        for var in vars:
+        for var in vars_iter:
             name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
             # Sometimes LLDB returns junk entries with empty names and values
             if name is not None:
@@ -871,6 +871,16 @@ class StaticsScope:
 class RegistersScope:
     def __init__(self, frame):
         self.frame = frame
+
+def SBValueListIter(val_list):
+    get_value = val_list.GetValueAtIndex 
+    for i in xrange(val_list.GetSize()): 
+        yield get_value(i) 
+
+def SBValueChildrenIter(val):
+    get_value = val.GetChildAtIndex 
+    for i in xrange(val.GetNumChildren()): 
+        yield get_value(i)        
 
 def opt_str(s):
     return str(s) if s != None else None

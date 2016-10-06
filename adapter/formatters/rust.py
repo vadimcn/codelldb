@@ -5,6 +5,10 @@ import re
 
 log = logging.getLogger('rust')
 
+# The maximum number of children in arrays, characters in strings, etc.
+# This is to cope with the not yet initialized objects whose length fields contain garbage.
+MAX_LENGTH = 10000
+
 def initialize(debugger):
     log.info('initialize')
     global rust_category
@@ -33,10 +37,7 @@ def initialize(debugger):
     attach_summary_to_type('get_osstring_summary', 'std::ffi::os_str::OsString')
     attach_synthetic_to_type('StdOsStringSynthProvider', 'std::ffi::os_str::OsString')
 
-    #attach_summary_to_type('rust_summary_provider', '.*', True)
-
-
-# Enums and tuples cannot be recognized based on type name.  
+# Enums and tuples cannot be recognized based on type name.
 # These require deeper runtime analysis to tease them apart.
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
 ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
@@ -61,7 +62,7 @@ def classify_type(qual_obj_type):
                 attach_synthetic_to_type('EncodedEnumProvider', obj_type.GetName())
         else:
             attach_summary_to_type('get_regular_enum_summary', obj_type.GetName())
-            attach_synthetic_to_type('RegularEnumProvider', obj_type.GetName())            
+            attach_synthetic_to_type('RegularEnumProvider', obj_type.GetName())
     elif type_class == lldb.eTypeClassStruct:
         if obj_type.GetFieldAtIndex(0).GetName() == ENUM_DISCRIMINANT:
             attach_summary_to_type('get_enum_variant_summary', obj_type.GetName())
@@ -112,7 +113,7 @@ def get_synth_summary(synth_class, valobj, dict):
 
 def print_array_elements(valobj, maxsize=32):
     s = ''
-    for i in range(0, valobj.GetNumChildren()):
+    for i in xrange(0, valobj.GetNumChildren()):
         if len(s) > 0: s += ', '
         summary = get_obj_summary(valobj.GetChildAtIndex(i))
         s += summary if summary is not None else '?'
@@ -160,17 +161,20 @@ def get_cstring_summary(valobj, dict):
 def get_osstring_summary(valobj, dict):
     return get_synth_summary(StdOsStringSynthProvider, valobj, dict)
 
-def get_vector_summary(valobj, dict):
-    return 'vec![%s]' % print_array_elements(valobj)
-
 def get_array_summary(valobj, dict):
-    return '[%s]' % print_array_elements(valobj)
+    return '(%d) [%s]' % (valobj.GetNumChildren(), print_array_elements(valobj))
+
+def get_vector_summary(valobj, dict):
+    length = valobj.GetNumChildren()
+    if length == MAX_LENGTH:
+        length = StdVectorSynthProvider(valobj.GetNonSyntheticValue()).len
+    return '(%d) vec![%s]' % (length, print_array_elements(valobj))
 
 def get_slice_summary(valobj, dict):
-    return '&[%s]' % print_array_elements(valobj)
-
-def get_pointer_summary(valobj, dict):
-    return valobj.Dereference().Summary()
+    length = valobj.GetNumChildren()
+    if length == MAX_LENGTH:
+        length = SliceSynthProvider(valobj.GetNonSyntheticValue()).len
+    return '(%d) &[%s]' % (length, print_array_elements(valobj))
 
 UNQUAL_TYPE_MARKERS = ["(", "[", "&", "*"]
 UNQUAL_TYPE_REGEX = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
@@ -233,7 +237,7 @@ class RegularEnumProvider:
         self.variant = self.valobj.GetChildAtIndex(discriminant)
 
     def num_children(self):
-        return self.variant.GetNumChildren() - 1
+        return max(0, self.variant.GetNumChildren() - 1)
 
     def has_children(self):
         return self.num_children() > 0
@@ -262,7 +266,7 @@ class ArrayLikeSynthProvider:
             raise
 
     def num_children(self):
-        return self.len
+        return min(self.len, MAX_LENGTH)
 
     def has_children(self):
         return True
@@ -298,7 +302,7 @@ class SliceSynthProvider(ArrayLikeSynthProvider):
 # Base class for *String providers
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
     def get_summary(self):
-        return '"%s"' % string_from_ptr(self.ptr, self.len)
+        return '"%s"' % string_from_ptr(self.ptr, min(self.len, MAX_LENGTH))
 
 class StrSliceSynthProvider(StringLikeSynthProvider):
      def _update(self):

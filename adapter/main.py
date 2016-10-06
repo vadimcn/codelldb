@@ -1,3 +1,4 @@
+import sys
 import os
 import logging
 import signal
@@ -6,6 +7,12 @@ import traceback
 
 log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+if 'linux' in sys.platform or 'darwin' in sys.platform:
+    # Limit memory usage to 16GB to prevent runaway visualizers from killing the machine
+    import resource
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, hard))
 
 def init_logging(is_stdio_session):
     log_file = os.getenv('VSCODE_LLDB_LOG', None)

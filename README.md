@@ -32,48 +32,48 @@ Create a new [launch configuration](https://code.visualstudio.com/Docs/editor/de
 to either launch your program or attach to already running process:
 
 ### Launching
-|parameter |type|req |         |
-|----------|----|:--:|---------|
-|`name`    |string|Y| Launch configuration name.|
-|`type`    |string|Y| Set to "lldb".|
-|`request` |string|Y| Set to "launch".|
-|`program` |string|Y| Path to debuggee executable.|
-|`args`    |string &#124; list of strings|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
-|`cwd`     |string|| Working directory.|
-|`env`     |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VARIABLE}`.|
-|`stdio`   |string &#124; list &#124; dictionary|| Stdio configuration (see [below](#stdio)).|
-|`terminal`|string|| Destination for debuggee's stdio streams: `console` (default) for Debug Console, `integrated` for VSCode integrated terminal, `external` for a new terminal window.|
-|`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after launching.|
-|`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
-|`preRunCommands`|list of strings|| LLDB commands executed just before launching the program.|
-|`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
+|parameter          |type|req |         |
+|-------------------|----|:--:|---------|
+|**name**           |string|Y| Launch configuration name.|
+|**type**           |string|Y| Set to `lldb`.|
+|**request**        |string|Y| Set to `launch`.|
+|**program**        |string|Y| Path to debuggee executable.|
+|**args**           |string &#124; [string]|| Command line parameters.  If this is a string, it will be split using shell-like syntax.|
+|**cwd**            |string|| Working directory.|
+|**env**            |dictionary|| Additional environment variables.  Tip: you may refer to existing environment variables like so: `${env.VARIABLE}`.|
+|**stdio**          |string &#124; [string] &#124; dictionary|| Stdio configuration (see [below](#stdio)).|
+|**terminal**       |string|| Destination for debuggee's stdio streams: <ul><li>`console` (default) for Debug Console</li><li>`integrated` for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**stopOnEntry**    |boolean|| Whether to stop debuggee immediately after launching.|
+|**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
+|**preRunCommands** |[string]|| LLDB commands executed just before launching the program.|
+|**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Attaching
 
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
 
-|parameter|type|req |         |
-|---------|----|:--:|---------|
-|`name`   |string|Y| Launch configuration name.|
-|`type`   |string|Y| Set to "lldb".|
-|`request`|string|Y| Set to "attach".|
-|`program`|string|Y| Path to debuggee executable.|
-|`pid`    |number|| The process id to attach to.  `pid` may be omitted, in which case the debugger will attempt to locate an already running instance of the program.|
-|`stopOnEntry`  |boolean|| Whether to stop debuggee immediately after attaching.|
-|`initCommands` |list of strings|| LLDB commands executed upon debugger startup.|
-|`preRunCommands`|list of strings|| LLDB commands executed just before attaching.|
-|`sourceLanguages`|list of strings|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
+|parameter          |type    |req |         |
+|-------------------|--------|:--:|---------|
+|**name**           |string  |Y| Launch configuration name.|
+|**type**           |string  |Y| Set to `lldb`.|
+|**request**        |string  |Y| Set to `attach`.|
+|**program**        |string  |Y| Path to debuggee executable.|
+|**pid**            |number  || The process id to attach to.  **pid** may be omitted, in which case the debugger will attempt to locate an already running instance of the program.|
+|**stopOnEntry**    |boolean || Whether to stop debuggee immediately after attaching.|
+|**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
+|**preRunCommands** |[string]|| LLDB commands executed just before attaching.|
+|**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Stdio
-The `stdio` property is a list of redirection targets for each of debuggee's stdio streams: 
-- `null` (default) will connect the stream to a terminal (as specified by the `terminal` launch property)<sup>1</sup>.
+The **stdio** property is a list of redirection targets for each of debuggee's stdio streams: 
+- `null` (default) will connect the stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
 - `"/some/path"` will cause the stream to be redirected to the specified file, pipe or TTY device <sup>2</sup>.
 
 For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
 stderr to the a file.
-- You may also use dictionary syntax (`"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`).
-- A scalar value will configure all three streams identically (`"stdio": null`).
+- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
+- A scalar value will configure all three streams identically: `"stdio": null`.
 
 <sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
 as described above.  
@@ -100,18 +100,18 @@ When evaluating expressions from Debug Console or in the 'Watch' view, you may a
 formatting of individual expressions by adding a suffix. For example `$rax,x` will format the value
 as hex. Here's the full list:
 
-|suffix  |format |
-|--------|-------|
-|`x`     | Hex |
-|`o`     | Octal |
-|`d`     | Decimal |
-|`u`     | Unsigned decimal |
-|`b`     | Binary |
-|`f`     | Float (reinterprets bits, no casting is done) |
-|`p`     | Pointer |
-|`s`     | C string |
-|`y`     | Bytes |
-|`Y`     | Bytes with ASCII |
+|suffix|format |
+|:-----:|-------|
+|**x**  | Hex |
+|**o**  | Octal |
+|**d**  | Decimal |
+|**u**  | Unsigned decimal |
+|**b**  | Binary |
+|**f**  | Float (reinterprets bits, no casting is done) |
+|**p**  | Pointer |
+|**s**  | C string |
+|**y**  | Bytes |
+|**Y**  | Bytes with ASCII |
 
 
 ## LLDB Commands
@@ -140,7 +140,7 @@ ignores variable formatters, so you will have to operate on raw data structures.
 
 CodeLLDB supports visualization of most common Rust data types:
 - Built-in types: tuples, enums, arrays, array and string slices.
-- Standard library types: `Vec`, `String`, `CString`, `OSString`.
+- Standard library types: Vec, String, CString, OSString.
 
 To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
 

@@ -183,13 +183,48 @@ def get_unqualified_type_name(type_name):
         return type_name
     return UNQUAL_TYPE_REGEX.match(type_name).group(1)
 
-class EncodedEnumProvider:
+# LLDB is somewhat unpredictable about when it calls update() on synth providers.
+# Don't want to put `if self.is_initalized: self.update()` in each method, so...
+class RustSynthProvider:
     def __init__(self, valobj, dict):
+        self.valobj = valobj
+        self._real_class = self.__class__
+        self.__class__ = RustSynthProvider.Lazy
+    # default impls
+    def initialize(self): return None
+    def update(self): return None
+    def num_children(self): return 0
+    def has_children(self): return False
+    def get_child_at_index(self, index): return None
+    def get_child_index(self, name): return None
+    def get_summary(self): return None
+
+    class Lazy:
+        def _do_init(self):
+            self.__class__ = self._real_class
+            self.initialize() # first-time initialization
+            self.update()
+            return self
+        def update(self):
+            self._do_init()
+            # _do_init() already called update()
+        def num_children(self):
+            return self._do_init().num_children()
+        def has_children(self):
+            return self._do_init().has_children()
+        def get_child_at_index(self, index):
+            return self._do_init().get_child_at_index(index)
+        def get_child_index(self, name):
+            return self._do_init().get_child_index(name)
+        def get_summary(self):
+            return self._do_init().get_summary()
+
+class EncodedEnumProvider(RustSynthProvider):
+    def initialize(self):
         # 'Encoded' enums always have two variants, of which one contains no data,
         # and the other one contains a field (not necessarily at the top level) that implements
         # Zeroable.  This field is then used as a two-state discriminant.
-        self.valobj = valobj
-        variant_name = valobj.GetType().GetFieldAtIndex(0).GetName()
+        variant_name = self.valobj.GetType().GetFieldAtIndex(0).GetName()
         last_separator_index = variant_name.rfind("$")
         start_index = len(ENCODED_ENUM_PREFIX)
         indices_substring = variant_name[start_index:last_separator_index].split("$")
@@ -226,10 +261,7 @@ class EncodedEnumProvider:
             unqual_type_name = get_unqualified_type_name(self.valobj.GetChildAtIndex(0).GetType().GetName())
             return '%s%s' % (unqual_type_name, get_obj_summary(self.variant))
 
-class RegularEnumProvider:
-    def __init__(self, valobj, dict):
-        self.valobj = valobj
-
+class RegularEnumProvider(RustSynthProvider):
     def update(self):
         # Regular enums are represented as unions of structs, containing discriminant in the
         # first field.
@@ -252,10 +284,7 @@ class RegularEnumProvider:
         return get_obj_summary(self.variant)
 
 # Base class for providers that represent array-like objects
-class ArrayLikeSynthProvider:
-    def __init__(self, valobj, dict):
-        self.valobj = valobj
-
+class ArrayLikeSynthProvider(RustSynthProvider):
     def update(self):
         try:
             self._update() # Should be overridden

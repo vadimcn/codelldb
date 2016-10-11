@@ -1,7 +1,7 @@
 CodeLLDB: a LLDB front end for Visual Studio Code
 =================================================
 
-[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.0/README.md) (working hyperlinks!)
+[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.1/README.md) (working hyperlinks!)
 
 [See what's new.](#whats-new)
 
@@ -167,6 +167,9 @@ You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingL
 # [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
 
 # What's New?
+
+## 0.3.1
+- Bug fixes.
 
 ## 0.3.0
 - [Variable visualizers for Rust](#rust-language-support).

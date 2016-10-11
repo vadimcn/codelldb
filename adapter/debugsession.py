@@ -170,8 +170,11 @@ class DebugSession:
         self.exec_commands(args.get('preRunCommands'))
 
         error = lldb.SBError()
-        if args.get('pid', None) is not None:
-            self.process = self.target.AttachToProcessWithID(self.event_listener, args['pid'], error)
+        pid = args.get('pid', None) 
+        if pid is not None:
+            if isinstance(pid, string_type):
+                pid = int(pid)
+            self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
             self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), False, error)
         if not error.Success():

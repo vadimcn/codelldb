@@ -52,7 +52,8 @@
         "onCommand:lldb.showDisassembly",
         "onCommand:lldb.toggleDisassembly",
         "onCommand:lldb.displayFormat",
-        "onCommand:lldb.launchDebugServer"
+        "onCommand:lldb.launchDebugServer",
+        "onCommand:lldb.pickProcess"
     ],
     "contributes": {
         "commands": [
@@ -109,6 +110,9 @@
                         "swift"
                     ]
                 },
+                "variables": {
+                    "pickProcess": "lldb.pickProcess"
+                },              
                 "runtime": "node",
                 "program": "out/adapter.js",
                 "configurationAttributes": {
@@ -187,8 +191,9 @@
                                 "description": "Path to the program to attach to."
                             },
                             "pid": {
-                                "type": "number",
-                                "description": "Process id to attach to."
+                                "type": ["number", "string"],
+                                "description": "Process id to attach to.",
+                                "default": "${command.pickProcess}"
                             },
                             "stopOnEntry": {
                                 "type": "boolean",

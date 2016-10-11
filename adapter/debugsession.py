@@ -154,7 +154,7 @@ class DebugSession:
     def spawn_vscode_terminal(self, command):
         on_complete = lambda ok, body: None
         self.send_request('runInTerminal', {
-            'kind': 'external', 'cwd': None,
+            'kind': 'integrated', 'cwd': None,
             'args': ['bash', '-c', command] }, on_complete)
 
     def DEBUG_attach(self, args):

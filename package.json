@@ -105,7 +105,8 @@
                         "objective-c",
                         "pascal",
                         "rust",
-                        "lldb.disassembly"
+                        "lldb.disassembly",
+                        "swift"
                     ]
                 },
                 "runtime": "node",

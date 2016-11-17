@@ -3,8 +3,6 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 
 [View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.1/README.md) (working hyperlinks!)
 
-[See what's new.](#whats-new)
-
 # Features
 - [Attach](#attaching) or [Launch](#launching)
 - Redirect [debuggee stdio](#stdio) to a file or a terminal.
@@ -59,7 +57,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**type**           |string  |Y| Set to `lldb`.|
 |**request**        |string  |Y| Set to `attach`.|
 |**program**        |string  |Y| Path to debuggee executable.|
-|**pid**            |number  || The process id to attach to.  **pid** may be omitted, in which case the debugger will attempt to locate an already running instance of the program.|
+|**pid**            |number  || The process id to attach to.  **pid** may be omitted, in which case the debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` here to choose a process interactively.|
 |**stopOnEntry**    |boolean || Whether to stop debuggee immediately after attaching.|
 |**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
 |**preRunCommands** |[string]|| LLDB commands executed just before attaching.|
@@ -115,8 +113,8 @@ as hex. Here's the full list:
 
 
 ## LLDB Commands
-VS Code UI does not provide access to all the bells and whistles of the underlying LLDB engine. To access advanced features
-you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) into Debug Console.
+VS Code UI does not provide access to all the bells and whistles of the underlying LLDB engine.
+To access advanced features, you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) into Debug Console.
 If you would like to evaluate an expression instead, prefix it with '`?`'.
 
 Note that any debugger state changes that you make directly through LLDB commands will not be reflected in the UI
@@ -165,37 +163,3 @@ No binary downloads are available at this time.
 You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
 
 # [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
-
-# What's New?
-
-## 0.3.1
-- Bug fixes.
-
-## 0.3.0
-- [Variable visualizers for Rust](#rust-language-support).
-- New [expression evaluator](#expressions).
-- Bug fixes.
-
-## 0.2.2
-- Bug fixes.
-
-## 0.2.1
-- Added 'terminal' launch config option. '*' in stdio config now behaves identically to null.
-- Moved static variables out to their own scope.
-- Disassembly in symbolless locations should work now.
-- Resume debuggee after attach, unless stopOnEntry is true.
-
-## 0.2.0
-- Added [disassembly view](#disassembly-view).
-- Added [variable formatting](#formatting).
-
-## 0.1.3
-- Added support for setting variable values (primitive types only).
-- Added [regex breakpoints](#regex-breakpoints).
-
-## 0.1.2
-- Infer `.exe` target extension on Windows.
-- `args` may now be a string.
-
-## 0.1.0
-First released version.

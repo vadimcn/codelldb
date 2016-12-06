@@ -10,7 +10,7 @@ from . import disassembly
 from . import handles
 from . import terminal
 from . import formatters
-from . import PY2
+from . import PY2, is_string, xrange
 
 log = logging.getLogger('debugsession')
 log.info('Imported')
@@ -84,7 +84,7 @@ class DebugSession:
         # argumetns
         target_args = args.get('args', None)
         if target_args is not None:
-            if isinstance(target_args, string_type):
+            if is_string(target_args):
                 target_args = shlex.split(target_args)
             target_args = [str(arg) for arg in target_args]
         # environment
@@ -118,7 +118,7 @@ class DebugSession:
             stdio = [stdio.get('stdin', missing),
                      stdio.get('stdout', missing),
                      stdio.get('stderr', missing)]
-        elif stdio is None or isinstance(stdio, string_type):
+        elif stdio is None or is_string(stdio):
             stdio = [stdio] * 3
         elif isinstance(stdio, list):
             stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
@@ -888,8 +888,6 @@ def SBValueChildrenIter(val):
 
 def opt_str(s):
     return str(s) if s != None else None
-
-string_type = basestring if PY2 else str
 
 languages = {
     'rust': { 'init_formatters': formatters.rust.initialize,

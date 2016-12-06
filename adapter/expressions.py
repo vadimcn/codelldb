@@ -330,6 +330,6 @@ def test():
     """
     prepr = preprocess(expr)
     if prepr != expected:
-        print expected
-        print prepr
+        print(expected)
+        print(prepr)
     assert prepr == expected

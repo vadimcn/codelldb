@@ -2,6 +2,7 @@ import logging
 import lldb
 import codecs
 import re
+from .. import xrange
 
 log = logging.getLogger('rust')
 

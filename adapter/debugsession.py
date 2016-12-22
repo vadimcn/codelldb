@@ -498,10 +498,7 @@ class DebugSession:
         return { 'result': '' }
 
     def evaluate_expr(self, args, expr):
-        frame_id = args.get('frameId')
-        frame = self.var_refs.get(frame_id, None)
-        if frame is None:
-            raise Exception('Missing frameId')
+        frame_id = args.get('frameId') # May be null
         # parse format suffix, if any
         format = self.global_format
         for suffix, fmt in self.format_codes:
@@ -513,7 +510,7 @@ class DebugSession:
         error_message = None
         if not expr.startswith('?'):
             # Using Python evaluator
-            context = self.get_eval_context(frame_id)
+            context = self.get_pyeval_context(frame_id)
             try:
                 expr = expressions.preprocess(expr)
                 log.debug('Evaluating %s', expr)
@@ -528,7 +525,11 @@ class DebugSession:
         else:
             # Using LLDB evaluator
             expr = expr[1:]
-            result = frame.EvaluateExpression(expr)
+            frame = self.var_refs.get(frame_id, None)
+            if frame is not None:
+                result = frame.EvaluateExpression(expr) # In frame context
+            else:
+                self.target.EvaluateExpression(expr) # In global context
             error = result.GetError()
             if error.Success():
                 _, value, dtype, handle = self.parse_var(result, format)
@@ -584,14 +585,21 @@ class DebugSession:
             value = value.decode('latin1') # or else json will try to treat it as utf8
         return value
 
-    # Creates and caches expression evaluation context for a frame
-    def get_eval_context(self, frame_id):
+    # Creates and caches Python expression evaluation context for a frame
+    def get_pyeval_context(self, frame_id):
         context = self.eval_contexts.get(frame_id)
         if context is not None:
             return context
+
         frame = self.var_refs.get(frame_id)
         context = {}
-        for var in frame.GetVariables(True, True, True, True):
+        if frame is not None: # get frame locals
+            vars_iter = SBValueListIter(frame.GetVariables(True, True, True, True))
+        else: # get statics
+            some_frame = self.process.GetSelectedThread().GetSelectedFrame()
+            vars_iter = SBValueListIter(some_frame.GetVariables(False, False, True, False))
+
+        for var in vars_iter:
             name = var.GetName()
             if name is not None:
                 context[name] = expressions.Value(var)

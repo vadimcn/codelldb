@@ -50,6 +50,7 @@ void vars() {
     {
         int a = 30;
         int b = 40;
+        static int sss = 555;
         const char c[] = "foobar";
         char buffer[10240] = {0};
         std::vector<std::vector<int>> v(10, {i*1, i*2, i*3, i*4, i*5});

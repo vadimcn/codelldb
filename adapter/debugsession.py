@@ -158,8 +158,12 @@ class DebugSession:
             'args': ['bash', '-c', command] }, on_complete)
 
     def DEBUG_attach(self, args):
+        pid = args.get('pid', None) 
+        program = args.get('program', None)
+        if pid is None and program is None:
+            raise UserError('Either the \'program\' or \'pid\' must be specified.')
         self.exec_commands(args.get('initCommands'))
-        self.target = self.create_target(args)
+        self.target = self.debugger.CreateTarget('')
         self.send_event('initialized', {})
         self.do_launch = self.attach
         self.launch_args = args
@@ -168,15 +172,14 @@ class DebugSession:
     def attach(self, args):
         log.info('Attaching...')
         self.exec_commands(args.get('preRunCommands'))
-
         error = lldb.SBError()
         pid = args.get('pid', None) 
         if pid is not None:
-            if isinstance(pid, string_type):
-                pid = int(pid)
+            if is_string(pid): pid = int(pid)
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
-            self.process = self.target.AttachToProcessWithName(self.event_listener, str(args['program']), False, error)
+            program = str(args['program'])
+            self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
         if not error.Success():
             self.console_msg(error.GetCString())
             raise UserError('Failed to attach to process.')

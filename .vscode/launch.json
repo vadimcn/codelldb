@@ -86,7 +86,7 @@
 			"type": "lldb",
 			"request": "attach",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			"pid": "${command.pickProcess}"
+			"pid": "${command.pickMyProcess}"
 		}
 	]
 }

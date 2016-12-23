@@ -15,7 +15,9 @@ export function activate(context: ExtensionContext) {
     context.subscriptions.push(commands.registerCommand('lldb.launchDebugServer',
         () => launchDebugServer(context)));
     context.subscriptions.push(commands.registerCommand('lldb.pickProcess',
-        () => pickProcess(context)));
+        () => pickProcess(context, false)));
+    context.subscriptions.push(commands.registerCommand('lldb.pickMyProcess',
+        () => pickProcess(context, true)));
 }
 
 async function showDisassembly(context: ExtensionContext) {
@@ -38,17 +40,45 @@ async function launchDebugServer(context: ExtensionContext) {
     terminal.sendText('lldb -b -O "script import adapter; adapter.run_tcp_server()"\n');
 }
 
-async function pickProcess(context: ExtensionContext): Promise<number> {
-    let stdout = await new Promise<string>((resolve) =>
-        cp.exec('ps ax', (error, stdout, stderr) => resolve(stdout)));
+async function pickProcess(context: ExtensionContext, currentUserOnly: boolean): Promise<number> {
+    let is_windows = process.platform == 'win32';
+    var command: string;
+    if (!is_windows) {
+        if (currentUserOnly)
+            command = 'ps x';
+        else
+            command = 'ps ax';
+    } else {
+        if (currentUserOnly)
+            command = 'tasklist /V /FO CSV /FI "USERNAME eq ' + process.env['USERNAME'] + '"';
+        else
+            command = 'tasklist /V /FO CSV';
+    }
+    let stdout = await new Promise<string>((resolve, reject) => {
+        cp.exec(command, (error, stdout, stderr) => {
+            if (error) reject(error);
+            else resolve(stdout)
+        })
+    });
     let lines = stdout.split('\n');
-    let items: (QuickPickItem & { pid: number})[] = [];
-    let re = /^\s*(\d+)\s+.*?\s+.*?\s+.*?\s+(.*)$/;
+    let items: (QuickPickItem & { pid: number })[] = [];
+
+    var re: RegExp, idx: number[];
+    if (!is_windows) {
+        re = /^\s*(\d+)\s+.*?\s+.*?\s+.*?\s+(.*)()$/;
+        idx = [1, 2, 3];
+    } else {
+        // name, pid, ..., window title
+        re = /^"([^"]*)","([^"]*)",(?:"[^"]*",){6}"([^"]*)"/;
+        idx = [2, 1, 3];
+    }
     for (var i = 1; i < lines.length; ++i) {
         let groups = re.exec(lines[i]);
         if (groups) {
-            let pid = parseInt(groups[1]);
-            let item = { label: format('%d: %s', pid, groups[2]), description: '', pid: pid };
+            let pid = parseInt(groups[idx[0]]);
+            let name = groups[idx[1]];
+            let descr = groups[idx[2]];
+            let item = { label: format('%d: %s', pid, name), description: descr, pid: pid };
             items.unshift(item);
         }
     }
@@ -56,6 +86,6 @@ async function pickProcess(context: ExtensionContext): Promise<number> {
     if (item) {
         return item.pid;
     } else {
-        return 0;
+        throw Error('Cancelled');
     }
 }

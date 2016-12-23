@@ -53,7 +53,8 @@
         "onCommand:lldb.toggleDisassembly",
         "onCommand:lldb.displayFormat",
         "onCommand:lldb.launchDebugServer",
-        "onCommand:lldb.pickProcess"
+        "onCommand:lldb.pickProcess",
+        "onCommand:lldb.pickMyProcess"
     ],
     "contributes": {
         "commands": [
@@ -111,7 +112,8 @@
                     ]
                 },
                 "variables": {
-                    "pickProcess": "lldb.pickProcess"
+                    "pickProcess": "lldb.pickProcess",
+                    "pickMyProcess": "lldb.pickMyProcess"
                 },              
                 "runtime": "node",
                 "program": "out/adapter.js",
@@ -182,9 +184,6 @@
                         }
                     },
                     "attach": {
-                        "required": [
-                            "program"
-                        ],
                         "properties": {
                             "program": {
                                 "type": "string",
@@ -193,7 +192,7 @@
                             "pid": {
                                 "type": ["number", "string"],
                                 "description": "Process id to attach to.",
-                                "default": "${command.pickProcess}"
+                                "default": "${command.pickMyProcess}"
                             },
                             "stopOnEntry": {
                                 "type": "boolean",

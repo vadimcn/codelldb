@@ -217,13 +217,46 @@
                         }
                     }
                 },
+                "configurationSnippets": [
+					{
+						"label": "LLDB: Launch",
+						"description": "",
+						"body": {
+							"type": "lldb",
+							"request": "launch",
+							"name": "${2:Launch}",
+							"program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
+                            "args": [],
+							"cwd": "^\"\\${workspaceRoot}\""
+						}
+					},
+					{
+						"label": "LLDB: Attach by Process ID",
+						"body": {
+							"type": "lldb",
+							"request": "attach",
+							"name": "${2:Attach}",
+							"pid": "^\"\\${command.pickMyProcess}\" // use \\${command.pickProcess} to pick other users' processes"
+						}
+					},
+                    {
+						"label": "LLDB: Attach by Program Path",
+						"body": {
+							"type": "lldb",
+							"request": "attach",
+							"name": "${2:Attach}",
+                            "program": "^\"\\${workspaceRoot}/${1:<your program>}\""
+						}
+					}
+				],                    
                 "initialConfigurations": [
                     {
-                        "name": "Debug",
                         "type": "lldb",
                         "request": "launch",
+                        "name": "Debug",
                         "program": "${workspaceRoot}/<your program>",
-                        "args": []
+                        "args": [],
+                        "cwd": "${workspaceRoot}"
                     }
                 ]
             }

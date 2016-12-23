@@ -1,7 +1,7 @@
 CodeLLDB: a LLDB front end for Visual Studio Code
 =================================================
 
-[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.1/README.md) (working hyperlinks!)
+[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.2/README.md) (working hyperlinks!)
 
 # Features
 - [Attach](#attaching) or [Launch](#launching)
@@ -57,7 +57,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**type**           |string  |Y| Set to `lldb`.|
 |**request**        |string  |Y| Set to `attach`.|
 |**program**        |string  |Y| Path to debuggee executable.|
-|**pid**            |number  || The process id to attach to.  **pid** may be omitted, in which case the debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` here to choose a process interactively.|
+|**pid**            |number  || The process id to attach to.  **pid** may be omitted, in which case the debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` here to choose process interactively.|
 |**stopOnEntry**    |boolean || Whether to stop debuggee immediately after attaching.|
 |**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
 |**preRunCommands** |[string]|| LLDB commands executed just before attaching.|

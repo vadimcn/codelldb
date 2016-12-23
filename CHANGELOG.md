@@ -1,7 +1,9 @@
 # What's New
 
 ## 0.3.2
-- Added pickProcess command to be used with the **pid** paremeter when [attaching](README.md#attaching).
+- Added pickProcess and pickMyProcess commands to be used with the **pid** parameter when [attaching](README.md#attaching).
+- Added debug configuration snippets.
+- Added Swift debugging (thanks @jesspittman!).
 
 ## 0.3.1
 - Bug fixes.

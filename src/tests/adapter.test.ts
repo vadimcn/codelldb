@@ -11,6 +11,7 @@ var dc: DebugClient;
 
 const debuggee = 'out/tests/debuggee'
 const debuggeeSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'debuggee.cpp'));
+const debuggeeHeader = path.normalize(path.join(process.cwd(), 'src', 'tests', 'debuggee.h'));
 
 var port: number = null;
 if (process.env.DEBUG_SERVER) {
@@ -54,20 +55,36 @@ test('stop on entry', async () => {
 });
 
 test('stop on a breakpoint', async () => {
-    let bp_line = findMarker(debuggeeSource, '#BP1');
-    let hitBreakpointAsync = hitBreakpoint(debuggeeSource, bp_line);
-    await launch({ program: debuggee });
-    await hitBreakpointAsync;
+    let bpLineSource = findMarker(debuggeeSource, '#BP1');
+    let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
+    let setBreakpointAsyncSource = setBreakpoint(debuggeeSource, bpLineSource);
+    let setBreakpointAsyncHeader = setBreakpoint(debuggeeHeader, bpLineHeader);
     let waitForExitAsync = dc.waitForEvent('exited');
+    let waitForStopAsync = dc.waitForEvent('stopped');
+
+    await launch({ program: debuggee, args: ['header'] });
+    await setBreakpointAsyncSource;
+    await setBreakpointAsyncHeader;
+
+    let stopEvent = await waitForStopAsync;
+    await verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
+
+    let waitForStopAsync2 = dc.waitForEvent('stopped');
+    await dc.continueRequest({ threadId: 0 });
+    let stopEvent2 = await waitForStopAsync2;
+    await verifyLocation(stopEvent.body.threadId, debuggeeHeader, bpLineHeader);
+
     await dc.continueRequest({ threadId: 0 });
     await waitForExitAsync;
 });
 
 test('page stack', async () => {
-    let bp_line = findMarker(debuggeeSource, '#BP2');
-    let hitBreakpointAsync = hitBreakpoint(debuggeeSource, bp_line);
+    let bpLine = findMarker(debuggeeSource, '#BP2');
+    let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
+    let waitForStopAsync = dc.waitForEvent('stopped');
     await launch({ program: debuggee, args: ['deepstack'] });
-    let stoppedEvent = await hitBreakpointAsync;
+    await setBreakpointAsync;
+    let stoppedEvent = await waitForStopAsync;
     let response2 = await dc.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
     assert.equal(response2.body.stackFrames.length, 10)
     let response3 = await dc.scopesRequest({ frameId: response2.body.stackFrames[0].id });
@@ -77,10 +94,13 @@ test('page stack', async () => {
 });
 
 test('set variable', async() => {
-    let bp_line = findMarker(debuggeeSource, '#BP3');
-    let hitBreakpointAsync = hitBreakpoint(debuggeeSource, bp_line);
+    let bpLine = findMarker(debuggeeSource, '#BP3');
+    let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
+    let waitForStopAsync = dc.waitForEvent('stopped');
     await launch({ program: debuggee, args: ['vars'] });
-    let stoppedEvent = await hitBreakpointAsync;
+    await setBreakpointAsync;
+    let stoppedEvent = await waitForStopAsync;
+    await verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
     let vars = await readVariables(stoppedEvent.body.threadId);
     assert.equal(vars['a'], '30');
     assert.equal(vars['b'], '40');
@@ -147,7 +167,7 @@ async function attach(attachArgs: any): Promise<dp.AttachResponse> {
     return attachResp;
 }
 
-async function hitBreakpoint(file: string, line: number): Promise<dp.StoppedEvent> {
+async function setBreakpoint(file: string, line: number): Promise<dp.SetBreakpointsResponse> {
     let waitStopAsync = dc.waitForEvent('stopped');
     await dc.waitForEvent('initialized');
     let breakpointResp = await dc.setBreakpointsRequest({
@@ -157,11 +177,13 @@ async function hitBreakpoint(file: string, line: number): Promise<dp.StoppedEven
     let bp = breakpointResp.body.breakpoints[0];
     assert.ok(bp.verified);
     assert.equal(bp.line, line);
-    let stopEvent = await waitStopAsync;
-    let stackResp = await dc.stackTraceRequest({ threadId: stopEvent.body.threadId });
+    return breakpointResp;
+}
+
+async function verifyLocation(threadId: number, file: string, line: number) {
+    let stackResp = await dc.stackTraceRequest({ threadId: threadId });
     let topFrame = stackResp.body.stackFrames[0];
     assert.equal(topFrame.line, line);
-    return <dp.StoppedEvent>stopEvent;
 }
 
 async function readVariables(threadId: number): Promise<any> {

@@ -9,6 +9,7 @@
         "**/.DS_Store": true,
         "**/*.pyc": true
     },
+    "files.insertFinalNewline": true,
     "python.linting.enabled": false,
     "typescript.check.workspaceVersion": false
 }

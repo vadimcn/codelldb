@@ -56,7 +56,9 @@
 				"./out/tests"
 			],
 			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/out/tests"
+			"outFiles": [
+				"${workspaceRoot}/out/tests"
+			]
 		},
 		{
 			"name": "debuggee",
@@ -67,7 +69,7 @@
 				"FOO": "bar"
 			},
 			"args": [
-				"vars"
+				"header"
 			],
 			"cwd": "${workspaceRoot}"
 		},

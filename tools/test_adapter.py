@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # Execute tests in Python code
 import sys
 import os

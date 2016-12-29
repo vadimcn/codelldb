@@ -223,6 +223,7 @@ class DebugSession:
         self.ignore_bp_events = True
         source = args['source']
 
+        # Disassembly breakpoints have only sourceReference, normal breakpoints have a file path.
         in_dasm = True
         file_id = source.get('sourceReference')
         if file_id is None:
@@ -245,7 +246,21 @@ class DebugSession:
                 bp = curr_bps.get(line, None)
                 if bp is None:
                     if not in_dasm:
-                        bp = self.target.BreakpointCreateByLocation(file_id, line)
+                        # LLDB is pretty finicky about breakpoint location path exactly matching 
+                        # the source path found in debug info.  Unfortunately, this means that
+                        # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same 
+                        # file, and debug info contains un-normalized paths like this pretty often.
+                        # The workaroud is to set a breakpoint by file name and line only, then
+                        # check all resolved locations and filter out the ones that don't match 
+                        # the full path.
+                        file_name = os.path.basename(file_id)
+                        bp = self.target.BreakpointCreateByLocation(file_name, line)
+                        for loc in bp:
+                            fs = loc.GetAddress().GetLineEntry().GetFileSpec()
+                            if fs.IsValid():
+                                log.info('**** %s -> %s', fs.fullpath, os.path.normpath(fs.fullpath))
+                                if os.path.normpath(fs.fullpath) != file_id:
+                                    loc.SetEnabled(False)
                     else:
                         dasm = self.disassembly_by_handle.get(file_id)
                         addr = dasm.address_by_line_num(line)

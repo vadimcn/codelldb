@@ -4,7 +4,8 @@
 #include <string>
 #include <unistd.h>
 
-#include "debuggee.h"
+#include "dir1/debuggee.h"
+#include "dir2/debuggee.h"
 
 void deepstack(int levelsToGo) {
     if (levelsToGo > 0) {
@@ -84,7 +85,8 @@ int main(int argc, char* argv[]) {
     } else if (testcase == "vars") {
         vars();
     } else if (testcase == "header") {
-        header_fn(1);
+        header_fn1(1);
+        header_fn2(2);
     }
     return 0;
 }

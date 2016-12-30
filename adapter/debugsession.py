@@ -161,9 +161,9 @@ class DebugSession:
         pid = args.get('pid', None) 
         program = args.get('program', None)
         if pid is None and program is None:
-            raise UserError('Either the \'program\' or \'pid\' must be specified.')
+            raise UserError('Either \'program\' or \'pid\' must be specified.')
         self.exec_commands(args.get('initCommands'))
-        self.target = self.debugger.CreateTarget('')
+        self.target = self.create_target(args)
         self.send_event('initialized', {})
         self.do_launch = self.attach
         self.launch_args = args
@@ -189,20 +189,25 @@ class DebugSession:
             self.process.Continue()
 
     def create_target(self, args):
-        program = args['program']
-        load_dependents = not args.get('noDebug', False)
-        error = lldb.SBError()
-        target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
-        if not error.Success() and 'win32' in sys.platform:
-            # On Windows, try appending '.exe' extension, to make launch configs more uniform.
-            program += '.exe'
-            error2 = lldb.SBError()
-            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
-            if error2.Success():
-                args['program'] = program
-                error.Clear()
-        if not error.Success():
-            raise UserError('Could not initialize debug target: ' + error.GetCString())
+        program = args.get('program')
+        if program is not None:
+            load_dependents = not args.get('noDebug', False)
+            error = lldb.SBError()
+            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
+            if not error.Success() and 'win32' in sys.platform:
+                # On Windows, try appending '.exe' extension, to make launch configs more uniform.
+                program += '.exe'
+                error2 = lldb.SBError()
+                target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
+                if error2.Success():
+                    args['program'] = program
+                    error.Clear()
+            if not error.Success():
+                raise UserError('Could not initialize debug target: ' + error.GetCString())
+        else:
+            if args['request'] == 'launch':
+                raise UserError('Program path is required for launch.')
+            target = self.debugger.CreateTarget('') # OK if attaching by pid
         target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         return target
 
@@ -258,7 +263,7 @@ class DebugSession:
                         for loc in bp:
                             fs = loc.GetAddress().GetLineEntry().GetFileSpec()
                             if fs.IsValid():
-                                log.info('**** %s -> %s', fs.fullpath, os.path.normpath(fs.fullpath))
+                                self.console_msg('**** %s -> %s' % (fs.fullpath, os.path.normpath(fs.fullpath)))
                                 if os.path.normpath(fs.fullpath) != file_id:
                                     loc.SetEnabled(False)
                     else:
@@ -321,7 +326,7 @@ class DebugSession:
         fs = le.GetFileSpec()
         if not (le.IsValid() and fs.IsValid()):
             return { 'id': bp.GetID(), 'verified': True }
-        source = { 'name': fs.basename, 'path': fs.fullpath }
+        source = { 'name': fs.basename, 'path': os.path.normpath(fs.fullpath) }
         return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
 
     def DEBUG_setExceptionBreakpoints(self, args):
@@ -865,10 +870,11 @@ class DebugSession:
             output = read_stream(1024)
 
     def notify_breakpoint(self, event):
-        return
-        bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
-        bp_info = self.make_bp_resp(bp)
-        self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_info })
+        event_type = lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(event)
+        if event_type == lldb.eBreakpointEventTypeLocationsResolved:
+            bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+            bp_info = self.make_bp_resp(bp)
+            self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': bp_info })
 
     def send_event(self, event, body):
         message = {

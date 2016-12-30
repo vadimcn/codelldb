@@ -10,8 +10,8 @@ import {DebugProtocol as dp} from 'vscode-debugprotocol';
 var dc: DebugClient;
 
 const debuggee = 'out/tests/debuggee'
-const debuggeeSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'debuggee.cpp'));
-const debuggeeHeader = path.normalize(path.join(process.cwd(), 'src', 'tests', 'debuggee.h'));
+const debuggeeSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'cpp', 'debuggee.cpp'));
+const debuggeeHeader = path.normalize(path.join(process.cwd(), 'src', 'tests', 'cpp', 'dir1', 'debuggee.h'));
 
 var port: number = null;
 if (process.env.DEBUG_SERVER) {

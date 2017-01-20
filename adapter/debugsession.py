@@ -263,8 +263,7 @@ class DebugSession:
                         for loc in bp:
                             fs = loc.GetAddress().GetLineEntry().GetFileSpec()
                             if fs.IsValid():
-                                self.console_msg('**** %s -> %s' % (fs.fullpath, os.path.normpath(fs.fullpath)))
-                                if os.path.normpath(fs.fullpath) != file_id:
+                                if not same_file(fs.fullpath, file_id):
                                     loc.SetEnabled(False)
                     else:
                         dasm = self.disassembly_by_handle.get(file_id)
@@ -920,6 +919,11 @@ def SBValueChildrenIter(val):
 
 def opt_str(s):
     return str(s) if s != None else None
+
+def same_file(path1, path2):
+    path1 = os.path.normcase(os.path.normpath(path1))
+    path2 = os.path.normcase(os.path.normpath(path2))
+    return path1 == path2
 
 languages = {
     'rust': { 'init_formatters': formatters.rust.initialize,

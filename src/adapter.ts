@@ -24,8 +24,9 @@ function send_error_msg(slideout: string, message: string) {
 
 let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
 let launchScript = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')';
-let lldb = cp.spawn('lldb', ['-b', '-O', launchScript], {
-    stdio: ['ignore', 'pipe', 'ignore', 'pipe', 'pipe'],
+
+let lldb = cp.spawn('lldb', [], {
+    stdio: ['pipe', 'pipe', 'ignore', 'pipe', 'pipe'],
     cwd: __dirname + '/..'
 });
 
@@ -34,6 +35,8 @@ lldb.on('error', (err: any) => {
     send_error_msg('Failed to launch LLDB: ' + err.message, err.message);
     process.exit(1);
 });
+
+lldb.stdin.write(launchScript + '\r\n');
 
 // Monitor LLDB output for traceback spew and send it to debug console.
 // This is about the only way to catch early Python errors (like the missing six.py module). >:-(

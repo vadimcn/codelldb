@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys, subprocess as sp
+import sys, os, subprocess as sp
 
 if 'win32' in sys.platform:
     extinfo = r'c:\\temp\\vscode-lldb-session'
@@ -9,6 +9,9 @@ else:
 while True:
     print('----------------------')
     try:
-        sp.call(['lldb', '-b', '-O' 'script import adapter; adapter.run_tcp_server(multiple=False, extinfo="%s")' % extinfo])
+        script = 'script import adapter; adapter.run_tcp_server(multiple=False, extinfo="%s")\r\n' % extinfo
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, script.encode('utf-8'))
+        sp.call(['lldb'], stdin=read_fd)
     except KeyboardInterrupt:
         break

@@ -16,9 +16,14 @@ elif 'linux' in sys.platform:
     bindir = os.path.dirname(os.path.realpath(where('lldb')))
     pydir = os.path.join(bindir, '..', 'lib', 'python2.7', 'site-packages')
     sys.path.append(pydir)
+elif 'win32' in sys.platform:
+    bindir = os.path.dirname(os.path.realpath(where('lldb.exe')))
+    pydir = os.path.join(bindir, '..', 'lib', 'site-packages')
+    sys.path.append(pydir)
 else:
-    print 'Unknown OS'
+    print('Unknown OS')
 sys.path.append('.')
 
 from adapter import expressions
 expressions.test()
+print('Success')

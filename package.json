@@ -44,8 +44,9 @@
         "watch": "tsc -w -p .",
         "build:debuggee": "python tools/build_debuggee.py",
         "build:rusttypes": "rustc src/tests/rusttypes.rs -g --out-dir out/tests",
-        "run:tests": "mocha -u tdd --timeout 5000 ./out/tests",
-        "test": "npm run build && npm run build:debuggee && npm run run:tests"
+        "test:adapter": "mocha -u tdd --timeout 5000 ./out/tests",
+        "test:internals": "python tools/test_internals.py",
+        "test": "npm run build && npm run test:internals && npm run build:debuggee && npm run test:adapter"
     },
     "main": "./out/extension",
     "activationEvents": [

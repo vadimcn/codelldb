@@ -54,7 +54,8 @@ class DebugSession:
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
                  'supportsConditionalBreakpoints': True,
-                 'supportsSetVariable': True }
+                 'supportsSetVariable': True,
+                 'supportsCompletionsRequest': True }
 
     def DEBUG_launch(self, args):
         if args.get('request') == 'custom':
@@ -516,6 +517,17 @@ class DebugSession:
             variables.append(variable)
 
         return { 'variables': variables }
+
+    def DEBUG_completions(self, args):
+        interp = self.debugger.GetCommandInterpreter()
+        text = str(args['text'])
+        column = int(args['column'])
+        matches = lldb.SBStringList()
+        result = interp.HandleCompletion(text, column-1, 0, -1, matches)
+        targets = []
+        for match in matches:
+            targets.append({ 'label': match })
+        return { 'targets': targets }
 
     def DEBUG_evaluate(self, args):
         context = args['context']

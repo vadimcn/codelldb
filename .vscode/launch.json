@@ -61,31 +61,22 @@
 			]
 		},
 		{
-			"name": "debuggee",
+			"name": "debuggee launch",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			"initCommands": [
-				"platform select remote-macosx",
-				"platform connect connect://127.0.0.1:1234"
-			],
+			// "initCommands": [
+			// 	"platform select remote-macosx",
+			// 	"platform connect connect://127.0.0.1:1234"
+			// ],
+			"stopOnEntry": true,
 			"env": {
 				"FOO": "bar"
 			},
 			"args": [
-				"header"
+				"vars"
 			],
 			"cwd": "${workspaceRoot}"
-		},
-		{
-			"name": "rusttypes",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/rusttypes",
-			"cwd": "${workspaceRoot}",
-			"sourceLanguages": [
-				"rust"
-			]
 		},
 		{
 			"name": "debuggee attach",
@@ -99,10 +90,32 @@
 			"type": "lldb",
 			"request": "custom",
 			"initCommands": [
-				"target create out/tests/debuggee"
+				"target create ${workspaceRoot}/out/tests/debuggee"
 			],
 			"preRunCommands": [
-				"gdb-remote 127.0.0.1:1234"
+				"process launch -- vars"
+			]
+		},
+		{
+			"name": "debuggee remote",
+			"type": "lldb",
+			"request": "custom",
+			"initCommands": [
+				"target create  ${workspaceRoot}/out/tests/debuggee"
+			],
+			"preRunCommands": [
+				"gdb-remote 127.0.0.1:1234",
+				"continue"
+			]
+		},
+		{
+			"name": "rusttypes",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/tests/rusttypes",
+			"cwd": "${workspaceRoot}",
+			"sourceLanguages": [
+				"rust"
 			]
 		}
 	]

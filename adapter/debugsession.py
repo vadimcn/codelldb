@@ -43,13 +43,29 @@ class DebugSession:
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
+        
         self.debugger = lldb.SBDebugger.Create()
+        #self.debugger = lldb.debugger
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
+        self.debugger.HandleCommand('settings set stop-line-count-before 0')
+        self.debugger.HandleCommand('settings set stop-line-count-after 0')
+
         self.event_listener = lldb.SBListener('DebugSession')
         listener_handler = debugevents.AsyncListener(self.event_listener,
                 self.event_loop.make_dispatcher(self.handle_debugger_event))
         self.listener_handler_token = listener_handler.start()
+
+        # Hook up debugger's stdout and stderr so we can redirect them to VSCode console
+        r, w = os.pipe()
+        read_end = os.fdopen(r, 'r')
+        write_end = os.fdopen(w, 'w')
+        debugger_output_listener = debugevents.DebuggerOutputListener(read_end, 
+                self.event_loop.make_dispatcher(self.handle_debugger_output))
+        self.debugger_output_listener_token = debugger_output_listener.start()
+        self.debugger.SetOutputFileHandle(write_end, True)
+        self.debugger.SetErrorFileHandle(write_end, True)
+
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
@@ -908,6 +924,9 @@ class DebugSession:
             bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
             bp_info = self.make_bp_resp(bp)
             self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': bp_info })
+
+    def handle_debugger_output(self, output):
+        self.console_msg(output)
 
     def send_event(self, event, body):
         message = {

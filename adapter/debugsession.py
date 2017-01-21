@@ -713,6 +713,7 @@ class DebugSession:
         self.process = None
         self.target = None
         self.terminal = None
+        self.listener_handler_token = None
         self.event_loop.stop()
 
     def EXTENSION_test(self, args):

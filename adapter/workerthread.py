@@ -15,6 +15,7 @@ class ScopeGuard:
 class WorkerThread(Thread):
     def __init__(self, *args):
         Thread.__init__(self, *args)
+        self.daemon = True
         self.stopping = False
 
     def start(self):
@@ -23,8 +24,10 @@ class WorkerThread(Thread):
         return ScopeGuard(self.shutdown)
 
     def shutdown(self):
+        log.debug('%s thread is shutting down', self.__class__.__name__)
         self.stopping = True
         self.join()
+        log.debug('%s thread has stopped', self.__class__.__name__)
 
     def run(self):
         try:

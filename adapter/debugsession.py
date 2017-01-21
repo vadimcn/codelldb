@@ -44,13 +44,17 @@ class DebugSession:
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
         
-        self.debugger = lldb.SBDebugger.Create()
-        #self.debugger = lldb.debugger
+        self.debugger = lldb.debugger
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
-        self.debugger.HandleCommand('settings set stop-line-count-before 0')
-        self.debugger.HandleCommand('settings set stop-line-count-after 0')
 
+        # The default event handler spams debug console each time we hit a brakpoint.
+        # Tell debugger's event listener to ignore process state change events.
+        default_listener = self.debugger.GetListener()
+        default_listener.StopListeningForEventClass(self.debugger, 
+            lldb.SBProcess.GetBroadcasterClassName(), lldb.SBProcess.eBroadcastBitStateChanged)
+
+        # Create our event listener and spawn a worker thread to poll it.
         self.event_listener = lldb.SBListener('DebugSession')
         listener_handler = debugevents.AsyncListener(self.event_listener,
                 self.event_loop.make_dispatcher(self.handle_debugger_event))
@@ -63,8 +67,8 @@ class DebugSession:
         debugger_output_listener = debugevents.DebuggerOutputListener(read_end, 
                 self.event_loop.make_dispatcher(self.handle_debugger_output))
         self.debugger_output_listener_token = debugger_output_listener.start()
-        self.debugger.SetOutputFileHandle(write_end, True)
-        self.debugger.SetErrorFileHandle(write_end, True)
+        self.debugger.SetOutputFileHandle(write_end, False)
+        self.debugger.SetErrorFileHandle(write_end, False)
 
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,

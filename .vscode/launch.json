@@ -1,6 +1,6 @@
 {
 	"version": "0.2.0",
-	"debugServer": 4711,
+	//"debugServer": 4711,
 	"configurations": [
 		{
 			"name": "extension",
@@ -69,7 +69,7 @@
 			// 	"platform select remote-macosx",
 			// 	"platform connect connect://127.0.0.1:1234"
 			// ],
-			"stopOnEntry": true,
+			"stopOnEntry": false,
 			"env": {
 				"FOO": "bar"
 			},

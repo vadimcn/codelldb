@@ -57,27 +57,18 @@ class DebugSession:
                  'supportsSetVariable': True }
 
     def DEBUG_launch(self, args):
+        if args.get('request') == 'custom':
+            return self.custom_launch(args)
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
         self.send_event('initialized', {})
         # defer actual launching till configurationDone request, so that
         # we can receive and set initial breakpoints before the target starts running
-        self.do_launch = self.launch
+        self.do_launch = self.complete_launch
         self.launch_args = args
         return AsyncResponse
 
-    def pre_launch(self):
-        for lang in self.launch_args.get('sourceLanguages', []):
-            language = languages.get(lang.lower())
-            if language is not None:
-                init_formatters = language.get('init_formatters')
-                if init_formatters is not None:
-                    init_formatters(self.debugger)
-                classify_type = language.get('classify_type')
-                if classify_type is not None:
-                    expressions.classify_type = classify_type
-
-    def launch(self, args):
+    def complete_launch(self, args):
         log.info('Launching...')
         self.exec_commands(args.get('preRunCommands'))
         flags = 0
@@ -110,6 +101,100 @@ class DebugSession:
 
         assert self.process.IsValid()
         self.process_launched = True
+
+    def DEBUG_attach(self, args):
+        pid = args.get('pid', None) 
+        program = args.get('program', None)
+        if pid is None and program is None:
+            raise UserError('Either the \'program\' or the \'pid\' must be specified.')
+        self.exec_commands(args.get('initCommands'))
+        self.target = self.create_target(args)
+        self.send_event('initialized', {})
+        self.do_launch = self.complete_attach
+        self.launch_args = args
+        return AsyncResponse
+
+    def complete_attach(self, args):
+        log.info('Attaching...')
+        self.exec_commands(args.get('preRunCommands'))
+        error = lldb.SBError()
+        pid = args.get('pid', None) 
+        if pid is not None:
+            if is_string(pid): pid = int(pid)
+            self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
+        else:
+            program = str(args['program'])
+            self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
+        if not error.Success():
+            self.console_msg(error.GetCString())
+            raise UserError('Failed to attach to the process.')
+        assert self.process.IsValid()
+        self.process_launched = False
+        if not args.get('stopOnEntry', False):
+            self.process.Continue()
+
+    def custom_launch(self, args):
+        self.exec_commands(args.get('initCommands'))
+        self.target = self.debugger.GetSelectedTarget()
+        if not self.target.IsValid():
+            self.console_msg('Warning: target is invalid after running "initCommands"')
+        self.target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+        self.send_event('initialized', {})
+        self.do_launch = self.complete_custom_launch
+        self.launch_args = args
+        return AsyncResponse
+
+    def complete_custom_launch(self, args):
+        log.info('Custom launching...')
+        self.exec_commands(args.get('preRunCommands'))
+        self.process = self.target.GetProcess()
+        if not self.process.IsValid():
+            self.console_msg('Warning: process is invalid after running "preRunCommands"')
+        self.process.GetBroadcaster().AddListener(self.event_listener, 0xFFFFFF)
+        self.process_launched = False
+
+    def create_target(self, args):
+        program = args.get('program')
+        if program is not None:
+            load_dependents = not args.get('noDebug', False)
+            error = lldb.SBError()
+            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
+            if not error.Success() and 'win32' in sys.platform:
+                # On Windows, try appending '.exe' extension, to make launch configs more uniform.
+                program += '.exe'
+                error2 = lldb.SBError()
+                target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
+                if error2.Success():
+                    args['program'] = program
+                    error.Clear()
+            if not error.Success():
+                raise UserError('Could not initialize debug target: ' + error.GetCString())
+        else:
+            if args['request'] == 'launch':
+                raise UserError('Program path is required for launch.')
+            target = self.debugger.CreateTarget('') # OK if attaching by pid
+        target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+        return target
+
+    def pre_launch(self):
+        for lang in self.launch_args.get('sourceLanguages', []):
+            language = languages.get(lang.lower())
+            if language is not None:
+                init_formatters = language.get('init_formatters')
+                if init_formatters is not None:
+                    init_formatters(self.debugger)
+                classify_type = language.get('classify_type')
+                if classify_type is not None:
+                    expressions.classify_type = classify_type
+
+    def exec_commands(self, commands):
+        if commands is not None:
+            interp = self.debugger.GetCommandInterpreter()
+            result = lldb.SBCommandReturnObject()
+            for command in commands:
+                interp.HandleCommand(str(command), result)
+                output = result.GetOutput() if result.Succeeded() else result.GetError()
+                self.console_msg(output)
 
     def configure_stdio(self, args):
         stdio = args.get('stdio', None)
@@ -156,69 +241,6 @@ class DebugSession:
         self.send_request('runInTerminal', {
             'kind': 'integrated', 'cwd': None,
             'args': ['bash', '-c', command] }, on_complete)
-
-    def DEBUG_attach(self, args):
-        pid = args.get('pid', None) 
-        program = args.get('program', None)
-        if pid is None and program is None:
-            raise UserError('Either \'program\' or \'pid\' must be specified.')
-        self.exec_commands(args.get('initCommands'))
-        self.target = self.create_target(args)
-        self.send_event('initialized', {})
-        self.do_launch = self.attach
-        self.launch_args = args
-        return AsyncResponse
-
-    def attach(self, args):
-        log.info('Attaching...')
-        self.exec_commands(args.get('preRunCommands'))
-        error = lldb.SBError()
-        pid = args.get('pid', None) 
-        if pid is not None:
-            if is_string(pid): pid = int(pid)
-            self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
-        else:
-            program = str(args['program'])
-            self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
-        if not error.Success():
-            self.console_msg(error.GetCString())
-            raise UserError('Failed to attach to process.')
-        assert self.process.IsValid()
-        self.process_launched = False
-        if not args.get('stopOnEntry', False):
-            self.process.Continue()
-
-    def create_target(self, args):
-        program = args.get('program')
-        if program is not None:
-            load_dependents = not args.get('noDebug', False)
-            error = lldb.SBError()
-            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
-            if not error.Success() and 'win32' in sys.platform:
-                # On Windows, try appending '.exe' extension, to make launch configs more uniform.
-                program += '.exe'
-                error2 = lldb.SBError()
-                target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
-                if error2.Success():
-                    args['program'] = program
-                    error.Clear()
-            if not error.Success():
-                raise UserError('Could not initialize debug target: ' + error.GetCString())
-        else:
-            if args['request'] == 'launch':
-                raise UserError('Program path is required for launch.')
-            target = self.debugger.CreateTarget('') # OK if attaching by pid
-        target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
-        return target
-
-    def exec_commands(self, commands):
-        if commands is not None:
-            interp = self.debugger.GetCommandInterpreter()
-            result = lldb.SBCommandReturnObject()
-            for command in commands:
-                interp.HandleCommand(str(command), result)
-                output = result.GetOutput() if result.Succeeded() else result.GetError()
-                self.console_msg(output)
 
     def DEBUG_setBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):

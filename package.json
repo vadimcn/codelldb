@@ -216,6 +216,25 @@
                                 "default": []
                             }
                         }
+                    },
+                    "custom": {
+                        "properties": {
+                            "initCommands": {
+                                "type": "array",
+                                "description": "Initialization commands executed upon debugger startup.",
+                                "default": []
+                            },
+                            "preRunCommands": {
+                                "type": "array",
+                                "description": "Commands executed just before the program is attached to.",
+                                "default": []
+                            },
+                            "sourceLanguages": {
+                                "type": "array",
+                                "description": "A list of source languages used in the program.",
+                                "default": []
+                            }
+                        }
                     }
                 },
                 "configurationSnippets": [

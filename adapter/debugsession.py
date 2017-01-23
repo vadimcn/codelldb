@@ -526,10 +526,10 @@ class DebugSession:
                 variables.append(variable)
 
         # If this node was synthetic (i.e. a product of a visualizer),
-        # append a [raw] child, which can be expended to snow raw data.
-        if isinstance(vars, lldb.SBValue) and vars.IsSynthetic():
-            handle = self.var_refs.create(vars.GetNonSyntheticValue(), '[raw]', container_handle)
-            variable = { 'name': '[raw]', 'value': vars.GetTypeName(), 'variablesReference': handle }
+        # append [raw] pseudo-child, which can be expanded to show the raw view.
+        if isinstance(container, lldb.SBValue) and container.IsSynthetic():
+            handle = self.var_refs.create(container.GetNonSyntheticValue(), '[raw]', container_handle)
+            variable = { 'name': '[raw]', 'value': container.GetTypeName(), 'variablesReference': handle }
             variables.append(variable)
 
         return { 'variables': variables }

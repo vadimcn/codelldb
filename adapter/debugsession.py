@@ -903,7 +903,9 @@ class DebugSession:
             elif stop_reason == lldb.eStopReasonSignal:
                 stopped_thread = thread
                 stop_reason = 'signal'
-                event['text'] = thread.GetStopReasonDataAtIndex(0)
+                signo = thread.GetStopReasonDataAtIndex(0)
+                signame = self.process.GetUnixSignals().GetSignalAsCString(signo)
+                event['text'] = '%s (%d)' % (signame, signo)
                 break
         event['reason'] = stop_reason
         if stopped_thread is not None:

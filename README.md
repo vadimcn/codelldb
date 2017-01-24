@@ -1,21 +1,24 @@
 CodeLLDB: a LLDB front end for Visual Studio Code
 =================================================
 
-[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.2/README.md) (working hyperlinks!)
+[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.3/README.md) (working hyperlinks!)
 
 # Features
-- [Attach](#attaching) or [Launch](#launching)
-- Redirect [debuggee stdio](#stdio) to a file or a terminal.
-- Breakpoints ([function](https://code.visualstudio.com/Docs/editor/debugging#_function-breakpoints), conditional, [regex](#regex-breakpoints))
-- [Disassembly View](#disassembly-view)
-- Line or instruction stepping
-- Hover tips
-- Watch
-- Multiple threads
-- [Configurable variable formatting](#formatting)
-- [LLDB commands](#lldb-commands)
-- [Expression evaluation](#expressions)
-- [Rust language support](#rust-language-support)
+- Supports Linux, OSX and Windows.
+- [Launch processes](#launching) with configurable [stdio](#stdio) redirection.
+- [Attach to existing processes](#attaching) by pid or by name. 
+- [Custom launching](#custom-launch) for ultimate flexibility.
+- [Remote Debugging](#remote-debugging).
+- Breakpoints ([function](https://code.visualstudio.com/Docs/editor/debugging#_function-breakpoints), conditional, [regex](#regex-breakpoints)).
+- [Disassembly View](#disassembly-view).
+- Line or instruction stepping.
+- Hover tips.
+- Watch.
+- Multiple threads.
+- [Configurable variable formatting](#formatting).
+- [LLDB commands](#lldb-commands).
+- [Expression evaluation](#expressions).
+- [Rust language support](#rust-language-support).
 
 # Prerequisites
 - Visual Studio Code 1.5.0.
@@ -46,8 +49,21 @@ to either launch your program or attach to already running process:
 |**preRunCommands** |[string]|| LLDB commands executed just before launching the program.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
-### Attaching
+#### Stdio
+The **stdio** property is a list of redirection targets for each of debuggee's stdio streams: 
+- `null` (default) will connect the stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
+- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or TTY device <sup>2</sup>.
 
+For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
+stderr to the a file.
+- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
+- A scalar value will configure all three streams identically: `"stdio": null`.
+
+<sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
+as described above.  
+<sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.  
+
+### Attaching
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
 
@@ -63,19 +79,63 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**preRunCommands** |[string]|| LLDB commands executed just before attaching.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
-### Stdio
-The **stdio** property is a list of redirection targets for each of debuggee's stdio streams: 
-- `null` (default) will connect the stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
-- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or TTY device <sup>2</sup>.
+### Custom Launch
 
-For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
-stderr to the a file.
-- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
-- A scalar value will configure all three streams identically: `"stdio": null`.
+The custom launch method puts you in complete control of how the debuggee process is created.  This
+happens in three steps:
 
-<sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
-as described above.  
-<sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.  
+1. The `initCommands` sequence is executed.  It is responsible for creation of the debugging target.
+2. The debugger configures breakpoints using the debug target created in step 1.
+3. The `preRunCommands` sequence is executed.  It is responsible for creating (or attaching to) the debuggee process.
+
+|parameter          |type    |req |         |
+|-------------------|--------|:--:|---------|
+|**name**           |string  |Y| Launch configuration name.|
+|**type**           |string  |Y| Set to `lldb`.|
+|**request**        |string  |Y| Set to `custom`.|
+|**initCommands**   |[string]|| A sequence of LLDB commands that creates the debugging target.|
+|**preRunCommands** |[string]|| A sequence of LLDB commands that creates the debuggee process.|
+|**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
+
+### Remote debugging
+
+For general information please see [LLDB Remote Debugging Help](http://lldb.llvm.org/remote.html).
+
+#### Connecting to lldb-server agent
+- On the remote system run `lldb-server platform --server --listen *:<port>`.  
+- Create a launch configuration: 
+```json
+{
+    "name": "Remote launch",
+    "type": "lldb",
+    "program": "${workspaceRoot}/build/debuggee",
+    "initCommands": [
+        "platform select <platform>", 
+        "platform connect connect://<remote_host>:<port>"
+    ],
+}
+```
+A list of available platform plug-ins can be obtained through `platform list`.
+
+After this you can launch or attach to programs as usual.  Note that you must specify the local 
+debuggee path in `program` and it will be automatically copied to the lldb-server's current directory 
+on the remote system.  
+If you require additional configuration of the remote system, you may put commands such as `platform mkdir`, 
+`platform put-file`, `platform shell` into `preRunCommands` section of the launch configuration 
+(use `help platform` to get the full list of available commands).
+
+#### Connecting to gdbserver agent
+- On the remote system run `gdbserver *:<port> <debuggee> <debuggee args>`.
+- Create a custom launch configuration such as the following:
+```json
+{
+    "name": "Remote attach",
+    "type: "lldb",
+    "request": "custom",
+    "initCommands": ["target create ${workspaceRoot}/build/debuggee"],
+    "preRunCommands": ["gdb-remote <remote_host>:<port>"]
+}
+```
 
 ## Regex Breakpoints
 When setting a function breakpoint, if the first character of the function name is '`/`',
@@ -110,7 +170,6 @@ as hex. Here's the full list:
 |**s**  | C string |
 |**y**  | Bytes |
 |**Y**  | Bytes with ASCII |
-
 
 ## LLDB Commands
 VS Code UI does not provide access to all the bells and whistles of the underlying LLDB engine.
@@ -150,7 +209,8 @@ have this problem fixed.
 # Installing LLDB
 ## Linux
 On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install python-lldb-x.y`, where x.y is the LLDB version.
-You may need to create symlinks to `lldb` and `lldb-server` manually.
+Note: some distros install LLDB with versioned name, e.g. `lldb-4.0`.  In this case you will need to 
+manually create a symlink from `lldb` to `lldb-<version>`.
 
 See [this page](http://lldb.llvm.org/download.html) for installing nightlies.
 
@@ -159,7 +219,9 @@ See [this page](http://lldb.llvm.org/download.html) for installing nightlies.
 - Install XCode Command Line Tools by running `xcode-select --install`
 
 ## Windows
-No binary downloads are available at this time.
-You are gonna have to [build your own](http://lldb.llvm.org/build.html#BuildingLldbOnWindows).  Sorry :(
+- [Download](http://llvm.org/builds/) and install LLVM for Windows.
+- [Download](https://www.python.org/downloads/windows/) and install Python 3.5.x. If you've 
+installed a 64-bit LLVM, you will need a 64-bit Python as well.
+- Make sure that both LLDB and Python install directories are on the PATH.
 
 # [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)

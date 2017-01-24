@@ -1,5 +1,12 @@
 # What's New
 
+## 0.3.3
+- [Custom launch requests](README.md#custom-launch).
+- Command completions in debug console.
+- Windows LLDB is now supported!
+- Debugger stdout is now piped to debug console.
+- Fixed bug #13 (breakpoints in headers).
+
 ## 0.3.2
 - Added pickProcess and pickMyProcess commands to be used with the **pid** parameter when [attaching](README.md#attaching).
 - Added debug configuration snippets.
@@ -23,12 +30,12 @@
 - Resume debuggee after attach, unless stopOnEntry is true.
 
 ## 0.2.0
-- Added [disassembly view](#disassembly-view).
-- Added [variable formatting](#formatting).
+- Added [disassembly view](README.md#disassembly-view).
+- Added [variable formatting](README.md#formatting).
 
 ## 0.1.3
 - Added support for setting variable values (primitive types only).
-- Added [regex breakpoints](#regex-breakpoints).
+- Added [regex breakpoints](README.md#regex-breakpoints).
 
 ## 0.1.2
 - Infer `.exe` target extension on Windows.

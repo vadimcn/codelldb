@@ -1,9 +1,9 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "publisher": "vadimcn",
-    "description": "A LLDB front end for native debugging in Visual Studio Code.",
+    "description": "Debug your native code in LLDB.",
     "license": "MIT",
     "author": {
         "name": "vadimcn"
@@ -16,10 +16,11 @@
         "Debuggers"
     ],
     "keywords": [
-        "Debug",
-        "Debugger",
         "LLDB",
-        "Rust"
+        "Native",
+        "C++",
+        "Rust",
+        "Disassembly"
     ],
     "private": true,
     "repository": {
@@ -115,7 +116,7 @@
                 "variables": {
                     "pickProcess": "lldb.pickProcess",
                     "pickMyProcess": "lldb.pickMyProcess"
-                },              
+                },
                 "runtime": "node",
                 "program": "out/adapter.js",
                 "configurationAttributes": {
@@ -153,12 +154,16 @@
                                     "array",
                                     "object"
                                 ],
-                                "description": "Where to attach stdio streams: null = debugger console, '*' = open a new terminal, '<path>' = attach to a file/tty/fifo.",
-                                "default": "*"
+                                "description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
+                                "default": null
                             },
                             "terminal": {
                                 "type": "string",
-                                "enum": ["integrated", "external", "console"],
+                                "enum": [
+                                    "integrated",
+                                    "external",
+                                    "console"
+                                ],
                                 "default": "integrated",
                                 "description": "Terminal type to use for the program."
                             },
@@ -191,7 +196,10 @@
                                 "description": "Path to the program to attach to."
                             },
                             "pid": {
-                                "type": ["number", "string"],
+                                "type": [
+                                    "number",
+                                    "string"
+                                ],
                                 "description": "Process id to attach to.",
                                 "default": "${command.pickMyProcess}"
                             },
@@ -221,12 +229,12 @@
                         "properties": {
                             "initCommands": {
                                 "type": "array",
-                                "description": "Initialization commands executed upon debugger startup.",
+                                "description": "Commands that create the debugging target.",
                                 "default": []
                             },
                             "preRunCommands": {
                                 "type": "array",
-                                "description": "Commands executed just before the program is attached to.",
+                                "description": "Commands that create the debuggee process.",
                                 "default": []
                             },
                             "sourceLanguages": {
@@ -238,37 +246,52 @@
                     }
                 },
                 "configurationSnippets": [
-					{
-						"label": "LLDB: Launch",
-						"description": "",
-						"body": {
-							"type": "lldb",
-							"request": "launch",
-							"name": "${2:Launch}",
-							"program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
-                            "args": [],
-							"cwd": "^\"\\${workspaceRoot}\""
-						}
-					},
-					{
-						"label": "LLDB: Attach by Process ID",
-						"body": {
-							"type": "lldb",
-							"request": "attach",
-							"name": "${2:Attach}",
-							"pid": "^\"\\${command.pickMyProcess}\" // use \\${command.pickProcess} to pick other users' processes"
-						}
-					},
                     {
-						"label": "LLDB: Attach by Program Path",
-						"body": {
-							"type": "lldb",
-							"request": "attach",
-							"name": "${2:Attach}",
+                        "label": "LLDB: Launch",
+                        "description": "",
+                        "body": {
+                            "type": "lldb",
+                            "request": "launch",
+                            "name": "${2:Launch}",
+                            "program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
+                            "args": [],
+                            "cwd": "^\"\\${workspaceRoot}\""
+                        }
+                    },
+                    {
+                        "label": "LLDB: Attach by Process ID",
+                        "body": {
+                            "type": "lldb",
+                            "request": "attach",
+                            "name": "${2:Attach}",
+                            "pid": "^\"\\${command.pickMyProcess}\" // use \\${command.pickProcess} to pick other users' processes"
+                        }
+                    },
+                    {
+                        "label": "LLDB: Attach by Program Path",
+                        "body": {
+                            "type": "lldb",
+                            "request": "attach",
+                            "name": "${2:Attach}",
                             "program": "^\"\\${workspaceRoot}/${1:<your program>}\""
-						}
-					}
-				],                    
+                        }
+                    },
+                    {
+                        "label": "LLDB: Custom Launch",
+                        "body": {
+                            "type": "lldb",
+                            "request": "custom",
+                            "name": "${2:Custom launch}",
+                            "initCommands": [
+                                "^\"target create \\${workspaceRoot}/${1:<your program>}\""
+                            ],
+                            "preRunCommands": [
+                                "settings set target.run-args ${3:value1 value2 value3}",
+                                "process launch"
+                            ]
+                        }
+                    }
+                ],
                 "initialConfigurations": [
                     {
                         "type": "lldb",

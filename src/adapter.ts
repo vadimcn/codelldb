@@ -4,13 +4,13 @@
 import * as cp from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import {Readable, Writable} from 'stream';
+import { Readable, Writable } from 'stream';
 
 function main() {
     let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
     let launchScript = 'script import adapter\r\n' +
-                    'script adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')\r\n' +
-                    'exit\r\n';
+        'script adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')\r\n' +
+        'exit\r\n';
 
     // Spawn LLDB.  Stdio streams 3 and 4 will be connected to our stdin and stdout.
     // Unfortunately, we cannot hand off our stdin to LLDB directly, because Node.js 
@@ -30,7 +30,9 @@ function main() {
     });
 
     // Send the adapter launch script.
-    lldb.stdin.write(launchScript);
+    if (lldb.pid) { // (write() will throw on Windows if spawn fails)
+        lldb.stdin.write(launchScript);
+    }
 
     // Monitor LLDB output for traceback spew and send it to debug console.
     // This is about the only way to catch early Python errors (like the missing six.py module). >:-(
@@ -53,7 +55,7 @@ function send_error_msg(slideout: string, message: string) {
     // Also, fake out a response to 'initialize' message, which will be shown on a slide-out.
     let response = JSON.stringify({
         type: 'response', command: 'initialize', request_seq: 1, success: false, body:
-            { error: { id: 0, format: slideout, showUser: true } }
+        { error: { id: 0, format: slideout, showUser: true } }
     });
     process.stdout.write('Content-Length: ' + response.length.toString() + '\r\n\r\n');
     process.stdout.write(response);

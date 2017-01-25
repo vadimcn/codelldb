@@ -88,6 +88,8 @@ def gcm(valobj, *chain):
     return valobj
 
 def string_from_ptr(pointer, length):
+    if length <= 0:
+        return ''
     error = lldb.SBError()
     process = pointer.GetProcess()
     data = process.ReadMemory(pointer.GetValueAsUnsigned(), length, error)

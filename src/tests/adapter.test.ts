@@ -114,13 +114,13 @@ suite('Basic', () => {
         assertDictContains(locals, {
             'a': '30',
             'b': '40',
-            'v': 'size=10',
+            'vec_int': 'size=10',
             's': 'Struct',
             'str1': '"The quick brown fox"',
         });
 
         let response1 = await dc.evaluateRequest({
-            expression: 'v', context: 'watch',
+            expression: 'vec_int', context: 'watch',
             frameId: frames.body.stackFrames[0].id
         });
         let v = await readVariables(response1.body.variablesReference);

@@ -4,6 +4,7 @@ import os.path
 import shlex
 import traceback
 import lldb
+import collections
 from . import expressions
 from . import debugevents
 from . import disassembly
@@ -521,13 +522,19 @@ class DebugSession:
         elif isinstance(container, lldb.SBValue):
             vars_iter = SBValueChildrenIter(container)
 
-        variables = []
+        variables = collections.OrderedDict()
         for var in vars_iter:
             name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
-            # Sometimes LLDB returns junk entries with empty names and values
-            if name is not None:
-                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
-                variables.append(variable)
+            if name is None: # Sometimes LLDB returns junk entries with empty names and values
+                continue
+            variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
+            # Ensure proper variable shadowing: if variable of the same name had already been added,
+            # remove it and insert the new instance at the end.
+            if name in variables:
+                del variables[name]
+            variables[name] = variable
+
+        variables = list(variables.values())
 
         # If this node was synthetic (i.e. a product of a visualizer),
         # append [raw] pseudo-child, which can be expanded to show the raw view.

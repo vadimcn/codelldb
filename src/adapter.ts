@@ -8,16 +8,14 @@ import { Readable, Writable } from 'stream';
 
 function main() {
     let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
-    let launchScript = 'script import adapter\r\n' +
-        'script adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')\r\n' +
-        'exit\r\n';
+    let script = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')';
 
     // Spawn LLDB.  Stdio streams 3 and 4 will be connected to our stdin and stdout.
     // Unfortunately, we cannot hand off our stdin to LLDB directly, because Node.js 
     // will have already read the initial commands that VSCode sends into a buffer 
     // in this process, so instead we just pipe the data.
-    let lldb = cp.spawn('lldb', [], {
-        stdio: ['pipe', 'pipe', 'ignore', 'pipe', process.stdout],
+    let lldb = cp.spawn('lldb', ['-b', '-O', script], {
+        stdio: ['ignore', 'pipe', 'ignore', 'pipe', process.stdout],
         cwd: __dirname + '/..',
         //env: { 'VSCODE_LLDB_LOG': '/tmp/vscode-lldb.log' }
     });
@@ -28,11 +26,6 @@ function main() {
         send_error_msg('Failed to launch LLDB: ' + err.message, err.message);
         process.exit(1);
     });
-
-    // Send the adapter launch script.
-    if (lldb.pid) { // (write() will throw on Windows if spawn fails)
-        lldb.stdin.write(launchScript);
-    }
 
     // Monitor LLDB output for traceback spew and send it to debug console.
     // This is about the only way to catch early Python errors (like the missing six.py module). >:-(

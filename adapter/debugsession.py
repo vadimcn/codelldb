@@ -637,7 +637,8 @@ class DebugSession:
         name = var.GetName()
         value = self.get_var_value(var, format)
         dtype = var.GetTypeName()
-        if var.GetNumChildren() > 0:
+        # Synthetic vars will at least have the [raw] child.
+        if var.GetNumChildren() > 0 or var.IsSynthetic():
             handle = self.var_refs.create(var, name, parent_handle)
             if value is None:
                 value = dtype

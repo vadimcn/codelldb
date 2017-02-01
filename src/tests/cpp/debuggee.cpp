@@ -57,9 +57,11 @@ void vars() {
         const char c[] = "foobar";
         char buffer[10240] = {0};
         std::vector<std::vector<int>> v(10, {i*1, i*2, i*3, i*4, i*5});
+        std::vector<std::vector<int>> empty_vec;
         Struct s = { i+1, 'a', 3.0f };
         std::vector<Struct> vs(3, { i*2, 'b', 4.0f});
         std::string str1 = "The quick brown fox";
+        std::string empty_str;
         int zzz = i; // #BP3
     }
 }

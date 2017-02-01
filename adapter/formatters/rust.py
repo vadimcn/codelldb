@@ -45,7 +45,7 @@ ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
 analyzed = {}
 def classify_type(qual_obj_type):
     global analyzed
-    if analyzed.has_key(qual_obj_type.GetName()):
+    if qual_obj_type.GetName() in analyzed:
         return
     #log.info('classify_type for %s %d', qual_obj_type.GetName(), qual_obj_type.GetTypeClass())
     obj_type = qual_obj_type.GetUnqualifiedType()
@@ -357,5 +357,8 @@ class StdCStringSynthProvider(StringLikeSynthProvider):
 class StdOsStringSynthProvider(StringLikeSynthProvider):
     def _update(self):
         vec = gcm(self.valobj, 'inner', 'inner')
+        tmp = gcm(vec, 'bytes') # Windows OSString has an extra layer
+        if tmp.IsValid():
+            vec = tmp
         self.len = gcm(vec, 'len').GetValueAsUnsigned()
         self.ptr = gcm(vec, 'buf', 'ptr', 'pointer', '__0')

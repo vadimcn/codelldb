@@ -44,7 +44,7 @@ class DebugSession:
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
         
-        self.debugger = lldb.debugger
+        self.debugger = lldb.debugger if lldb.debugger else lldb.SBDebugger.Create()
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
 

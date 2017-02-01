@@ -38,6 +38,7 @@ def run_session(read, write, extinfo):
         ext_server = ExtensionServer()
         if extinfo is not None:
             open(extinfo, 'wb').write(str(ext_server.port).encode('utf-8'))
+            log.info('Extension server port info (%d) written to %s', ext_server.port, extinfo) 
         
         # Create DebugSession, tell it how to send messages back to the clients
         debug_session = DebugSession(event_loop, debug_server.send_message, ext_server.send_message)
@@ -54,6 +55,9 @@ def run_session(read, write, extinfo):
         event_loop.run()
     except Exception as e:
         log.error('%s', traceback.format_exc())
+    finally:
+        if extinfo is not None:
+            os.unlink(extinfo)
 
 # Run in socket server mode
 def run_tcp_server(port=4711, multiple=True, extinfo=None):

@@ -7,8 +7,9 @@ import * as path from 'path';
 import { Readable, Writable } from 'stream';
 
 function main() {
-    let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session').replace(/\\/g, '\\\\');
-    let script = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + extInfoPath + '\')';
+    let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session-' + process.env['VSCODE_PID']);
+    let script = 'script import adapter; adapter.run_stdio_session(3,4,extinfo=\'' + 
+                    extInfoPath.replace(/\\/g, '\\\\') + '\')';
 
     // Spawn LLDB.  Stdio streams 3 and 4 will be connected to our stdin and stdout.
     // Unfortunately, we cannot hand off our stdin to LLDB directly, because Node.js 

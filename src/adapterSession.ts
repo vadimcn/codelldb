@@ -44,7 +44,7 @@ export async function withSession<T>(operation: (conn: MyProtocolClient) => Prom
 
 async function createConnection(): Promise<MyProtocolClient> {
     try {
-        let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session');
+        let extInfoPath = path.join(os.tmpdir(), 'vscode-lldb-session-' + process.env['VSCODE_PID']);
         let data = fs.readFileSync(extInfoPath, 'utf8');
         let port = parseInt(data);
         let client = new MyProtocolClient();

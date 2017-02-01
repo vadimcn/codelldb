@@ -10,10 +10,10 @@ class DebugServer(WorkerThread):
     handle_message = None
 
     # `read(N)`: callback to read up to N bytes from the input stream.
-    # `write(buffer)`: callback to write bytes into the output stream.
-    def reset(self, read, write):
+    # `write_all(buffer)`: callback to write bytes into the output stream.
+    def reset(self, read, write_all):
         self.read = read
-        self.write = write
+        self.write_all = write_all
         self.ibuffer = b''
 
     def thread_proc(self):
@@ -75,9 +75,8 @@ class DebugServer(WorkerThread):
         data = json.dumps(message, separators=self.json_separators)
         log.debug('tx: %s', data)
         data = data.encode('utf-8')
-        self.with_timeout(self.write, b'Content-Length: %d\r\n\r\n' % len(data))
-        self.with_timeout(self.write, data)
-
+        self.with_timeout(self.write_all, b'Content-Length: %d\r\n\r\n' % len(data))
+        self.with_timeout(self.write_all, data)
 
 # Wire protocol handler for the auxilary connection to VSCode extension
 class ExtensionServer(DebugServer):

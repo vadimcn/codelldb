@@ -4,6 +4,7 @@ import logging
 import signal
 import socket
 import traceback
+import errno
 
 log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -72,7 +73,7 @@ def run_tcp_server(port=4711, multiple=True, extinfo=None):
         conn, addr = ls.accept()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info('New connection from %s', addr)
-        run_session(conn.recv, conn.send, extinfo)
+        run_session(conn.recv, conn.sendall, extinfo)
         conn.close()
         if multiple:
             log.info('Debug session ended. Waiting for new connections.')
@@ -81,11 +82,21 @@ def run_tcp_server(port=4711, multiple=True, extinfo=None):
             break
     ls.close()
 
+from os import read as os_read, write as os_write
+def os_write_all(ofd, data):
+    n = os_write(ofd, data)
+    while n < len(data): # This may happen when fill-up the output pipe's buffer.
+        data = data[n:]
+        try:
+            n = os_write(ofd, data)
+        except OSError as e:
+            if e.errno != errno.EAGAIN:
+                raise
+            n = 0
+
 # Single-session run using the specified input and output fds
 def run_stdio_session(ifd=0, ofd=1, extinfo=None):
     init_logging(True)
     log.info('Single-session mode on fds (%d,%d)', ifd, ofd)
-    r = lambda n: os.read(ifd, n)
-    w = lambda data: os.write(ofd, data)
-    run_session(r, w, extinfo)
+    run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), extinfo)
     log.info('Debug session ended. Exiting.')

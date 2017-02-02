@@ -84,79 +84,78 @@ on some systems.  You may need to adjust system configuration to enable it.
 The custom launch method puts you in complete control of how the debuggee process is created.  This
 happens in three steps:
 
-1. The `initCommands` sequence is executed.  It is responsible for creation of the debugging target.
-2. The debugger configures breakpoints using the debug target created in step 1.
-3. The `preRunCommands` sequence is executed.  It is responsible for creating (or attaching to) the debuggee process.
+1. `initCommands` sequence is executed.  It is responsible for creation of the debug target.
+2. Debugger configures breakpoints using the target created in step 1.
+3. `preRunCommands` sequence is executed.  It is responsible for creation of (or attaching to) the debuggee process.
 
 |parameter          |type    |req |         |
 |-------------------|--------|:--:|---------|
 |**name**           |string  |Y| Launch configuration name.|
 |**type**           |string  |Y| Set to `lldb`.|
 |**request**        |string  |Y| Set to `custom`.|
-|**initCommands**   |[string]|| A sequence of LLDB commands that creates the debugging target.|
-|**preRunCommands** |[string]|| A sequence of LLDB commands that creates the debuggee process.|
+|**initCommands**   |[string]|| A sequence of commands that creates the debug target.|
+|**preRunCommands** |[string]|| A sequence of commands that creates the debuggee process.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Remote debugging
 
-For general information please see [LLDB Remote Debugging Help](http://lldb.llvm.org/remote.html).
+For general information on remote debugging please see the [LLDB Remote Debugging Guide](http://lldb.llvm.org/remote.html).
 
 #### Connecting to lldb-server agent
-- On the remote system run `lldb-server platform --server --listen *:<port>`.  
-- Create a launch configuration: 
+- Run `lldb-server platform --server --listen *:<port>` on the remote machine.  
+- Create launch configuration similar to this:
 ```json
 {
     "name": "Remote launch",
     "type": "lldb",
-    "program": "${workspaceRoot}/build/debuggee",
+    "program": "${workspaceRoot}/build/debuggee", // Local path.
     "initCommands": [
         "platform select <platform>", 
         "platform connect connect://<remote_host>:<port>"
     ],
 }
 ```
-A list of available platform plug-ins can be obtained through `platform list`.
+See `platform list` for a list of available remote platform plugins.
 
-After this you can launch or attach to programs as usual.  Note that you must specify the local 
-debuggee path in `program` and it will be automatically copied to the lldb-server's current directory 
-on the remote system.  
-If you require additional configuration of the remote system, you may put commands such as `platform mkdir`, 
-`platform put-file`, `platform shell` into `preRunCommands` section of the launch configuration 
-(use `help platform` to get the full list of available commands).
+- Start debugging as usual.  The executable identified in the `program` property will 
+be automatically copied to `lldb-server`'s current directory on the remote machine.
+If you require additional configuration of the remote system, you may use `preRunCommands` script
+to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
+(See `help platform` for a list of available platform commands).
 
 #### Connecting to gdbserver agent
-- On the remote system run `gdbserver *:<port> <debuggee> <debuggee args>`.
-- Create a custom launch configuration such as the following:
+- Run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
+- Create a custom launch configuration:
 ```json
 {
     "name": "Remote attach",
-    "type: "lldb",
+    "type": "lldb",
     "request": "custom",
     "initCommands": ["target create ${workspaceRoot}/build/debuggee"],
     "preRunCommands": ["gdb-remote <remote_host>:<port>"]
 }
 ```
+- Start debugging.
 
 ## Regex Breakpoints
-When setting a function breakpoint, if the first character of the function name is '`/`',
-the rest of the string is interpreted as a regular expression.  This shall cause a breakpoint to
-be set in every function matching the expression (the list of locations may be examined
-using `break list` command).
+Function breakpoints beginning with '`/`', are interpreted as regular expressions.
+This causes a breakpoint to be set in every function matching the expression
+(the list of created breakpoint locations may be examined using `break list` command).
 
 ## Disassembly View
-When stepping into a compile unit which does not have a debug info, CodeLLDB will instead display
-disassembly of the current function.  This behavior may be controlled using `LLDB: Show Disassembly`
+When execution steps into code for which debug info is not available, CodeLLDB will automatically 
+switch to disassembly view.  This behavior may be controlled using `LLDB: Show Disassembly`
 and `LLDB: Toggle Disassembly` commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
 
-When is disassembly view, the 'step over' and 'step into' debug actions will step by instruction
-instead of by line.
+While is disassembly view, the 'step over' and 'step into' debug actions will perform instruction-level
+stepping rather than source-level stepping.
 
 ## Formatting
 You may change the default display format of variables using the `LLDB: Display Format` command.
-When evaluating expressions from Debug Console or in the 'Watch' view, you may also control
-formatting of individual expressions by adding a suffix. For example `$rax,x` will format the value
-as hex. Here's the full list:
+When evaluating expressions in the Debug Console or in the 'Watch' view, you may also control
+formatting of individual expressions by adding a suffix.  For example `$rax,x` will display a hex 
+value.  Here's the full list of supported formatting suffixes:
 
 |suffix|format |
 |:-----:|-------|
@@ -173,17 +172,17 @@ as hex. Here's the full list:
 
 ## LLDB Commands
 VS Code UI does not provide access to all the bells and whistles of the underlying LLDB engine.
-To access advanced features, you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) into Debug Console.
-If you would like to evaluate an expression instead, prefix it with '`?`'.
+To access advanced features, you may enter [LLDB commands](http://lldb.llvm.org/tutorial.html) into 
+the Debug Console.  If you would like to evaluate an expression instead, prefix it with '`?`'.
 
-Note that any debugger state changes that you make directly through LLDB commands will not be reflected in the UI
-and will not be persisted across debug sessions.
+Note that any debugger state changes that you make directly through LLDB commands will not be reflected
+in the UI and will not be persisted across debugging sessions.
 
 ## Expressions
 *(New in v0.3.0)* CodeLLDB leverages Python interpreter to evaluate expressions in Debug Console and the Watch view.
-The debuggee variables are represented by a special wrapper class that implements 
+The debuggee variables are represented by a special wrapper class that implements
 most of the usual Python operators on top of the view provided by LLDB variable formatters.
-This means that things like indexing a `std::vector` with an integer, or comparing a `std::string` 
+This means that things like indexing a `std::vector` with an integer, or comparing a `std::string`
 to a string literal, just work!  
 Unlike regular Python scripts, though, all identifiers are interpreted as variable names. If you need
 to use an actual Python keyword, prefix it with '@'.  For example: `[sqrt(x) @for x @in y]`.
@@ -209,9 +208,8 @@ have this problem fixed.
 # Installing LLDB
 ## Linux
 On Debian-derived distros (e.g. Ubuntu), run `sudo apt-get install python-lldb-x.y`, where x.y is the LLDB version.
-Note: some distros install LLDB with versioned name, e.g. `lldb-4.0`.  In this case you will need to 
-manually create a symlink from `lldb` to `lldb-<version>`.
-
+Note: some distros install LLDB with a versioned name, e.g. `lldb-4.0`.  In this case you will need to 
+manually create a symlink from `lldb` to `lldb-<version>`.  
 See [this page](http://lldb.llvm.org/download.html) for installing nightlies.
 
 ## Mac OSX

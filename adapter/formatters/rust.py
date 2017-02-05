@@ -103,8 +103,10 @@ def get_obj_summary(valobj):
     summary = valobj.GetSummary()
     if summary is not None:
         return summary
-    else:
-        return valobj.GetValue()
+    summary = valobj.GetValue()
+    if summary is not None:
+        return summary
+    return '<not available>'
 
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
 # This trick allows us to share data extraction logic between synth providers and their

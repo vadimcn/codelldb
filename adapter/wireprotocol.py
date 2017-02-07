@@ -11,7 +11,7 @@ class DebugServer(WorkerThread):
 
     # `read(N)`: callback to read up to N bytes from the input stream.
     # `write_all(buffer)`: callback to write bytes into the output stream.
-    def reset(self, read, write_all):
+    def set_channel(self, read, write_all):
         self.read = read
         self.write_all = write_all
         self.ibuffer = b''
@@ -77,24 +77,3 @@ class DebugServer(WorkerThread):
         data = data.encode('utf-8')
         self.with_timeout(self.write_all, b'Content-Length: %d\r\n\r\n' % len(data))
         self.with_timeout(self.write_all, data)
-
-# Wire protocol handler for the auxilary connection to VSCode extension
-class ExtensionServer(DebugServer):
-    def __init__(self):
-        DebugServer.__init__(self)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind(('127.0.0.1', 0))
-        self.sock.listen(1)
-        addr, port = self.sock.getsockname()
-        self.port = port
-
-    def thread_proc(self):
-        try:
-            self.sock.settimeout(0.3)
-            conn, addr = self.with_timeout(self.sock.accept)
-            conn.settimeout(0.3)
-            self.sock.close()
-            DebugServer.reset(self, conn.recv, conn.send)
-            DebugServer.thread_proc(self)
-        except StopIteration:
-            pass

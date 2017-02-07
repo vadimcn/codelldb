@@ -9,12 +9,14 @@ import { DebugProtocol as dp } from 'vscode-debugprotocol';
 
 var dc: DebugClient;
 
-const debuggee = 'out/tests/debuggee'
-const debuggeeSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'cpp', 'debuggee.cpp'));
-const debuggeeHeader = path.normalize(path.join(process.cwd(), 'src', 'tests', 'cpp', 'dir1', 'debuggee.h'));
+const projectDir = path.join(__dirname, '..', '..');
 
-const rusttypes = 'out/tests/rusttypes'
-const rusttypesSource = path.normalize(path.join(process.cwd(), 'src', 'tests', 'rusttypes.rs'));
+const debuggee = path.join(projectDir, 'out', 'tests', 'debuggee');
+const debuggeeSource = path.normalize(path.join(projectDir, 'src', 'tests', 'cpp', 'debuggee.cpp'));
+const debuggeeHeader = path.normalize(path.join(projectDir, 'src', 'tests', 'cpp', 'dir1', 'debuggee.h'));
+
+const rusttypes = path.join(projectDir, 'out', 'tests', 'rusttypes');
+const rusttypesSource = path.normalize(path.join(projectDir, 'src', 'tests', 'rusttypes.rs'));
 
 var port: number = null;
 if (process.env.DEBUG_SERVER) {
@@ -23,7 +25,7 @@ if (process.env.DEBUG_SERVER) {
 }
 
 setup(() => {
-    dc = new DebugClient('node', './out/adapter.js', 'lldb');
+    dc = new DebugClient('node', './out/tests/launcher.js', 'lldb');
     return dc.start(port);
 });
 

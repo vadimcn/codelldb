@@ -9,7 +9,7 @@
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^1.5.0"
+        "vscode": "^1.9.0"
     },
     "icon": "lldb.png",
     "categories": [
@@ -51,6 +51,8 @@
     },
     "main": "./out/extension",
     "activationEvents": [
+        "onCommand:lldb.getAdapterExecutable",
+        "onCommand:lldb.startDebugSession",
         "onCommand:lldb.showDisassembly",
         "onCommand:lldb.toggleDisassembly",
         "onCommand:lldb.displayFormat",
@@ -59,6 +61,17 @@
         "onCommand:lldb.pickMyProcess"
     ],
     "contributes": {
+         "configuration": {
+            "type": "object",
+            "title": "LLDB configuration",           
+            "properties": {
+                "lldb.path": {
+                    "type": "string",
+                    "default": "lldb",
+                    "description": "Path to LLDB executable."
+                }
+            }
+         },
         "commands": [
             {
                 "command": "lldb.showDisassembly",
@@ -117,8 +130,8 @@
                     "pickProcess": "lldb.pickProcess",
                     "pickMyProcess": "lldb.pickMyProcess"
                 },
-                "runtime": "node",
-                "program": "out/adapter.js",
+                "adapterExecutableCommand": "lldb.getAdapterExecutable",      
+                "_startSessionCommand": "lldb.startDebugSession",
                 "configurationAttributes": {
                     "launch": {
                         "required": [
@@ -140,7 +153,7 @@
                             "cwd": {
                                 "type": "string",
                                 "description": "Program working directory.",
-                                "default": null
+                                "default": "${workspaceRoot}"
                             },
                             "env": {
                                 "type": "object",

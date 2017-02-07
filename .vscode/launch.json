@@ -15,15 +15,6 @@
 			"sourceMaps": true
 		},
 		{
-			"name": "adapter launcher",
-			"preLaunchTask": "build",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/out/adapter.js",
-			"cwd": "${workspaceRoot}",
-			"stopOnEntry": true
-		},
-		{
 			"name": "adapter",
 			"type": "python",
 			"request": "launch",

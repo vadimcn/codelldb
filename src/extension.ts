@@ -1,11 +1,16 @@
 'use strict';
 import { workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem } from 'vscode';
-import { withSession } from './adapterSession';
 import { format } from 'util';
 import * as path from 'path';
 import * as cp from 'child_process';
+import * as os from 'os';
+import * as ec from './extensionChannel';
 
 export function activate(context: ExtensionContext) {
+    context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
+        () => getAdapterExecutable(context)));
+    context.subscriptions.push(commands.registerCommand('lldb.startDebugSession',
+        (args) => startDebugSession(context, args)));
     context.subscriptions.push(commands.registerCommand('lldb.showDisassembly',
         () => showDisassembly(context)));
     context.subscriptions.push(commands.registerCommand('lldb.toggleDisassembly',
@@ -20,24 +25,48 @@ export function activate(context: ExtensionContext) {
         () => pickProcess(context, true)));
 }
 
+async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
+    let port = await ec.startListener();
+    let config = workspace.getConfiguration('lldb');
+    let lldbPath = config.get('path', 'lldb');
+    let adapterPath = path.join(context.extensionPath, 'adapter');
+    return {
+        command: lldbPath,
+        args: ['-b', '-Q',
+            '-O', format('command script import \'%s\'', adapterPath),
+            '-O', format('script adapter.run_stdio_session(0,1,ext_channel_port=%d)', port)
+        ]
+    }
+}
+
+async function launchDebugServer(context: ExtensionContext) {
+    let port = await ec.startListener();
+    let config = workspace.getConfiguration('lldb');
+    let lldbPath = config.get('path', 'lldb');
+
+    let terminal = window.createTerminal('LLDB Debug Server');
+    let adapterPath = path.join(context.extensionPath, 'adapter');
+    let command = format('lldb -b -O "command script import \'%s\'" ', adapterPath) +
+                  format('-O "script adapter.run_tcp_server(ext_channel_port=%d)"\n', port);
+    terminal.sendText(command);
+}
+
+function startDebugSession(context: ExtensionContext, args: any) {
+    return args;
+}
+
 async function showDisassembly(context: ExtensionContext) {
     let selection = await window.showQuickPick(['always', 'auto', 'never']);
-    withSession(session => session.send('showDisassembly', { value: selection }));
+    ec.execute(channel => channel.send('showDisassembly', { value: selection }));
 }
 
 async function toggleDisassembly(context: ExtensionContext) {
-    withSession(session => session.send('showDisassembly', { value: 'toggle' }));
+    ec. execute(channel => channel.send('showDisassembly', { value: 'toggle' }));
 }
 
 async function displayFormat(context: ExtensionContext) {
     let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-    withSession(session => session.send('displayFormat', { value: selection }));
-}
-
-async function launchDebugServer(context: ExtensionContext) {
-    let terminal = window.createTerminal('LLDB Debug Server');
-    terminal.sendText('cd ' + context.extensionPath + '\n');
-    terminal.sendText('lldb -b -O "script import adapter; adapter.run_tcp_server()"\n');
+    ec.execute(channel => channel.send('displayFormat', { value: selection }));
 }
 
 async function pickProcess(context: ExtensionContext, currentUserOnly: boolean): Promise<number> {

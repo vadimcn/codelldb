@@ -21,12 +21,13 @@ def create(spawn_terminal=None):
     ls.bind(('127.0.0.1', 0))
     ls.listen(1)
     addr, port = ls.getsockname()
-    # Open a TCP connection, send output of `tty`, wait till the socket gets closed from our end
-    command = 'exec 3<>/dev/tcp/127.0.0.1/%d; tty >&3; read <&3' % port
+    # terminal.sh opens a TCP connection, sends output of `tty`, 
+    # waits till the socket gets closed from our end
+    args = [os.path.join(os.path.dirname(__file__), 'terminal.sh'), str(port)]
     if spawn_terminal is not None:
-        spawn_terminal(command)
+        spawn_terminal(args)
     else:
-        subprocess.Popen(['x-terminal-emulator', '-e', 'bash -c "%s"' % command]);
+        subprocess.Popen(['x-terminal-emulator', '-e', ' '.join(command)]);
 
     try:
         ls.settimeout(TIMEOUT)

@@ -241,28 +241,20 @@ class DebugSession:
         extra_flags = 0
         if None in stdio:
             term_type = args.get('terminal', 'console')
-            if term_type == 'external':
-                if 'linux' in sys.platform:
-                    self.terminal = terminal.create()
-                    term_fd = self.terminal.tty
-                else:
-                    # OSX LLDB supports this natively.
-                    # On Windows LLDB always creates a new console window (even if stdio is redirected).
-                    extra_flags = lldb.eLaunchFlagLaunchInTTY | lldb.eLaunchFlagCloseTTYOnExit
-                    term_fd = None
-            elif term_type == 'integrated':
-                self.terminal = terminal.create(self.spawn_vscode_terminal)
+            if term_type in ['integrated', 'external'] and 'win32' not in sys.platform:
+                self.terminal = terminal.create(
+                    lambda args: self.spawn_vscode_terminal(kind=term_type, args=args))
                 term_fd = self.terminal.tty
             else:
                 term_fd = None # that'll send them to VSCode debug console
             stdio = [term_fd if s is None else str(s) for s in stdio]
         return stdio, extra_flags
 
-    def spawn_vscode_terminal(self, command):
+    def spawn_vscode_terminal(self, kind, args, cwd=''):
         on_complete = lambda ok, body: None
         self.send_request('runInTerminal', {
-            'kind': 'integrated', 'cwd': None,
-            'args': ['bash', '-c', command] }, on_complete)
+            'kind': kind, 'cwd': cwd,
+            'args': args }, on_complete)
 
     def DEBUG_setBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):

@@ -557,6 +557,9 @@ class DebugSession:
         return { 'targets': targets }
 
     def DEBUG_evaluate(self, args):
+        if self.process is None: # Sometimes VSCode sends 'evaluate' before launching a process...
+            log.error('evaluate without a process')
+            return { 'result': '' }
         context = args['context']
         expr = str(args['expression'])
         if context in ['watch', 'hover']:
@@ -612,7 +615,7 @@ class DebugSession:
             if frame is not None:
                 result = frame.EvaluateExpression(expr) # In frame context
             else:
-                self.target.EvaluateExpression(expr) # In global context
+                result = self.target.EvaluateExpression(expr) # In global context
             error = result.GetError()
             if error.Success():
                 _, value, dtype, handle = self.parse_var(result, format)

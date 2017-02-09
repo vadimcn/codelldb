@@ -84,15 +84,16 @@ def run_tcp_server(port=4711, multiple=True, extinfo=None):
 
 from os import read as os_read, write as os_write
 def os_write_all(ofd, data):
-    n = os_write(ofd, data)
-    while n < len(data): # This may happen when fill-up the output pipe's buffer.
-        data = data[n:]
+    while True:
         try:
             n = os_write(ofd, data)
-        except OSError as e:
+        except OSError as e: # This may happen if we fill-up the output pipe's buffer.
             if e.errno != errno.EAGAIN:
                 raise
             n = 0
+        if n == len(data):
+            return
+        data = data[n:]
 
 # Single-session run using the specified input and output fds
 def run_stdio_session(ifd=0, ofd=1, extinfo=None):

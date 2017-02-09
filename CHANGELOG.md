@@ -1,5 +1,8 @@
 # What's New
 
+## 0.3.4
+- Bug fixes.
+
 ## 0.3.3
 - [Custom launch requests](README.md#custom-launch).
 - Command completions in debug console.

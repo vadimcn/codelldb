@@ -511,7 +511,8 @@ class DebugSession:
         container_handle = args['variablesReference']
         container = self.var_refs.get(container_handle)
         if container is None:
-            raise Exception('Invalid variables reference: %d' % container_handle)
+            log.error('Invalid variables reference: %d', container_handle)
+            return
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
             vars_iter = SBValueListIter(container.GetVariables(True, True, False, True))

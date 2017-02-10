@@ -180,12 +180,12 @@ class DebugSession:
         if program is not None:
             load_dependents = not args.get('noDebug', False)
             error = lldb.SBError()
-            target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error)
+            target = self.debugger.CreateTarget(str(program), None, None, load_dependents, error)
             if not error.Success() and 'win32' in sys.platform:
                 # On Windows, try appending '.exe' extension, to make launch configs more uniform.
                 program += '.exe'
                 error2 = lldb.SBError()
-                target = self.debugger.CreateTarget(str(program), lldb.LLDB_ARCH_DEFAULT, None, load_dependents, error2)
+                target = self.debugger.CreateTarget(str(program), None, None, load_dependents, error2)
                 if error2.Success():
                     args['program'] = program
                     error.Clear()

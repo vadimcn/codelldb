@@ -7,7 +7,7 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": true,
-		"rootDir": "src",
+		"rootDir": "extension",
 		"outDir": "out"
 	},
 	"exclude": [

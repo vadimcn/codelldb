@@ -5,7 +5,7 @@ run_server.sh
 tsconfig.json
 **/*.pyc
 **/*.js.map
-src/**
+extension/**
 typings/**
 tools/**
 out/tests/**

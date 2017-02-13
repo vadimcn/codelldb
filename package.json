@@ -9,7 +9,8 @@
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^1.9.0"
+        "vscode": "^1.9.0",
+        "node": "^6.3.0"
     },
     "icon": "lldb.png",
     "categories": [
@@ -61,17 +62,22 @@
         "onCommand:lldb.pickMyProcess"
     ],
     "contributes": {
-         "configuration": {
+        "configuration": {
             "type": "object",
-            "title": "LLDB configuration",           
+            "title": "LLDB configuration",
             "properties": {
-                "lldb.path": {
+                "lldb.executable": {
                     "type": "string",
                     "default": "lldb",
                     "description": "Path to LLDB executable."
+                },
+                "lldb.log": {
+                    "type": ["string", "object"],
+                    "default": null,
+                    "description": "LLDB adapter logging configuration"
                 }
             }
-         },
+        },
         "commands": [
             {
                 "command": "lldb.showDisassembly",
@@ -130,7 +136,7 @@
                     "pickProcess": "lldb.pickProcess",
                     "pickMyProcess": "lldb.pickMyProcess"
                 },
-                "adapterExecutableCommand": "lldb.getAdapterExecutable",      
+                "adapterExecutableCommand": "lldb.getAdapterExecutable",
                 "_startSessionCommand": "lldb.startDebugSession",
                 "configurationAttributes": {
                     "launch": {

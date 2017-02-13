@@ -28,13 +28,29 @@ export function activate(context: ExtensionContext) {
 async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
     let port = await ec.startListener();
     let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('path', 'lldb');
+    let lldbPath = config.get('executable', 'lldb');
+
+    let lldbLog = config.get('log', null);
+    var logging = '';
+    if (lldbLog) {
+        var logPath = 'None';
+        var logLevel = 0;
+        if (typeof (lldbLog) == 'string') {
+            logPath = lldbLog;
+        } else {
+            logPath = lldbLog.path;
+            logLevel = lldbLog.level;
+        }
+        logging = format(',log_file=\'%s\',log_level=%d',
+            new Buffer(logPath).toString('base64'), logLevel);
+    }
+
     let adapterPath = path.join(context.extensionPath, 'adapter');
     return {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.run_stdio_session(0,1,ext_channel_port=%d)', port)
+            '-O', format('script adapter.run_stdio_session(0,1,ext_channel_port=%d%s)', port, logging)
         ]
     }
 }
@@ -46,8 +62,9 @@ async function launchDebugServer(context: ExtensionContext) {
 
     let terminal = window.createTerminal('LLDB Debug Server');
     let adapterPath = path.join(context.extensionPath, 'adapter');
-    let command = format('lldb -b -O "command script import \'%s\'" ', adapterPath) +
-                  format('-O "script adapter.run_tcp_server(ext_channel_port=%d)"\n', port);
+    let command =
+        format('lldb -b -O "command script import \'%s\'" ', adapterPath) +
+        format('-O "script adapter.run_tcp_server(ext_channel_port=%d)"\n', port);
     terminal.sendText(command);
 }
 
@@ -61,7 +78,7 @@ async function showDisassembly(context: ExtensionContext) {
 }
 
 async function toggleDisassembly(context: ExtensionContext) {
-    ec. execute(channel => channel.send('showDisassembly', { value: 'toggle' }));
+    ec.execute(channel => channel.send('showDisassembly', { value: 'toggle' }));
 }
 
 async function displayFormat(context: ExtensionContext) {

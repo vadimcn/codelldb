@@ -15,11 +15,7 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, hard))
 
-def init_logging(is_stdio_session):
-    log_file = os.getenv('VSCODE_LLDB_LOG', None)
-    log_level = 0
-    if is_stdio_session and not log_file:
-        log_level = logging.ERROR
+def init_logging(log_file, log_level):
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
 
@@ -70,7 +66,7 @@ def run_session(read, write, ext_channel_port):
 
 # Run in socket server mode
 def run_tcp_server(port=4711, multiple=True, ext_channel_port=None):
-    init_logging(False)
+    init_logging(None, logging.NOTSET)
     log.info('Server mode on port %d (Ctrl-C to stop)', port)
     ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -104,8 +100,11 @@ def os_write_all(ofd, data):
         data = data[n:]
 
 # Single-session run using the specified input and output fds
-def run_stdio_session(ifd=0, ofd=1, ext_channel_port=None):
-    init_logging(True)
+def run_stdio_session(ifd=0, ofd=1, ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
+    if log_file is not None:
+        import base64
+        log_file = base64.decodestring(log_file)
+    init_logging(log_file, log_level)
     log.info('Single-session mode on fds (%d,%d)', ifd, ofd)
     run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
     log.info('Debug session ended. Exiting.')

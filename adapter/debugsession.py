@@ -28,6 +28,7 @@ class DebugSession:
         self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
+        self.breakpoint_conditions = dict() # { bp_id : code_object }
         self.target = None
         self.process = None
         self.terminal = None
@@ -39,7 +40,6 @@ class DebugSession:
         self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
-        self.eval_contexts = {} # { frame_id : vars }
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -75,6 +75,7 @@ class DebugSession:
                  'supportsEvaluateForHovers': True,
                  'supportsFunctionBreakpoints': True,
                  'supportsConditionalBreakpoints': True,
+                 'supportsHitConditionalBreakpoints': True,
                  'supportsSetVariable': True,
                  'supportsCompletionsRequest': True }
 
@@ -281,6 +282,7 @@ class DebugSession:
                 if line not in req_bp_lines:
                     self.target.BreakpointDelete(bp.GetID())
                     del curr_bps[line]
+                    self.breakpoint_conditions.pop(bp.GetID(), None)
             # Added or updated
             for req in req_bps:
                 line = req['line']
@@ -329,6 +331,7 @@ class DebugSession:
             if name not in req_bp_names:
                 self.target.BreakpointDelete(bp.GetID())
                 del self.fn_breakpoints[name]
+                self.breakpoint_conditions.pop(bp.GetID(), None)
         # Added or updated
         result = []
         for req in req_bps:
@@ -346,12 +349,28 @@ class DebugSession:
 
         return { 'breakpoints': result }
 
+    # Sets up breakpoint stopping condition
     def set_bp_condition(self, bp, req):
         cond = opt_str(req.get('condition', None))
-        if cond != bp.GetCondition():
-            bp.SetCondition(cond)
+        if cond is not None:
+            if cond.startswith('?'):
+                # LLDB native expression
+                bp.SetCondition(cond[1:])
+            else:
+                # Python expression
+                try:
+                    cond_code = compile(expressions.preprocess(cond), '<string>', 'eval')
+                    self.breakpoint_conditions[bp.GetID()] = cond_code
+                except Exception as e:
+                    self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+        ignoreCount = req.get('hitCondition', None)
+        if ignoreCount is not None:
+            try:
+                bp.SetIgnoreCount(int(ignoreCount))
+            except ValueError:
+                self.console_msg('Could not parse hit count: %s' % ignoreCount)
 
-    # Create breakpoint location info for a response message
+    # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
         if bp.num_locations == 0:
             return { 'id': bp.GetID(), 'verified': False }
@@ -363,6 +382,16 @@ class DebugSession:
             return { 'id': bp.GetID(), 'verified': True }
         source = { 'name': fs.basename, 'path': os.path.normpath(fs.fullpath) }
         return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
+
+    def should_stop_on_bp(self, bp_id, frame):
+        cond_code = self.breakpoint_conditions.get(bp_id)
+        if cond_code is None:
+            return True
+        try:
+            return eval(cond_code, self.pyeval_globals, expressions.PyEvalContext(frame))
+        except Exception as e:
+            self.console_msg('Could not evaluate breakpoint condition: %s' % str(e))
+            return True
 
     def DEBUG_setExceptionBreakpoints(self, args):
         if not self.launch_args.get('noDebug', False):
@@ -586,43 +615,52 @@ class DebugSession:
                 expr = expr[:-len(suffix)]
                 break
 
-        error_message = None
+        frame = self.var_refs.get(frame_id, None)
+        result = self.evaluate_expr_in_frame(expr, frame)
+        if isinstance(result, lldb.SBError):
+            error_message = result.GetCString()
+            if args['context'] == 'repl':
+                self.console_msg(error_message)
+                return None
+            else:
+                raise UserError(error_message.replace('\n', '; '), no_console=True)
+        elif isinstance(result, expressions.Value):
+            _, value, dtype, handle = self.parse_var(result.sbvalue, format)
+            return { 'result': value, 'type': dtype, 'variablesReference': handle }
+        else: # Some Python value
+            return { 'result': str(result), 'variablesReference': 0 }
+
+    # Evaluating these names causes LLDB exit, not sure why.
+    pyeval_globals = { 'exit':None, 'quit':None, 'globals':None }
+
+    # Evaluates expr in the context of frame (or in global context if frame is None)
+    # Returns expressions.Value or SBValue on success, SBError on failure.
+    def evaluate_expr_in_frame(self, expr, frame):
         if not expr.startswith('?'):
             # Using Python evaluator
-            context = self.get_pyeval_context(frame_id)
+            if frame is None: # Use currently selected frame
+                frame = self.process.GetSelectedThread().GetSelectedFrame()
             try:
                 expr = expressions.preprocess(expr)
                 log.debug('Evaluating %s', expr)
-                result = eval(expr, globals(), context)
-                if isinstance(result, expressions.Value):
-                    _, value, dtype, handle = self.parse_var(result.sbvalue, format)
-                else:
-                    value, dtype, handle = str(result), None, 0
+                return eval(expr,  self.pyeval_globals, expressions.PyEvalContext(frame))
             except Exception as e:
                 log.debug('Evaluation error: %s', traceback.format_exc())
-                error_message = str(e)
+                error = lldb.SBError()
+                error.SetErrorString(str(e))
+                return error
         else:
-            # Using LLDB evaluator
+            # Using LLDB native evaluator
             expr = expr[1:]
-            frame = self.var_refs.get(frame_id, None)
             if frame is not None:
                 result = frame.EvaluateExpression(expr) # In frame context
             else:
                 result = self.target.EvaluateExpression(expr) # In global context
             error = result.GetError()
             if error.Success():
-                _, value, dtype, handle = self.parse_var(result, format)
+                return result
             else:
-                error_message = error.GetCString()
-
-        if error_message is None:
-            return { 'result': value, 'type': dtype, 'variablesReference': handle }
-        else:
-            if args['context'] == 'repl':
-                self.console_msg(error_message)
-                return None
-            else:
-                raise UserError(error_message.replace('\n', '; '), no_console=True)
+                return error
 
     format_codes = [(',h', lldb.eFormatHex),
                     (',x', lldb.eFormatHex),
@@ -665,31 +703,9 @@ class DebugSession:
             value = value.decode('latin1') # or else json will try to treat it as utf8
         return value
 
-    # Creates and caches Python expression evaluation context for a frame
-    def get_pyeval_context(self, frame_id):
-        context = self.eval_contexts.get(frame_id)
-        if context is not None:
-            return context
-
-        frame = self.var_refs.get(frame_id)
-        context = {}
-        if frame is not None: # get frame locals
-            vars_iter = SBValueListIter(frame.GetVariables(True, True, True, True))
-        else: # get statics
-            some_frame = self.process.GetSelectedThread().GetSelectedFrame()
-            vars_iter = SBValueListIter(some_frame.GetVariables(False, False, True, False))
-
-        for var in vars_iter:
-            name = var.GetName()
-            if name is not None:
-                context[name] = expressions.Value(var)
-        self.eval_contexts[frame_id] = context
-        return context
-
     # Clears out cached state that become invalid once debuggee resumes.
     def before_resume(self):
         self.var_refs.reset()
-        self.eval_contexts.clear()
 
     def DEBUG_setVariable(self, args):
         container = self.var_refs.get(args['variablesReference'])
@@ -879,42 +895,49 @@ class DebugSession:
 
     def notify_target_stopped(self, lldb_event):
         event = { 'allThreadsStopped': True } # LLDB always stops all threads
-        # Find the thread that has caused this stop
-        thread_id = None
+        # Find the thread that caused this stop
         stopped_thread = None
-        stop_reason = 'unknown'
-        for thread in self.process:
+        # Check the currently selected thread first
+        thread = self.process.GetSelectedThread()
+        if thread is not None and thread.IsValid():
             stop_reason = thread.GetStopReason()
-            if stop_reason == lldb.eStopReasonBreakpoint:
+            if stop_reason != lldb.eStopReasonInvalid and stop_reason != lldb.eStopReasonNone:
                 stopped_thread = thread
-                event['threadId'] = thread.GetThreadID()
+        # Fall back to scanning all threads in process
+        if stopped_thread is None:
+            for thread in self.process:
+                stop_reason = thread.GetStopReason()
+                if stop_reason != lldb.eStopReasonInvalid and stop_reason != lldb.eStopReasonNone:
+                    stopped_thread = thread
+                    self.process.SetSelectedThread(stopped_thread)
+                    break
+        # Analyze stop reason
+        if stopped_thread is not None:
+            if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
+                if not self.should_stop_on_bp(bp_id, stopped_thread.frames[0]):
+                    self.before_resume()
+                    self.process.Continue()
+                    return 
                 for bp in self.exc_breakpoints:
                     if bp.GetID() == bp_id:
-                        stop_reason = 'exception'
-                        break;
+                        stop_reason_str = 'exception'
                 else:
-                    stop_reason = 'breakpoint'
-                break
+                    stop_reason_str = 'breakpoint'
             elif stop_reason == lldb.eStopReasonException:
-                stopped_thread = thread
-                stop_reason = 'exception'
-                break
+                stop_reason_str = 'exception'
             elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
-                stopped_thread = thread
-                stop_reason = 'step'
-                break
+                stop_reason_str = 'step'
             elif stop_reason == lldb.eStopReasonSignal:
-                stopped_thread = thread
-                stop_reason = 'signal'
+                stop_reason_str = 'signal'
                 signo = thread.GetStopReasonDataAtIndex(0)
                 signame = self.process.GetUnixSignals().GetSignalAsCString(signo)
                 event['text'] = '%s (%d)' % (signame, signo)
-                break
-        event['reason'] = stop_reason
-        if stopped_thread is not None:
-            self.process.SetSelectedThread(stopped_thread)
+            else:
+                stop_reason_str = 'unknown'
+            event['reason'] = stop_reason_str
             event['threadId'] = stopped_thread.GetThreadID()
+        
         self.send_event('stopped', event)
 
     def notify_stdio(self, ev_type):
@@ -951,6 +974,7 @@ class DebugSession:
     # Write a message to debug console
     def console_msg(self, output):
         self.send_event('output', { 'category': 'console', 'output': output })
+
 
 # For when we need to let user know they screwed up
 class UserError(Exception):

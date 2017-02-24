@@ -7,6 +7,23 @@ log = logging.getLogger('expressions')
 
 classify_type = lambda sbtype: None
 
+
+class PyEvalContext(dict):
+    def __init__(self, sbframe):
+        self.sbframe = sbframe
+
+    def __missing__(self, name):
+        val = self.sbframe.FindVariable(name)
+        if not val.IsValid():
+            val = self.sbframe.FindValue(name, lldb.eValueTypeRegister)
+        if val.IsValid():
+            val = Value(val)
+            self.__setitem__(name, val)
+            return val
+        else:
+            raise KeyError(name)
+
+
 class Value(object):
     def __init__(self, sbvalue):
         self.sbvalue = sbvalue
@@ -192,19 +209,16 @@ class Value(object):
     def __len__(self):
         return self.sbvalue.GetNumChildren()
 
-    def __eq__(self, other):
+    def __cmp__(self, other):
         if type(other) is int:
-            return int(self) == other
+            return cmp(int(self), other)
         elif type(other) is float:
-            return float(self) == other
+            return cmp(float(self), other)
         elif type(other) is str:
-            return str(self) == other
+            return cmp(str(self), other)
         elif type(other) is Value:
-            return get_value(self) == get_value(other)
-        raise TypeError("Unknown type %s, No equality operation defined." % str(type(other)))
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
+            return cmp(get_value(self), get_value(other))
+        raise TypeError("Unknown type %s, No comparison operation defined." % str(type(other)))
 
 class ValueIter(object):
     def __init__(self,Value):

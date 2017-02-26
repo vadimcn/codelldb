@@ -883,6 +883,8 @@ class DebugSession:
                 if state == lldb.eStateStopped:
                     if not lldb.SBProcess.GetRestartedFromEvent(event):
                         self.notify_target_stopped(event)
+                elif state == lldb.eStateRunning:
+                    self.send_event('continued', { 'threadId': 0, 'allThreadsContinued': True })
                 elif state == lldb.eStateExited:
                     exit_code = self.process.GetExitStatus()
                     self.console_msg('Process exited with code %d' % exit_code)

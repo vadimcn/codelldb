@@ -766,6 +766,8 @@ class DebugSession:
     # Fake a target stop to force VSCode to refresh the display
     def refresh_client_display(self):
         thread_id = self.process.GetSelectedThread().GetThreadID()
+        self.send_event('continued', { 'threadId': thread_id,
+                                       'allThreadsContinued': True })        
         self.send_event('stopped', { 'reason': 'mode switch',
                                      'threadId': thread_id,
                                      'allThreadsStopped': True })

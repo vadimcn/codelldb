@@ -71,7 +71,9 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     std::string testcase = argv[1];
-    if (testcase == "deepstack") {
+    if (testcase == "crash") {
+        *(volatile int*)0 = 42;
+    } else if (testcase == "deepstack") {
         deepstack(50);
     } else if (testcase == "threads") {
         threads(15);

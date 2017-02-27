@@ -919,6 +919,7 @@ class DebugSession:
         if stopped_thread is not None:
             if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
+                # Check if this breakpoint has a stopping condition attached
                 if not self.should_stop_on_bp(bp_id, stopped_thread.frames[0]):
                     self.before_resume()
                     self.process.Continue()
@@ -928,17 +929,22 @@ class DebugSession:
                         stop_reason_str = 'exception'
                 else:
                     stop_reason_str = 'breakpoint'
-            elif stop_reason == lldb.eStopReasonException:
-                stop_reason_str = 'exception'
-            elif stop_reason in [lldb.eStopReasonTrace, lldb.eStopReasonPlanComplete]:
+            elif stop_reason == lldb.eStopReasonTrace or stop_reason == lldb.eStopReasonPlanComplete:
                 stop_reason_str = 'step'
-            elif stop_reason == lldb.eStopReasonSignal:
-                stop_reason_str = 'signal'
-                signo = thread.GetStopReasonDataAtIndex(0)
-                signame = self.process.GetUnixSignals().GetSignalAsCString(signo)
-                event['text'] = '%s (%d)' % (signame, signo)
             else:
-                stop_reason_str = 'unknown'
+                # Print stop details for these types
+                if stop_reason == lldb.eStopReasonWatchpoint:
+                    stop_reason_str = 'watchpoint'
+                elif stop_reason == lldb.eStopReasonSignal:
+                    stop_reason_str = 'signal'
+                elif stop_reason == lldb.eStopReasonException:
+                    stop_reason_str = 'exception'
+                else:
+                    stop_reason_str = 'unknown'
+                description = stopped_thread.GetStopDescription(100)
+                self.console_msg('Stop reason: %s' % description)
+                event['text'] = description
+
             event['reason'] = stop_reason_str
             event['threadId'] = stopped_thread.GetThreadID()
         

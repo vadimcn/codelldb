@@ -1,10 +1,16 @@
 'use strict';
-import { workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem } from 'vscode';
+import {
+    workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem,
+    Uri, Event, EventEmitter
+} from 'vscode';
 import { format } from 'util';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
 import * as ec from './extensionChannel';
+
+var previewContent: any = {};
+var previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
 
 export function activate(context: ExtensionContext) {
     context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
@@ -23,10 +29,37 @@ export function activate(context: ExtensionContext) {
         () => pickProcess(context, false)));
     context.subscriptions.push(commands.registerCommand('lldb.pickMyProcess',
         () => pickProcess(context, true)));
+    context.subscriptions.push(workspace.registerTextDocumentContentProvider('debugger', {
+        get onDidChange(): Event<Uri> {
+            return previewContentChanged.event;
+        },
+        async provideTextDocumentContent(uri): Promise<string> {
+            let uriString = uri.toString();
+            if (previewContent.hasOwnProperty(uriString)) {
+                return previewContent[uriString];
+            }
+            if (ec.isActive()) {
+                let response = await ec.channel().send('provideContent', { uri: uriString });
+                return response.body.content;
+            } else {
+                return "Not available";
+            }
+        }
+    }));
+}
+
+function onPreviewHtml(event: any) {
+    previewContent = event.body.content;
+    for (var uri in event.body.content) {
+        previewContentChanged.fire(<any>uri);
+    }
+    commands.executeCommand('vscode.previewHtml',
+        event.body.uri, event.body.position, event.body.title);
 }
 
 async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
     let port = await ec.startListener();
+    ec.channel().addListener('previewHtml', onPreviewHtml);
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
 
@@ -50,7 +83,7 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.run_stdio_session(0,1,ext_channel_port=%d%s)', port, logging)
+            '-O', format('script adapter.main.run_stdio_session(0,1,ext_channel_port=%d%s)', port, logging)
         ]
     }
 }
@@ -64,7 +97,7 @@ async function launchDebugServer(context: ExtensionContext) {
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let command =
         format('lldb -b -O "command script import \'%s\'" ', adapterPath) +
-        format('-O "script adapter.run_tcp_server(ext_channel_port=%d)"\n', port);
+        format('-O "script adapter.main.run_tcp_server(ext_channel_port=%d)"\n', port);
     terminal.sendText(command);
 }
 

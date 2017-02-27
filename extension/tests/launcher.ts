@@ -8,7 +8,7 @@ let adapterPath = path.join(__dirname, '..', '..', 'adapter')
 
 let lldb = cp.spawn('lldb', ['-b', '-Q',
             '-O', 'command script import \'' + adapterPath + '\'',
-            '-O', 'script adapter.run_stdio_session(3,4)'
+            '-O', 'script adapter.main.run_stdio_session(3,4)'
         ], { 
             stdio: ['ignore', 'ignore', 'ignore', 'pipe', process.stdout],
             cwd: path.join(__dirname, '..', '..')

@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <unistd.h>
+#include <complex>
 
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
@@ -66,6 +67,34 @@ void vars() {
     }
 }
 
+void mandelbrot() {
+    const int xdim = 500;
+    const int ydim = 500;
+    const int max_iter = 100;
+    int image[ydim][xdim] = {0};
+    for (int y = 0; y < ydim; ++y) {
+        for (int x = 0; x < xdim; ++x) {
+            std::complex<float> xy(-2.05 + x * 3.0 / xdim, -1.5 + y * 3.0 / ydim);
+            std::complex<float> z(0, 0);
+            int count = max_iter;
+            for (int i = 0; i < max_iter; ++i) {
+                z = z * z + xy;
+                if (std::abs(z) >= 2) {
+                    count = i;
+                    break;
+                }
+            }
+            image[y][x] = count;
+        }
+    }
+    for (int y = 0; y < ydim; y += 10) {
+        for (int x = 0; x < xdim; x += 5) {
+            putchar(image[y][x] < max_iter ? '.' : '#');
+        }
+        putchar('\n');
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) { // #BP1
         return -1;
@@ -91,6 +120,8 @@ int main(int argc, char* argv[]) {
     } else if (testcase == "header") {
         header_fn1(1);
         header_fn2(2);
+    } else if (testcase == "mandelbrot") {
+        mandelbrot();
     }
     return 0;
 }

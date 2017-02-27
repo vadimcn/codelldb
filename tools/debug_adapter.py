@@ -5,4 +5,4 @@ if 'darwin' in sys.platform:
 sys.path.append('.')
 
 import adapter
-adapter.run_tcp_server(multiple=False)
+adapter.main.run_tcp_server(multiple=False)

@@ -1,6 +1,5 @@
 {
 	"version": "0.2.0",
-	//"debugServer": 4711,
 	"configurations": [
 		{
 			"name": "extension",
@@ -108,6 +107,16 @@
 			"sourceLanguages": [
 				"rust"
 			]
+		},
+		{
+			"name": "preview_html",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/tests/debuggee",
+			"initCommands": [
+				"command script import '${workspaceRoot}/extension/tests/debug.py"
+			],
+			"args": ["mandelbrot"]
 		}
 	]
 }

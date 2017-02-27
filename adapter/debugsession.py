@@ -1008,6 +1008,17 @@ class DebugSession:
     def console_msg(self, output):
         self.send_event('output', { 'category': 'console', 'output': output })
 
+    def preview_html(self, body):
+        message = {
+            'type': 'event',
+            'seq': 0,
+            'event': 'previewHtml',
+            'body': body
+        }
+        self.send_extension_message(message)
+
+    def EXTENSION_provideContent(self, args):
+        return { 'content': self.provide_content(args['uri']) }
 
 # For when we need to let user know they screwed up
 class UserError(Exception):

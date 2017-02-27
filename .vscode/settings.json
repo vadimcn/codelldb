@@ -10,6 +10,5 @@
         "**/*.pyc": true
     },
     "files.insertFinalNewline": true,
-    "python.linting.enabled": false,
-    "typescript.check.workspaceVersion": false
+    "python.linting.enabled": false
 }

@@ -10,9 +10,8 @@ export class MyProtocolClient extends ProtocolClient {
 
     public isActive = false;
 
-    constructor(conn: net.Socket) {
-        super();
-        super.connect(conn, conn);
+    public connect(conn: net.Socket) {
+        super.connect(conn, <any>conn);
         this.isActive = true;
         conn.on('error', (err:any) => {
             this.isActive = false;
@@ -24,13 +23,14 @@ export class MyProtocolClient extends ProtocolClient {
 }
 
 var server: net.Server = null;
-var connection: MyProtocolClient = null;
+var connection: MyProtocolClient = null; new MyProtocolClient();
 
 export async function startListener(): Promise<number> {
     return new Promise<number>((resolve, reject) => {
+        connection = new MyProtocolClient();
         if (!server) {
             server = net.createServer((conn) => {
-                connection = new MyProtocolClient(conn);
+                connection.connect(conn);
             });
             server.listen(() => {
                 resolve(server.address().port);
@@ -41,15 +41,14 @@ export async function startListener(): Promise<number> {
     });
 }
 
-export async function execute<T>(operation: (conn: MyProtocolClient) => Promise<T>): Promise<T> {
-    if (!connection || !connection.isActive) {
-        await window.showErrorMessage('No connection to the debug session.');
-        throw new Error('No connection to the debug session.');
-    }
-    try {
-        return await operation(connection);
-    } catch (e) {
-        await window.showErrorMessage('Could not send command: ' + e.message);
-        throw e;
-    }
+export function isActive() {
+    return connection.isActive;
+}
+
+export function channel(): ProtocolClient {
+    return connection;
+}
+
+export async function execute<T>(operation: (conn: ProtocolClient) => Promise<T>): Promise<T> {
+    return await operation(channel());
 }

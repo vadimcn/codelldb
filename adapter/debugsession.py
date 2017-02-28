@@ -64,12 +64,14 @@ class DebugSession:
         # Hook up debugger's stdout and stderr so we can redirect them to VSCode console
         r, w = os.pipe()
         read_end = os.fdopen(r, 'r')
-        write_end = os.fdopen(w, 'w')
+        write_end = os.fdopen(w, 'w', 1) # line-buffered
         debugger_output_listener = debugevents.DebuggerOutputListener(read_end, 
                 self.event_loop.make_dispatcher(self.handle_debugger_output))
         self.debugger_output_listener_token = debugger_output_listener.start()
         self.debugger.SetOutputFileHandle(write_end, False)
         self.debugger.SetErrorFileHandle(write_end, False)
+        sys.stdout = write_end
+        sys.stderr = write_end
 
         return { 'supportsConfigurationDoneRequest': True,
                  'supportsEvaluateForHovers': True,
@@ -216,6 +218,7 @@ class DebugSession:
             result = lldb.SBCommandReturnObject()
             for command in commands:
                 interp.HandleCommand(str(command), result)
+                sys.stdout.flush()
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
                 self.console_msg(output)
 
@@ -600,6 +603,7 @@ class DebugSession:
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
         interp.HandleCommand(str(expr), result)
+        sys.stdout.flush()
         output = result.GetOutput() if result.Succeeded() else result.GetError()
         # returning output as result would display all line breaks as '\n'
         self.console_msg(output)

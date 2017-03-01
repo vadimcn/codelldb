@@ -3,8 +3,9 @@ import logging
 import os.path
 import shlex
 import traceback
-import lldb
 import collections
+import tempfile
+import lldb
 from . import expressions
 from . import debugevents
 from . import disassembly
@@ -599,10 +600,28 @@ class DebugSession:
             thread = frame.GetThread()
             self.process.SetSelectedThread(thread)
             thread.SetSelectedFrame(frame.GetFrameID())
+            lldb.frame = frame
+            lldb.thread = thread
+            lldb.process = thread.GetProcess()
+            lldb.target = lldb.process.GetTarget()
         # evaluate
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
-        interp.HandleCommand(str(expr), result)
+        if '\n' not in expr:
+            interp.HandleCommand(str(expr), result)
+        else:
+            # multiline command
+            tmp_file = tempfile.NamedTemporaryFile()
+            log.info('multiline command in %s', tmp_file.name)
+            tmp_file.write(str(expr))
+            tmp_file.flush()
+            filespec = lldb.SBFileSpec()
+            filespec.SetDirectory(os.path.dirname(tmp_file.name))
+            filespec.SetFilename(os.path.basename(tmp_file.name))
+            context = lldb.SBExecutionContext(frame)
+            options = lldb.SBCommandInterpreterRunOptions()
+            interp.HandleCommandsFromFile(filespec, context, options, result)
+
         sys.stdout.flush()
         output = result.GetOutput() if result.Succeeded() else result.GetError()
         # returning output as result would display all line breaks as '\n'

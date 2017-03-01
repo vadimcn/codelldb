@@ -11,7 +11,10 @@
 				"--extensionDevelopmentPath=${workspaceRoot}"
 			],
 			"stopOnEntry": false,
-			"sourceMaps": true
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		},
 		{
 			"name": "adapter",

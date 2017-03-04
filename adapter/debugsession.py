@@ -593,9 +593,15 @@ class DebugSession:
         elif expr.startswith('?'): # "?<expr>" in 'repl' context
             return self.evaluate_expr(args, expr[1:])
         # Else evaluate as debugger command
-
-        # set up evaluation context
         frame = self.var_refs.get(args.get('frameId'), None)
+        result = self.execute_command_in_frame(expr, frame)
+        output = result.GetOutput() if result.Succeeded() else result.GetError()
+        # returning output as result would display all line breaks as '\n'
+        self.console_msg(output)
+        return { 'result': '' }
+
+    def execute_command_in_frame(self, command, frame):
+        # set up evaluation context
         if frame is not None:
             thread = frame.GetThread()
             self.process.SetSelectedThread(thread)
@@ -607,13 +613,13 @@ class DebugSession:
         # evaluate
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
-        if '\n' not in expr:
-            interp.HandleCommand(str(expr), result)
+        if '\n' not in command:
+            interp.HandleCommand(str(command), result)
         else:
             # multiline command
             tmp_file = tempfile.NamedTemporaryFile()
             log.info('multiline command in %s', tmp_file.name)
-            tmp_file.write(str(expr))
+            tmp_file.write(str(command))
             tmp_file.flush()
             filespec = lldb.SBFileSpec()
             filespec.SetDirectory(os.path.dirname(tmp_file.name))
@@ -621,12 +627,8 @@ class DebugSession:
             context = lldb.SBExecutionContext(frame)
             options = lldb.SBCommandInterpreterRunOptions()
             interp.HandleCommandsFromFile(filespec, context, options, result)
-
         sys.stdout.flush()
-        output = result.GetOutput() if result.Succeeded() else result.GetError()
-        # returning output as result would display all line breaks as '\n'
-        self.console_msg(output)
-        return { 'result': '' }
+        return result
 
     def evaluate_expr(self, args, expr):
         frame_id = args.get('frameId') # May be null

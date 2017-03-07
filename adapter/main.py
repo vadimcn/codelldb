@@ -103,7 +103,7 @@ def os_write_all(ofd, data):
 def run_stdio_session(ifd=0, ofd=1, ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
     if log_file is not None:
         import base64
-        log_file = base64.decodestring(log_file)
+        log_file = base64.b64decode(log_file)
     init_logging(log_file, log_level)
     log.info('Single-session mode on fds (%d,%d)', ifd, ofd)
     run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)

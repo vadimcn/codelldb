@@ -47,6 +47,7 @@ to either launch your program or attach to already running process:
 |**stopOnEntry**    |boolean|| Whether to stop debuggee immediately after launching.|
 |**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
 |**preRunCommands** |[string]|| LLDB commands executed just before launching the program.|
+|**exitCommands**   |[string]|| LLDB commands executed at the end of debugging session.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 #### Stdio
@@ -77,6 +78,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**stopOnEntry**    |boolean || Whether to stop debuggee immediately after attaching.|
 |**initCommands**   |[string]|| LLDB commands executed upon debugger startup.|
 |**preRunCommands** |[string]|| LLDB commands executed just before attaching.|
+|**exitCommands**   |[string]|| LLDB commands executed at the end of debugging session.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Custom Launch
@@ -95,6 +97,7 @@ happens in three steps:
 |**request**        |string  |Y| Set to `custom`.|
 |**initCommands**   |[string]|| A sequence of commands that creates the debug target.|
 |**preRunCommands** |[string]|| A sequence of commands that creates the debuggee process.|
+|**exitCommands**   |[string]|| LLDB commands executed at the end of debugging session.|
 |**sourceLanguages**|[string]|| A list of source languages used in the program. This is used for setting exception breakpoints, since they tend to be language-specific.|
 
 ### Remote debugging

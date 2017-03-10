@@ -201,6 +201,11 @@
                                 "description": "Commands executed just before the program is launched.",
                                 "default": []
                             },
+                            "exitCommands": {
+                                "type": "array",
+                                "description": "Commands executed at the end of debugging session.",
+                                "default": []
+                            },
                             "sourceLanguages": {
                                 "type": "array",
                                 "description": "A list of source languages used in the program.",

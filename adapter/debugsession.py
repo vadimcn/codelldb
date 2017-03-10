@@ -222,6 +222,7 @@ class DebugSession:
                 sys.stdout.flush()
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
                 self.console_msg(output)
+            sys.stdout.flush()
 
     def configure_stdio(self, args):
         stdio = args.get('stdio', None)
@@ -754,6 +755,8 @@ class DebugSession:
         return { 'value': self.get_var_value(var, self.global_format) }
 
     def DEBUG_disconnect(self, args):
+        if self.launch_args is not None:
+            self.exec_commands(self.launch_args.get('exitCommands'))
         if self.process:
             if self.process_launched:
                 self.process.Kill()

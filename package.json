@@ -72,7 +72,10 @@
                     "description": "Path to LLDB executable."
                 },
                 "lldb.log": {
-                    "type": ["string", "object"],
+                    "type": [
+                        "string",
+                        "object"
+                    ],
                     "default": null,
                     "description": "LLDB adapter logging configuration"
                 }
@@ -235,7 +238,7 @@
                                     "string"
                                 ],
                                 "description": "Process id to attach to.",
-                                "default": "${command.pickMyProcess}"
+                                "default": "${command:pickMyProcess}"
                             },
                             "stopOnEntry": {
                                 "type": "boolean",
@@ -318,7 +321,7 @@
                             "type": "lldb",
                             "request": "attach",
                             "name": "${2:Attach}",
-                            "pid": "^\"\\${command.pickMyProcess}\" // use \\${command.pickProcess} to pick other users' processes"
+                            "pid": "^\"\\${command:pickMyProcess}\" // use \\${command:pickProcess} to pick other users' processes"
                         }
                     },
                     {

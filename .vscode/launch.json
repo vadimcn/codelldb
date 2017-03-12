@@ -20,7 +20,7 @@
 			"name": "adapter",
 			"type": "python",
 			"request": "launch",
-			"pythonPath": "${config.python.pythonPath}",
+			"pythonPath": "${config:python.pythonPath}",
 			"console": "integratedTerminal",
 			"program": "${workspaceRoot}/tools/debug_adapter.py",
 			"cwd": "${workspaceRoot}",
@@ -76,7 +76,7 @@
 			"type": "lldb",
 			"request": "attach",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			"pid": "${command.pickMyProcess}"
+			"pid": "${command:pickMyProcess}"
 		},
 		{
 			"name": "debuggee custom",

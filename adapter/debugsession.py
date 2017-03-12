@@ -306,7 +306,8 @@ class DebugSession:
                         for loc in bp:
                             fs = loc.GetAddress().GetLineEntry().GetFileSpec()
                             if fs.IsValid():
-                                if not same_file(fs.fullpath, file_id):
+                                bp_path = normalize_path(self.map_path_to_local(normalize_path(fs.fullpath)))
+                                if bp_path != normalize_path(file_id):
                                     loc.SetEnabled(False)
                     else:
                         dasm = self.disassembly_by_handle.get(file_id)
@@ -377,16 +378,19 @@ class DebugSession:
 
     # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
-        if bp.num_locations == 0:
-            return { 'id': bp.GetID(), 'verified': False }
         if getattr(bp, 'dont_resolve', False): # these originate from disassembly
              return { 'id': bp.GetID(), 'verified': True }
-        le = bp.GetLocationAtIndex(0).GetAddress().GetLineEntry()
-        fs = le.GetFileSpec()
-        if not (le.IsValid() and fs.IsValid()):
-            return { 'id': bp.GetID(), 'verified': True }
-        source = { 'name': fs.basename, 'path': os.path.normpath(fs.fullpath) }
-        return { 'id': bp.GetID(), 'verified': True, 'source': source, 'line': le.line }
+        bp_resp =  { 'id': bp.GetID() }
+        for bp_loc in bp:
+            if bp_loc.IsEnabled():
+                le = bp_loc.GetAddress().GetLineEntry()
+                fs = le.GetFileSpec()
+                path = self.map_path_to_local(normalize_path(fs.fullpath))
+                bp_resp['source'] = { 'name': fs.basename, 'path': path }
+                bp_resp['line'] = le.line
+                bp_resp['verified'] = True
+                break
+        return bp_resp
 
     def should_stop_on_bp(self, bp_id, frame):
         cond_code = self.breakpoint_conditions.get(bp_id)
@@ -489,7 +493,7 @@ class DebugSession:
                 if le.IsValid():
                     fs = le.GetFileSpec()
                     # VSCode gets confused if the path contains funky stuff like a double-slash
-                    full_path = os.path.normpath(fs.fullpath)
+                    full_path = self.map_path_to_local(normalize_path(fs.fullpath))
                     stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
                     stack_frame['line'] = le.GetLine()
                     stack_frame['column'] = le.GetColumn()
@@ -1013,6 +1017,18 @@ class DebugSession:
     def console_msg(self, output):
         self.send_event('output', { 'category': 'console', 'output': output })
 
+    def map_path_to_local(self, path):
+        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
+            if path.startswith(remote_prefix):
+                return local_prefix + path[len(remote_prefix):]
+        return path
+
+    def map_path_to_remote(self, path):
+        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
+            if path.startswith(local_prefix):
+                return remote_prefix + path[len(local_prefix):]
+        return path
+
     def preview_html(self, body):
         message = {
             'type': 'event',
@@ -1057,10 +1073,8 @@ def SBValueChildrenIter(val):
 def opt_str(s):
     return str(s) if s != None else None
 
-def same_file(path1, path2):
-    path1 = os.path.normcase(os.path.normpath(path1))
-    path2 = os.path.normcase(os.path.normpath(path2))
-    return path1 == path2
+def normalize_path(path):
+    return os.path.normcase(os.path.normpath(path))
 
 languages = {
     'rust': { 'init_formatters': formatters.rust.initialize,

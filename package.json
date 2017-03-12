@@ -210,6 +210,16 @@
                                 "type": "array",
                                 "description": "A list of source languages used in the program.",
                                 "default": []
+                            },
+                            "sourceMap": {
+                                "type": "object",
+                                "patternProperties": {
+                                    ".*": {
+                                        "type": "string"
+                                    }
+                                },
+                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+                                "default": {}
                             }
                         }
                     },
@@ -246,6 +256,16 @@
                                 "type": "array",
                                 "description": "A list of source languages used in the program.",
                                 "default": []
+                            },
+                            "sourceMap": {
+                                "type": "object",
+                                "patternProperties": {
+                                    ".*": {
+                                        "type": "string"
+                                    }
+                                },
+                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+                                "default": {}
                             }
                         }
                     },
@@ -265,6 +285,16 @@
                                 "type": "array",
                                 "description": "A list of source languages used in the program.",
                                 "default": []
+                            },
+                            "sourceMap": {
+                                "type": "object",
+                                "patternProperties": {
+                                    ".*": {
+                                        "type": "string"
+                                    }
+                                },
+                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+                                "default": {}
                             }
                         }
                     }

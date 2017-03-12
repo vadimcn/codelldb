@@ -109,7 +109,10 @@
 			"cwd": "${workspaceRoot}",
 			"sourceLanguages": [
 				"rust"
-			]
+			],
+			"sourceMap": {
+				"/Users/travis/build/rust-lang/rust/": "${workspaceRoot}/../rust/"
+			}
 		},
 		{
 			"name": "preview_html",

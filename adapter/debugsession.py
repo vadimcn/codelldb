@@ -29,7 +29,7 @@ class DebugSession:
         self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
-        self.breakpoint_conditions = dict() # { bp_id : code_object }
+        self.breakpoint_conditions = dict() # { bp_id : (type, code_object) }
         self.target = None
         self.process = None
         self.terminal = None
@@ -365,8 +365,12 @@ class DebugSession:
             else:
                 # Python expression
                 try:
-                    cond_code = compile(expressions.preprocess(cond), '<string>', 'eval')
-                    self.breakpoint_conditions[bp.GetID()] = cond_code
+                    if cond.startswith('/'):
+                        cond = ('exec', compile(cond[1:], '<string>', 'exec'))
+                    else:
+                        cond = ('eval', compile(expressions.preprocess(cond), '<string>', 'eval'))
+                    self.breakpoint_conditions[bp.GetID()] = cond
+                    bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
                 except Exception as e:
                     self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
         ignoreCount = req.get('hitCondition', None)
@@ -392,15 +396,19 @@ class DebugSession:
                 break
         return bp_resp
 
-    def should_stop_on_bp(self, bp_id, frame):
-        cond_code = self.breakpoint_conditions.get(bp_id)
-        if cond_code is None:
+    def should_stop_on_bp(self, bp_id, frame, internal_dict):
+        cond = self.breakpoint_conditions.get(bp_id)
+        if cond is None:
             return True
         try:
-            return eval(cond_code, self.pyeval_globals, expressions.PyEvalContext(frame))
+            ty, code = cond
+            if ty == 'eval':
+                return eval(code, self.pyeval_globals, expressions.PyEvalContext(frame))
+            else:
+                return eval(code, internal_dict, expressions.PyEvalContext(frame))
         except Exception as e:
             self.console_msg('Could not evaluate breakpoint condition: %s' % str(e))
-            return True
+            return True        
 
     def DEBUG_setExceptionBreakpoints(self, args):
         if not self.launch_args.get('noDebug', False):
@@ -952,10 +960,10 @@ class DebugSession:
             if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
                 # Check if this breakpoint has a stopping condition attached
-                if not self.should_stop_on_bp(bp_id, stopped_thread.frames[0]):
-                    self.before_resume()
-                    self.process.Continue()
-                    return 
+                # if not self.should_stop_on_bp(bp_id, stopped_thread.frames[0]):
+                #     self.before_resume()
+                #     self.process.Continue()
+                #     return
                 for bp in self.exc_breakpoints:
                     if bp.GetID() == bp_id:
                         stop_reason_str = 'exception'
@@ -1040,6 +1048,9 @@ class DebugSession:
 
     def EXTENSION_provideContent(self, args):
         return { 'content': self.provide_content(args['uri']) }
+
+def on_breakpoint_hit(frame, bp_loc, internal_dict):
+    return DebugSession.current.should_stop_on_bp(bp_loc.GetBreakpoint().GetID(), frame, internal_dict)
 
 # For when we need to let user know they screwed up
 class UserError(Exception):

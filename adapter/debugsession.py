@@ -344,8 +344,8 @@ class DebugSession:
             name = req['name']
             bp = self.fn_breakpoints.get(name, None)
             if bp is None:
-                if name.startswith('/'):
-                    bp = self.target.BreakpointCreateByRegex(str(name[1:]))
+                if name.startswith('/re '):
+                    bp = self.target.BreakpointCreateByRegex(str(name[4:]))
                 else:
                     bp = self.target.BreakpointCreateByName(str(name))
                 self.set_bp_condition(bp, req)

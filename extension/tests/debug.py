@@ -27,7 +27,6 @@ def plot_image_if(cond, cmap='nipy_spectral_r'):
     image = lldb.frame.EvaluateExpression('image')
     data = image.GetData()
     data = data.ReadRawData(lldb.SBError(), 0, data.GetByteSize())
-    #data = lldb.process.ReadMemory(image.GetLoadAddress(), xdim * ydim * 4, lldb.SBError())
     data = np.frombuffer(data, dtype=np.int32).reshape((ydim,xdim))
     plt.imshow(data, cmap=cmap, interpolation='nearest')
     show()

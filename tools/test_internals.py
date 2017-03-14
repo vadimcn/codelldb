@@ -25,5 +25,5 @@ else:
 sys.path.append('.')
 
 from adapter import expressions
-expressions.test()
+expressions.run_tests()
 print('Success')

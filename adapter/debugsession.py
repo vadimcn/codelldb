@@ -359,16 +359,18 @@ class DebugSession:
     def set_bp_condition(self, bp, req):
         cond = opt_str(req.get('condition', None))
         if cond is not None:
-            if cond.startswith('?'):
+            if cond.startswith('/nat '):
                 # LLDB native expression
-                bp.SetCondition(cond[1:])
+                bp.SetCondition(cond[5:])
             else:
                 # Python expression
                 try:
-                    if cond.startswith('/'):
-                        cond = ('exec', compile(cond[1:], '<string>', 'exec'))
+                    if cond.startswith('/py '):
+                        cond = expressions.preprocess_vars(cond[4:])
+                        cond = ('py', compile(cond, '<string>', 'eval'))
                     else:
-                        cond = ('eval', compile(expressions.preprocess(cond), '<string>', 'eval'))
+                        cond = expressions.preprocess_vars(cond[4:])
+                        cond = ('expr', compile(cond, '<string>', 'eval'))
                     self.breakpoint_conditions[bp.GetID()] = cond
                     bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
                 except Exception as e:
@@ -402,12 +404,19 @@ class DebugSession:
             return True
         try:
             ty, code = cond
-            if ty == 'eval':
+            if ty == 'expr':
                 return eval(code, self.pyeval_globals, expressions.PyEvalContext(frame))
             else:
+                thread = frame.GetThread()
+                self.process.SetSelectedThread(thread)
+                thread.SetSelectedFrame(frame.GetFrameID())
+                lldb.frame = frame
+                lldb.thread = thread
+                lldb.process = thread.GetProcess()
+                lldb.target = lldb.process.GetTarget()
                 return eval(code, internal_dict, expressions.PyEvalContext(frame))
         except Exception as e:
-            self.console_msg('Could not evaluate breakpoint condition: %s' % str(e))
+            self.console_msg('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
             return True        
 
     def DEBUG_setExceptionBreakpoints(self, args):
@@ -674,7 +683,19 @@ class DebugSession:
     # Evaluates expr in the context of frame (or in global context if frame is None)
     # Returns expressions.Value or SBValue on success, SBError on failure.
     def evaluate_expr_in_frame(self, expr, frame):
-        if not expr.startswith('?'):
+        if expr.startswith('/nat '):
+            # Using LLDB native evaluator
+            expr = expr[4:]
+            if frame is not None:
+                result = frame.EvaluateExpression(expr) # In frame context
+            else:
+                result = self.target.EvaluateExpression(expr) # In global context
+            error = result.GetError()
+            if error.Success():
+                return result
+            else:
+                return error
+        else:
             # Using Python evaluator
             if frame is None: # Use currently selected frame
                 frame = self.process.GetSelectedThread().GetSelectedFrame()
@@ -686,18 +707,6 @@ class DebugSession:
                 log.debug('Evaluation error: %s', traceback.format_exc())
                 error = lldb.SBError()
                 error.SetErrorString(str(e))
-                return error
-        else:
-            # Using LLDB native evaluator
-            expr = expr[1:]
-            if frame is not None:
-                result = frame.EvaluateExpression(expr) # In frame context
-            else:
-                result = self.target.EvaluateExpression(expr) # In global context
-            error = result.GetError()
-            if error.Success():
-                return result
-            else:
                 return error
 
     format_codes = [(',h', lldb.eFormatHex),

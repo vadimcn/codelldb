@@ -297,9 +297,11 @@ type_traits = {
 
 # Replaces Python keywords with either `locals()["<ident>"]` or `.__getattr__("<ident>")`.
 # Replaces qualified identifiers (e.g. `foo::bar::baz`) with `locals()["<ident>"]`.
-# Replaces `@<ident>` with simply `<ident>`.
 def preprocess(expr):
     return preprocess_regex.sub(replacer, expr)
+
+def preprocess_vars(expr):
+    return preprocess_vars_regex.sub(replacer, expr)
 
 pystrings = '|'.join([
     r'(?:"(?:\\"|\\\\|[^"])*")',
@@ -308,8 +310,12 @@ pystrings = '|'.join([
     r"(?:r'[^']*')",
 ])
 keywords = '|'.join(keyword.kwlist)
-qualified_ident = r'((?:\w+::)+\w+)'
-preprocess_regex = re.compile(r'([\.@])?\b(%(keywords)s|%(qualified_ident)s)\b|%(pystrings)s' % locals())
+ident = r'\w+'
+qualified_ident = r'(?: \w+ ::)+ \w+'
+preprocess_regex = re.compile(r'(\.)? \b ({keywords} | {qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
+
+maybe_qualified_ident = r'(?: \w+ ::)* \w+'
+preprocess_vars_regex = re.compile(r'(\.)? \$ ({maybe_qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
 
 def replacer(match):
     prefix = match.group(1)
@@ -319,27 +325,24 @@ def replacer(match):
             return 'locals()["%s"]' % ident
         elif prefix == '.':
             return '.__getattr__("%s")' % ident
-        elif prefix == '@':
-            return ident
         else:
             assert False
     else: # a string - return unchanged
         return match.group(0)
 
-
-def test():
-    expr =     """
+def test_preprocess():
+    expr = """
         class = from.global.finally
-        [@for x @in y]
         local::bar::__BAZ()
         local_string()
+        '''continue.exec = pass.print; yield.with = 3'''
         "continue.exec = pass.print; yield.with = 3"
     """
     expected = """
         locals()["class"] = locals()["from"].__getattr__("global").__getattr__("finally")
-        [for x in y]
         locals()["local::bar::__BAZ"]()
         local_string()
+        '''continue.exec = pass.print; yield.with = 3'''
         "continue.exec = pass.print; yield.with = 3"
     """
     prepr = preprocess(expr)
@@ -347,3 +350,26 @@ def test():
         print(expected)
         print(prepr)
     assert prepr == expected
+
+def test_preprocess_vars():
+    expr = """
+        for x in $foo: print x
+        $xxx.$yyy.$zzz
+        $xxx::yyy::zzz
+        "$xxx::yyy::zzz"
+    """
+    expected = """
+        for x in locals()["foo"]: print x
+        locals()["xxx"].__getattr__("yyy").__getattr__("zzz")
+        locals()["xxx::yyy::zzz"]
+        "$xxx::yyy::zzz"
+    """
+    prepr = preprocess_vars(expr)
+    if prepr != expected:
+        print(expected)
+        print(prepr)
+    assert prepr == expected    
+
+def run_tests():
+    test_preprocess()
+    test_preprocess_vars()

@@ -50,6 +50,8 @@ class DebugSession:
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
 
+        self.debugger.HandleCommand('script import debugger')
+
         # The default event handler spams debug console each time we hit a brakpoint.
         # Tell debugger's event listener to ignore process state change events.
         default_listener = self.debugger.GetListener()
@@ -1046,11 +1048,11 @@ class DebugSession:
                 return remote_prefix + path[len(local_prefix):]
         return path
 
-    def preview_html(self, body):
+    def display_html(self, body):
         message = {
             'type': 'event',
             'seq': 0,
-            'event': 'previewHtml',
+            'event': 'displayHtml',
             'body': body
         }
         self.send_extension_message(message)

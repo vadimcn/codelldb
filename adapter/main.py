@@ -24,6 +24,8 @@ def run_session(read, write, ext_channel_port):
         from .wireprotocol import DebugServer
         from .debugsession import DebugSession
         from .eventloop import EventLoop
+        from . import debugger_api
+        sys.modules['debugger'] = debugger_api
 
         event_loop = EventLoop()
 

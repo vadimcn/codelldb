@@ -48,7 +48,7 @@ export function activate(context: ExtensionContext) {
     }));
 }
 
-function onPreviewHtml(event: any) {
+function onDisplayHtml(event: any) {
     previewContent = event.body.content;
     for (var uri in event.body.content) {
         previewContentChanged.fire(<any>uri);
@@ -59,7 +59,7 @@ function onPreviewHtml(event: any) {
 
 async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
     let port = await ec.startListener();
-    ec.channel().addListener('previewHtml', onPreviewHtml);
+    ec.channel().addListener('displayHtml', onDisplayHtml);
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
 

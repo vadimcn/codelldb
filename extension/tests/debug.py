@@ -1,6 +1,6 @@
 import io
 import lldb
-import adapter
+import debugger
 import base64
 import numpy as np
 import matplotlib
@@ -10,7 +10,7 @@ def show():
     image_bytes = io.BytesIO()
     plt.savefig(image_bytes, format='png', bbox_inches='tight')
     document = '<html><img src="data:data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue())
-    adapter.preview_html('debugger:/plot', title='Pretty Plot', position=2, content={'debugger:/plot': document})
+    debugger.display_html('debugger:/plot', title='Pretty Plot', position=2, content={'debugger:/plot': document})
 
 def plot():
     x = np.linspace(0, 2 * np.pi, 500)
@@ -20,8 +20,7 @@ def plot():
     ax.fill(x, y1, 'b', x, y2, 'r', alpha=0.3)
     show()
 
-def plot_image_if(cond, cmap='nipy_spectral_r'):
-    if not cond: return False
+def plot_image(cmap='nipy_spectral_r'):
     xdim = lldb.frame.EvaluateExpression('xdim').GetValueAsSigned()
     ydim = lldb.frame.EvaluateExpression('ydim').GetValueAsSigned()
     image = lldb.frame.EvaluateExpression('image')

@@ -29,7 +29,7 @@ class DebugSession:
         self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
         self.fn_breakpoints = dict() # { name : SBBreakpoint }
         self.exc_breakpoints = []
-        self.breakpoint_conditions = dict() # { bp_id : (type, code_object) }
+        self.breakpoint_conditions = dict() # { bp_id : code_object }
         self.target = None
         self.process = None
         self.terminal = None
@@ -45,7 +45,7 @@ class DebugSession:
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
-        
+
         self.debugger = lldb.debugger if lldb.debugger else lldb.SBDebugger.Create()
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
@@ -55,7 +55,7 @@ class DebugSession:
         # The default event handler spams debug console each time we hit a brakpoint.
         # Tell debugger's event listener to ignore process state change events.
         default_listener = self.debugger.GetListener()
-        default_listener.StopListeningForEventClass(self.debugger, 
+        default_listener.StopListeningForEventClass(self.debugger,
             lldb.SBProcess.GetBroadcasterClassName(), lldb.SBProcess.eBroadcastBitStateChanged)
 
         # Create our event listener and spawn a worker thread to poll it.
@@ -68,7 +68,7 @@ class DebugSession:
         r, w = os.pipe()
         read_end = os.fdopen(r, 'r')
         write_end = os.fdopen(w, 'w', 1) # line-buffered
-        debugger_output_listener = debugevents.DebuggerOutputListener(read_end, 
+        debugger_output_listener = debugevents.DebuggerOutputListener(read_end,
                 self.event_loop.make_dispatcher(self.handle_debugger_output))
         self.debugger_output_listener_token = debugger_output_listener.start()
         self.debugger.SetOutputFileHandle(write_end, False)
@@ -131,7 +131,7 @@ class DebugSession:
         self.process_launched = True
 
     def DEBUG_attach(self, args):
-        pid = args.get('pid', None) 
+        pid = args.get('pid', None)
         program = args.get('program', None)
         if pid is None and program is None:
             raise UserError('Either the \'program\' or the \'pid\' must be specified.')
@@ -146,7 +146,7 @@ class DebugSession:
         log.info('Attaching...')
         self.exec_commands(args.get('preRunCommands'))
         error = lldb.SBError()
-        pid = args.get('pid', None) 
+        pid = args.get('pid', None)
         if pid is not None:
             if is_string(pid): pid = int(pid)
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
@@ -296,12 +296,12 @@ class DebugSession:
                 bp = curr_bps.get(line, None)
                 if bp is None:
                     if not in_dasm:
-                        # LLDB is pretty finicky about breakpoint location path exactly matching 
+                        # LLDB is pretty finicky about breakpoint location path exactly matching
                         # the source path found in debug info.  Unfortunately, this means that
-                        # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same 
+                        # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same
                         # file, and debug info contains un-normalized paths like this pretty often.
                         # The workaroud is to set a breakpoint by file name and line only, then
-                        # check all resolved locations and filter out the ones that don't match 
+                        # check all resolved locations and filter out the ones that don't match
                         # the full path.
                         file_name = os.path.basename(file_id)
                         bp = self.target.BreakpointCreateByLocation(file_name, line)
@@ -365,18 +365,31 @@ class DebugSession:
                 # LLDB native expression
                 bp.SetCondition(cond[5:])
             else:
-                # Python expression
-                try:
-                    if cond.startswith('/py '):
-                        cond = expressions.preprocess_vars(cond[4:])
-                        cond = ('py', compile(cond, '<string>', 'eval'))
-                    else:
-                        cond = expressions.preprocess_vars(cond[4:])
-                        cond = ('expr', compile(cond, '<string>', 'eval'))
-                    self.breakpoint_conditions[bp.GetID()] = cond
-                    bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
-                except Exception as e:
-                    self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+                if cond.startswith('/py '):
+                    # Python expression
+                    pp_cond = expressions.preprocess_vars(cond[4:])
+                    try:
+                        pycode = compile(pp_cond, '<string>', 'eval')
+                    except Exception as e:
+                        self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+
+                    def eval_condition(frame, eval_globals):
+                        self.set_selected_frame(frame)
+                        return eval(pycode, eval_globals, expressions.PyEvalContext(frame))
+                else:
+                    # Simple expression
+                    pp_cond = expressions.preprocess(cond)
+                    try:
+                        pycode = compile(pp_cond, '<string>', 'eval')
+                    except Exception as e:
+                        self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+
+                    def eval_condition(frame, eval_globals):
+                        return eval(pycode, self.pyeval_globals, expressions.PyEvalContext(frame))
+
+                self.breakpoint_conditions[bp.GetID()] = eval_condition
+                bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
+
         ignoreCount = req.get('hitCondition', None)
         if ignoreCount is not None:
             try:
@@ -405,21 +418,10 @@ class DebugSession:
         if cond is None:
             return True
         try:
-            ty, code = cond
-            if ty == 'expr':
-                return eval(code, self.pyeval_globals, expressions.PyEvalContext(frame))
-            else:
-                thread = frame.GetThread()
-                self.process.SetSelectedThread(thread)
-                thread.SetSelectedFrame(frame.GetFrameID())
-                lldb.frame = frame
-                lldb.thread = thread
-                lldb.process = thread.GetProcess()
-                lldb.target = lldb.process.GetTarget()
-                return eval(code, internal_dict, expressions.PyEvalContext(frame))
+            return cond(frame, internal_dict)
         except Exception as e:
             self.console_msg('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
-            return True        
+            return True
 
     def DEBUG_setExceptionBreakpoints(self, args):
         if not self.launch_args.get('noDebug', False):
@@ -627,13 +629,7 @@ class DebugSession:
     def execute_command_in_frame(self, command, frame):
         # set up evaluation context
         if frame is not None:
-            thread = frame.GetThread()
-            self.process.SetSelectedThread(thread)
-            thread.SetSelectedFrame(frame.GetFrameID())
-            lldb.frame = frame
-            lldb.thread = thread
-            lldb.process = thread.GetProcess()
-            lldb.target = lldb.process.GetTarget()
+            self.set_selected_frame(frame)
         # evaluate
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
@@ -653,6 +649,17 @@ class DebugSession:
             interp.HandleCommandsFromFile(filespec, context, options, result)
         sys.stdout.flush()
         return result
+
+    # Selects a frame in LLDB context.
+    def set_selected_frame(self, frame):
+        thread = frame.GetThread()
+        thread.SetSelectedFrame(frame.GetFrameID())
+        process = thread.GetProcess()
+        process.SetSelectedThread(thread)
+        lldb.frame = frame
+        lldb.thread = thread
+        lldb.process = process
+        lldb.target = process.GetTarget()
 
     def evaluate_expr(self, args, expr):
         frame_id = args.get('frameId') # May be null
@@ -687,7 +694,7 @@ class DebugSession:
     def evaluate_expr_in_frame(self, expr, frame):
         if expr.startswith('/nat '):
             # Using LLDB native evaluator
-            expr = expr[4:]
+            expr = expr[5:]
             if frame is not None:
                 result = frame.EvaluateExpression(expr) # In frame context
             else:
@@ -698,13 +705,23 @@ class DebugSession:
             else:
                 return error
         else:
-            # Using Python evaluator
-            if frame is None: # Use currently selected frame
+            if frame is None: # Use the currently selected frame
                 frame = self.process.GetSelectedThread().GetSelectedFrame()
-            try:
+
+            if expr.startswith('/py '):
+                # Python expression
+                expr = expressions.preprocess_vars(expr[4:])
+                self.set_selected_frame(frame)
+                import __main__
+                eval_globals = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
+            else:
+                # Simple expression
                 expr = expressions.preprocess(expr)
+                eval_globals = self.pyeval_globals
+
+            try:
                 log.debug('Evaluating %s', expr)
-                return eval(expr,  self.pyeval_globals, expressions.PyEvalContext(frame))
+                return eval(expr,  eval_globals, expressions.PyEvalContext(frame))
             except Exception as e:
                 log.debug('Evaluation error: %s', traceback.format_exc())
                 error = lldb.SBError()
@@ -818,7 +835,7 @@ class DebugSession:
     def refresh_client_display(self):
         thread_id = self.process.GetSelectedThread().GetThreadID()
         self.send_event('continued', { 'threadId': thread_id,
-                                       'allThreadsContinued': True })        
+                                       'allThreadsContinued': True })
         self.send_event('stopped', { 'reason': 'mode switch',
                                      'threadId': thread_id,
                                      'allThreadsStopped': True })
@@ -970,11 +987,6 @@ class DebugSession:
         if stopped_thread is not None:
             if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
-                # Check if this breakpoint has a stopping condition attached
-                # if not self.should_stop_on_bp(bp_id, stopped_thread.frames[0]):
-                #     self.before_resume()
-                #     self.process.Continue()
-                #     return
                 for bp in self.exc_breakpoints:
                     if bp.GetID() == bp_id:
                         stop_reason_str = 'exception'
@@ -998,7 +1010,7 @@ class DebugSession:
 
             event['reason'] = stop_reason_str
             event['threadId'] = stopped_thread.GetThreadID()
-        
+
         self.send_event('stopped', event)
 
     def notify_stdio(self, ev_type):
@@ -1083,14 +1095,14 @@ class RegistersScope:
         self.frame = frame
 
 def SBValueListIter(val_list):
-    get_value = val_list.GetValueAtIndex 
-    for i in xrange(val_list.GetSize()): 
-        yield get_value(i) 
+    get_value = val_list.GetValueAtIndex
+    for i in xrange(val_list.GetSize()):
+        yield get_value(i)
 
 def SBValueChildrenIter(val):
-    get_value = val.GetChildAtIndex 
-    for i in xrange(val.GetNumChildren()): 
-        yield get_value(i)        
+    get_value = val.GetChildAtIndex
+    for i in xrange(val.GetNumChildren()):
+        yield get_value(i)
 
 def opt_str(s):
     return str(s) if s != None else None

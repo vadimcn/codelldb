@@ -54,22 +54,19 @@
 			]
 		},
 		{
-			"name": "debuggee launch",
+			"name": "debuggee launch vars",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			// "initCommands": [
-			// 	"platform select remote-macosx",
-			// 	"platform connect connect://127.0.0.1:1234"
-			// ],
-			"stopOnEntry": false,
-			"env": {
-				"FOO": "bar"
-			},
-			"args": [
-				"vars"
-			],
-			"cwd": "${workspaceRoot}"
+			"args": ["vars"]
+		},
+		{
+			"name": "debuggee launch mandelbrot",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/tests/debuggee",
+			"args": ["mandelbrot"],
+			"initCommands": ["command script import '${workspaceRoot}/extension/tests/debug.py"]
 		},
 		{
 			"name": "debuggee attach",
@@ -113,16 +110,6 @@
 			"sourceMap": {
 				"/Users/travis/build/rust-lang/rust/": "${workspaceRoot}/../rust/"
 			}
-		},
-		{
-			"name": "preview_html",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/debuggee",
-			"initCommands": [
-				"command script import '${workspaceRoot}/extension/tests/debug.py"
-			],
-			"args": ["mandelbrot"]
 		}
 	]
 }

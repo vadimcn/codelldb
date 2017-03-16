@@ -103,14 +103,10 @@ suite('Basic', () => {
     test('variables', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let waitForStopAsync = dc.waitForEvent('stopped');
-        await launch({ program: debuggee, args: ['vars'] });
-        await setBreakpointAsync;
-        let stoppedEvent = await waitForStopAsync;
+        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
         await verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
-        let frames = await dc.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
-        let scopes = await dc.scopesRequest({ frameId: frames.body.stackFrames[0].id });
-        let localsRef = scopes.body.scopes[0].variablesReference;
+        let frameId = await getTopFrameId(stoppedEvent.body.threadId);
+        let localsRef = await getFrameLocalsRef(frameId);
         let locals = await readVariables(localsRef);
         //console.log('locals = ', locals);
         assertDictContains(locals, {
@@ -123,7 +119,7 @@ suite('Basic', () => {
 
         let response1 = await dc.evaluateRequest({
             expression: 'vec_int', context: 'watch',
-            frameId: frames.body.stackFrames[0].id
+            frameId: frameId
         });
         let v = await readVariables(response1.body.variablesReference);
         assertDictContains(v, { '[0]': 'size=5', '[9]': 'size=5' });
@@ -135,11 +131,74 @@ suite('Basic', () => {
         let locals2 = await readVariables(localsRef);
         assert.equal(locals2['a'], '100');
     });
+
+    test('expressions', async () => {
+        let bpLine = findMarker(debuggeeSource, '#BP3');
+        let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
+        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let frameId = await getTopFrameId(stoppedEvent.body.threadId);
+
+        let response1 = await dc.evaluateRequest({ expression: "a+b", frameId: frameId, context: "watch" });
+        assert.equal(response1.body.result, "70");
+
+        let response2 = await dc.evaluateRequest({ expression: "/py sum([len(x) for x in $vec_int])", frameId: frameId, context: "watch" });
+        assert.equal(response2.body.result, "50"); // 10 sub-arrays of size 5
+
+        // let response3 = await dc.evaluateRequest({ expression: "/nat 2+2", frameId: frameId, context: "watch" });
+        // assert.ok(response3.body.result.endsWith("4")); // "(int) $0 = 70"
+    });
+
+    test('conditional breakpoint 1', async () => {
+        let bpLine = findMarker(debuggeeSource, '#BP3');
+        let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "i == 5");
+
+        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let frameId = await getTopFrameId(stoppedEvent.body.threadId);
+        let localsRef = await getFrameLocalsRef(frameId);
+        let locals = await readVariables(localsRef);
+        assert.equal(locals['i'], "5");
+    });
+
+    test('conditional breakpoint 2', async () => {
+        let bpLine = findMarker(debuggeeSource, '#BP3');
+        let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "/py $i == 5");
+
+        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let frameId = await getTopFrameId(stoppedEvent.body.threadId);
+        let localsRef = await getFrameLocalsRef(frameId);
+        let locals = await readVariables(localsRef);
+        assert.equal(locals['i'], "5");
+    });
 });
 
-suite('Attach tests - these may fail if your system has a locked-down ptrace() syscall', () => {
+async function launchAndWaitForStop(launchArgs: any): Promise<dp.StoppedEvent> {
+    let waitForStopAsync = dc.waitForEvent('stopped');
+    await launch(launchArgs);
+    let stoppedEvent = await waitForStopAsync;
+    return <dp.StoppedEvent>stoppedEvent;
+}
+
+async function getTopFrameId(threadId: number): Promise<number> {
+    let frames = await dc.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });
+    return frames.body.stackFrames[0].id;
+}
+
+async function getFrameLocalsRef(frameId: number): Promise<number> {
+    let scopes = await dc.scopesRequest({ frameId: frameId });
+    let localsRef = scopes.body.scopes[0].variablesReference;
+    return localsRef;
+}
+
+suite('Attach tests', () => {
     // Many Linux systems restrict tracing to parent processes only, which lldb in this case isn't.
     // To allow unrestricted tracing run `echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope`.
+    if (process.platform == 'linux') {
+        if (parseInt(fs.readFileSync('/proc/sys/kernel/yama/ptrace_scope', 'ascii')) > 0) {
+            console.log('ptrace() syscall is locked down: skipping attach tests');
+            return;
+        }
+    }
+
     var debuggeeProc: cp.ChildProcess;
 
     suiteSetup(() => {
@@ -167,8 +226,8 @@ suite('Attach tests - these may fail if your system has a locked-down ptrace() s
     });
 })
 
-suite('Rust data display tests - these require a Rust compiler', () => {
-    test('basic', async () => {
+suite('Rust tests', () => {
+    test('variables', async () => {
         let bpLine = findMarker(rusttypesSource, '#BP1');
         let setBreakpointAsync = setBreakpoint(rusttypesSource, bpLine);
         let waitForStopAsync = dc.waitForEvent('stopped');
@@ -253,12 +312,12 @@ async function attach(attachArgs: any): Promise<dp.AttachResponse> {
     return attachResp;
 }
 
-async function setBreakpoint(file: string, line: number): Promise<dp.SetBreakpointsResponse> {
+async function setBreakpoint(file: string, line: number, condition?: string): Promise<dp.SetBreakpointsResponse> {
     let waitStopAsync = dc.waitForEvent('stopped');
     await dc.waitForEvent('initialized');
     let breakpointResp = await dc.setBreakpointsRequest({
         source: { path: file },
-        breakpoints: [{ line: line, column: 0 }],
+        breakpoints: [{ line: line, column: 0, condition: condition }],
     });
     let bp = breakpointResp.body.breakpoints[0];
     assert.ok(bp.verified);

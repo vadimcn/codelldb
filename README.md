@@ -1,7 +1,7 @@
 CodeLLDB: a LLDB front end for Visual Studio Code
 =================================================
 
-[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.3.4/README.md) (working hyperlinks!)
+[View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.4.0/README.md) (working hyperlinks!)
 
 # Features
 - Supports Linux, macOS and Windows.

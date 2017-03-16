@@ -1,5 +1,13 @@
 # What's New
 
+## 0.4.0
+- The minumum VSCode version is now 1.9.
+- Added debugger API for HTML display.
+- @keyword is no longer allowed in "simple" expressions, the '/py ...' syntax replaces that.
+- Changed prefix for invoking native evaluator: `?<expr>` -> `/nat <expr>`
+- Changed prefix for regex breakpoints: `/` -> `/re `.
+- Fixed bugs #18, #19.
+
 ## 0.3.4
 - Bug fixes.
 

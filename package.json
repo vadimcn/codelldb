@@ -12,7 +12,7 @@
         "vscode": "^1.9.0",
         "node": "^6.3.0"
     },
-    "icon": "lldb.png",
+    "icon": "images/lldb.png",
     "categories": [
         "Debuggers"
     ],

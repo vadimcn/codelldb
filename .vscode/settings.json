@@ -10,5 +10,5 @@
         "**/*.pyc": true
     },
     "files.insertFinalNewline": true,
-    "python.linting.enabled": false
+    "files.trimTrailingWhitespace": true
 }

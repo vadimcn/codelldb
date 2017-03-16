@@ -112,7 +112,7 @@ suite('Basic', () => {
         assertDictContains(locals, {
             'a': '30',
             'b': '40',
-            'vec_int': 'size=10',
+            'array_int': 'int [10]',
             's': 'Struct',
             'str1': '"The quick brown fox"',
         });
@@ -122,7 +122,9 @@ suite('Basic', () => {
             frameId: frameId
         });
         let v = await readVariables(response1.body.variablesReference);
-        assertDictContains(v, { '[0]': 'size=5', '[9]': 'size=5' });
+        if (process.platform != 'win32') { // std::vector formatter is broken on Windows :(
+            assertDictContains(v, { '[0]': 'size=5', '[9]': 'size=5' });
+        }
         // Check that vector has '[raw]' element.
         assert.ok(v.hasOwnProperty('[raw]'));
 
@@ -141,8 +143,8 @@ suite('Basic', () => {
         let response1 = await dc.evaluateRequest({ expression: "a+b", frameId: frameId, context: "watch" });
         assert.equal(response1.body.result, "70");
 
-        let response2 = await dc.evaluateRequest({ expression: "/py sum([len(x) for x in $vec_int])", frameId: frameId, context: "watch" });
-        assert.equal(response2.body.result, "50"); // 10 sub-arrays of size 5
+        let response2 = await dc.evaluateRequest({ expression: "/py sum([int(x) for x in $array_int])", frameId: frameId, context: "watch" });
+        assert.equal(response2.body.result, "55"); // sum(1..10)
 
         // let response3 = await dc.evaluateRequest({ expression: "/nat 2+2", frameId: frameId, context: "watch" });
         // assert.ok(response3.body.result.endsWith("4")); // "(int) $0 = 70"

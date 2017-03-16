@@ -50,7 +50,7 @@ class DebugSession:
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
 
-        self.debugger.HandleCommand('script import debugger')
+        self.debugger.HandleCommand('script import adapter, debugger')
 
         # The default event handler spams debug console each time we hit a brakpoint.
         # Tell debugger's event listener to ignore process state change events.
@@ -308,8 +308,8 @@ class DebugSession:
                         for loc in bp:
                             fs = loc.GetAddress().GetLineEntry().GetFileSpec()
                             if fs.IsValid():
-                                bp_path = normalize_path(self.map_path_to_local(normalize_path(fs.fullpath)))
-                                if bp_path != normalize_path(file_id):
+                                bp_path = self.map_path_to_local(fs.fullpath)
+                                if not same_path(bp_path, file_id):
                                     loc.SetEnabled(False)
                     else:
                         dasm = self.disassembly_by_handle.get(file_id)
@@ -406,7 +406,7 @@ class DebugSession:
             if bp_loc.IsEnabled():
                 le = bp_loc.GetAddress().GetLineEntry()
                 fs = le.GetFileSpec()
-                path = self.map_path_to_local(normalize_path(fs.fullpath))
+                path = self.map_path_to_local(fs.fullpath)
                 bp_resp['source'] = { 'name': fs.basename, 'path': path }
                 bp_resp['line'] = le.line
                 bp_resp['verified'] = True
@@ -514,7 +514,7 @@ class DebugSession:
                 if le.IsValid():
                     fs = le.GetFileSpec()
                     # VSCode gets confused if the path contains funky stuff like a double-slash
-                    full_path = self.map_path_to_local(normalize_path(fs.fullpath))
+                    full_path = self.map_path_to_local(fs.fullpath)
                     stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
                     stack_frame['line'] = le.GetLine()
                     stack_frame['column'] = le.GetColumn()
@@ -1049,15 +1049,13 @@ class DebugSession:
         self.send_event('output', { 'category': 'console', 'output': output })
 
     def map_path_to_local(self, path):
+        path = os.path.normpath(path)
+        path_normcased = os.path.normcase(path)
         for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
-            if path.startswith(remote_prefix):
-                return local_prefix + path[len(remote_prefix):]
-        return path
-
-    def map_path_to_remote(self, path):
-        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
-            if path.startswith(local_prefix):
-                return remote_prefix + path[len(local_prefix):]
+            if path_normcased.startswith(os.path.normcase(remote_prefix)):
+                # This assumes that os.path.normcase does not change string length,
+                # but we want to preserve the original path casing...
+                return os.path.normpath(local_prefix + path[len(remote_prefix):])
         return path
 
     def display_html(self, body):
@@ -1107,8 +1105,8 @@ def SBValueChildrenIter(val):
 def opt_str(s):
     return str(s) if s != None else None
 
-def normalize_path(path):
-    return os.path.normcase(os.path.normpath(path))
+def same_path(path1, path2):
+    return os.path.normcase(os.path.normpath(path1)) == os.path.normcase(os.path.normpath(path2))
 
 languages = {
     'rust': { 'init_formatters': formatters.rust.initialize,

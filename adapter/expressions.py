@@ -1,6 +1,7 @@
 import logging
 import keyword
 import re
+import operator
 import lldb
 
 log = logging.getLogger('expressions')
@@ -35,6 +36,9 @@ class Value(object):
     def __str__(self):
         return str(get_value(self))
 
+    def __repr__(self):
+        return 'Value(' + str(get_value(self)) + ')'
+
     def __getitem__(self, key):
         # Allow array access if this value has children...
         if type(key) is Value:
@@ -54,118 +58,6 @@ class Value(object):
         if child_sbvalue and child_sbvalue.IsValid():
             return Value(child_sbvalue)
         raise AttributeError("Attribute '%s' is not defined" % name)
-
-    def __add__(self, other):
-        return get_value(self) + get_value(other)
-
-    def __sub__(self, other):
-        return get_value(self) - get_value(other)
-
-    def __mul__(self, other):
-        return get_value(self) * get_value(other)
-
-    def __floordiv__(self, other):
-        return get_value(self) // get_value(other)
-
-    def __mod__(self, other):
-        return get_value(self) %get_value(other)
-
-    def __divmod__(self, other):
-        return get_value(self) % get_value(other)
-
-    def __pow__(self, other):
-        return get_value(self) ** get_value(other)
-
-    def __lshift__(self, other):
-        return get_value(self) << get_value(other)
-
-    def __rshift__(self, other):
-        return get_value(self) >> get_value(other)
-
-    def __and__(self, other):
-        return get_value(self) & get_value(other)
-
-    def __xor__(self, other):
-        return get_value(self) ^ get_value(other)
-
-    def __or__(self, other):
-        return get_value(self) | get_value(other)
-
-    def __div__(self, other):
-        return get_value(self) / get_value(other)
-
-    def __truediv__(self, other):
-        return get_value(self) / get_value(other)
-
-    def __iadd__(self, other):
-        result = self.__add__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __isub__(self, other):
-        result = self.__sub__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __imul__(self, other):
-        result = self.__mul__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __idiv__(self, other):
-        result = self.__div__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __itruediv__(self, other):
-        result = self.__truediv__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ifloordiv__(self, other):
-        result =  self.__floordiv__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __imod__(self, other):
-        result =  self.__and__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ipow__(self, other):
-        result = self.__pow__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ipow__(self, other, modulo):
-        result = self.__pow__(self, other, modulo)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ilshift__(self, other):
-        result = self.__lshift__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __irshift__(self, other):
-        result =  self.__rshift__(other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __iand__(self, other):
-        result =  self.__and__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ixor__(self, other):
-        result =  self.__xor__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
-
-    def __ior__(self, other):
-        result =  self.__ior__(self, other)
-        self.sbvalue.SetValueFromCString(str(result))
-        return result
 
     def __neg__(self):
         return -get_value(self)
@@ -209,16 +101,165 @@ class Value(object):
     def __len__(self):
         return self.sbvalue.GetNumChildren()
 
-    def __cmp__(self, other):
+    # On-the-left ops
+    def __add__(self, other):
+        return get_value(self) + get_value(other)
+
+    def __sub__(self, other):
+        return get_value(self) - get_value(other)
+
+    def __mul__(self, other):
+        return get_value(self) * get_value(other)
+
+    def __div__(self, other):
+        return get_value(self) / get_value(other)
+
+    def __floordiv__(self, other):
+        return get_value(self) // get_value(other)
+
+    def __truediv__(self, other):
+        return get_value(self) / get_value(other)
+
+    def __mod__(self, other):
+        return get_value(self) % get_value(other)
+
+    def __divmod__(self, other):
+        return divmod(get_value(self), get_value(other))
+
+    def __pow__(self, other):
+        return get_value(self) ** get_value(other)
+
+    def __lshift__(self, other):
+        return get_value(self) << get_value(other)
+
+    def __rshift__(self, other):
+        return get_value(self) >> get_value(other)
+
+    def __and__(self, other):
+        return get_value(self) & get_value(other)
+
+    def __xor__(self, other):
+        return get_value(self) ^ get_value(other)
+
+    def __or__(self, other):
+        return get_value(self) | get_value(other)
+
+    # On-the-right ops
+    def __radd__(self, other):
+        return get_value(other) + get_value(self)
+
+    def __rsub__(self, other):
+        return get_value(other) - get_value(self)
+
+    def __rmul__(self, other):
+        return get_value(other) * get_value(self)
+
+    def __rdiv__(self, other):
+        return get_value(other) / get_value(self)
+
+    def __rfloordiv__(self, other):
+        return get_value(other) // get_value(self)
+
+    def __rtruediv__(self, other):
+        return get_value(other) / get_value(self)
+
+    def __rmod__(self, other):
+        return get_value(other) % get_value(self)
+
+    def __rdivmod__(self, other):
+        return divmod(get_value(other), get_value(self))
+
+    def __rpow__(self, other):
+        return get_value(other) ** get_value(self)
+
+    def __rlshift__(self, other):
+        return get_value(other) << get_value(self)
+
+    def __rrshift__(self, other):
+        return get_value(other) >> get_value(self)
+
+    def __rand__(self, other):
+        return get_value(other) & get_value(self)
+
+    def __rxor__(self, other):
+        return get_value(other) ^ get_value(self)
+
+    def __ror__(self, other):
+        return get_value(other) | get_value(self)
+
+    # In-place ops
+    def __inplace(self, result):
+        self.sbvalue.SetValueFromCString(str(result))
+        return result
+
+    def __iadd__(self, other):
+        return self.__inplace(self.__add__(other))
+
+    def __isub__(self, other):
+        return self.__inplace(self.__sub__(other))
+
+    def __imul__(self, other):
+        return self.__inplace(self.__mul__(other))
+
+    def __idiv__(self, other):
+        return self.__inplace(self.__div__(other))
+
+    def __itruediv__(self, other):
+        return self.__inplace(self.__truediv__(other))
+
+    def __ifloordiv__(self, other):
+        return self.__inplace(self.__floordiv__(other))
+
+    def __imod__(self, other):
+        return self.__inplace(self.__mod__(other))
+
+    def __ipow__(self, other):
+        return self.__inplace(self.__pow__(other))
+
+    def __ilshift__(self, other):
+        return self.__inplace(self.__lshift__(other))
+
+    def __irshift__(self, other):
+        return self.__inplace(self.__rshift__(other))
+
+    def __iand__(self, other):
+        return self.__inplace(self.__and__(other))
+
+    def __ixor__(self, other):
+        return self.__inplace(self.__xor__(other))
+
+    def __ior__(self, other):
+        return self.__inplace(self.__or__(other))
+
+    # Comparisons
+    def __compare(self, other, op):
         if type(other) is int:
-            return cmp(int(self), other)
+            return op(int(self), other)
         elif type(other) is float:
-            return cmp(float(self), other)
+            return op(float(self), other)
         elif type(other) is str:
-            return cmp(str(self), other)
+            return op(str(self), other)
         elif type(other) is Value:
-            return cmp(get_value(self), get_value(other))
+            return op(get_value(self), get_value(other))
         raise TypeError("Unknown type %s, No comparison operation defined." % str(type(other)))
+
+    def __lt__(self, other):
+        return self.__compare(other, operator.lt)
+
+    def __le__(self, other):
+        return self.__compare(other, operator.le)
+
+    def __gt__(self, other):
+        return self.__compare(other, operator.gt)
+
+    def __ge__(self, other):
+        return self.__compare(other, operator.ge)
+
+    def __eq__(self, other):
+        return self.__compare(other, operator.eq)
+
+    def __ne__(self, other):
+        return self.__compare(other, operator.ne)
 
 class ValueIter(object):
     def __init__(self,Value):
@@ -231,12 +272,14 @@ class ValueIter(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         if self.index >= self.length:
             raise StopIteration()
         child_sbvalue = self.sbvalue.GetChildAtIndex(self.index)
         self.index += 1
         return Value(child_sbvalue)
+
+    next = __next__ # PY2 compatibility.
 
 # Converts a Value to an int, a float or a string
 def get_value(v):
@@ -368,7 +411,7 @@ def test_preprocess_vars():
     if prepr != expected:
         print(expected)
         print(prepr)
-    assert prepr == expected    
+    assert prepr == expected
 
 def run_tests():
     test_preprocess()

@@ -60,3 +60,4 @@ node_modules/
 out/
 debuggee/
 .DS_Store
+tags

@@ -7,6 +7,7 @@
     - [Attaching](#attaching)
     - [Custom Launch](#custom-launch)
     - [Remote Debugging](#remote-debugging)
+    - [Loading a Core Dump](#loading-a-core-dump)
     - [Source Path Remapping](#source-path-remapping)
 - [Debugger Features](#debugger-features)
     - [Regex Breakpoints](#regex-breakpoints)
@@ -132,6 +133,17 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 }
 ```
 - Start debugging.
+
+## Loading a Core Dump
+Use custom launch with `target crate -c <core path>` init command:
+```json
+{
+    "name": "Core dump",
+    "type": "lldb",
+    "request": "custom",
+    "initCommands": ["target create -c ${workspaceRoot}/core"],
+}
+```
 
 ## Source Path Remapping
 Source path remapping is helpful in cases when program's source code is located in a different

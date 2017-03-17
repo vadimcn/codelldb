@@ -462,11 +462,15 @@ class DebugSession:
             self.notify_target_stopped(None)
 
     def DEBUG_pause(self, args):
-        self.process.Stop()
+        error = self.process.Stop()
+        if error.Fail():
+            raise UserError(error.GetCString())
 
     def DEBUG_continue(self, args):
         self.before_resume()
-        self.process.Continue()
+        error = self.process.Continue()
+        if error.Fail():
+            raise UserError(error.GetCString())
 
     def DEBUG_next(self, args):
         self.before_resume()

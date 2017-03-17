@@ -258,11 +258,11 @@ class DebugSession:
             stdio = [term_fd if s is None else str(s) for s in stdio]
         return stdio, extra_flags
 
-    def spawn_vscode_terminal(self, kind, args, cwd=''):
+    def spawn_vscode_terminal(self, kind, args=[], cwd='', env={}, title='Debuggee'):
         on_complete = lambda ok, body: None
         self.send_request('runInTerminal', {
-            'kind': kind, 'cwd': cwd,
-            'args': args }, on_complete)
+                'kind': kind, 'cwd': cwd, 'args': args, 'env': env, 'title': title
+            }, on_complete)
 
     def DEBUG_setBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):

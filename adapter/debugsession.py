@@ -249,12 +249,17 @@ class DebugSession:
         extra_flags = 0
         if None in stdio:
             term_type = args.get('terminal', 'console')
-            if term_type in ['integrated', 'external'] and 'win32' not in sys.platform:
-                self.terminal = terminal.create(
-                    lambda args: self.spawn_vscode_terminal(kind=term_type, args=args))
-                term_fd = self.terminal.tty
-            else:
-                term_fd = None # that'll send them to VSCode debug console
+            if 'win32' not in sys.platform:
+                if term_type in ['integrated', 'external']:
+                    self.terminal = terminal.create(
+                        lambda args: self.spawn_vscode_terminal(kind=term_type, args=args))
+                    term_fd = self.terminal.tty
+                else:
+                    term_fd = None # that'll send them to VSCode debug console
+            else: # Windows
+                no_console = 'false' if term_type == 'external' else 'true'
+                os.environ['LLDB_LAUNCH_INFERIORS_WITHOUT_CONSOLE'] = no_console
+                term_fd = None # no other options on Windows
             stdio = [term_fd if s is None else str(s) for s in stdio]
         return stdio, extra_flags
 

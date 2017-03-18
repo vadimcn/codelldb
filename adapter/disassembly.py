@@ -3,7 +3,9 @@ import lldb
 
 log = logging.getLogger('disassembly')
 
-MAX_INSTR_BYTES = 8 # Max number of instruction bytes to show
+MAX_INSTR_BYTES = 8 # Max number of instruction bytes to show.
+NO_SYMBOL_INSTRUCTIONS = 32 # How many instructions to show when there isn't a symbol associated
+                            # with the PC location.
 
 # bisect_left with get_key
 def lower_bound(a, x, get_key = lambda x: x):
@@ -49,19 +51,25 @@ class Disassembly:
     def __init__(self, pc_sbaddr, target):
         self.target = target
         self.symbol = symbol = pc_sbaddr.GetSymbol()
+        pc_address = pc_sbaddr.GetLoadAddress(self.target)
         if symbol.IsValid():
             self.start_sbaddr = symbol.GetStartAddress()
             self.start_address = self.start_sbaddr.GetLoadAddress(self.target)
             self.source_name = '%s @%x' % (symbol.GetName(), self.start_address)
             self.instructions = symbol.GetInstructions(self.target)
-        else:
+            last_instr = self.instructions[len(self.instructions)-1]
+            self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
+
+        if not symbol.IsValid() or not (self.start_address <= pc_address < self.end_address):
+            # Just read some instructions around the PC location.
             self.start_sbaddr = pc_sbaddr
             self.start_address = pc_sbaddr.GetLoadAddress(self.target)
             self.source_name = "@%x" % self.start_address
-            self.instructions = self.target.ReadInstructions(pc_sbaddr, 32)
-        last_instr = self.instructions[len(self.instructions)-1]
-        self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
-        assert self.start_address <= pc_sbaddr.GetLoadAddress(self.target) < self.end_address
+            self.instructions = self.target.ReadInstructions(pc_sbaddr, NO_SYMBOL_INSTRUCTIONS)
+            last_instr = self.instructions[len(self.instructions)-1]
+            self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
+
+        assert self.start_address <= pc_address < self.end_address
         self.addresses = [-1, -1] # addresses corresponding to source lines (-1 = comment)
         for instr in self.instructions:
             self.addresses.append(instr.GetAddress().GetLoadAddress(self.target))

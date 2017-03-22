@@ -16,6 +16,9 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
     resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, hard))
 
 def init_logging(log_file, log_level):
+    if log_file is not None and log_file.startswith('b64:'):
+        import base64
+        log_file = base64.b64decode(log_file[4:])
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
 
@@ -60,33 +63,34 @@ def run_session(read, write, ext_channel_port):
 
         # Run event loop until DebugSession breaks it.
         event_loop.run()
-    except Exception as e:
-        log.error('%s', traceback.format_exc())
     finally:
         if ext_conn is not None:
             ext_conn.close()
 
 # Run in socket server mode
 def run_tcp_server(port=4711, multiple=True, ext_channel_port=None):
-    init_logging(None, logging.NOTSET)
-    log.info('Server mode on port %d (Ctrl-C to stop)', port)
-    ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    ls.bind(('127.0.0.1', port))
-    ls.listen(1)
+    try:
+        init_logging(None, logging.NOTSET)
+        log.info('Server mode on port %d (Ctrl-C to stop)', port)
+        ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        ls.bind(('127.0.0.1', port))
+        ls.listen(1)
 
-    while True:
-        conn, addr = ls.accept()
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        log.info('New connection from %s', addr)
-        run_session(conn.recv, conn.sendall, ext_channel_port)
-        conn.close()
-        if multiple:
-            log.info('Debug session ended. Waiting for new connections.')
-        else:
-            log.info('Debug session ended.')
-            break
-    ls.close()
+        while True:
+            conn, addr = ls.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            log.info('New connection from %s', addr)
+            run_session(conn.recv, conn.sendall, ext_channel_port)
+            conn.close()
+            if multiple:
+                log.info('Debug session ended. Waiting for new connections.')
+            else:
+                log.info('Debug session ended.')
+                break
+        ls.close()
+    except Exception as e:
+        log.error('%s', traceback.format_exc())
 
 from os import read as os_read, write as os_write
 def os_write_all(ofd, data):
@@ -101,12 +105,28 @@ def os_write_all(ofd, data):
             return
         data = data[n:]
 
-# Single-session run using the specified input and output fds
-def run_stdio_session(ifd=0, ofd=1, ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
-    if log_file is not None:
-        import base64
-        log_file = base64.b64decode(log_file)
-    init_logging(log_file, log_level)
-    log.info('Single-session mode on fds (%d,%d)', ifd, ofd)
-    run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
-    log.info('Debug session ended. Exiting.')
+# Single session on top of the specified fds
+def run_pipe_session(ifd, ofd, ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
+    try:
+        init_logging(log_file, log_level)
+        log.info('Single-session mode on fds (%d, %d)', ifd, ofd)
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
+        log.info('Debug session ended. Exiting.')
+    except Exception as e:
+        log.error('%s', traceback.format_exc())
+
+# Single session on top of stdin & stdout
+def run_stdio_session(ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
+    try:
+        init_logging(log_file, log_level)
+        # Keeping all imported components from spamming stdout is pretty futile;
+        # just relocate stdio to different fds.
+        ifd = os.dup(0)
+        ofd = os.dup(1)
+        os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
+        log.info('Single-session mode on stdio')
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
+        log.info('Debug session ended. Exiting.')
+    except Exception as e:
+        log.error('%s', traceback.format_exc())

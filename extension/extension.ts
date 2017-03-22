@@ -74,7 +74,7 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
             logPath = lldbLog.path;
             logLevel = lldbLog.level;
         }
-        logging = format(',log_file=\'%s\',log_level=%d',
+        logging = format(',log_file=\'b64:%s\',log_level=%d',
             new Buffer(logPath).toString('base64'), logLevel);
     }
 
@@ -83,7 +83,7 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(0,1,ext_channel_port=%d%s)', port, logging)
+            '-O', format('script adapter.main.run_stdio_session(ext_channel_port=%d%s)', port, logging)
         ]
     }
 }

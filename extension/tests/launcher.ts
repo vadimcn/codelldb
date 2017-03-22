@@ -9,13 +9,13 @@ let adapterPath = path.join(__dirname, '..', '..', 'adapter')
 
 var logging = '';
 if (process.env.ADAPTER_LOG) {
-    logging = format(',log_file=\'%s\', log_level=0',
+    logging = format(',log_file=\'b64:%s\', log_level=0',
         new Buffer(process.env.ADAPTER_LOG).toString('base64'));
 }
 
 let lldb = cp.spawn('lldb', ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(3,4 %s)', logging)
+            '-O', format('script adapter.main.run_pipe_session(3,4 %s)', logging)
         ], {
             stdio: ['ignore', 'ignore', 'ignore', 'pipe', process.stdout],
             cwd: path.join(__dirname, '..', '..')

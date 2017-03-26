@@ -101,7 +101,7 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
 ### Connecting to lldb-server agent
 - Run `lldb-server platform --server --listen *:<port>` on the remote machine.
 - Create launch configuration similar to this:
-```json
+```javascript
 {
     "name": "Remote launch",
     "type": "lldb",
@@ -123,7 +123,7 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 ### Connecting to gdbserver agent
 - Run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
 - Create a custom launch configuration:
-```json
+```javascript
 {
     "name": "Remote attach",
     "type": "lldb",
@@ -136,7 +136,7 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 
 ## Loading a Core Dump
 Use custom launch with `target crate -c <core path>` init command:
-```json
+```javascript
 {
     "name": "Core dump",
     "type": "lldb",
@@ -152,7 +152,7 @@ directory then it was in during the build (for example, if a build server was us
 A source map consists of pairs of old and new path prefixes.  When the debugger encounters a source
 file path beginning with one of the "old" prefixes, it will automatically replace it with the
 corresponding "new" prefix.  Example:
-```json
+```javascript
     "sourceMap": { "/old/path/to/source/" : "/the/new/source/path/" }
 ```
 

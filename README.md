@@ -4,7 +4,7 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 [View this readme on GitHub](https://github.com/vadimcn/vscode-lldb/blob/0.4.0/README.md) (working hyperlinks!)
 
 # Features
-- Supports Linux, macOS and Windows.
+- Supports Linux, macOS and Windows (with caveats - see below).
 - Launch processes with configurable stdio redirection.
 - Attach to processes by pid or by name.
 - Scripted custom launch for ultimate flexibility.
@@ -52,8 +52,14 @@ configure LLDB executable name via [Workspace Configuration](MANUAL.md#workspace
 ## Windows
 - [Download](http://llvm.org/builds/) and install LLVM for Windows.
 - [Download](https://www.python.org/downloads/windows/) and install Python 3.5.x. If you've
-installed a 64-bit LLVM, you will need a 64-bit Python as well.
+installed a 64-bit LLVM (not recommended), you will need a 64-bit Python as well.
 - Make sure that both LLDB and Python install directories are on the PATH.
+
+### **Note**
+At the moment, LLDB's support of Microsoft PDB debug info format is rather poor.  Also, the
+64-bit Windows LLDB is known to be buggy.<br>
+This means that in practice it's only useful for debugging 32-bit binaries produced by GNU
+toolchains.  This situation will hopefully improve with time.
 
 # [Manual](MANUAL.md)
 Be sure to read the [Fine Manual](MANUAL.md)!

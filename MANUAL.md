@@ -244,6 +244,12 @@ debugger's main script context).
 ### debugger.evaluate(expression: str) -> Value
 Allows dynamic evaluation of [simple expressions](#simple-expressions).
 
+### debugger.unwrap(obj: Value) -> lldb.SBValue
+Extract lldb.SBValue from the result of evaluation of a simple expression.
+
+### debugger.wrap(obj: lldb.SBValue) -> Value
+Wrap lldb.SBValue as a simple expression Value.
+
 ### debugger.stop_if(condition: bool, handler: Callable[]) -> bool
 If `condition` evaluates to True, executes the `handler` function and returns True.  Otherwise,
 returns False.<br>

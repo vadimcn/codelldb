@@ -372,15 +372,17 @@ class DebugSession:
             else:
                 if cond.startswith('/py '):
                     # Python expression
-                    pp_cond = expressions.preprocess_vars(cond[4:])
+                    pp_cond = expressions.preprocess_varsubsts(cond[4:])
                     try:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
                         self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+                        return
 
                     def eval_condition(frame, eval_globals):
                         self.set_selected_frame(frame)
-                        return eval(pycode, eval_globals, expressions.PyEvalContext(frame))
+                        eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
+                        return eval(pycode, eval_globals, {})
                 else:
                     # Simple expression
                     pp_cond = expressions.preprocess(cond)
@@ -388,6 +390,7 @@ class DebugSession:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
                         self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+                        return
 
                     def eval_condition(frame, eval_globals):
                         return eval(pycode, self.pyeval_globals, expressions.PyEvalContext(frame))
@@ -719,18 +722,21 @@ class DebugSession:
 
             if expr.startswith('/py '):
                 # Python expression
-                expr = expressions.preprocess_vars(expr[4:])
+                expr = expressions.preprocess_varsubsts(expr[4:])
                 self.set_selected_frame(frame)
                 import __main__
                 eval_globals = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
+                eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
+                eval_locals = {}
             else:
                 # Simple expression
                 expr = expressions.preprocess(expr)
                 eval_globals = self.pyeval_globals
+                eval_locals = expressions.PyEvalContext(frame)
 
             try:
                 log.debug('Evaluating %s', expr)
-                return eval(expr,  eval_globals, expressions.PyEvalContext(frame))
+                return eval(expr, eval_globals, eval_locals)
             except Exception as e:
                 log.debug('Evaluation error: %s', traceback.format_exc())
                 error = lldb.SBError()

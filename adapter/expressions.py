@@ -293,7 +293,7 @@ def get_value(v):
             else:
                 return v.sbvalue.GetValueAsUnsigned()
         else:
-            str_val = v.sbvalue.GetSummary()
+            str_val = v.sbvalue.GetSummary() or ""
             if str_val.startswith('"') and str_val.endswith('"') and len(str_val) > 1:
                 str_val = str_val[1:-1]
             return str_val
@@ -343,8 +343,9 @@ type_traits = {
 def preprocess(expr):
     return preprocess_regex.sub(replacer, expr)
 
-def preprocess_vars(expr):
-    return preprocess_vars_regex.sub(replacer, expr)
+# Replaces variable placeholders ($var) with `__frame_vars["var"]`.
+def preprocess_varsubsts(expr):
+    return preprocess_varsubsts_regex.sub(replacer_varsubsts, expr)
 
 pystrings = '|'.join([
     r'(?:"(?:\\"|\\\\|[^"])*")',
@@ -358,7 +359,7 @@ qualified_ident = r'(?: \w+ ::)+ \w+'
 preprocess_regex = re.compile(r'(\.)? \b ({keywords} | {qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
 
 maybe_qualified_ident = r'(?: \w+ ::)* \w+'
-preprocess_vars_regex = re.compile(r'(\.)? \$ ({maybe_qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
+preprocess_varsubsts_regex = re.compile(r'(\.)? \$ ({maybe_qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
 
 def replacer(match):
     prefix = match.group(1)
@@ -366,6 +367,19 @@ def replacer(match):
     if ident is not None:
         if prefix is None:
             return 'locals()["%s"]' % ident
+        elif prefix == '.':
+            return '.__getattr__("%s")' % ident
+        else:
+            assert False
+    else: # a string - return unchanged
+        return match.group(0)
+
+def replacer_varsubsts(match):
+    prefix = match.group(1)
+    ident = match.group(2)
+    if ident is not None:
+        if prefix is None:
+            return '__frame_vars["%s"]' % ident
         elif prefix == '.':
             return '.__getattr__("%s")' % ident
         else:
@@ -394,7 +408,7 @@ def test_preprocess():
         print(prepr)
     assert prepr == expected
 
-def test_preprocess_vars():
+def test_preprocess_varsubsts():
     expr = """
         for x in $foo: print x
         $xxx.$yyy.$zzz
@@ -402,12 +416,12 @@ def test_preprocess_vars():
         "$xxx::yyy::zzz"
     """
     expected = """
-        for x in locals()["foo"]: print x
-        locals()["xxx"].__getattr__("yyy").__getattr__("zzz")
-        locals()["xxx::yyy::zzz"]
+        for x in __frame_vars["foo"]: print x
+        __frame_vars["xxx"].__getattr__("yyy").__getattr__("zzz")
+        __frame_vars["xxx::yyy::zzz"]
         "$xxx::yyy::zzz"
     """
-    prepr = preprocess_vars(expr)
+    prepr = preprocess_varsubsts(expr)
     if prepr != expected:
         print(expected)
         print(prepr)
@@ -415,4 +429,4 @@ def test_preprocess_vars():
 
 def run_tests():
     test_preprocess()
-    test_preprocess_vars()
+    test_preprocess_varsubsts()

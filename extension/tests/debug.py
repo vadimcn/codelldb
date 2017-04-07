@@ -12,20 +12,16 @@ def show():
     document = '<html><img src="data:data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue())
     debugger.display_html('debugger:/plot', title='Pretty Plot', position=2, content={'debugger:/plot': document})
 
-def plot():
-    x = np.linspace(0, 2 * np.pi, 500)
-    y1 = np.sin(x)
-    y2 = np.sin(3 * x)
-    fig, ax = plt.subplots()
-    ax.fill(x, y1, 'b', x, y2, 'r', alpha=0.3)
-    show()
-
-def plot_image(cmap='nipy_spectral_r'):
-    xdim = lldb.frame.EvaluateExpression('xdim').GetValueAsSigned()
-    ydim = lldb.frame.EvaluateExpression('ydim').GetValueAsSigned()
-    image = lldb.frame.EvaluateExpression('image')
-    data = image.GetData()
-    data = data.ReadRawData(lldb.SBError(), 0, data.GetByteSize())
+def plot_image(image, xdim, ydim, cmap='nipy_spectral_r'):
+    image = debugger.unwrap(image)
+    if image.TypeIsPointerType():
+        image_addr = image.GetValueAsUnsigned()
+    else:
+        image_addr = image.AddressOf().GetValueAsUnsigned()
+    data = lldb.process.ReadMemory(image_addr, int(xdim * ydim) * 4, lldb.SBError())
     data = np.frombuffer(data, dtype=np.int32).reshape((ydim,xdim))
     plt.imshow(data, cmap=cmap, interpolation='nearest')
     show()
+
+def display(x):
+    print(repr(x))

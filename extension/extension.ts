@@ -91,7 +91,7 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
 async function launchDebugServer(context: ExtensionContext) {
     let port = await ec.startListener();
     let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('path', 'lldb');
+    let lldbPath = config.get('executable', 'lldb');
 
     let terminal = window.createTerminal('LLDB Debug Server');
     let adapterPath = path.join(context.extensionPath, 'adapter');

@@ -1,5 +1,8 @@
 # What's New
 
+## 0.4.1
+- Bug fixes.
+
 ## 0.4.0
 - The minumum VSCode version is now 1.9.
 - Added debugger API for HTML display.
@@ -12,7 +15,7 @@
 - Bug fixes.
 
 ## 0.3.3
-- [Custom launch requests](README.md#custom-launch).
+- [Custom launch requests](MANUAL.md#custom-launch).
 - Command completions in debug console.
 - Windows LLDB is now supported!
 - Debugger stdout is now piped to debug console.
@@ -27,8 +30,8 @@
 - Bug fixes.
 
 ## 0.3.0
-- [Variable visualizers for Rust](#rust-language-support).
-- New [expression evaluator](#expressions).
+- [Variable visualizers for Rust](MANUAL.md#rust-language-support).
+- New [expression evaluator](MANUAL.md#expressions).
 - Bug fixes.
 
 ## 0.2.2
@@ -41,12 +44,12 @@
 - Resume debuggee after attach, unless stopOnEntry is true.
 
 ## 0.2.0
-- Added [disassembly view](README.md#disassembly-view).
-- Added [variable formatting](README.md#formatting).
+- Added [disassembly view](MANUAL.md#disassembly-view).
+- Added [variable formatting](MANUAL.md#formatting).
 
 ## 0.1.3
 - Added support for setting variable values (primitive types only).
-- Added [regex breakpoints](README.md#regex-breakpoints).
+- Added [regex breakpoints](MANUAL.md#regex-breakpoints).
 
 ## 0.1.2
 - Infer `.exe` target extension on Windows.

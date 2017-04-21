@@ -49,6 +49,10 @@ configure LLDB executable name via [Workspace Configuration](MANUAL.md#workspace
 - [Download](https://developer.apple.com/xcode/download/) and install XCode.
 - Install XCode Command Line Tools by running `xcode-select --install`
 
+### **Note**
+LLDB is incompatible with Brew or MacPorts-installed Python.  If you have one installed on your machine,
+please read [this](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting#is-lldbs-python-scripting-functional).
+
 ## Windows
 - [Download](http://llvm.org/builds/) and install LLVM for Windows.
 - [Download](https://www.python.org/downloads/windows/) and install Python 3.5.x. If you've

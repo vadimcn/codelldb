@@ -19,11 +19,10 @@ log.info('Imported')
 
 class DebugSession:
 
-    def __init__(self, event_loop, send_message, send_extension_message):
+    def __init__(self, event_loop, send_message):
         DebugSession.current = self
         self.event_loop = event_loop
         self.send_message = send_message
-        self.send_extension_message = send_extension_message
         self.var_refs = handles.StableHandles()
         self.ignore_bp_events = False
         self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
@@ -41,6 +40,7 @@ class DebugSession:
         self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
+        self.extension_poll = None
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -823,10 +823,10 @@ class DebugSession:
         self.listener_handler_token = None
         self.event_loop.stop()
 
-    def EXTENSION_test(self, args):
+    def DEBUG_test(self, args):
         self.console_msg('TEST\n')
 
-    def EXTENSION_showDisassembly(self, args):
+    def DEBUG_showDisassembly(self, args):
         value = args.get('value', 'toggle')
         if value == 'toggle':
             self.show_disassembly = 'auto' if self.show_disassembly != 'auto' else 'always'
@@ -834,7 +834,7 @@ class DebugSession:
             self.show_disassembly = value
         self.refresh_client_display()
 
-    def EXTENSION_displayFormat(self, args):
+    def DEBUG_displayFormat(self, args):
         value = args.get('value', 'auto')
         if value == 'hex':
             self.global_format = lldb.eFormatHex
@@ -845,6 +845,13 @@ class DebugSession:
         else:
             self.global_format = lldb.eFormatDefault
         self.refresh_client_display()
+
+    def DEBUG_provideContent(self, args):
+        return { 'content': self.provide_content(args['uri']) }
+
+    def DEBUG_longPoll(self, args):
+        self.extension_poll = args['response']
+        return AsyncResponse
 
     # Fake a target stop to force VSCode to refresh the display
     def refresh_client_display(self):
@@ -918,7 +925,7 @@ class DebugSession:
             assert False, "Invalid result type: %s" % result
         self.send_message(response)
 
-    # send a request to VSCode. When response is received, on_complete(True, request.body)
+    # Send a request to VSCode. When response is received, on_complete(True, request.body)
     # will be called on success, or on_complete(False, request.message) on failure.
     def send_request(self, command, args, on_complete):
         request = { 'type': 'request', 'seq': self.request_seq, 'command': command,
@@ -927,35 +934,10 @@ class DebugSession:
         self.request_seq += 1
         self.send_message(request)
 
-    # Handle messages from VSCode extension
-    def handle_extension_message(self, request):
-        if request is None:
-            return # the client has disconnected
-        command =  request['command']
-        args = request.get('arguments', {})
-        response = { 'type': 'response', 'command': command,
-                     'request_seq': request['seq'], 'success': False }
-        args['response'] = response
-
-        log.debug('### Handling extension command: %s', command)
-        handler = getattr(self, 'EXTENSION_' + command, None)
-        if handler is not None:
-            try:
-                result = handler(args)
-                response['success'] = True
-                response['body'] = result
-                self.send_extension_message(response)
-            except Exception as e:
-                tb = traceback.format_exc()
-                log.error('Internal debugger error:\n%s', tb)
-                msg = str(e)
-                response['success'] = False
-                response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
-                self.send_extension_message(response)
-        else:
-            log.warning('No handler for extension command %s', command)
-            response['success'] = False
-            self.send_extension_message(response)
+    # Send request to VSCode extension.
+    def send_extension_event(self, args):
+        self.send_response(self.extension_poll, args)
+        self.extension_poll = None
 
     # Handles debugger notifications
     def handle_debugger_event(self, event):
@@ -1073,17 +1055,9 @@ class DebugSession:
                 return os.path.normpath(local_prefix + path[len(remote_prefix):])
         return path
 
+    # Ask VSCode extension to display HTML content.
     def display_html(self, body):
-        message = {
-            'type': 'event',
-            'seq': 0,
-            'event': 'displayHtml',
-            'body': body
-        }
-        self.send_extension_message(message)
-
-    def EXTENSION_provideContent(self, args):
-        return { 'content': self.provide_content(args['uri']) }
+        self.send_extension_event({ 'event': 'displayHtml', 'body': body })
 
 def on_breakpoint_hit(frame, bp_loc, internal_dict):
     return DebugSession.current.should_stop_on_bp(bp_loc.GetBreakpoint().GetID(), frame, internal_dict)

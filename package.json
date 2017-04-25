@@ -139,8 +139,8 @@
                     "pickProcess": "lldb.pickProcess",
                     "pickMyProcess": "lldb.pickMyProcess"
                 },
+                "startSessionCommand": "lldb.startDebugSession",
                 "adapterExecutableCommand": "lldb.getAdapterExecutable",
-                "_startSessionCommand": "lldb.startDebugSession",
                 "configurationAttributes": {
                     "launch": {
                         "required": [

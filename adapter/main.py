@@ -22,53 +22,31 @@ def init_logging(log_file, log_level):
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
 
-def run_session(read, write, ext_channel_port):
-    try:
-        from .wireprotocol import DebugServer
-        from .debugsession import DebugSession
-        from .eventloop import EventLoop
-        from . import debugger_api
-        sys.modules['debugger'] = debugger_api
+def run_session(read, write):
+    from .wireprotocol import DebugServer
+    from .debugsession import DebugSession
+    from .eventloop import EventLoop
+    from . import debugger_api
+    sys.modules['debugger'] = debugger_api
 
-        event_loop = EventLoop()
+    event_loop = EventLoop()
 
-        # Attach debug protocol listener to the main communication channel.
-        debug_server = DebugServer()
-        debug_server.set_channel(read, write)
+    # Attach debug protocol listener to the main communication channel.
+    debug_server = DebugServer()
+    debug_server.set_channel(read, write)
 
-        # Establish auxilary channel to VSCode extension.
-        if ext_channel_port is not None:
-            ext_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            ext_conn.connect(('127.0.0.1', ext_channel_port))
-            ext_conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            ext_conn.settimeout(0.5)
+    # Create DebugSession, tell it how to send messages back to the clients.
+    debug_session = DebugSession(event_loop, debug_server.send_message)
 
-            ext_server = DebugServer()
-            ext_server.set_channel(ext_conn.recv, ext_conn.sendall)
-            send_ext_message = ext_server.send_message
-        else:
-            ext_conn = None
-            ext_server = None
-            send_ext_message = None
+    # Start up worker threads.
+    debug_server.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
+    token = debug_server.start()
 
-        # Create DebugSession, tell it how to send messages back to the clients.
-        debug_session = DebugSession(event_loop, debug_server.send_message, send_ext_message)
-
-        # Start up worker threads.
-        debug_server.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
-        token1 = debug_server.start()
-        if ext_server is not None:
-            ext_server.handle_message = event_loop.make_dispatcher(debug_session.handle_extension_message)
-            token2 = ext_server.start()
-
-        # Run event loop until DebugSession breaks it.
-        event_loop.run()
-    finally:
-        if ext_conn is not None:
-            ext_conn.close()
+    # Run event loop until DebugSession breaks it.
+    event_loop.run()
 
 # Run in socket server mode
-def run_tcp_server(port=4711, multiple=True, ext_channel_port=None):
+def run_tcp_server(port=4711, multiple=True):
     try:
         init_logging(None, logging.NOTSET)
         log.info('Server mode on port %d (Ctrl-C to stop)', port)
@@ -81,7 +59,7 @@ def run_tcp_server(port=4711, multiple=True, ext_channel_port=None):
             conn, addr = ls.accept()
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             log.info('New connection from %s', addr)
-            run_session(conn.recv, conn.sendall, ext_channel_port)
+            run_session(conn.recv, conn.sendall)
             conn.close()
             if multiple:
                 log.info('Debug session ended. Waiting for new connections.')
@@ -106,17 +84,17 @@ def os_write_all(ofd, data):
         data = data[n:]
 
 # Single session on top of the specified fds
-def run_pipe_session(ifd, ofd, ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
+def run_pipe_session(ifd, ofd, log_file=None, log_level=logging.CRITICAL):
     try:
         init_logging(log_file, log_level)
         log.info('Single-session mode on fds (%d, %d)', ifd, ofd)
-        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
         log.info('Debug session ended. Exiting.')
     except Exception as e:
         log.error('%s', traceback.format_exc())
 
 # Single session on top of stdin & stdout
-def run_stdio_session(ext_channel_port=None, log_file=None, log_level=logging.CRITICAL):
+def run_stdio_session(log_file=None, log_level=logging.CRITICAL):
     try:
         init_logging(log_file, log_level)
         # Keeping all imported components from spamming stdout is pretty futile;
@@ -126,7 +104,7 @@ def run_stdio_session(ext_channel_port=None, log_file=None, log_level=logging.CR
         os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
         os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
         log.info('Single-session mode on stdio')
-        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), ext_channel_port)
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
         log.info('Debug session ended. Exiting.')
     except Exception as e:
         log.error('%s', traceback.format_exc())

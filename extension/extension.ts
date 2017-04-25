@@ -7,10 +7,20 @@ import { format } from 'util';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as ec from './extensionChannel';
+import {DebugProtocol} from 'vscode-debugprotocol';
 
-var previewContent: any = {};
-var previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
+interface LongPollResponse extends DebugProtocol.Response {
+    body: {
+        event: string;
+        body: any
+    }
+}
+
+interface ProvideContentResponse extends DebugProtocol.Response {
+    body: {
+        content: string;
+    }
+}
 
 export function activate(context: ExtensionContext) {
     context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
@@ -34,32 +44,17 @@ export function activate(context: ExtensionContext) {
             return previewContentChanged.event;
         },
         async provideTextDocumentContent(uri): Promise<string> {
-            let uriString = uri.toString();
-            if (previewContent.hasOwnProperty(uriString)) {
-                return previewContent[uriString];
-            }
-            if (ec.isActive()) {
-                let response = await ec.channel().send('provideContent', { uri: uriString });
-                return response.body.content;
-            } else {
-                return "Not available";
-            }
+            return provideHtmlContent(uri);
         }
     }));
 }
 
-function onDisplayHtml(event: any) {
-    previewContent = event.body.content;
-    for (var uri in event.body.content) {
-        previewContentChanged.fire(<any>uri);
-    }
-    commands.executeCommand('vscode.previewHtml',
-        event.body.uri, event.body.position, event.body.title);
+async function startDebugSession(context: ExtensionContext, config: any) {
+    await commands.executeCommand('vscode.startDebug', config);
+    pollForEvents();
 }
 
 async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
-    let port = await ec.startListener();
-    ec.channel().addListener('displayHtml', onDisplayHtml);
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
 
@@ -74,7 +69,7 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
             logPath = lldbLog.path;
             logLevel = lldbLog.level;
         }
-        logging = format(',log_file=\'b64:%s\',log_level=%d',
+        logging = format('log_file=\'b64:%s\',log_level=%d',
             new Buffer(logPath).toString('base64'), logLevel);
     }
 
@@ -83,13 +78,12 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(ext_channel_port=%d%s)', port, logging)
+            '-O', format('script adapter.main.run_stdio_session(%s)', logging)
         ]
     }
 }
 
 async function launchDebugServer(context: ExtensionContext) {
-    let port = await ec.startListener();
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
 
@@ -97,26 +91,35 @@ async function launchDebugServer(context: ExtensionContext) {
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let command =
         format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
-        format('-O "script adapter.main.run_tcp_server(ext_channel_port=%d)"\n', port);
+        format('-O "script adapter.main.run_tcp_server()"\n');
     terminal.sendText(command);
 }
 
-function startDebugSession(context: ExtensionContext, args: any) {
-    return args;
+// Long-polls the adapter for asynchronous events directed at this extension.
+async function pollForEvents() {
+    while (true) {
+        let response = await commands.executeCommand<LongPollResponse>('workbench.customDebugRequest', 'longPoll', {});
+        if (response === undefined) {
+            break; // Debug session has ended.
+        }
+        if (response.body.event == 'displayHtml') {
+            await onDisplayHtml(response.body.body);
+        }
+    }
 }
 
 async function showDisassembly(context: ExtensionContext) {
     let selection = await window.showQuickPick(['always', 'auto', 'never']);
-    ec.execute(channel => channel.send('showDisassembly', { value: selection }));
+    commands.executeCommand('workbench.customDebugRequest', 'showDisassembly', { value: selection });
 }
 
 async function toggleDisassembly(context: ExtensionContext) {
-    ec.execute(channel => channel.send('showDisassembly', { value: 'toggle' }));
+    commands.executeCommand('workbench.customDebugRequest', 'showDisassembly', { value: 'toggle' });
 }
 
 async function displayFormat(context: ExtensionContext) {
     let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-    ec.execute(channel => channel.send('displayFormat', { value: selection }));
+    commands.executeCommand('workbench.customDebugRequest', 'displayFormat', { value: selection });
 }
 
 async function pickProcess(context: ExtensionContext, currentUserOnly: boolean): Promise<number> {
@@ -166,5 +169,32 @@ async function pickProcess(context: ExtensionContext, currentUserOnly: boolean):
         return item.pid;
     } else {
         throw Error('Cancelled');
+    }
+}
+
+/// HTML display stuff ///
+
+var previewContent: any = {};
+var previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
+
+async function onDisplayHtml(body: any) {
+    previewContent = body.content; // Sets a global.
+    for (var uri in body.content) {
+        previewContentChanged.fire(<any>uri);
+    }
+    await commands.executeCommand('vscode.previewHtml', body.uri, body.position, body.title);
+}
+
+async function provideHtmlContent(uri: Uri) {
+    let uriString = uri.toString();
+    if (previewContent.hasOwnProperty(uriString)) {
+        return previewContent[uriString];
+    }
+    let result = await commands.executeCommand<ProvideContentResponse>(
+        'workbench.customDebugRequest', 'provideContent', { uri: uriString });
+    if (result === undefined) {
+        return "Not available";
+    } else {
+        return result.body.content;
     }
 }

@@ -15,6 +15,7 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 
 Please see the [Manual](MANUAL.md) for details.
 
+![source](images/plotting.png)
 ![source](images/source.png)
 
 # Prerequisites

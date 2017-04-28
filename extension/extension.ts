@@ -96,7 +96,7 @@ async function launchDebugServer(context: ExtensionContext) {
     let terminal = window.createTerminal('LLDB Debug Server');
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let command =
-        format('lldb -b -O "command script import \'%s\'" ', adapterPath) +
+        format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
         format('-O "script adapter.main.run_tcp_server(ext_channel_port=%d)"\n', port);
     terminal.sendText(command);
 }

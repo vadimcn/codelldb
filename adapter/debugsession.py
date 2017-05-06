@@ -624,7 +624,7 @@ class DebugSession:
         if self.process is None: # Sometimes VSCode sends 'evaluate' before launching a process...
             log.error('evaluate without a process')
             return { 'result': '' }
-        context = args['context']
+        context = args.get('context')
         expr = str(args['expression'])
         if context in ['watch', 'hover']:
             return self.evaluate_expr(args, expr)

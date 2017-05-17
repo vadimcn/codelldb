@@ -82,7 +82,8 @@ class DebugSession:
                  'supportsConditionalBreakpoints': True,
                  'supportsHitConditionalBreakpoints': True,
                  'supportsSetVariable': True,
-                 'supportsCompletionsRequest': True }
+                 'supportsCompletionsRequest': True,
+                 'supportTerminateDebuggee': True }
 
     def DEBUG_launch(self, args):
         if args.get('request') == 'custom':
@@ -813,7 +814,7 @@ class DebugSession:
         if self.launch_args is not None:
             self.exec_commands(self.launch_args.get('exitCommands'))
         if self.process:
-            if self.process_launched:
+            if args.get('terminateDebuggee', self.process_launched):
                 self.process.Kill()
             else:
                 self.process.Detach()

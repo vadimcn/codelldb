@@ -1,5 +1,11 @@
 # What's New
 
+## 0.5.0
+- The minumum VSCode version is now 1.11.
+- Rust visualizers are now activated automatically (no need for `sourceLanguages: ["rust"]`).
+- Added [data visualization](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization) tutorial.
+- Bug fixes.
+
 ## 0.4.1
 - Bug fixes.
 

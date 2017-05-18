@@ -15,15 +15,23 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 
 Please see the [Manual](MANUAL.md) for details.
 
+# Eye Candy
+
+C++ debugging with data visualization ([Howto](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization)):
+<br><br>
 ![source](images/plotting.png)
+<br>
+<br>
+Rust debugging:
+<br><br>
 ![source](images/source.png)
 
 # Prerequisites
 - Visual Studio Code 1.9.0.
 - LLDB with Python scripting support on system PATH. ([Installing LLDB](#installing-lldb))
 
-# Debugging
-Here's a minimal configuration to get you started:
+# Quick Start
+Here's a minimal debug configuration to get you started:
 ```javascript
 {
     "name": "Launch",
@@ -34,7 +42,7 @@ Here's a minimal configuration to get you started:
 }
 ```
 
-See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging).
+See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging), [the Manual](MANUAL.md).
 
 # Installing LLDB
 ## Linux

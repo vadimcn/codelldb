@@ -66,7 +66,7 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
 			"args": ["mandelbrot"],
-			"initCommands": ["command script import '${workspaceRoot}/extension/tests/debug.py"]
+			"initCommands": ["command script import '${workspaceRoot}/extension/tests/debugvis.py"]
 		},
 		{
 			"name": "debuggee attach",

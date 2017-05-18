@@ -75,15 +75,16 @@ class DebugSession:
         self.debugger.SetErrorFileHandle(write_end, False)
         sys.stdout = write_end
         sys.stderr = write_end
-
-        return { 'supportsConfigurationDoneRequest': True,
-                 'supportsEvaluateForHovers': True,
-                 'supportsFunctionBreakpoints': True,
-                 'supportsConditionalBreakpoints': True,
-                 'supportsHitConditionalBreakpoints': True,
-                 'supportsSetVariable': True,
-                 'supportsCompletionsRequest': True,
-                 'supportTerminateDebuggee': True }
+        return {
+            'supportsConfigurationDoneRequest': True,
+            'supportsEvaluateForHovers': True,
+            'supportsFunctionBreakpoints': True,
+            'supportsConditionalBreakpoints': True,
+            'supportsHitConditionalBreakpoints': True,
+            'supportsSetVariable': True,
+            'supportsCompletionsRequest': True,
+            'supportTerminateDebuggee': True,
+        }
 
     def DEBUG_launch(self, args):
         if args.get('request') == 'custom':
@@ -206,15 +207,7 @@ class DebugSession:
         return target
 
     def pre_launch(self):
-        for lang in self.launch_args.get('sourceLanguages', []):
-            language = languages.get(lang.lower())
-            if language is not None:
-                init_formatters = language.get('init_formatters')
-                if init_formatters is not None:
-                    init_formatters(self.debugger)
-                classify_type = language.get('classify_type')
-                if classify_type is not None:
-                    expressions.classify_type = classify_type
+        expressions.init_formatters(self.debugger)
 
     def exec_commands(self, commands):
         if commands is not None:
@@ -774,7 +767,7 @@ class DebugSession:
         return name, value, dtype, handle
 
     def get_var_value(self, var, format):
-        expressions.classify_type(var.GetType())
+        expressions.analyze(var)
         var.SetFormat(format)
         value = var.GetValue()
         if value is None:
@@ -1099,13 +1092,12 @@ def same_path(path1, path2):
     return os.path.normcase(os.path.normpath(path1)) == os.path.normcase(os.path.normpath(path2))
 
 languages = {
-    'rust': { 'init_formatters': formatters.rust.initialize,
-              'classify_type': formatters.rust.classify_type,
-              'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
-              'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
+    'rust': {
+        'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
+        'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
     },
     'cpp': {
-            'ef_throw': lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
-            'ef_uncaught': lambda target: target.BreakpointCreateByName('terminate'),
+        'ef_throw': lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
+        'ef_uncaught': lambda target: target.BreakpointCreateByName('terminate'),
     }
 }

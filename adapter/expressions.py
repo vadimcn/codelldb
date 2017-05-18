@@ -6,9 +6,33 @@ import lldb
 
 log = logging.getLogger('expressions')
 
-classify_type = lambda sbtype: None
+debugger_obj = None
+analyzed = {} # A list of type names that we've already analyzed
+rust_analyze = None
 
+def init_formatters(debugger):
+    global debugger_obj
+    debugger_obj = debugger
 
+# Analyze value's type and make sure the appropriate visualizers are attached.
+def analyze(sbvalue):
+    global analyzed
+    global rust_analyze
+    qual_type_name = sbvalue.GetType().GetName()
+    if qual_type_name in analyzed:
+        return
+    analyzed[qual_type_name] = True
+
+    #log.info('expressions.analyze for %s %d', sbvalue.GetType().GetName(), sbvalue.GetType().GetTypeClass())
+    if not rust_analyze:
+        if sbvalue.GetFrame().GetCompileUnit().GetLanguage() != lldb.eLanguageTypeRust:
+            return
+        from .formatters import rust
+        rust.initialize(debugger_obj, analyze)
+        rust_analyze = rust.analyze
+    rust_analyze(sbvalue)
+
+# A dictionary-like object that fetches values from SBFrame (and caches them).
 class PyEvalContext(dict):
     def __init__(self, sbframe):
         self.sbframe = sbframe
@@ -24,11 +48,11 @@ class PyEvalContext(dict):
         else:
             raise KeyError(name)
 
-
+# A wrapper around SBValue that overloads Python operators to do the right thing (well, mostly).
 class Value(object):
     def __init__(self, sbvalue):
         self.sbvalue = sbvalue
-        classify_type(sbvalue.GetType())
+        analyze(sbvalue)
 
     def __nonzero__(self):
         return self.sbvalue.__nonzero__()

@@ -10,10 +10,16 @@ log = logging.getLogger('rust')
 # This is to cope with the not yet initialized objects whose length fields contain garbage.
 MAX_LENGTH = 10000
 
-def initialize(debugger):
+rust_category = None
+analyze_value = None
+
+def initialize(debugger, analyze):
     log.info('initialize')
     global rust_category
-    debugger.HandleCommand('command script import adapter.formatters.rust')
+    global analyze_value
+    analyze_value = analyze
+
+    debugger.HandleCommand('script import adapter.formatters.rust')
     rust_category = debugger.CreateCategory('Rust')
     rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
@@ -42,13 +48,10 @@ def initialize(debugger):
 # These require deeper runtime analysis to tease them apart.
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
 ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
-analyzed = {}
-def classify_type(qual_obj_type):
-    global analyzed
-    if qual_obj_type.GetName() in analyzed:
-        return
-    #log.info('classify_type for %s %d', qual_obj_type.GetName(), qual_obj_type.GetTypeClass())
-    obj_type = qual_obj_type.GetUnqualifiedType()
+
+def analyze(sbvalue):
+    #log.info('rust.analyze for %s %d', sbvalue.GetType().GetName(), sbvalue.GetType().GetTypeClass())
+    obj_type = sbvalue.GetType().GetUnqualifiedType()
     type_class = obj_type.GetTypeClass()
     if type_class == lldb.eTypeClassUnion:
         num_fields = obj_type.GetNumberOfFields()
@@ -69,14 +72,15 @@ def classify_type(qual_obj_type):
             attach_summary_to_type('get_enum_variant_summary', obj_type.GetName())
         elif obj_type.GetFieldAtIndex(0).GetName() == '__0':
             attach_summary_to_type('get_tuple_summary', obj_type.GetName())
-    analyzed[qual_obj_type.GetName()] = obj_type
 
 def attach_summary_to_type(summary_fn, type_name, is_regex=False):
+    global rust_category
     summary = lldb.SBTypeSummary.CreateWithFunctionName('adapter.formatters.rust.' + summary_fn)
     summary.SetOptions(lldb.eTypeOptionCascade)
     assert rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
+    global rust_category
     synth = lldb.SBTypeSynthetic.CreateWithClassName('adapter.formatters.rust.' + synth_class)
     synth.SetOptions(lldb.eTypeOptionCascade)
     assert rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
@@ -99,7 +103,7 @@ def string_from_ptr(pointer, length):
         log.error('%s', error.GetCString())
 
 def get_obj_summary(valobj):
-    classify_type(valobj.GetType())
+    analyze_value(valobj)
     summary = valobj.GetSummary()
     if summary is not None:
         return summary

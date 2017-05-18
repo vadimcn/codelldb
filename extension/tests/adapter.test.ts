@@ -233,7 +233,7 @@ suite('Rust tests', () => {
         let bpLine = findMarker(rusttypesSource, '#BP1');
         let setBreakpointAsync = setBreakpoint(rusttypesSource, bpLine);
         let waitForStopAsync = dc.waitForEvent('stopped');
-        await launch({ program: rusttypes, sourceLanguages: ['rust'] });
+        await launch({ program: rusttypes });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
         await verifyLocation(stoppedEvent.body.threadId, rusttypesSource, bpLine);

@@ -4,7 +4,6 @@ import os.path
 import shlex
 import traceback
 import collections
-import tempfile
 import lldb
 from . import expressions
 from . import debugevents
@@ -13,6 +12,24 @@ from . import handles
 from . import terminal
 from . import formatters
 from . import PY2, is_string, xrange
+
+try:
+    import tempfile
+except Exception as e:
+    # workaround if using non-system python (brew)
+    import sys 
+    if  'darwin' in sys.platform:
+        py_base = '/System/Library/Frameworks/Python.framework/Versions/2.7/'
+        new_path = ['lib/python27.zip', 'lib/python2.7', 'lib/python2.7/plat-darwin', 'lib/python2.7/plat-mac',
+                    'lib/python2.7/plat-mac/lib-scriptpackages', 'Extras/lib/python', 'lib/python2.7/lib-tk',
+                    'lib/python2.7/lib-old', 'lib/python2.7/lib-dynload']
+        sys.path = [p for p in sys.path if 'Cellar' not in p] + [py_base + p for p in new_path]
+        for p in new_path:
+            if p not in sys.path:
+                sys.path.append(p)
+        import tempfile
+    else:
+        raise
 
 log = logging.getLogger('debugsession')
 log.info('Imported')

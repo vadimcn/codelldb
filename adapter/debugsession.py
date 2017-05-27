@@ -17,6 +17,10 @@ from . import PY2, is_string, xrange
 log = logging.getLogger('debugsession')
 log.info('Imported')
 
+# The maximum number of children we'll retrieve for a container value.
+# This is to cope with the not yet initialized objects whose length fields contain garbage.
+MAX_VAR_CHILDREN = 10000
+
 class DebugSession:
 
     def __init__(self, event_loop, send_message):
@@ -1082,7 +1086,7 @@ def SBValueListIter(val_list):
 
 def SBValueChildrenIter(val):
     get_value = val.GetChildAtIndex
-    for i in xrange(val.GetNumChildren()):
+    for i in xrange(val.GetNumChildren(MAX_VAR_CHILDREN)):
         yield get_value(i)
 
 def opt_str(s):

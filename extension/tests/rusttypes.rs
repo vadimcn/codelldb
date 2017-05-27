@@ -65,6 +65,7 @@ fn main() {
     let empty_vec = Vec::<i32>::new();
     let vec_int = vec![1,2,3,4,5,6,7,8,9,10];
     let vec_str = vec!["111", "2222", "3333", "4444", "5555"];
+    let large_vec: Vec<i32> = (0..20000).collect();
 
     let empty_string = String::from("");
     let string = String::from("A String");

@@ -6,10 +6,6 @@ from .. import xrange
 
 log = logging.getLogger('rust')
 
-# The maximum number of children in arrays, characters in strings, etc.
-# This is to cope with the not yet initialized objects whose length fields contain garbage.
-MAX_LENGTH = 10000
-
 rust_category = None
 analyze_value = None
 
@@ -175,14 +171,10 @@ def get_array_summary(valobj, dict):
 
 def get_vector_summary(valobj, dict):
     length = valobj.GetNumChildren()
-    if length == MAX_LENGTH:
-        length = StdVectorSynthProvider(valobj.GetNonSyntheticValue()).len
     return '(%d) vec![%s]' % (length, print_array_elements(valobj))
 
 def get_slice_summary(valobj, dict):
     length = valobj.GetNumChildren()
-    if length == MAX_LENGTH:
-        length = SliceSynthProvider(valobj.GetNonSyntheticValue()).len
     return '(%d) &[%s]' % (length, print_array_elements(valobj))
 
 UNQUAL_TYPE_MARKERS = ["(", "[", "&", "*"]
@@ -195,7 +187,7 @@ def get_unqualified_type_name(type_name):
 # LLDB is somewhat unpredictable about when it calls update() on synth providers.
 # Don't want to put `if self.is_initalized: self.update()` in each method, so...
 class RustSynthProvider:
-    def __init__(self, valobj, dict):
+    def __init__(self, valobj, dict={}):
         self.valobj = valobj
         self._real_class = self.__class__
         self.__class__ = RustSynthProvider.Lazy
@@ -304,7 +296,7 @@ class ArrayLikeSynthProvider(RustSynthProvider):
             raise
 
     def num_children(self):
-        return min(self.len, MAX_LENGTH)
+        return self.len
 
     def has_children(self):
         return True
@@ -340,7 +332,11 @@ class SliceSynthProvider(ArrayLikeSynthProvider):
 # Base class for *String providers
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
     def get_summary(self):
-        return '"%s"' % string_from_ptr(self.ptr, min(self.len, MAX_LENGTH))
+        # Limit string length to 1000 characters to cope with uninitialized values whose
+        # length field contains garbage.
+        strval = string_from_ptr(self.ptr, min(self.len, 1000))
+        if self.len > 1000: strval += '...'
+        return '"%s"' % strval
 
 class StrSliceSynthProvider(StringLikeSynthProvider):
      def _update(self):

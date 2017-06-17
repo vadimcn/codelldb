@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import os
 import logging
@@ -45,31 +46,6 @@ def run_session(read, write):
     # Run event loop until DebugSession breaks it.
     event_loop.run()
 
-# Run in socket server mode
-def run_tcp_server(port=4711, multiple=True):
-    try:
-        init_logging(None, logging.NOTSET)
-        log.info('Server mode on port %d (Ctrl-C to stop)', port)
-        ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        ls.bind(('127.0.0.1', port))
-        ls.listen(1)
-
-        while True:
-            conn, addr = ls.accept()
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            log.info('New connection from %s', addr)
-            run_session(conn.recv, conn.sendall)
-            conn.close()
-            if multiple:
-                log.info('Debug session ended. Waiting for new connections.')
-            else:
-                log.info('Debug session ended.')
-                break
-        ls.close()
-    except Exception as e:
-        log.error('%s', traceback.format_exc())
-
 from os import read as os_read, write as os_write
 def os_write_all(ofd, data):
     while True:
@@ -91,7 +67,7 @@ def run_pipe_session(ifd, ofd, log_file=None, log_level=logging.CRITICAL):
         run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
         log.info('Debug session ended. Exiting.')
     except Exception as e:
-        log.error('%s', traceback.format_exc())
+        log.critical('%s', traceback.format_exc())
 
 # Single session on top of stdin & stdout
 def run_stdio_session(log_file=None, log_level=logging.CRITICAL):
@@ -107,4 +83,30 @@ def run_stdio_session(log_file=None, log_level=logging.CRITICAL):
         run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
         log.info('Debug session ended. Exiting.')
     except Exception as e:
-        log.error('%s', traceback.format_exc())
+        log.critical('%s', traceback.format_exc())
+
+# Single session on the specified TCP port.
+def run_tcp_session(port, log_file=None, log_level=logging.CRITICAL):
+    try:
+        init_logging(log_file, log_level)
+        ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        ls.bind(('127.0.0.1', port))
+        ls.listen(1)
+        ls_port = ls.getsockname()[1]
+        print('Listening on port', ls_port) # Let the parent process know which port we are listening on.
+        conn, addr = ls.accept()
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        log.info('New connection from %s', addr)
+        run_session(conn.recv, conn.sendall)
+        conn.close()
+        ls.close()
+    except Exception as e:
+        log.critical('%s', traceback.format_exc())
+
+# Run in socket server mode
+def run_tcp_server(port=4711, log_file=None, log_level=logging.CRITICAL):
+    print('Server mode on port %d (Ctrl-C to stop)' % port)
+    while True:
+        run_tcp_session(port, log_file, log_level)
+        print('Debug session ended. Waiting for new connections.')

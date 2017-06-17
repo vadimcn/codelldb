@@ -1,13 +1,14 @@
 'use strict';
 import {
     workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem,
-    Uri, Event, EventEmitter
+    Uri, Event, EventEmitter, OutputChannel
 } from 'vscode';
 import { format } from 'util';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
-import {DebugProtocol} from 'vscode-debugprotocol';
+import * as net from 'net';
+import { DebugProtocol } from 'vscode-debugprotocol';
 
 interface LongPollResponse extends DebugProtocol.Response {
     body: {
@@ -22,7 +23,10 @@ interface ProvideContentResponse extends DebugProtocol.Response {
     }
 }
 
+let output: OutputChannel;
+
 export function activate(context: ExtensionContext) {
+    output = window.createOutputChannel('LLDB');
     context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
         () => getAdapterExecutable(context)));
     context.subscriptions.push(commands.registerCommand('lldb.startDebugSession',
@@ -49,17 +53,9 @@ export function activate(context: ExtensionContext) {
     }));
 }
 
-async function startDebugSession(context: ExtensionContext, config: any) {
-    await commands.executeCommand('vscode.startDebug', config);
-    pollForEvents();
-}
-
-async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
+function getAdapterLoggingSettings(): string {
     let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-
     let lldbLog = config.get('log', null);
-    var logging = '';
     if (lldbLog) {
         var logPath = 'None';
         var logLevel = 0;
@@ -69,16 +65,65 @@ async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
             logPath = lldbLog.path;
             logLevel = lldbLog.level;
         }
-        logging = format('log_file=\'b64:%s\',log_level=%d',
+        return format('log_file=\'b64:%s\',log_level=%d',
             new Buffer(logPath).toString('base64'), logLevel);
+    } else {
+        return '';
     }
+}
 
+// Start debug adapter in TCP session mode and return the port number it is listening on.
+async function startDebugger(context: ExtensionContext): Promise<number> {
+    output.clear();
+    let config = workspace.getConfiguration('lldb');
+    let lldbPath = config.get('executable', 'lldb');
+    let adapterPath = path.join(context.extensionPath, 'adapter');
+    let logging = getAdapterLoggingSettings();
+    let args = ['-b', '-Q',
+        '-O', format('command script import \'%s\'', adapterPath),
+        '-O', format('script adapter.main.run_tcp_session(0, %s)', logging)
+    ];
+    let lldb = cp.spawn(lldbPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let port = await new Promise<number>((resolve, reject) => {
+        // Bail if LLDB does not start within 5 seconds.
+        let timer = setTimeout(() => {
+            lldb.kill();
+            output.appendLine('Adapter\'s last words were:');
+            output.append(adapterOutput);
+            output.show(true);
+            reject('The debug adapter did not start within the allowed time.');
+        }, 5000);
+
+        var adapterOutput = '';
+        let regex = new RegExp('Listening on port (\\d+)\\s');
+        lldb.stdout.on('data', (chunk) => {
+            adapterOutput += chunk.toString();
+            let m = regex.exec(adapterOutput);
+            if (m) {
+                clearTimeout(timer);
+                resolve(parseInt(m[1]));
+            }
+        });
+    });
+    return port;
+}
+
+async function startDebugSession(context: ExtensionContext, config: any) {
+    let port = await startDebugger(context);
+    config.debugServer = port;
+    await commands.executeCommand('vscode.startDebug', config);
+    pollForEvents();
+}
+
+async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
+    let config = workspace.getConfiguration('lldb');
+    let lldbPath = config.get('executable', 'lldb');
     let adapterPath = path.join(context.extensionPath, 'adapter');
     return {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(%s)', logging)
+            '-O', format('script adapter.main.run_stdio_session(%s)', getAdapterLoggingSettings())
         ]
     }
 }

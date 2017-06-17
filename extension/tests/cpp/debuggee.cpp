@@ -67,6 +67,8 @@ void vars() {
         Struct array_struct[5] = { { i*2, 'b', 4.0f} };
         std::string str1 = "The quick brown fox";
         std::string empty_str;
+        std::string* str_ptr = &str1;
+        std::string& str_ref = str1;
         int zzz = i; // #BP3
     }
 }

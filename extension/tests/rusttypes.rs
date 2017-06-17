@@ -47,11 +47,12 @@ fn main() {
     let float = 3.1415926535;
 
     let tuple = (1, "a", 42.0);
-    let ref_tuple = &(1, "a", 42.0);
+    let tuple_ref = &(1, "a", 42.0);
 
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
     let reg_enum3 = RegularEnum::C{x:11.35, y:20.5};
+    let reg_enum_ref = &reg_enum3;
     let cstyle_enum1 = CStyleEnum::A;
     let cstyle_enum2 = CStyleEnum::B;
     let enc_enum1: EncodedEnum<&str> = EncodedEnum::Some("string");
@@ -59,6 +60,7 @@ fn main() {
 
     let tuple_struct = TupleStruct(3, "xxx", -3.0);
     let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0 };
+    let reg_struct_ref = &reg_struct;
 
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];

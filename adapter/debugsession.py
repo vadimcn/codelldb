@@ -773,7 +773,15 @@ class DebugSession:
     def get_var_value(self, var, format):
         expressions.analyze(var)
         var.SetFormat(format)
-        value = var.GetValue()
+        is_pointer = var.GetType().GetTypeClass() in [lldb.eTypeClassPointer,
+                                                      lldb.eTypeClassReference]
+        if is_pointer and format == lldb.eFormatDefault:
+            # For pointers and references, when format is eFormatDefault, fall through
+            # to var.GetSummary() below which will extract the summary of the object it points to.
+            value = None
+        else:
+            value = var.GetValue()
+
         if value is None:
             value = var.GetSummary()
             if value is not None:

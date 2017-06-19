@@ -1,5 +1,10 @@
 # What's New
 
+## 0.5.1
+- Show pointee's summary rather than its address for pointers and references in "default" formatting
+mode.  The address may still be seen when a display format override is specified, e.g. `pointer,x`.
+- Bug fixes.
+
 ## 0.5.0
 - The minumum VSCode version is now 1.11.
 - Rust visualizers are now activated automatically (no need for `sourceLanguages: ["rust"]`).

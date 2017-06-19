@@ -18,12 +18,11 @@ Please see the [Manual](MANUAL.md) for details.
 # Eye Candy
 
 C++ debugging with data visualization ([Howto](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization)):
-<br><br>
+<br>
 ![source](images/plotting.png)
 <br>
-<br>
 Rust debugging:
-<br><br>
+<br>
 ![source](images/source.png)
 
 # Prerequisites

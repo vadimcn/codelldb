@@ -574,9 +574,18 @@ class DebugSession:
         if container is None:
             log.error('Invalid variables reference: %d', container_handle)
             return
+
+        variables = collections.OrderedDict()
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
             vars_iter = SBValueListIter(container.GetVariables(True, True, False, True))
+            # Check if we have a return value from the last called function (usually after StepOut).
+            ret_val = container.GetThread().GetStopReturnValue()
+            if ret_val.IsValid():
+                name, value, dtype, handle = self.parse_var(ret_val, self.global_format, container_handle)
+                name = '[return value]'
+                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
+                variables[name] = variable
         elif isinstance(container, StaticsScope):
             vars_iter = SBValueListIter(container.frame.GetVariables(False, False, True, True))
         elif isinstance(container, RegistersScope):
@@ -584,7 +593,6 @@ class DebugSession:
         elif isinstance(container, lldb.SBValue):
             vars_iter = SBValueChildrenIter(container)
 
-        variables = collections.OrderedDict()
         for var in vars_iter:
             name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
             if name is None: # Sometimes LLDB returns junk entries with empty names and values

@@ -105,6 +105,7 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
 {
     "name": "Remote launch",
     "type": "lldb",
+    "request": "launch",
     "program": "${workspaceRoot}/build/debuggee", // Local path.
     "initCommands": [
         "platform select <platform>",
@@ -229,16 +230,16 @@ will evaluate to a list containing square roots of the values contained in debug
 
 ### Native expressions
 Prefix: `/nat `<br>
-These use LLDB's built-in expression evaluators.  The specifics depend on the source language of the
-current debug target (e.g. C, C++ or Swift).  For unknown languages LLDB will default to
-C++ expression syntax, which offers many powerful features including interative definition of new
-data types, creation of new C++ objects, invocation of class methods and more.
+These use LLDB built-in expression evaluators.  The specifics depend on the source language of the
+current debug target (e.g. C, C++ or Swift).  For unknown languages LLDB will default to the
+C++ expression syntax, which offers many powerful features, including interactive definition of new
+data types, instantiation of C++ classes, invocation of functions and class methods, and more.
 
-Note, however, that native evaluators ignore variable formatters and operate of "raw" data structures.
+Note, however, that native evaluators ignore data formatters and operate of "raw" data structures.
 
 ## Debugger API
 
-CodeLLDB provides an API to Python scripts via the `debugger` module (which is auto-imported into
+CodeLLDB provides a Python API via the `debugger` module (which is auto-imported into
 debugger's main script context).
 
 ### debugger.evaluate(expression: str) -> Value
@@ -248,7 +249,7 @@ Allows dynamic evaluation of [simple expressions](#simple-expressions).
 Extract lldb.SBValue from the result of evaluation of a simple expression.
 
 ### debugger.wrap(obj: lldb.SBValue) -> Value
-Wrap lldb.SBValue as a simple expression Value.
+Converts lldb.SBValue to an object the may be used in [simple expressions](#simple-expressions).
 
 ### debugger.stop_if(condition: bool, handler: Callable[]) -> bool
 If `condition` evaluates to True, executes the `handler` function and returns True.  Otherwise,
@@ -259,14 +260,14 @@ cause a stop when variable `x` becomes a multiple of 50 and will print the value
 
 ### debugger.display_html(uri: str, title: str=None, position: int=None, content: Dict[string, string]={})
 Displays HTML content in VSCode UI.
-- `url`: URL of the main content.
+- `url`: URL of the main content.  Most likely you'll want to use a `debugger:` URL.
 - `title`: Title of the HTML view tab.
 - `position`: Position of the tab.  The allowed range is 1 through 3.
-- `content`: A dictionary of static content indexed by URLs.  All keys must use the 'debugger' URL
-  scheme.  All values must be strings (binary content, such as images, is not supported).
+- `content`: A dictionary of static content indexed by URLs.  All keys must use the `debugger:` URL
+  scheme.  All values must be strings (binary content such as images is not supported).
 
 ### debugger.register_content_provider(provider: Callable[[string],string])
-Allows generation of dynamic content for HTML display.  Any 'debugger' content not found in the `content`
+Allows generation of dynamic content for HTML display.  Any `debugger:` content not found in the `content`
 dictionary, will be directed to the `provider` callback, which takes a URL parameter and
 returns content string.
 

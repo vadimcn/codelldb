@@ -6,9 +6,15 @@ import signal
 import socket
 import traceback
 import errno
+from .wireprotocol import DebugServer
+from .debugsession import DebugSession
+from .eventloop import EventLoop
+from . import debugger_api
 
 log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+sys.modules['debugger'] = debugger_api
 
 if 'linux' in sys.platform or 'darwin' in sys.platform:
     # Limit memory usage to 16GB to prevent runaway visualizers from killing the machine
@@ -24,12 +30,6 @@ def init_logging(log_file, log_level):
                         format='[%(asctime)s %(name)s] %(message)s')
 
 def run_session(read, write):
-    from .wireprotocol import DebugServer
-    from .debugsession import DebugSession
-    from .eventloop import EventLoop
-    from . import debugger_api
-    sys.modules['debugger'] = debugger_api
-
     event_loop = EventLoop()
 
     # Attach debug protocol listener to the main communication channel.

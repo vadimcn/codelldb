@@ -1,14 +1,13 @@
 'use strict';
 import {
     workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem,
-    Uri, Event, EventEmitter, OutputChannel
+    Uri, Event, EventEmitter
 } from 'vscode';
-import { format } from 'util';
-import * as path from 'path';
 import * as cp from 'child_process';
-import * as os from 'os';
-import * as net from 'net';
+import * as path from 'path';
+import { format } from 'util';
 import { DebugProtocol } from 'vscode-debugprotocol';
+import * as startup from './startup';
 
 interface LongPollResponse extends DebugProtocol.Response {
     body: {
@@ -23,12 +22,9 @@ interface ProvideContentResponse extends DebugProtocol.Response {
     }
 }
 
-let output: OutputChannel;
-
 export function activate(context: ExtensionContext) {
-    output = window.createOutputChannel('LLDB');
     context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
-        () => getAdapterExecutable(context)));
+        () => startup.getAdapterExecutable(context)));
     context.subscriptions.push(commands.registerCommand('lldb.startDebugSession',
         (args) => startDebugSession(context, args)));
     context.subscriptions.push(commands.registerCommand('lldb.showDisassembly',
@@ -38,7 +34,9 @@ export function activate(context: ExtensionContext) {
     context.subscriptions.push(commands.registerCommand('lldb.displayFormat',
         () => displayFormat(context)));
     context.subscriptions.push(commands.registerCommand('lldb.launchDebugServer',
-        () => launchDebugServer(context)));
+        () => startup.launchDebugServer(context)));
+    context.subscriptions.push(commands.registerCommand('lldb.diagnose',
+        () => startup.diagnose()));
     context.subscriptions.push(commands.registerCommand('lldb.pickProcess',
         () => pickProcess(context, false)));
     context.subscriptions.push(commands.registerCommand('lldb.pickMyProcess',
@@ -53,91 +51,23 @@ export function activate(context: ExtensionContext) {
     }));
 }
 
-function getAdapterLoggingSettings(): string {
-    let config = workspace.getConfiguration('lldb');
-    let lldbLog = config.get('log', null);
-    if (lldbLog) {
-        var logPath = 'None';
-        var logLevel = 0;
-        if (typeof (lldbLog) == 'string') {
-            logPath = lldbLog;
-        } else {
-            logPath = lldbLog.path;
-            logLevel = lldbLog.level;
-        }
-        return format('log_file=\'b64:%s\',log_level=%d',
-            new Buffer(logPath).toString('base64'), logLevel);
-    } else {
-        return '';
-    }
-}
-
-// Start debug adapter in TCP session mode and return the port number it is listening on.
-async function startDebugger(context: ExtensionContext): Promise<number> {
-    output.clear();
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-    let adapterPath = path.join(context.extensionPath, 'adapter');
-    let logging = getAdapterLoggingSettings();
-    let args = ['-b', '-Q',
-        '-O', format('command script import \'%s\'', adapterPath),
-        '-O', format('script adapter.main.run_tcp_session(0, %s)', logging)
-    ];
-    let lldb = cp.spawn(lldbPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let port = await new Promise<number>((resolve, reject) => {
-        // Bail if LLDB does not start within 5 seconds.
-        let timer = setTimeout(() => {
-            lldb.kill();
-            output.appendLine('Adapter\'s last words were:');
-            output.append(adapterOutput);
-            output.show(true);
-            reject('The debug adapter did not start within the allowed time.');
-        }, 5000);
-
-        var adapterOutput = '';
-        let regex = new RegExp('Listening on port (\\d+)\\s');
-        lldb.stdout.on('data', (chunk) => {
-            adapterOutput += chunk.toString();
-            let m = regex.exec(adapterOutput);
-            if (m) {
-                clearTimeout(timer);
-                resolve(parseInt(m[1]));
-            }
-        });
-    });
-    return port;
-}
-
+// Invoked by VSCode to initiate a new debugging session.
 async function startDebugSession(context: ExtensionContext, config: any) {
-    let port = await startDebugger(context);
-    config.debugServer = port;
-    await commands.executeCommand('vscode.startDebug', config);
-    pollForEvents();
-}
-
-async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-    let adapterPath = path.join(context.extensionPath, 'adapter');
-    return {
-        command: lldbPath,
-        args: ['-b', '-Q',
-            '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(%s)', getAdapterLoggingSettings())
-        ]
+    if (!context.globalState.get('lldb_works')) {
+        window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
+        let succeeded = await startup.diagnose();
+        context.globalState.update('lldb_works', succeeded);
+        if (!succeeded)
+            return;
     }
-}
-
-async function launchDebugServer(context: ExtensionContext) {
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-
-    let terminal = window.createTerminal('LLDB Debug Server');
-    let adapterPath = path.join(context.extensionPath, 'adapter');
-    let command =
-        format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
-        format('-O "script adapter.main.run_tcp_server()"\n');
-    terminal.sendText(command);
+    try {
+        let port = await startup.startDebugAdapter(context);
+        config.debugServer = port;
+        await commands.executeCommand('vscode.startDebug', config);
+        pollForEvents();
+    } catch (err) {
+        startup.analyzeStartupError(err);
+    }
 }
 
 // Long-polls the adapter for asynchronous events directed at this extension.

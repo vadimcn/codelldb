@@ -6,6 +6,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
+import * as ver from '../ver';
 
 var dc: DebugClient;
 
@@ -30,6 +31,16 @@ setup(() => {
 });
 
 teardown(() => dc.stop());
+
+suite('Versions', () => {
+    test('comparisons', async () => {
+        assert.ok(ver.lt('1.0.0', '2.0.0'));
+        assert.ok(ver.lt('2.0.0', '2.2.0'));
+        assert.ok(ver.lt('2.0', '2.0.0'));
+        assert.ok(ver.lt('2.0.0', '2.2'));
+        assert.ok(ver.lt('2.0.0', '100.0.0'));
+    })
+})
 
 suite('Basic', () => {
 

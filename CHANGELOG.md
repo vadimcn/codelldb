@@ -1,5 +1,10 @@
 # What's New
 
+## 0.5.2
+- Changed how LLDB is launched.  This should automatically fix compatibility issues with Brew Python
+  and in general provide better messages when LLDB fails.
+- Added 'LLDB: Run diagnostics' command for troubleshooting.
+
 ## 0.5.1
 - Show pointee's summary rather than its address for pointers and references in "default" formatting
 mode.  The address may still be seen when a display format override is specified, e.g. `pointer,x`.

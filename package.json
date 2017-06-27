@@ -1,7 +1,7 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.5.1",
+    "version": "0.5.2-dev",
     "publisher": "vadimcn",
     "description": "Debug your native code in LLDB.",
     "license": "MIT",
@@ -31,6 +31,8 @@
     "bugs": {
         "url": "https://github.com/vadimcn/vscode-lldb/issues"
     },
+    "dependencies": {
+    },
     "devDependencies": {
         "@types/node": "^6.0.39",
         "vscode": "^1.0.0",
@@ -58,6 +60,7 @@
         "onCommand:lldb.toggleDisassembly",
         "onCommand:lldb.displayFormat",
         "onCommand:lldb.launchDebugServer",
+        "onCommand:lldb.diagnose",
         "onCommand:lldb.pickProcess",
         "onCommand:lldb.pickMyProcess"
     ],
@@ -97,6 +100,10 @@
             {
                 "command": "lldb.launchDebugServer",
                 "title": "LLDB: Launch Debug Server"
+            },
+            {
+                "command": "lldb.diagnose",
+                "title": "LLDB: Run diagnostics"
             }
         ],
         "languages": [

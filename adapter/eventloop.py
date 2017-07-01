@@ -7,13 +7,15 @@ log = logging.getLogger('eventloop')
 
 class EventLoop:
     def __init__(self, qsize=10):
+        self.stopping = False
         self.queue = queue.Queue(qsize)
 
     # Returns callable object that will dispatch a call to `target`
     # via this event loop's queue.
     def make_dispatcher(self, target):
         def dispatcher(*args):
-            self.queue.put((target,args))
+            if not self.stopping:
+                self.queue.put((target, args))
         return dispatcher
 
     def run(self):

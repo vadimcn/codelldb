@@ -1,7 +1,7 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.5.2-dev",
+    "version": "0.5.2",
     "publisher": "vadimcn",
     "description": "Debug your native code in LLDB.",
     "license": "MIT",

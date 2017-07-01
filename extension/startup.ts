@@ -36,8 +36,12 @@ function getAdapterLoggingSettings(): string {
             logPath = lldbLog.path;
             logLevel = lldbLog.level;
         }
-        return format('log_file=\'b64:%s\',log_level=%d',
-            new Buffer(logPath).toString('base64'), logLevel);
+        if (logPath) {
+            logPath = format('\'b64:%s\'', new Buffer(logPath).toString('base64'));
+        } else {
+            logPath = 'None'; // Log to stdout, which will end up on the "LLDB" output pane.
+        }
+        return format('log_file=%s,log_level=%d', logPath, logLevel);
     } else {
         return '';
     }

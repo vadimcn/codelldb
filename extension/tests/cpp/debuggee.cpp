@@ -79,6 +79,7 @@ void mandelbrot() {
     const int max_iter = 100;
     int image[xdim * ydim] = {0};
     for (int y = 0; y < ydim; ++y) {
+        // /py debugvis.plot_image($image, $xdim, $ydim) if $y % 50 == 0 else False
         for (int x = 0; x < xdim; ++x) {
             std::complex<float> xy(-2.05 + x * 3.0 / xdim, -1.5 + y * 3.0 / ydim);
             std::complex<float> z(0, 0);

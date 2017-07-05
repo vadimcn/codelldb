@@ -94,7 +94,7 @@ def string_from_ptr(pointer, length):
     process = pointer.GetProcess()
     data = process.ReadMemory(pointer.GetValueAsUnsigned(), length, error)
     if error.Success():
-        return data.decode(encoding='UTF-8')
+        return data.decode('UTF-8', 'replace')
     else:
         log.error('%s', error.GetCString())
 
@@ -335,6 +335,8 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         # Limit string length to 1000 characters to cope with uninitialized values whose
         # length field contains garbage.
         strval = string_from_ptr(self.ptr, min(self.len, 1000))
+        if strval == None:
+            return None
         if self.len > 1000: strval += '...'
         return '"%s"' % strval
 

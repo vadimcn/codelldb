@@ -1,7 +1,7 @@
 'use strict';
 import {
-    workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem,
-    Uri, Event, EventEmitter
+    workspace, languages, window, commands,
+    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter
 } from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -61,23 +61,25 @@ async function startDebugSession(context: ExtensionContext, config: any) {
             return;
     }
     try {
-        let port = await startup.startDebugAdapter(context);
-        config.debugServer = port;
+        let session = await startup.startDebugAdapter(context);
+        config.debugServer = session.port;
         await commands.executeCommand('vscode.startDebug', config);
-        pollForEvents();
+        pollForEvents(session);
     } catch (err) {
         startup.analyzeStartupError(err);
     }
 }
 
 // Long-polls the adapter for asynchronous events directed at this extension.
-async function pollForEvents() {
+async function pollForEvents(session: startup.DebugSession) {
     while (true) {
         let response = await commands.executeCommand<LongPollResponse>('workbench.customDebugRequest', 'longPoll', {});
         if (response === undefined) {
-            break; // Debug session has ended.
-        }
-        if (response.body.event == 'displayHtml') {
+            if (!session.isActive)
+                break; // Debug session has ended.
+            // Wait 100 ms before trying again.
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        } else if (response.body.event == 'displayHtml') {
             await onDisplayHtml(response.body.body);
         }
     }
@@ -149,18 +151,19 @@ async function pickProcess(context: ExtensionContext, currentUserOnly: boolean):
 
 /// HTML display stuff ///
 
-var previewContent: any = {};
+var previewContent: { [key: string]: string; } = {};
 var previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
 
 async function onDisplayHtml(body: any) {
     previewContent = body.content; // Sets a global.
-    for (var uri in body.content) {
-        previewContentChanged.fire(<any>uri);
+    for (var keyUri in body.content) {
+        previewContentChanged.fire(Uri.parse(keyUri));
     }
-    await commands.executeCommand('vscode.previewHtml', body.uri, body.position, body.title);
+    await commands.executeCommand('vscode.previewHtml',
+        body.uri, body.position, body.title, { allowScripts: true, allowSvgs: true });
 }
 
-async function provideHtmlContent(uri: Uri) {
+async function provideHtmlContent(uri: Uri): Promise<string> {
     let uriString = uri.toString();
     if (previewContent.hasOwnProperty(uriString)) {
         return previewContent[uriString];

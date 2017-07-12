@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 def show():
     image_bytes = io.BytesIO()
     plt.savefig(image_bytes, format='png', bbox_inches='tight')
-    document = '<html><img src="data:data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue())
+    document = '<html><img src="data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue())
     debugger.display_html('debugger:/plot', title='Pretty Plot', position=2, content={'debugger:/plot': document})
 
 def show2():

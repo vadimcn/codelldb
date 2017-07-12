@@ -11,17 +11,30 @@ import * as ver from './ver';
 
 let output = window.createOutputChannel('LLDB');
 
+export class DebugSession {
+    public isActive: boolean;
+    public port: number;
+}
+
 // Start debug adapter in TCP session mode and return the port number it is listening on.
-export async function startDebugAdapter(context: ExtensionContext): Promise<number> {
+export async function startDebugAdapter(context: ExtensionContext): Promise<DebugSession> {
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let logging = getAdapterLoggingSettings();
     let args = ['-b', '-Q',
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, %s)', logging)
     ];
+    let lldb = spawnDebugger(args);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
-    let match = await spawnDebugger(args, regex);
-    return parseInt(match[1]);
+    let match = await waitPattern(lldb, regex);
+
+    let session = new DebugSession();
+    session.port = parseInt(match[1]);
+    session.isActive = true;
+    lldb.on('exit', (code, signal) => {
+        session.isActive = false;
+    });
+    return session;
 }
 
 function getAdapterLoggingSettings(): string {
@@ -55,6 +68,8 @@ export async function diagnose(): Promise<boolean> {
     ];
     var succeeded = false;
     try {
+        let lldb = spawnDebugger(args);
+
         var versionPattern = '^lldb version ([0-9.]+)';
         var desiredVersion = '3.9.1';
         if (process.platform.search('win32') != -1) {
@@ -64,8 +79,7 @@ export async function diagnose(): Promise<boolean> {
             desiredVersion = '360.1.68';
         }
         let pattern = new RegExp('(?:' + versionPattern + '[^]*)?^OK$', 'm');
-
-        let match = await spawnDebugger(args, pattern);
+        let match = await waitPattern(lldb, pattern);
         window.showInformationMessage('LLDB self-test completed successfuly.');
         let version = match[1];
         if (version && ver.lt(version, desiredVersion)) {
@@ -86,7 +100,7 @@ export async function diagnose(): Promise<boolean> {
 
 // Spawn LLDB with the specified arguments, wait for it to output something matching
 // regex pattern, or until the timeout expires.
-function spawnDebugger(args: string[], pattern: RegExp, timeout_millis = 5000): Promise<RegExpExecArray> {
+function spawnDebugger(args: string[]): cp.ChildProcess {
     output.clear();
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
@@ -100,7 +114,10 @@ function spawnDebugger(args: string[], pattern: RegExp, timeout_millis = 5000): 
         // https://github.com/Homebrew/legacy-homebrew/issues/47201
         options.env['PATH'] = '/usr/bin:' + process.env['PATH'];
     }
-    let lldb = cp.spawn(lldbPath, args, options);
+    return cp.spawn(lldbPath, args, options);
+}
+
+function waitPattern(lldb: cp.ChildProcess,  pattern: RegExp, timeout_millis = 5000) {
     return new Promise<RegExpExecArray>((resolve, reject) => {
         var promisePending = true;
         var adapterOutput = '';

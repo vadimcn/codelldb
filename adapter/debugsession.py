@@ -88,6 +88,7 @@ class DebugSession:
             'supportsSetVariable': True,
             'supportsCompletionsRequest': True,
             'supportTerminateDebuggee': True,
+            'supportsDelayedStackTraceLoading': True,
         }
 
     def DEBUG_launch(self, args):

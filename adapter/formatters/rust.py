@@ -25,11 +25,17 @@ def initialize(debugger, analyze):
 
     attach_summary_to_type('get_string_summary', 'collections::string::String')
     attach_synthetic_to_type('StdStringSynthProvider', 'collections::string::String')
+    # New String location
+    attach_summary_to_type('get_string_summary', 'alloc::string::String')
+    attach_synthetic_to_type('StdStringSynthProvider', 'alloc::string::String')
 
     attach_summary_to_type('get_array_summary', r'^.*\[[0-9]+\]$', True)
 
     attach_summary_to_type('get_vector_summary', r'^collections::vec::Vec<.+>$', True)
     attach_synthetic_to_type('StdVectorSynthProvider', r'^collections::vec::Vec<.+>$', True)
+    # New Vec location
+    attach_summary_to_type('get_vector_summary', r'^alloc::vec::Vec<.+>$', True)
+    attach_synthetic_to_type('StdVectorSynthProvider', r'^alloc::vec::Vec<.+>$', True)
 
     attach_summary_to_type('get_slice_summary', r'^&(mut\s*)?\[.*\]$', True)
     attach_synthetic_to_type('SliceSynthProvider', r'^&(mut\s*)?\[.*\]$', True)

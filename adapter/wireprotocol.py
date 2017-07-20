@@ -22,7 +22,7 @@ class DebugServer(WorkerThread):
             while not self.stopping:
                 clen = self.recv_headers()
                 data = self.recv_body(clen)
-                data = data.decode('utf-8')
+                data = data.decode('utf8')
                 log.debug('rx: %s', data)
                 message = json.loads(data)
                 self.handle_message(message)
@@ -74,6 +74,6 @@ class DebugServer(WorkerThread):
     def send_message(self, message):
         data = json.dumps(message, separators=self.json_separators)
         log.debug('tx: %s', data)
-        data = data.encode('utf-8')
+        data = data.encode('utf8')
         self.with_timeout(self.write_all, b'Content-Length: %d\r\n\r\n' % len(data))
         self.with_timeout(self.write_all, data)

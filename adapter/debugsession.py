@@ -12,7 +12,7 @@ from . import disassembly
 from . import handles
 from . import terminal
 from . import formatters
-from . import PY2, is_string, xrange
+from . import PY2, is_string, from_lldb_str, to_lldb_str, xrange
 
 log = logging.getLogger('debugsession')
 log.info('Imported')
@@ -112,20 +112,21 @@ class DebugSession:
         if target_args is not None:
             if is_string(target_args):
                 target_args = shlex.split(target_args)
-            target_args = [str(arg) for arg in target_args]
+            target_args = [to_lldb_str(arg) for arg in target_args]
         # environment
         env = args.get('env', None)
-        envp = [str('%s=%s' % pair) for pair in os.environ.items()]
+        envp = [to_lldb_str('%s=%s' % pair) for pair in os.environ.items()]
         if env is not None: # Convert dict to a list of 'key=value' strings
-            envp = envp + ([str('%s=%s' % pair) for pair in env.items()])
+            envp = envp + ([to_lldb_str('%s=%s' % pair) for pair in env.items()])
         # stdio
         stdio, extra_flags = self.configure_stdio(args)
         flags |= extra_flags
         # working directory
-        work_dir = opt_str(args.get('cwd', None))
+        work_dir = opt_lldb_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)
         # launch!
         error = lldb.SBError()
+        log.info('%s %s %s', target_args, envp, work_dir)
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
@@ -158,7 +159,7 @@ class DebugSession:
             if is_string(pid): pid = int(pid)
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
-            program = str(args['program'])
+            program = to_lldb_str(args['program'])
             self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
         if not error.Success():
             self.console_msg(error.GetCString())
@@ -193,12 +194,12 @@ class DebugSession:
         if program is not None:
             load_dependents = not args.get('noDebug', False)
             error = lldb.SBError()
-            target = self.debugger.CreateTarget(str(program), None, None, load_dependents, error)
+            target = self.debugger.CreateTarget(to_lldb_str(program), None, None, load_dependents, error)
             if not error.Success() and 'win32' in sys.platform:
                 # On Windows, try appending '.exe' extension, to make launch configs more uniform.
                 program += '.exe'
                 error2 = lldb.SBError()
-                target = self.debugger.CreateTarget(str(program), None, None, load_dependents, error2)
+                target = self.debugger.CreateTarget(to_lldb_str(program), None, None, load_dependents, error2)
                 if error2.Success():
                     args['program'] = program
                     error.Clear()
@@ -219,7 +220,7 @@ class DebugSession:
             interp = self.debugger.GetCommandInterpreter()
             result = lldb.SBCommandReturnObject()
             for command in commands:
-                interp.HandleCommand(str(command), result)
+                interp.HandleCommand(to_lldb_str(command), result)
                 sys.stdout.flush()
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
                 self.console_msg(output)
@@ -259,7 +260,7 @@ class DebugSession:
                 no_console = 'false' if term_type == 'external' else 'true'
                 os.environ['LLDB_LAUNCH_INFERIORS_WITHOUT_CONSOLE'] = no_console
                 term_fd = None # no other options on Windows
-            stdio = [term_fd if s is None else str(s) for s in stdio]
+            stdio = [term_fd if s is None else to_lldb_str(s) for s in stdio]
         return stdio, extra_flags
 
     def spawn_vscode_terminal(self, kind, args=[], cwd='', env={}, title='Debuggee'):
@@ -280,7 +281,7 @@ class DebugSession:
         in_dasm = True
         file_id = source.get('sourceReference')
         if file_id is None:
-            file_id = opt_str(source.get('path'))
+            file_id = opt_lldb_str(source.get('path'))
             in_dasm = False
 
         if file_id is not None:
@@ -351,9 +352,9 @@ class DebugSession:
             bp = self.fn_breakpoints.get(name, None)
             if bp is None:
                 if name.startswith('/re '):
-                    bp = self.target.BreakpointCreateByRegex(str(name[4:]))
+                    bp = self.target.BreakpointCreateByRegex(to_lldb_str(name[4:]))
                 else:
-                    bp = self.target.BreakpointCreateByName(str(name))
+                    bp = self.target.BreakpointCreateByName(to_lldb_str(name))
                 self.set_bp_condition(bp, req)
                 self.fn_breakpoints[name] = bp
             result.append(self.make_bp_resp(bp))
@@ -363,7 +364,7 @@ class DebugSession:
 
     # Sets up breakpoint stopping condition
     def set_bp_condition(self, bp, req):
-        cond = opt_str(req.get('condition', None))
+        cond = opt_lldb_str(req.get('condition', None))
         if cond is not None:
             if cond.startswith('/nat '):
                 # LLDB native expression
@@ -618,7 +619,7 @@ class DebugSession:
 
     def DEBUG_completions(self, args):
         interp = self.debugger.GetCommandInterpreter()
-        text = str(args['text'])
+        text = to_lldb_str(args['text'])
         column = int(args['column'])
         matches = lldb.SBStringList()
         result = interp.HandleCompletion(text, column-1, 0, -1, matches)
@@ -632,7 +633,7 @@ class DebugSession:
             log.error('evaluate without a process')
             return { 'result': '' }
         context = args.get('context')
-        expr = str(args['expression'])
+        expr = to_lldb_str(args['expression'])
         if context in ['watch', 'hover']:
             return self.evaluate_expr(args, expr)
         elif expr.startswith('?'): # "?<expr>" in 'repl' context
@@ -653,12 +654,12 @@ class DebugSession:
         interp = self.debugger.GetCommandInterpreter()
         result = lldb.SBCommandReturnObject()
         if '\n' not in command:
-            interp.HandleCommand(str(command), result)
+            interp.HandleCommand(to_lldb_str(command), result)
         else:
             # multiline command
             tmp_file = tempfile.NamedTemporaryFile()
             log.info('multiline command in %s', tmp_file.name)
-            tmp_file.write(str(command))
+            tmp_file.write(to_lldb_str(command))
             tmp_file.flush()
             filespec = lldb.SBFileSpec()
             filespec.SetDirectory(os.path.dirname(tmp_file.name))
@@ -747,7 +748,7 @@ class DebugSession:
             except Exception as e:
                 log.debug('Evaluation error: %s', traceback.format_exc())
                 error = lldb.SBError()
-                error.SetErrorString(str(e))
+                error.SetErrorString(to_lldb_str(str(e)))
                 return error
 
     format_codes = [(',h', lldb.eFormatHex),
@@ -795,8 +796,8 @@ class DebugSession:
             value = var.GetSummary()
             if value is not None:
                 value = value.replace('\n', '') # VSCode won't display line breaks
-        if PY2 and value is not None:
-            value = value.decode('latin1') # or else json will try to treat it as utf8
+        if value is not None:
+            value = from_lldb_str(value)
         return value
 
     # Clears out cached state that become invalid once debuggee resumes.
@@ -808,7 +809,7 @@ class DebugSession:
         if container is None:
             raise Exception('Invalid variables reference')
 
-        name = str(args['name'])
+        name = to_lldb_str(args['name'])
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
             var = container.FindVariable(name)
@@ -820,7 +821,7 @@ class DebugSession:
             raise Exception('Could not get a child with name ' + name)
 
         error = lldb.SBError()
-        if not var.SetValueFromCString(str(args['value']), error):
+        if not var.SetValueFromCString(to_lldb_str(args['value']), error):
             raise UserError(error.GetCString())
         return { 'value': self.get_var_value(var, self.global_format) }
 
@@ -1106,8 +1107,8 @@ def SBValueChildrenIter(val):
     for i in xrange(val.GetNumChildren(MAX_VAR_CHILDREN)):
         yield get_value(i)
 
-def opt_str(s):
-    return str(s) if s != None else None
+def opt_lldb_str(s):
+    return to_lldb_str(s) if s != None else None
 
 def same_path(path1, path2):
     return os.path.normcase(os.path.normpath(path1)) == os.path.normcase(os.path.normpath(path2))

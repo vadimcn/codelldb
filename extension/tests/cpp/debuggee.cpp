@@ -69,6 +69,8 @@ void vars() {
         std::string empty_str;
         std::string* str_ptr = &str1;
         std::string& str_ref = str1;
+        wchar_t wstr1[] = L"Превед йожэг!";
+        std::wstring wstr2 = L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!";
         int zzz = i; // #BP3
     }
 }
@@ -103,10 +105,15 @@ void mandelbrot() {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) { // #BP1
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; ++i)
+        args.push_back(argv[i]);
+
+    if (args.size() < 2) { // #BP1
         return -1;
     }
-    std::string testcase = argv[1];
+
+    std::string testcase = args[1];
     if (testcase == "crash") {
         *(volatile int*)0 = 42;
     } else if (testcase == "deepstack") {

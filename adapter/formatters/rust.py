@@ -2,7 +2,7 @@ import logging
 import lldb
 import codecs
 import re
-from .. import xrange
+from .. import xrange, to_lldb_str
 
 log = logging.getLogger('rust')
 
@@ -95,12 +95,12 @@ def gcm(valobj, *chain):
 
 def string_from_ptr(pointer, length):
     if length <= 0:
-        return ''
+        return u''
     error = lldb.SBError()
     process = pointer.GetProcess()
     data = process.ReadMemory(pointer.GetValueAsUnsigned(), length, error)
     if error.Success():
-        return data.decode('UTF-8', 'replace')
+        return data.decode('utf8', 'replace')
     else:
         log.error('%s', error.GetCString())
 
@@ -120,7 +120,8 @@ def get_obj_summary(valobj):
 def get_synth_summary(synth_class, valobj, dict):
     synth = synth_class(valobj.GetNonSyntheticValue(), dict)
     synth.update()
-    return synth.get_summary()
+    summary = synth.get_summary()
+    return to_lldb_str(summary)
 
 def print_array_elements(valobj, maxsize=32):
     s = ''
@@ -343,8 +344,8 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         strval = string_from_ptr(self.ptr, min(self.len, 1000))
         if strval == None:
             return None
-        if self.len > 1000: strval += '...'
-        return '"%s"' % strval
+        if self.len > 1000: strval += u'...'
+        return u'"%s"' % strval
 
 class StrSliceSynthProvider(StringLikeSynthProvider):
      def _update(self):

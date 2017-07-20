@@ -72,6 +72,9 @@ fn main() {
     let empty_string = String::from("");
     let string = String::from("A String");
     let str_slice = "String slice";
+    let wstr1 = "Превед йожэг!";
+    let wstr2 = String::from("Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!");
+
     let cstring = std::ffi::CString::new("C String").unwrap();
     let cstr = &cstring[..];
     let osstring = std::ffi::OsString::from("OS String");

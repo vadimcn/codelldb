@@ -58,7 +58,7 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
-			"args": ["vars"]
+			"args": ["vars", "Farbfüllung", "äöüßÄÖÜ"]
 		},
 		{
 			"name": "debuggee launch mandelbrot",

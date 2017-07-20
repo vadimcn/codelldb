@@ -126,6 +126,11 @@ suite('Basic', () => {
             'array_int': 'int [10]',
             's': 'Struct',
             'str1': '"The quick brown fox"',
+            'str_ptr': '"The quick brown fox"',
+            'str_ref': '"The quick brown fox"',
+            'empty_str': '""',
+            'wstr1': 'L"Превед йожэг!"',
+            'wstr2': 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
         });
 
         let response1 = await dc.evaluateRequest({
@@ -275,6 +280,9 @@ suite('Rust tests', () => {
             'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555" ...]',
             'string': '"A String"',
             'str_slice': '"String slice"',
+            'wstr1': '"Превед йожэг!"',
+            'wstr2': '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+
             'cstring': '"C String"',
             'osstring': '"OS String"',
             'class': 'rusttypes::PyKeywords'

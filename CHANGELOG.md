@@ -1,5 +1,8 @@
 # What's New
 
+## 0.5.4
+- Fixed some bugs on Windows.
+
 ## 0.5.3
 - Fixed fallout from VSCode 1.14 changes.
 - Fixed Rust formatters after the move of String and Vec into alloc crate.

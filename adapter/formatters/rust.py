@@ -17,7 +17,7 @@ def initialize(debugger, analyze):
 
     debugger.HandleCommand('script import adapter.formatters.rust')
     rust_category = debugger.CreateCategory('Rust')
-    rust_category.AddLanguage(lldb.eLanguageTypeRust)
+    #rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
     attach_summary_to_type('get_str_slice_summary', '&str')

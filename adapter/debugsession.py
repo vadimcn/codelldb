@@ -543,6 +543,9 @@ class DebugSession:
                 stack_frame['line'] = dasm.line_num_by_address(pc_addr)
                 stack_frame['column'] = 0
 
+            if not frame.GetLineEntry().IsValid():
+                stack_frame['presentationHint'] = 'subtle' # No line debug info.
+
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 

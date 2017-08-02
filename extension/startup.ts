@@ -7,6 +7,7 @@ import {
 import { format, inspect } from 'util';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as ver from './ver';
 
 let output = window.createOutputChannel('LLDB');
@@ -60,13 +61,19 @@ function getAdapterLoggingSettings(): string {
     }
 }
 
+enum DiagnosticsStatus {
+    Succeeded = 0,
+    Warning = 1,
+    Failed = 2
+}
+
 export async function diagnose(): Promise<boolean> {
     let args = ['-b', '-Q',
         '-O', 'script import sys, io, lldb; ' +
         'print(lldb.SBDebugger.Create().GetVersionString()); ' +
         'print("OK")'
     ];
-    var succeeded = false;
+    var status = null;
     try {
         let lldb = spawnDebugger(args);
 
@@ -80,22 +87,68 @@ export async function diagnose(): Promise<boolean> {
         }
         let pattern = new RegExp('(?:' + versionPattern + '[^]*)?^OK$', 'm');
         let match = await waitPattern(lldb, pattern);
-        window.showInformationMessage('LLDB self-test completed successfuly.');
+        status = DiagnosticsStatus.Succeeded;
         let version = match[1];
         if (version && ver.lt(version, desiredVersion)) {
-            window.showWarningMessage(
+            output.appendLine(
                 format('The version of your LLDB has been detected as %s. ' +
                     'For best results please consider upgrading to least %s.',
                     version, desiredVersion));
+            status = DiagnosticsStatus.Warning;
         }
-        succeeded = true;
+        if (process.platform.indexOf('linux') >= 0) {
+            status = Math.max(status, checkPTraceScope());
+        }
     } catch (err) {
         output.appendLine('---');
         output.appendLine(format('An exception was raised while launching debugger: %s', inspect(err)));
-        window.showErrorMessage('LLDB self-test FAILED.');
+        status = DiagnosticsStatus.Failed;
     }
     output.show(true);
-    return succeeded;
+    switch (<number>status) {
+        case DiagnosticsStatus.Succeeded:
+            window.showInformationMessage('LLDB self-test completed successfuly.');
+            break;
+        case DiagnosticsStatus.Warning:
+            window.showWarningMessage('LLDB self-test completed with warnings.  Please check LLDB output panel for details.');
+            break;
+        case DiagnosticsStatus.Failed:
+            window.showInformationMessage('LLDB self-test FAILED.');
+            break;
+    }
+    return status != DiagnosticsStatus.Failed;
+}
+
+function checkPTraceScope(): DiagnosticsStatus {
+    let ptraceScopePath = '/proc/sys/kernel/yama/ptrace_scope';
+    try {
+        let ptraceScope = fs.readFileSync(ptraceScopePath).toString('ascii');
+        output.appendLine('The value of \'' + ptraceScopePath + '\' is: ' + ptraceScope);
+        let moreInfo = 'For more information see: https://en.wikipedia.org/wiki/Ptrace, https://www.kernel.org/doc/Documentation/security/Yama.txt';
+        switch (parseInt(ptraceScope)) {
+            case 0:
+                return DiagnosticsStatus.Succeeded;
+            case 1:
+                output.appendLine('Warning: Your system configuration restricts process attach to child processes only.');
+                output.appendLine(moreInfo);
+                return DiagnosticsStatus.Succeeded; // This is a fairly typical setting, let's not annoy user with warnings.
+            case 2:
+                output.appendLine('Warning: Your system configuration restricts debugging to privileged processes only.');
+                output.appendLine(moreInfo);
+                return DiagnosticsStatus.Warning;
+            case 3:
+                output.appendLine('Warning: Your system configuration has disabled debugging.');
+                output.appendLine(moreInfo);
+                return DiagnosticsStatus.Warning;
+            default:
+                output.appendLine('Warning: Unknown value of ptrace_scope.');
+                output.appendLine(moreInfo);
+                return DiagnosticsStatus.Warning;
+        }
+    } catch (err) {
+        output.appendLine('Couldn\'t read ' + ptraceScopePath + ' : ' + err.message);
+        return DiagnosticsStatus.Succeeded; // Ignore
+    }
 }
 
 // Spawn LLDB with the specified arguments, wait for it to output something matching
@@ -117,7 +170,7 @@ function spawnDebugger(args: string[]): cp.ChildProcess {
     return cp.spawn(lldbPath, args, options);
 }
 
-function waitPattern(lldb: cp.ChildProcess,  pattern: RegExp, timeout_millis = 5000) {
+function waitPattern(lldb: cp.ChildProcess, pattern: RegExp, timeout_millis = 5000) {
     return new Promise<RegExpExecArray>((resolve, reject) => {
         var promisePending = true;
         var adapterOutput = '';

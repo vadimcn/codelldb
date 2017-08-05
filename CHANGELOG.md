@@ -1,4 +1,6 @@
 # What's New
+## 0.5.5
+- Fixed Unicode handling.
 
 ## 0.5.4
 - Fixed some bugs on Windows.

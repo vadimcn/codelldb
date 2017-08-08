@@ -95,6 +95,7 @@ def run_tcp_session(port, log_file=None, log_level=logging.CRITICAL):
         ls.listen(1)
         ls_port = ls.getsockname()[1]
         print('Listening on port', ls_port) # Let the parent process know which port we are listening on.
+        sys.stdout.flush()
         conn, addr = ls.accept()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info('New connection from %s', addr)

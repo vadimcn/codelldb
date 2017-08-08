@@ -17,7 +17,7 @@ def initialize(debugger, analyze):
 
     debugger.HandleCommand('script import adapter.formatters.rust')
     rust_category = debugger.CreateCategory('Rust')
-    rust_category.AddLanguage(lldb.eLanguageTypeRust)
+    #rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
     attach_summary_to_type('get_str_slice_summary', '&str')
@@ -25,11 +25,17 @@ def initialize(debugger, analyze):
 
     attach_summary_to_type('get_string_summary', 'collections::string::String')
     attach_synthetic_to_type('StdStringSynthProvider', 'collections::string::String')
+    # New String location
+    attach_summary_to_type('get_string_summary', 'alloc::string::String')
+    attach_synthetic_to_type('StdStringSynthProvider', 'alloc::string::String')
 
     attach_summary_to_type('get_array_summary', r'^.*\[[0-9]+\]$', True)
 
     attach_summary_to_type('get_vector_summary', r'^collections::vec::Vec<.+>$', True)
     attach_synthetic_to_type('StdVectorSynthProvider', r'^collections::vec::Vec<.+>$', True)
+    # New Vec location
+    attach_summary_to_type('get_vector_summary', r'^alloc::vec::Vec<.+>$', True)
+    attach_synthetic_to_type('StdVectorSynthProvider', r'^alloc::vec::Vec<.+>$', True)
 
     attach_summary_to_type('get_slice_summary', r'^&(mut\s*)?\[.*\]$', True)
     attach_synthetic_to_type('SliceSynthProvider', r'^&(mut\s*)?\[.*\]$', True)
@@ -94,7 +100,7 @@ def string_from_ptr(pointer, length):
     process = pointer.GetProcess()
     data = process.ReadMemory(pointer.GetValueAsUnsigned(), length, error)
     if error.Success():
-        return data.decode(encoding='UTF-8')
+        return data.decode('UTF-8', 'replace')
     else:
         log.error('%s', error.GetCString())
 
@@ -335,6 +341,8 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         # Limit string length to 1000 characters to cope with uninitialized values whose
         # length field contains garbage.
         strval = string_from_ptr(self.ptr, min(self.len, 1000))
+        if strval == None:
+            return None
         if self.len > 1000: strval += '...'
         return '"%s"' % strval
 

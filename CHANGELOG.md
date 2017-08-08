@@ -1,5 +1,12 @@
 # What's New
 
+## 0.5.4
+- Fixed some bugs on Windows.
+
+## 0.5.3
+- Fixed fallout from VSCode 1.14 changes.
+- Fixed Rust formatters after the move of String and Vec into alloc crate.
+
 ## 0.5.2
 - Changed how LLDB is launched.  This should automatically fix compatibility issues with Brew Python
   and in general provide better messages when LLDB fails.

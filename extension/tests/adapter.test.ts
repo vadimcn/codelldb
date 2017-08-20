@@ -126,6 +126,7 @@ suite('Basic', () => {
             'array_int': 'int [10]',
             's': 'Struct',
             'str1': '"The quick brown fox"',
+            'invalid_utf8': '"ABC\uFFFD\\x01\uFFFDXYZ',
             'str_ptr': '"The quick brown fox"',
             'str_ref': '"The quick brown fox"',
             'empty_str': '""',

@@ -66,6 +66,7 @@ void vars() {
         std::array<int, 5> stdarr_int;
         Struct array_struct[5] = { { i*2, 'b', 4.0f} };
         std::string str1 = "The quick brown fox";
+        char invalid_utf8[] = "ABC\xFF\x01\xFEXYZ";
         std::string empty_str;
         std::string* str_ptr = &str1;
         std::string& str_ref = str1;

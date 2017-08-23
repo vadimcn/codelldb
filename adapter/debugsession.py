@@ -461,7 +461,8 @@ class DebugSession:
         except Exception as e:
             self.send_response(self.launch_args['response'], e)
         # LLDB doesn't seem to automatically generate a stop event for stop_on_entry
-        if self.process is not None and self.launch_args.get('stopOnEntry') and self.process.is_stopped:
+        check_for_stop = self.launch_args.get('stopOnEntry') or self.launch_args.get('request') == 'custom'
+        if self.process is not None and check_for_stop and self.process.is_stopped:
             self.notify_target_stopped(None)
 
     def DEBUG_pause(self, args):

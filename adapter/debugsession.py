@@ -45,6 +45,7 @@ class DebugSession:
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
         self.extension_poll = None
+        self.known_threads = set()
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -983,6 +984,7 @@ class DebugSession:
             self.notify_breakpoint(event)
 
     def notify_target_stopped(self, lldb_event):
+        self.update_threads()
         event = { 'allThreadsStopped': True } # LLDB always stops all threads
         # Find the thread that caused this stop
         stopped_thread = None
@@ -1029,6 +1031,19 @@ class DebugSession:
             event['threadId'] = stopped_thread.GetThreadID()
 
         self.send_event('stopped', event)
+
+    # Notify VSCode about target threads that started or exited since the last stop.
+    def update_threads(self):
+        threads = set()
+        for thread in self.process:
+            threads.add(thread.GetThreadID())
+        started = threads - self.known_threads
+        exited = self.known_threads - threads
+        for thread_id in exited:
+            self.send_event('thread', { 'threadId': thread_id, 'reason': 'exited' })
+        for thread_id in started:
+            self.send_event('thread', { 'threadId': thread_id, 'reason': 'started' })
+        self.known_threads = threads
 
     def notify_stdio(self, ev_type):
         if ev_type == lldb.SBProcess.eBroadcastBitSTDOUT:

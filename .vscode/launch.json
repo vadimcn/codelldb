@@ -61,6 +61,13 @@
 			"args": ["vars", "Farbfüllung", "äöüßÄÖÜ"]
 		},
 		{
+			"name": "debuggee launch threads",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/tests/debuggee",
+			"args": ["threads"]
+		},
+		{
 			"name": "debuggee launch mandelbrot",
 			"type": "lldb",
 			"request": "launch",

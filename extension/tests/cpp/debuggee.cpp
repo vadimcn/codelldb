@@ -5,6 +5,7 @@
 #include <string>
 #include <unistd.h>
 #include <complex>
+#include <thread>
 
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
@@ -26,6 +27,24 @@ void inf_loop() {
 }
 
 void threads(int num_threads) {
+    std::vector<int> alive(num_threads);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < num_threads; ++i) {
+        int* am_alive = &alive[i];
+        std::thread thread([am_alive](int id) {
+            *am_alive = 1;
+            printf("I'm thread %d\n", id);
+            sleep(id % 4 + 1);
+            printf("Thread %d exiting\n", id);
+            *am_alive = 0;
+        }, i);
+        threads.push_back(std::move(thread));
+    }
+    sleep(1);
+    for (int i = 0; i < num_threads; ++i) {
+        printf("Joining %d\n", i);
+        threads[i].join();
+    }
 }
 
 bool check_env(const char* env_name, const char* expected) {

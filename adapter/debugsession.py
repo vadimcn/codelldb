@@ -505,10 +505,7 @@ class DebugSession:
         for thread in self.process:
             index = thread.GetIndexID()
             tid = thread.GetThreadID()
-            name = thread.GetName()
-            display = '#%d: tid=%d' % (index, tid)
-            if name is not None:
-                display += ', name=%s' % name
+            display = '%d: tid=%d' % (index, tid)
             threads.append({ 'id': tid, 'name': display })
         return { 'threads': threads }
 

@@ -461,9 +461,8 @@ class DebugSession:
             self.send_response(self.launch_args['response'], result)
         except Exception as e:
             self.send_response(self.launch_args['response'], e)
-        # LLDB doesn't seem to automatically generate a stop event for stop_on_entry
-        check_for_stop = self.launch_args.get('stopOnEntry') or self.launch_args.get('request') == 'custom'
-        if self.process is not None and check_for_stop and self.process.is_stopped:
+        # Make sure VSCode knows if the process was initially stopped.
+        if self.process is not None and self.process.is_stopped:
             self.notify_target_stopped(None)
 
     def DEBUG_pause(self, args):

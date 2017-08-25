@@ -504,8 +504,13 @@ class DebugSession:
     def DEBUG_threads(self, args):
         threads = []
         for thread in self.process:
+            index = thread.GetIndexID()
             tid = thread.GetThreadID()
-            threads.append({ 'id': tid, 'name': '%s:%d' % (thread.GetName(), tid) })
+            name = thread.GetName()
+            display = '#%d: tid=%d' % (index, tid)
+            if name is not None:
+                display += ', name=%s' % name
+            threads.append({ 'id': tid, 'name': display })
         return { 'threads': threads }
 
     def DEBUG_stackTrace(self, args):

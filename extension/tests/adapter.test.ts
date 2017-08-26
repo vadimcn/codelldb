@@ -63,7 +63,7 @@ suite('Basic', () => {
     });
 
     test('stop on entry', async () => {
-        let stopAsync = dc.waitForEvent('stopped');
+        let stopAsync = waitForStopEvent();
         launch({ program: debuggee, stopOnEntry: true });
         let stopEvent = await stopAsync;
         if (process.platform.startsWith('win'))
@@ -78,7 +78,7 @@ suite('Basic', () => {
         let setBreakpointAsyncSource = setBreakpoint(debuggeeSource, bpLineSource);
         let setBreakpointAsyncHeader = setBreakpoint(debuggeeHeader, bpLineHeader);
         let waitForExitAsync = dc.waitForEvent('exited');
-        let waitForStopAsync = dc.waitForEvent('stopped');
+        let waitForStopAsync = waitForStopEvent();
 
         await launch({ program: debuggee, args: ['header'] });
         await setBreakpointAsyncSource;
@@ -87,7 +87,7 @@ suite('Basic', () => {
         let stopEvent = await waitForStopAsync;
         await verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
 
-        let waitForStopAsync2 = dc.waitForEvent('stopped');
+        let waitForStopAsync2 = waitForStopEvent();
         await dc.continueRequest({ threadId: 0 });
         let stopEvent2 = await waitForStopAsync2;
         await verifyLocation(stopEvent.body.threadId, debuggeeHeader, bpLineHeader);
@@ -99,7 +99,7 @@ suite('Basic', () => {
     test('page stack', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP2');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let waitForStopAsync = dc.waitForEvent('stopped');
+        let waitForStopAsync = waitForStopEvent();
         await launch({ program: debuggee, args: ['deepstack'] });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
@@ -190,8 +190,22 @@ suite('Basic', () => {
     });
 });
 
+async function waitForStopEvent(): Promise<dp.StoppedEvent> {
+    for (;;) {
+        let event = <dp.StoppedEvent>await dc.waitForEvent('stopped');
+        // On OSX, debuggee starts out in a 'stopped' state, then eventually gets resumed after
+        // debugger initialization is complete.
+        // This initial stopped event interferes with our tests that await stop on a breakpoint.
+        // Its distinguishing feature of initial stop is that the threadId is not set, so we use
+        // that fact to ignore them.
+        if (event.body.threadId) {
+            return event;
+        }
+    }
+}
+
 async function launchAndWaitForStop(launchArgs: any): Promise<dp.StoppedEvent> {
-    let waitForStopAsync = dc.waitForEvent('stopped');
+    let waitForStopAsync = waitForStopEvent();
     await launch(launchArgs);
     let stoppedEvent = await waitForStopAsync;
     return <dp.StoppedEvent>stoppedEvent;
@@ -229,7 +243,7 @@ suite('Attach tests', () => {
     })
 
     test('attach by pid', async () => {
-        let asyncWaitStopped = dc.waitForEvent('stopped');
+        let asyncWaitStopped = waitForStopEvent();
         let attachResp = await attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
@@ -237,7 +251,7 @@ suite('Attach tests', () => {
 
     test('attach by name - may fail if a copy of debuggee is already running', async () => {
         // To fix, try running `killall debuggee` (`taskkill /im debuggee.exe` on Windows)
-        let asyncWaitStopped = dc.waitForEvent('stopped');
+        let asyncWaitStopped = waitForStopEvent();
         let attachResp = await attach({ program: debuggee, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
@@ -249,7 +263,7 @@ suite('Rust tests', () => {
     test('variables', async () => {
         let bpLine = findMarker(rusttypesSource, '#BP1');
         let setBreakpointAsync = setBreakpoint(rusttypesSource, bpLine);
-        let waitForStopAsync = dc.waitForEvent('stopped');
+        let waitForStopAsync = waitForStopEvent();
         await launch({ program: rusttypes });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
@@ -338,7 +352,7 @@ async function attach(attachArgs: any): Promise<dp.AttachResponse> {
 }
 
 async function setBreakpoint(file: string, line: number, condition?: string): Promise<dp.SetBreakpointsResponse> {
-    let waitStopAsync = dc.waitForEvent('stopped');
+    let waitStopAsync = waitForStopEvent();
     await dc.waitForEvent('initialized');
     let breakpointResp = await dc.setBreakpointsRequest({
         source: { path: file },

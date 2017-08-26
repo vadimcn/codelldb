@@ -1,5 +1,9 @@
 # What's New
-## 0.5.6
+## 0.6.0
+- The minumum VSCode version is now 1.15.
+- Process state will now be updated after custom launch.
+- Fixed threads display regression.
+- Fixed "Add to Watch" regression.
 - Experimental support for reverse-debugging via gdb-server or rr.
 
 ## 0.5.5

@@ -23,8 +23,9 @@ MAX_VAR_CHILDREN = 10000
 
 class DebugSession:
 
-    def __init__(self, event_loop, send_message):
+    def __init__(self, parameters, event_loop, send_message):
         DebugSession.current = self
+        self.parameters = parameters
         self.event_loop = event_loop
         self.send_message = send_message
         self.var_refs = handles.StableHandles()
@@ -90,6 +91,7 @@ class DebugSession:
             'supportsCompletionsRequest': True,
             'supportTerminateDebuggee': True,
             'supportsDelayedStackTraceLoading': True,
+            'supportsStepBack': self.parameters.get('reverseDebugging', False)
         }
 
     def DEBUG_launch(self, args):
@@ -499,6 +501,30 @@ class DebugSession:
         tid = args['threadId']
         thread = self.process.GetThreadByID(tid)
         thread.StepOut()
+
+    def DEBUG_stepBack(self, args):
+        self.show_disassembly = 'always' # Reverse line-step is not supported (yet?)
+        tid = args['threadId']
+        self.reverse_exec([
+            'process plugin packet send Hc%x' % tid, # select thread
+            'process plugin packet send bs', # reverse-step
+            'process plugin packet send bs', # reverse-step - so we can forward step
+            'stepi']) # forward-step - to refresh LLDB's cached debuggee state
+
+    def DEBUG_reverseContinue(self, args):
+        self.reverse_exec([
+            'process plugin packet send bc', # reverse-continue
+            'process plugin packet send bs', # reverse-step
+            'stepi']) # forward-step
+
+    def reverse_exec(self, commands):
+        interp = self.debugger.GetCommandInterpreter()
+        result = lldb.SBCommandReturnObject()
+        for command in commands:
+            interp.HandleCommand(command, result)
+            if not result.Succeeded():
+                self.console_msg(result.GetError())
+                return
 
     def DEBUG_threads(self, args):
         threads = []

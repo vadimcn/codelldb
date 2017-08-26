@@ -20,10 +20,10 @@ export class DebugSession {
 // Start debug adapter in TCP session mode and return the port number it is listening on.
 export async function startDebugAdapter(context: ExtensionContext): Promise<DebugSession> {
     let adapterPath = path.join(context.extensionPath, 'adapter');
-    let logging = getAdapterLoggingSettings();
+    let params = getAdapterParameters();
     let args = ['-b', '-Q',
         '-O', format('command script import \'%s\'', adapterPath),
-        '-O', format('script adapter.main.run_tcp_session(0, %s)', logging)
+        '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
     let lldb = spawnDebugger(args);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
@@ -38,27 +38,10 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Debu
     return session;
 }
 
-function getAdapterLoggingSettings(): string {
+function getAdapterParameters(): string {
     let config = workspace.getConfiguration('lldb');
-    let lldbLog = config.get('log', null);
-    if (lldbLog) {
-        var logPath = 'None';
-        var logLevel = 0;
-        if (typeof (lldbLog) == 'string') {
-            logPath = lldbLog;
-        } else {
-            logPath = lldbLog.path;
-            logLevel = lldbLog.level;
-        }
-        if (logPath) {
-            logPath = format('\'b64:%s\'', new Buffer(logPath).toString('base64'));
-        } else {
-            logPath = 'None'; // Log to stdout, which will end up on the "LLDB" output pane.
-        }
-        return format('log_file=%s,log_level=%d', logPath, logLevel);
-    } else {
-        return '';
-    }
+    let params = config.get('parameters');
+    return new Buffer(JSON.stringify(params)).toString('base64');
 }
 
 enum DiagnosticsStatus {
@@ -248,11 +231,12 @@ export async function getAdapterExecutable(context: ExtensionContext): Promise<a
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
     let adapterPath = path.join(context.extensionPath, 'adapter');
+    let params = getAdapterParameters();
     return {
         command: lldbPath,
         args: ['-b', '-Q',
             '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(%s)', getAdapterLoggingSettings())
+            '-O', format('script adapter.main.run_stdio_session(\'%s\')', params)
         ]
     }
 }

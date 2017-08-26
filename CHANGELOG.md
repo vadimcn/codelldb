@@ -1,4 +1,7 @@
 # What's New
+## 0.5.6
+- Experimental support for reverse-debugging via gdb-server or rr.
+
 ## 0.5.5
 - Fixed Unicode handling.
 

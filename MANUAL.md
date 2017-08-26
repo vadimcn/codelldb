@@ -293,4 +293,6 @@ There are a few CodeLLDB parameters that may be configured at the workspace leve
 |parameter          |                                                         |
 |-------------------|---------------------------------------------------------|
 |**lldb.executable**|Path to LLDB executable. (default="lldb")                |
-|**lldb.log**       |Path to a file, tty, etc, to output CodeLLDB log.        |
+|**lldb.parameters**|Startup parameters of the debug adapter                  |
+|... **logLevel**         |"Logging level as defined by Python's 'logging' module. |
+|... **reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)|

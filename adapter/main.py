@@ -9,7 +9,7 @@ import errno
 from .wireprotocol import DebugServer
 from .debugsession import DebugSession
 from .eventloop import EventLoop
-from . import debugger_api
+from . import PY2, is_string, debugger_api
 
 log = logging.getLogger('main')
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -22,14 +22,24 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, hard))
 
-def init_logging(log_file, log_level):
-    if log_file is not None and log_file.startswith('b64:'):
-        import base64
-        log_file = base64.b64decode(log_file[4:])
+def decode_params(params):
+    try:
+        if isinstance(params, dict):
+            return params
+        elif is_string(params):
+            import base64, json
+            return json.loads(base64.b64decode(params))
+    except:
+        pass
+    return {}
+
+def init_logging(params):
+    log_file = params.get('logFile', None)
+    log_level = params.get('logLevel', logging.CRITICAL)
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
 
-def run_session(read, write):
+def run_session(read, write, params):
     event_loop = EventLoop()
 
     # Attach debug protocol listener to the main communication channel.
@@ -37,7 +47,7 @@ def run_session(read, write):
     debug_server.set_channel(read, write)
 
     # Create DebugSession, tell it how to send messages back to the clients.
-    debug_session = DebugSession(event_loop, debug_server.send_message)
+    debug_session = DebugSession(params, event_loop, debug_server.send_message)
 
     # Start up worker threads.
     debug_server.handle_message = event_loop.make_dispatcher(debug_session.handle_message)
@@ -60,19 +70,21 @@ def os_write_all(ofd, data):
         data = data[n:]
 
 # Single session on top of the specified fds
-def run_pipe_session(ifd, ofd, log_file=None, log_level=logging.CRITICAL):
+def run_pipe_session(ifd, ofd, params=None):
     try:
-        init_logging(log_file, log_level)
+        params = decode_params(params)
+        init_logging(params)
         log.info('Single-session mode on fds (%d, %d)', ifd, ofd)
-        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), params)
         log.info('Debug session ended. Exiting.')
     except Exception as e:
         log.critical('%s', traceback.format_exc())
 
 # Single session on top of stdin & stdout
-def run_stdio_session(log_file=None, log_level=logging.CRITICAL):
+def run_stdio_session(params=None):
     try:
-        init_logging(log_file, log_level)
+        params = decode_params(params)
+        init_logging(params)
         # Keeping all imported components from spamming stdout is pretty futile;
         # just relocate stdio to different fds.
         ifd = os.dup(0)
@@ -80,15 +92,16 @@ def run_stdio_session(log_file=None, log_level=logging.CRITICAL):
         os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
         os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
         log.info('Single-session mode on stdio')
-        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data))
+        run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), params)
         log.info('Debug session ended. Exiting.')
     except Exception as e:
         log.critical('%s', traceback.format_exc())
 
 # Single session on the specified TCP port.
-def run_tcp_session(port, log_file=None, log_level=logging.CRITICAL):
+def run_tcp_session(port, params=None):
     try:
-        init_logging(log_file, log_level)
+        params = decode_params(params)
+        init_logging(params)
         ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         ls.bind(('127.0.0.1', port))
@@ -99,15 +112,15 @@ def run_tcp_session(port, log_file=None, log_level=logging.CRITICAL):
         conn, addr = ls.accept()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info('New connection from %s', addr)
-        run_session(conn.recv, conn.sendall)
+        run_session(conn.recv, conn.sendall, params)
         conn.close()
         ls.close()
     except Exception as e:
         log.critical('%s', traceback.format_exc())
 
 # Run in socket server mode
-def run_tcp_server(port=4711, log_file=None, log_level=logging.CRITICAL):
+def run_tcp_server(port=4711, params=None):
     print('Server mode on port %d (Ctrl-C to stop)' % port)
     while True:
-        run_tcp_session(port, log_file, log_level)
+        run_tcp_session(port, params)
         print('Debug session ended. Waiting for new connections.')

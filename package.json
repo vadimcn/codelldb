@@ -74,13 +74,26 @@
                     "default": "lldb",
                     "description": "Path to LLDB executable."
                 },
-                "lldb.log": {
-                    "type": [
-                        "string",
-                        "object"
-                    ],
-                    "default": null,
-                    "description": "LLDB adapter logging configuration"
+                "lldb.parameters": {
+                    "type": "object",
+                    "default": {},
+                    "description": "Startup parameters passed to the debug adapter.",
+                    "properties": {
+                        "logLevel": {
+                            "type": "number",
+                            "default": 0,
+                            "description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
+                        },
+                        "logFile": {
+                            "type":"string",
+                            "description": "Log file path. (default=VSCode 'Output' panel)"
+                        },
+                        "reverseDebugging": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
+                        }
+                    }
                 }
             }
         },

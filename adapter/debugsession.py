@@ -30,9 +30,10 @@ class DebugSession:
         self.send_message = send_message
         self.var_refs = handles.StableHandles()
         self.ignore_bp_events = False
-        self.breakpoints = dict() # { file_id : { line : SBBreakpoint } }
-        self.fn_breakpoints = dict() # { name : SBBreakpoint }
-        self.exc_breakpoints = []
+        self.line_breakpoints = dict() # { file_id : { line : breakpoint_id } }
+        self.addr_breakpoints = set() # a list breakpoints that were set by address
+        self.fn_breakpoints = dict() # { fn_name : breakpoint_id }
+        self.exc_breakpoints = set() # list of exception breakpoints
         self.breakpoint_conditions = dict() # { bp_id : code_object }
         self.target = None
         self.process = None
@@ -291,18 +292,19 @@ class DebugSession:
             req_bps = args['breakpoints']
             req_bp_lines = [req['line'] for req in req_bps]
             # Existing breakpints indexed by line
-            curr_bps = self.breakpoints.setdefault(file_id, {})
+            file_bps = self.line_breakpoints.setdefault(file_id, {})
             # Existing breakpints that were removed
-            for line, bp in list(curr_bps.items()):
+            for line, bp_id in list(file_bps.items()):
                 if line not in req_bp_lines:
-                    self.target.BreakpointDelete(bp.GetID())
-                    del curr_bps[line]
-                    self.breakpoint_conditions.pop(bp.GetID(), None)
+                    self.target.BreakpointDelete(bp_id)
+                    del file_bps[line]
+                    self.breakpoint_conditions.pop(bp_id, None)
+                    self.addr_breakpoints.discard(bp_id)
             # Added or updated
             for req in req_bps:
                 line = req['line']
-                bp = curr_bps.get(line, None)
-                if bp is None:
+                bp_id = file_bps.get(line, None)
+                if bp_id is None:
                     if not in_dasm:
                         # LLDB is pretty finicky about breakpoint location path exactly matching
                         # the source path found in debug info.  Unfortunately, this means that
@@ -323,9 +325,11 @@ class DebugSession:
                         dasm = self.disassembly_by_handle.get(file_id)
                         addr = dasm.address_by_line_num(line)
                         bp = self.target.BreakpointCreateByAddress(addr)
-                        bp.dont_resolve = True
+                        self.addr_breakpoints.add(bp.GetID())
                     self.set_bp_condition(bp, req)
-                    curr_bps[line] = bp
+                    file_bps[line] = bp.GetID()
+                else:
+                    bp = self.target.FindBreakpointByID(bp_id)
                 result.append(self.make_bp_resp(bp))
         else:
             result.append({'verified': False})
@@ -343,23 +347,25 @@ class DebugSession:
         req_bps = args['breakpoints']
         req_bp_names = [req['name'] for req in req_bps]
         # Existing breakpints that were removed
-        for name,bp in list(self.fn_breakpoints.items()):
+        for name, bp_id in list(self.fn_breakpoints.items()):
             if name not in req_bp_names:
-                self.target.BreakpointDelete(bp.GetID())
+                self.target.BreakpointDelete(bp_id)
                 del self.fn_breakpoints[name]
-                self.breakpoint_conditions.pop(bp.GetID(), None)
+                self.breakpoint_conditions.pop(bp_id, None)
         # Added or updated
         result = []
         for req in req_bps:
             name = req['name']
-            bp = self.fn_breakpoints.get(name, None)
-            if bp is None:
+            bp_id = self.fn_breakpoints.get(name, None)
+            if bp_id is None:
                 if name.startswith('/re '):
                     bp = self.target.BreakpointCreateByRegex(to_lldb_str(name[4:]))
                 else:
                     bp = self.target.BreakpointCreateByName(to_lldb_str(name))
                 self.set_bp_condition(bp, req)
-                self.fn_breakpoints[name] = bp
+                self.fn_breakpoints[name] = bp.GetID()
+            else:
+                bp = self.target.FindBreakpointByID(bp_id)
             result.append(self.make_bp_resp(bp))
         self.ignore_bp_events = False
 
@@ -410,8 +416,8 @@ class DebugSession:
 
     # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
-        if getattr(bp, 'dont_resolve', False): # these originate from disassembly
-             return { 'id': bp.GetID(), 'verified': True }
+        if bp.GetID() in self.addr_breakpoints: # these originate from disassembly
+            return { 'id': bp.GetID(), 'verified': True }
         bp_resp =  { 'id': bp.GetID() }
         for bp_loc in bp:
             if bp_loc.IsEnabled():
@@ -437,9 +443,9 @@ class DebugSession:
     def DEBUG_setExceptionBreakpoints(self, args):
         if not self.launch_args.get('noDebug', False):
             filters = args['filters']
-            for bp in self.exc_breakpoints:
-                self.target.BreakpointDelete(bp.GetID())
-            self.exc_breakpoints = []
+            for bp_id in self.exc_breakpoints:
+                self.target.BreakpointDelete(bp_id)
+            self.exc_breakpoints.clear()
 
             set_all = 'all' in filters
             set_uncaught = 'uncaught' in filters
@@ -448,10 +454,10 @@ class DebugSession:
                 if language is not None:
                     if set_all:
                         bp = language['ef_throw'](self.target)
-                        self.exc_breakpoints.append(bp)
+                        self.exc_breakpoints.add(bp.GetID())
                     if set_uncaught:
                         bp = language['ef_uncaught'](self.target)
-                        self.exc_breakpoints.append(bp)
+                        self.exc_breakpoints.add(bp.GetID())
                 else:
                     self.console_msg('Unknown source language: %s' % lang)
 
@@ -1033,9 +1039,8 @@ class DebugSession:
         if stopped_thread is not None:
             if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
-                for bp in self.exc_breakpoints:
-                    if bp.GetID() == bp_id:
-                        stop_reason_str = 'exception'
+                if bp_id in self.exc_breakpoints:
+                    stop_reason_str = 'exception'
                 else:
                     stop_reason_str = 'breakpoint'
             elif stop_reason == lldb.eStopReasonTrace or stop_reason == lldb.eStopReasonPlanComplete:

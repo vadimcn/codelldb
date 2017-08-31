@@ -27,6 +27,7 @@ void inf_loop() {
 }
 
 void threads(int num_threads) {
+#if !defined(__MINGW32__) || defined(_GLIBCXX_HAS_GTHREADS)
     std::vector<int> alive(num_threads);
     std::vector<std::thread> threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -45,6 +46,9 @@ void threads(int num_threads) {
         printf("Joining %d\n", i);
         threads[i].join();
     }
+#else
+    sleep(1);
+#endif
 }
 
 bool check_env(const char* env_name, const char* expected) {

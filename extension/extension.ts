@@ -84,9 +84,9 @@ class Extension {
             if (session.type == 'lldb') {
                 let adapter = this.activeSessions[session.id];
                 if (adapter) {
-                    // Adapter should exit automatically when VSCode disconnects,
-                    // but in case it doesn't...
-                    adapter.terminate();
+                    // Adapter should exit automatically when VSCode disconnects, but in case it
+                    // doesn't, we kill it (after giving a bit of time to shut down gracefully).
+                    setTimeout(adapter.terminate, 1500);
                 }
                 delete this.activeSessions[session.id];
             }

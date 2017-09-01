@@ -15,6 +15,17 @@ let output = window.createOutputChannel('LLDB');
 export class AdapterProcess {
     public isAlive: boolean;
     public port: number;
+
+    constructor(process: cp.ChildProcess) {
+        this.process = process;
+        this.isAlive = true;
+        process.on('exit', (code, signal) => {
+            this.isAlive = false;
+            if (signal) {
+                output.appendLine(format('Adapter teminated by %s signal.', signal));
+            }
+        });
+    }
     public terminate() {
         if (this.isAlive) {
             this.process.kill();
@@ -35,13 +46,8 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
 
-    let adapter = new AdapterProcess();
+    let adapter = new AdapterProcess(lldb);
     adapter.port = parseInt(match[1]);
-    adapter.isAlive = true;
-    adapter.process = lldb;
-    lldb.on('exit', (code, signal) => {
-        adapter.isAlive = false;
-    });
     return adapter;
 }
 

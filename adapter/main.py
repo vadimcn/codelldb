@@ -76,7 +76,7 @@ def run_pipe_session(ifd, ofd, params=None):
         init_logging(params)
         log.info('Single-session mode on fds (%d, %d)', ifd, ofd)
         run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), params)
-        log.info('Debug session ended. Exiting.')
+        log.info('Debug session has ended. Exiting.')
     except Exception as e:
         log.critical('%s', traceback.format_exc())
 
@@ -93,7 +93,7 @@ def run_stdio_session(params=None):
         os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
         log.info('Single-session mode on stdio')
         run_session(lambda n: os_read(ifd, n), lambda data: os_write_all(ofd, data), params)
-        log.info('Debug session ended. Exiting.')
+        log.info('Debug session has ended. Exiting.')
     except Exception as e:
         log.critical('%s', traceback.format_exc())
 
@@ -113,6 +113,7 @@ def run_tcp_session(port, params=None):
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         log.info('New connection from %s', addr)
         run_session(conn.recv, conn.sendall, params)
+        log.info('Debug session has ended. Exiting.')
         conn.close()
         ls.close()
     except Exception as e:
@@ -123,4 +124,4 @@ def run_tcp_server(port=4711, params=None):
     print('Server mode on port %d (Ctrl-C to stop)' % port)
     while True:
         run_tcp_session(port, params)
-        print('Debug session ended. Waiting for new connections.')
+        print('Debug session has ended. Waiting for new connections.')

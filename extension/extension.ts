@@ -22,17 +22,14 @@ interface ProvideContentResponse extends DebugProtocol.Response {
 
 class Extension {
     context: ExtensionContext;
-    // Associations between DebugSession.id's and AdapterProcess'es.
+    launching: [string, startup.AdapterProcess][] = [];
     activeSessions: { [key: string]: startup.AdapterProcess; } = {};
-    // Adapter process we've just launched.
-    launchedAdapter: startup.AdapterProcess = null;
     previewContent: { [key: string]: string; } = {};
     previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
 
     constructor(context: ExtensionContext) {
         this.context = context;
         let subscriptions = context.subscriptions;
-        let extension = this;
 
         subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
             () => startup.getAdapterExecutable(this.context)));
@@ -53,6 +50,7 @@ class Extension {
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess',
             () => this.pickProcess(true)));
 
+        let extension = this;
         subscriptions.push(workspace.registerTextDocumentContentProvider('debugger', {
             get onDidChange(): Event<Uri> {
                 return extension.previewContentChanged.event;
@@ -63,27 +61,43 @@ class Extension {
         }));
 
         subscriptions.push(debug.onDidStartDebugSession(session => {
-            if (session.type == 'lldb' && extension.launchedAdapter) {
-                extension.activeSessions[session.id] = extension.launchedAdapter;
-                extension.launchedAdapter = null;
-            }
-        }));
-        subscriptions.push(debug.onDidTerminateDebugSession(session => {
             if (session.type == 'lldb') {
-                let adapter = extension.activeSessions[session.id];
-                if (adapter) {
-                    adapter.terminate();
-                    delete extension.activeSessions[session.id];
+                // VSCode does not provide a way to associate a piece of data with a DebugSession
+                // being launched via vscode.startDebug, so we are saving AdapterProcess'es in
+                // this.launching and then try to re-associate them with correct DebugSessions
+                // once we get this notification. >:-(
+                for (var i = 0; i < this.launching.length; ++i) {
+                    let [name, adapter] = this.launching[i];
+                    if (session.name == name) {
+                        this.activeSessions[session.id] = adapter;
+                        this.launching.splice(i, 1);
+                        return;
+                    }
+                    // Clean out entries that became stale for some reason.
+                    if (!adapter.isAlive) {
+                        this.launching.splice(i--, 1);
+                    }
                 }
             }
-        }));
+        }, this));
+        subscriptions.push(debug.onDidTerminateDebugSession(session => {
+            if (session.type == 'lldb') {
+                let adapter = this.activeSessions[session.id];
+                if (adapter) {
+                    // Adapter should exit automatically when VSCode disconnects,
+                    // but in case it doesn't...
+                    adapter.terminate();
+                }
+                delete this.activeSessions[session.id];
+            }
+        }, this));
         subscriptions.push(debug.onDidReceiveDebugSessionCustomEvent(e => {
             if (e.session.type == 'lldb') {
                 if (e.event = 'displayHtml') {
-                    extension.onDisplayHtml(e.body);
+                    this.onDisplayHtml(e.body);
                 }
             }
-        }));
+        }, this));
     }
 
     // Invoked by VSCode to initiate a new debugging session.
@@ -96,13 +110,9 @@ class Extension {
                 return;
         }
         try {
-            if (this.launchedAdapter) {
-                // Clean up the last process, if onDidStartDebugSession didn't fire for some reason.
-                this.launchedAdapter.terminate();
-            }
             let adapter = await startup.startDebugAdapter(this.context);
+            this.launching.push([config.name, adapter]);
             config.debugServer = adapter.port;
-            this.launchedAdapter = adapter;
             await commands.executeCommand('vscode.startDebug', config);
         } catch (err) {
             startup.analyzeStartupError(err);

@@ -738,7 +738,7 @@ class DebugSession:
             else:
                 raise UserError(error_message.replace('\n', '; '), no_console=True)
         elif isinstance(result, expressions.Value):
-            _, value, dtype, handle = self.parse_var(result.sbvalue, format)
+            _, value, dtype, handle = self.parse_var(expressions.Value.unwrap(result), format)
             return { 'result': value, 'type': dtype, 'variablesReference': handle }
         else: # Some Python value
             return { 'result': str(result), 'variablesReference': 0 }

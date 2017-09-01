@@ -50,12 +50,18 @@ class PyEvalContext(dict):
 
 # A wrapper around SBValue that overloads Python operators to do the right thing (well, mostly).
 class Value(object):
+    __slots__ = ['__sbvalue']
+
     def __init__(self, sbvalue):
-        self.sbvalue = sbvalue
+        self.__sbvalue = sbvalue
         analyze(sbvalue)
 
+    @classmethod
+    def unwrap(cls, value):
+        return value.__sbvalue if type(value) is Value else value
+
     def __nonzero__(self):
-        return self.sbvalue.__nonzero__()
+        return self.__sbvalue.__nonzero__()
 
     def __str__(self):
         return str(get_value(self))
@@ -68,17 +74,17 @@ class Value(object):
         if type(key) is Value:
             key = int(key)
         if type(key) is int:
-            child_sbvalue = (self.sbvalue.GetValueForExpressionPath("[%i]" % key))
+            child_sbvalue = (self.__sbvalue.GetValueForExpressionPath("[%i]" % key))
             if child_sbvalue and child_sbvalue.IsValid():
                 return Value(child_sbvalue)
             raise IndexError("Index '%d' is out of range" % key)
         raise TypeError("No array item of type %s" % str(type(key)))
 
     def __iter__(self):
-        return ValueIter(self.sbvalue)
+        return ValueIter(self.__sbvalue)
 
     def __getattr__(self, name):
-        child_sbvalue = self.sbvalue.GetChildMemberWithName (name)
+        child_sbvalue = self.__sbvalue.GetChildMemberWithName (name)
         if child_sbvalue and child_sbvalue.IsValid():
             return Value(child_sbvalue)
         raise AttributeError("Attribute '%s' is not defined" % name)
@@ -99,31 +105,31 @@ class Value(object):
         return complex(get_value(self))
 
     def __int__(self):
-        is_num, is_signed, is_float = is_numeric_type(self.sbvalue.GetType().GetCanonicalType().GetBasicType())
-        if is_num and not is_signed: return self.sbvalue.GetValueAsUnsigned()
-        return self.sbvalue.GetValueAsSigned()
+        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue.GetType().GetCanonicalType().GetBasicType())
+        if is_num and not is_signed: return self.__sbvalue.GetValueAsUnsigned()
+        return self.__sbvalue.GetValueAsSigned()
 
     def __long__(self):
         return self.__int__()
 
     def __float__(self):
-        is_num, is_signed, is_float = is_numeric_type(self.sbvalue.GetType().GetCanonicalType().GetBasicType())
+        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue.GetType().GetCanonicalType().GetBasicType())
         if is_num and is_float:
-            return float(self.sbvalue.GetValue())
+            return float(self.__sbvalue.GetValue())
         else:
-            return float(self.sbvalue.GetValueAsSigned())
+            return float(self.__sbvalue.GetValueAsSigned())
 
     def __index__(self):
         return self.__int__()
 
     def __oct__(self):
-        return '0%o' % self.sbvalue.GetValueAsUnsigned()
+        return '0%o' % self.__sbvalue.GetValueAsUnsigned()
 
     def __hex__(self):
-        return '0x%x' % self.sbvalue.GetValueAsUnsigned()
+        return '0x%x' % self.__sbvalue.GetValueAsUnsigned()
 
     def __len__(self):
-        return self.sbvalue.GetNumChildren()
+        return self.__sbvalue.GetNumChildren()
 
     # On-the-left ops
     def __add__(self, other):
@@ -213,7 +219,7 @@ class Value(object):
 
     # In-place ops
     def __inplace(self, result):
-        self.sbvalue.SetValueFromCString(str(result))
+        self.__sbvalue.SetValueFromCString(str(result))
         return result
 
     def __iadd__(self, other):
@@ -286,11 +292,11 @@ class Value(object):
         return self.__compare(other, operator.ne)
 
 class ValueIter(object):
-    def __init__(self,Value):
+    __slots__ = ['index', 'sbvalue', 'length']
+
+    def __init__(self, value):
         self.index = 0
-        self.sbvalue = Value
-        if type(self.sbvalue) is Value:
-            self.sbvalue = self.sbvalue.sbvalue
+        self.sbvalue = Value.unwrap(value)
         self.length = self.sbvalue.GetNumChildren()
 
     def __iter__(self):
@@ -308,16 +314,17 @@ class ValueIter(object):
 # Converts a Value to an int, a float or a string
 def get_value(v):
     if type(v) is Value:
-        is_num, is_signed, is_float = is_numeric_type(v.sbvalue.GetType().GetCanonicalType().GetBasicType())
+        sbvalue = Value.unwrap(v)
+        is_num, is_signed, is_float = is_numeric_type(sbvalue.GetType().GetCanonicalType().GetBasicType())
         if is_num:
             if is_float:
-                return float(v.sbvalue.GetValue())
+                return float(sbvalue.GetValue())
             elif is_signed:
-                return v.sbvalue.GetValueAsSigned()
+                return sbvalue.GetValueAsSigned()
             else:
-                return v.sbvalue.GetValueAsUnsigned()
+                return sbvalue.GetValueAsUnsigned()
         else:
-            str_val = v.sbvalue.GetSummary() or ""
+            str_val = sbvalue.GetSummary() or ''
             if str_val.startswith('"') and str_val.endswith('"') and len(str_val) > 1:
                 str_val = str_val[1:-1]
             return str_val

@@ -7,10 +7,10 @@ def evaluate(expr):
     return debugsession.DebugSession.current.evaluate_expr_in_frame(expr, lldb.frame)
 
 def unwrap(obj):
-    return obj.sbvalue if isinstance(obj, expressions.Value) else obj
+    return expressions.Value.unwrap(obj)
 
 def wrap(obj):
-    return obj if isinstance(obj, expressions.Value) else expressions.Value(obj)
+    return obj if type(obj) is expressions.Value else expressions.Value(obj)
 
 def stop_if(cond, handler):
     if cond:

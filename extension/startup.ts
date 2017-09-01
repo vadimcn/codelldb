@@ -1,8 +1,8 @@
 'use strict';
 
 import {
-    workspace, languages, window, commands, ExtensionContext, Disposable, QuickPickItem,
-    Uri, Event, EventEmitter, OutputChannel
+    workspace, languages, window, commands,
+    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel
 } from 'vscode';
 import { format, inspect } from 'util';
 import * as cp from 'child_process';
@@ -12,13 +12,19 @@ import * as ver from './ver';
 
 let output = window.createOutputChannel('LLDB');
 
-export class DebugSession {
-    public isActive: boolean;
+export class AdapterProcess {
+    public isAlive: boolean;
     public port: number;
+    public terminate() {
+        if (this.isAlive) {
+            this.process.kill();
+        }
+    }
+    process: cp.ChildProcess;
 }
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
-export async function startDebugAdapter(context: ExtensionContext): Promise<DebugSession> {
+export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let params = getAdapterParameters();
     let args = ['-b', '-Q',
@@ -29,13 +35,14 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Debu
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
 
-    let session = new DebugSession();
-    session.port = parseInt(match[1]);
-    session.isActive = true;
+    let adapter = new AdapterProcess();
+    adapter.port = parseInt(match[1]);
+    adapter.isAlive = true;
+    adapter.process = lldb;
     lldb.on('exit', (code, signal) => {
-        session.isActive = false;
+        adapter.isAlive = false;
     });
-    return session;
+    return adapter;
 }
 
 function getAdapterParameters(): string {

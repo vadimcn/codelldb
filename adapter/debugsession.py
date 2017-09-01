@@ -46,7 +46,6 @@ class DebugSession:
         self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
-        self.extension_poll = None
         self.known_threads = set()
 
     def DEBUG_initialize(self, args):
@@ -903,10 +902,6 @@ class DebugSession:
     def DEBUG_provideContent(self, args):
         return { 'content': self.provide_content(args['uri']) }
 
-    def DEBUG_longPoll(self, args):
-        self.extension_poll = args['response']
-        return AsyncResponse
-
     # Fake a target stop to force VSCode to refresh the display
     def refresh_client_display(self):
         thread_id = self.process.GetSelectedThread().GetThreadID()
@@ -987,11 +982,6 @@ class DebugSession:
         self.pending_requests[self.request_seq] = on_complete
         self.request_seq += 1
         self.send_message(request)
-
-    # Send request to VSCode extension.
-    def send_extension_event(self, args):
-        self.send_response(self.extension_poll, args)
-        self.extension_poll = None
 
     # Handles debugger notifications
     def handle_debugger_event(self, event):
@@ -1124,7 +1114,7 @@ class DebugSession:
 
     # Ask VSCode extension to display HTML content.
     def display_html(self, body):
-        self.send_extension_event({ 'event': 'displayHtml', 'body': body })
+        self.send_event('displayHtml', body)
 
 def on_breakpoint_hit(frame, bp_loc, internal_dict):
     return DebugSession.current.should_stop_on_bp(bp_loc.GetBreakpoint().GetID(), frame, internal_dict)

@@ -1,7 +1,8 @@
 'use strict';
 import {
-    workspace, languages, window, commands,
-    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter
+    workspace, languages, window, commands, debug,
+    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter,
+    DebugConfiguration, DebugSession
 } from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -9,18 +10,16 @@ import { format } from 'util';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import * as startup from './startup';
 
-interface LongPollResponse extends DebugProtocol.Response {
-    body: {
-        event: string;
-        body: any
-    }
-}
-
 interface ProvideContentResponse extends DebugProtocol.Response {
     body: {
         content: string;
     }
 }
+
+// Association between DebugSession.id's and AdapterProcess'es.
+var activeSessions: { [key: string]: startup.AdapterProcess; } = {};
+// Adapter process we've just launched.
+var launchedAdapter: startup.AdapterProcess = null;
 
 export function activate(context: ExtensionContext) {
     context.subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable',
@@ -49,10 +48,32 @@ export function activate(context: ExtensionContext) {
             return provideHtmlContent(uri);
         }
     }));
+
+    debug.onDidStartDebugSession(session => {
+        if (session.type == 'lldb' && launchedAdapter) {
+            activeSessions[session.id] = launchedAdapter;
+            launchedAdapter = null;
+        }
+    });
+    debug.onDidTerminateDebugSession(session => {
+        if (session.type == 'lldb') {
+            let adapter = activeSessions[session.id];
+            if (adapter) {
+                adapter.terminate();
+            }
+        }
+    });
+    debug.onDidReceiveDebugSessionCustomEvent(e => {
+        if (e.session.type == 'lldb') {
+            if (e.event = 'displayHtml') {
+                onDisplayHtml(e.body);
+            }
+        }
+    });
 }
 
 // Invoked by VSCode to initiate a new debugging session.
-async function startDebugSession(context: ExtensionContext, config: any) {
+async function startDebugSession(context: ExtensionContext, config: DebugConfiguration) {
     if (!context.globalState.get('lldb_works')) {
         window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
         let succeeded = await startup.diagnose();
@@ -61,42 +82,37 @@ async function startDebugSession(context: ExtensionContext, config: any) {
             return;
     }
     try {
-        let session = await startup.startDebugAdapter(context);
-        config.debugServer = session.port;
+        if (launchedAdapter) {
+            // Clean up the last process, if onDidStartDebugSession didn't fire for some reason.
+            launchedAdapter.terminate();
+        }
+        let adapter = await startup.startDebugAdapter(context);
+        config.debugServer = adapter.port;
+        launchedAdapter = adapter;
         await commands.executeCommand('vscode.startDebug', config);
-        pollForEvents(session);
     } catch (err) {
         startup.analyzeStartupError(err);
     }
 }
 
-// Long-polls the adapter for asynchronous events directed at this extension.
-async function pollForEvents(session: startup.DebugSession) {
-    while (true) {
-        let response = await commands.executeCommand<LongPollResponse>('workbench.customDebugRequest', 'longPoll', {});
-        if (response === undefined) {
-            if (!session.isActive)
-                break; // Debug session has ended.
-            // Wait 100 ms before trying again.
-            await new Promise((resolve) => setTimeout(resolve, 100));
-        } else if (response.body.event == 'displayHtml') {
-            await onDisplayHtml(response.body.body);
-        }
+async function showDisassembly(context: ExtensionContext) {
+    if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
+        let selection = await window.showQuickPick(['always', 'auto', 'never']);
+        debug.activeDebugSession.customRequest('showDisassembly', { value: selection });
     }
 }
 
-async function showDisassembly(context: ExtensionContext) {
-    let selection = await window.showQuickPick(['always', 'auto', 'never']);
-    commands.executeCommand('workbench.customDebugRequest', 'showDisassembly', { value: selection });
-}
-
 async function toggleDisassembly(context: ExtensionContext) {
-    commands.executeCommand('workbench.customDebugRequest', 'showDisassembly', { value: 'toggle' });
+    if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
+        debug.activeDebugSession.customRequest('showDisassembly', { value: 'toggle' });
+    }
 }
 
 async function displayFormat(context: ExtensionContext) {
-    let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-    commands.executeCommand('workbench.customDebugRequest', 'displayFormat', { value: selection });
+    if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
+        let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
+        debug.activeDebugSession.customRequest('displayFormat', { value: selection });
+    }
 }
 
 async function pickProcess(context: ExtensionContext, currentUserOnly: boolean): Promise<number> {

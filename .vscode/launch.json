@@ -118,5 +118,11 @@
 				"/Users/travis/build/rust-lang/rust/": "${workspaceRoot}/../rust/"
 			}
 		}
+	],
+	"compounds": [
+		{
+			"name": "vars + rusttypes",
+			"configurations": ["debuggee launch vars", "rusttypes"]
+		}
 	]
 }

@@ -678,7 +678,7 @@ class DebugSession:
             return { 'result': '' }
         context = args.get('context')
         expr = to_lldb_str(args['expression'])
-        if context in ['watch', 'hover']:
+        if context in ['watch', 'hover', None]: # 'Copy Value' in Locals does not send context.
             return self.evaluate_expr(args, expr)
         elif expr.startswith('?'): # "?<expr>" in 'repl' context
             return self.evaluate_expr(args, expr[1:])
@@ -735,7 +735,7 @@ class DebugSession:
                 expr = expr[:-len(suffix)]
                 break
 
-        context = args['context']
+        context = args.get('context')
         saved_stderr = sys.stderr
         if context == 'hover':
             # Because hover expressions may be invalid through no user's fault,

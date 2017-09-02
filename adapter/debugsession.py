@@ -28,7 +28,7 @@ class DebugSession:
         self.parameters = parameters
         self.event_loop = event_loop
         self.send_message = send_message
-        self.var_refs = handles.StableHandles()
+        self.var_refs = handles.HandleTree()
         self.ignore_bp_events = False
         self.line_breakpoints = dict() # { file_id : { line : breakpoint_id } }
         self.addr_breakpoints = set() # a list breakpoints that were set by address
@@ -609,11 +609,13 @@ class DebugSession:
 
     def DEBUG_variables(self, args):
         container_handle = args['variablesReference']
-        container = self.var_refs.get(container_handle)
-        if container is None:
+        container_info = self.var_refs.get_vpath(container_handle)
+        if container_info is None:
             log.error('Invalid variables reference: %d', container_handle)
             return
 
+        container, container_vpath = container_info
+        container_name = None
         variables = collections.OrderedDict()
         if isinstance(container, lldb.SBFrame):
             # args, locals, statics, in_scope_only
@@ -630,13 +632,18 @@ class DebugSession:
         elif isinstance(container, RegistersScope):
             vars_iter = SBValueListIter(container.frame.GetRegisters())
         elif isinstance(container, lldb.SBValue):
+            value_type = container.GetValueType()
+            if value_type != lldb.eValueTypeRegisterSet: # Registers are addressed by name, without parent reference.
+                for segment in container_vpath[1:]: # First element is the scope object.
+                    container_name = compose_eval_name(container_name, segment)
             vars_iter = SBValueChildrenIter(container)
 
         for var in vars_iter:
             name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
             if name is None: # Sometimes LLDB returns junk entries with empty names and values
                 continue
-            variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
+            variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle,
+                         'evaluateName': compose_eval_name(container_name, name) }
             # Ensure proper variable shadowing: if variable of the same name had already been added,
             # remove it and insert the new instance at the end.
             if name in variables:
@@ -1153,6 +1160,14 @@ def opt_lldb_str(s):
 
 def same_path(path1, path2):
     return os.path.normcase(os.path.normpath(path1)) == os.path.normcase(os.path.normpath(path2))
+
+def compose_eval_name(container, var_name):
+    if container is None:
+        return var_name
+    elif var_name.startswith('['):
+        return container + var_name
+    else:
+        return container + '.' + var_name
 
 languages = {
     'rust': {

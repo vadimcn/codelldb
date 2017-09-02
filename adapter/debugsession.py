@@ -735,11 +735,21 @@ class DebugSession:
                 expr = expr[:-len(suffix)]
                 break
 
-        frame = self.var_refs.get(frame_id, None)
-        result = self.evaluate_expr_in_frame(expr, frame)
+        context = args['context']
+        saved_stderr = sys.stderr
+        if context == 'hover':
+            # Because hover expressions may be invalid through no user's fault,
+            # we want to suppress any stderr output resulting from their evaluation.
+            sys.stderr = None
+        try:
+           frame = self.var_refs.get(frame_id, None)
+           result = self.evaluate_expr_in_frame(expr, frame)
+        finally:
+            sys.stderr = saved_stderr
+
         if isinstance(result, lldb.SBError):
             error_message = result.GetCString()
-            if args['context'] == 'repl':
+            if context == 'repl':
                 self.console_msg(error_message)
                 return None
             else:

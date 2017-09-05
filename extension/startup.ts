@@ -264,4 +264,5 @@ export async function launchDebugServer(context: ExtensionContext) {
         format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
         format('-O "script adapter.main.run_tcp_server()"\n');
     terminal.sendText(command);
+    terminal.show(true);
 }

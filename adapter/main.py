@@ -120,7 +120,7 @@ def run_tcp_session(port, params=None):
         log.critical('%s', traceback.format_exc())
 
 # Run in socket server mode
-def run_tcp_server(port=4711, params=None):
+def run_tcp_server(port=4711, params={'logLevel':0}):
     print('Server mode on port %d (Ctrl-C to stop)' % port)
     while True:
         run_tcp_session(port, params)

@@ -110,9 +110,11 @@ class Extension {
                 return;
         }
         try {
-            let adapter = await startup.startDebugAdapter(this.context);
-            this.launching.push([config.name, adapter]);
-            config.debugServer = adapter.port;
+            if (!config.debugServer) {
+                let adapter = await startup.startDebugAdapter(this.context);
+                this.launching.push([config.name, adapter]);
+                config.debugServer = adapter.port;
+            }
             await commands.executeCommand('vscode.startDebug', config);
         } catch (err) {
             startup.analyzeStartupError(err);

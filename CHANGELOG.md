@@ -1,4 +1,7 @@
 # What's New
+## 0.6.1
+- Bug fixes.
+
 ## 0.6.0
 - The minumum VSCode version is now 1.15.
 - Process state will now be updated after custom launch.

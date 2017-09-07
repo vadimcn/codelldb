@@ -28,9 +28,9 @@ def decode_params(params):
             return params
         elif is_string(params):
             import base64, json
-            return json.loads(base64.b64decode(params))
-    except:
-        pass
+            return json.loads(base64.b64decode(params).decode('utf8'))
+    except e as Exception:
+        print(e)
     return {}
 
 def init_logging(params):

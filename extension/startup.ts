@@ -24,6 +24,9 @@ export class AdapterProcess {
             if (signal) {
                 output.appendLine(format('Adapter teminated by %s signal.', signal));
             }
+            if (code) {
+                output.appendLine(format('Adapter exit code: %d.', code));
+            }
         });
     }
     public terminate() {

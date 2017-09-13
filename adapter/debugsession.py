@@ -421,12 +421,13 @@ class DebugSession:
         for bp_loc in bp:
             if bp_loc.IsEnabled():
                 le = bp_loc.GetAddress().GetLineEntry()
-                fs = le.GetFileSpec()
-                path = self.map_path_to_local(fs.fullpath)
-                bp_resp['source'] = { 'name': fs.basename, 'path': path }
-                bp_resp['line'] = le.line
-                bp_resp['verified'] = True
-                break
+                if le.IsValid():
+                    fs = le.GetFileSpec()
+                    path = self.map_path_to_local(fs.fullpath)
+                    bp_resp['source'] = { 'name': fs.basename, 'path': path }
+                    bp_resp['line'] = le.line
+                    bp_resp['verified'] = True
+                    break
         return bp_resp
 
     def should_stop_on_bp(self, bp_id, frame, internal_dict):

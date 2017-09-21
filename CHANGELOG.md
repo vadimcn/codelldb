@@ -1,4 +1,7 @@
 # What's New
+## 0.6.3
+- Source maps may now contain glob wildcards.
+
 ## 0.6.2
 - Bug fixes.
 

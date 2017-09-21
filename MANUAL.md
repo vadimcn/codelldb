@@ -150,12 +150,14 @@ Use custom launch with `target crate -c <core path>` init command:
 Source path remapping is helpful in cases when program's source code is located in a different
 directory then it was in during the build (for example, if a build server was used).
 
-A source map consists of pairs of old and new path prefixes.  When the debugger encounters a source
-file path beginning with one of the "old" prefixes, it will automatically replace it with the
-corresponding "new" prefix.  Example:
+A source map consists of pairs of "from" and "to" path prefixes.  When debugger encounters a source
+file path beginning with one of the "from" prefixes, it will automatically replace it with the
+corresponding "to" prefix.  Example:
 ```javascript
-    "sourceMap": { "/old/path/to/source/" : "/the/new/source/path/" }
+    "sourceMap": { "/old/path/*/to/source/" : "/the/new/source/path/" }
 ```
+Note that "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
+use one of the meta-characters verbatim, enclose it in brackets (`[?]` matches `?`).
 
 # Debugger Features
 

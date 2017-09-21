@@ -5,6 +5,8 @@ import shlex
 import traceback
 import collections
 import tempfile
+import re
+import fnmatch
 import lldb
 from . import expressions
 from . import debugevents
@@ -47,6 +49,7 @@ class DebugSession:
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
         self.known_threads = set()
+        self.source_map = None
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -1120,14 +1123,27 @@ class DebugSession:
     def console_msg(self, output):
         self.send_event('output', { 'category': 'console', 'output': output })
 
+    def make_source_map(self):
+        source_map = []
+        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
+            regex = fnmatch.translate(remote_prefix)
+            assert regex.endswith('\\Z(?ms)')
+            regex = regex[:-7] # strip the above suffix
+            regex = re.compile('(' + regex + ').*', re.M | re.S)
+            source_map.append((regex, local_prefix))
+        self.source_map = source_map
+
     def map_path_to_local(self, path):
+        if self.source_map is None:
+            self.make_source_map()
         path = os.path.normpath(path)
         path_normcased = os.path.normcase(path)
-        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
-            if path_normcased.startswith(os.path.normcase(remote_prefix)):
-                # This assumes that os.path.normcase does not change string length,
-                # but we want to preserve the original path casing...
-                return os.path.normpath(local_prefix + path[len(remote_prefix):])
+        for remote_prefix_regex, local_prefix in self.source_map:
+            m = remote_prefix_regex.match(path_normcased)
+            if m:
+                # We want to preserve original path casing, however this assumes
+                # that os.path.normcase will not change the string length...
+                return os.path.normpath(local_prefix + path[len(m.group(1)):])
         return path
 
     # Ask VSCode extension to display HTML content.

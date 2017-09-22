@@ -292,9 +292,10 @@ have this problem fixed.
 
 There are a few CodeLLDB parameters that may be configured at the workspace level (or globally):
 
-|parameter          |                                                         |
-|-------------------|---------------------------------------------------------|
-|**lldb.executable**|Path to LLDB executable. (default="lldb")                |
-|**lldb.parameters**|Startup parameters of the debug adapter                  |
+|parameter           |                                                         |
+|--------------------|---------------------------------------------------------|
+|**lldb.executable** |Path to LLDB executable. (default="lldb")                |
+|**lldb.environment**|Environment variables to set for LLDB as `{"key":"value"}`.  You may use existing environment variables in values, for example `{"PATH" : "${env:HOME}/bin:${env:PATH}"}` |
+|**lldb.parameters** |Startup parameters of the debug adapter                  |
 |... **logLevel**         |"Logging level as defined by Python's 'logging' module. |
 |... **reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)|

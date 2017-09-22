@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import * as ver from '../ver';
+import * as util from '../util';
 
 var dc: DebugClient;
 
@@ -39,6 +40,22 @@ suite('Versions', () => {
         assert.ok(ver.lt('2.0', '2.0.0'));
         assert.ok(ver.lt('2.0.0', '2.2'));
         assert.ok(ver.lt('2.0.0', '100.0.0'));
+    })
+})
+
+suite('Util', () => {
+    test('expandVariables', async () => {
+        function expander(type: string, key: string) {
+            if (type == 'echo') return key;
+            if (type =='reverse') return key.split('').reverse().join('');
+            throw new Error('Unknown ' + type + ' ' + key);
+        }
+
+        assert.equal(util.expandVariables('', expander), '');
+        assert.equal(util.expandVariables('AAAA${echo:TEST}BBBB', expander), 'AAAATESTBBBB');
+        assert.equal(util.expandVariables('AAAA${}${echo:FOO}BBBB${reverse:BAR}CCCC', expander),
+            'AAAA${}FOOBBBBRABCCCC');
+        assert.throws(() => util.expandVariables('sdfhksadjfh${hren:FOO}wqerqwer', expander));
     })
 })
 

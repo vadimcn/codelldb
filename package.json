@@ -73,6 +73,16 @@
                     "default": "lldb",
                     "description": "Path to LLDB executable."
                 },
+                "lldb.environment": {
+                    "type": "object",
+                    "patternProperties": {
+                        ".*": {
+                            "type": "string"
+                        }
+                    },
+                    "default": {},
+                    "description": "Environment variables to set for LLDB."
+                },
                 "lldb.parameters": {
                     "type": "object",
                     "default": {},

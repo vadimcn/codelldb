@@ -9,6 +9,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as ver from './ver';
+import * as util from './util';
 
 let output = window.createOutputChannel('LLDB');
 
@@ -156,9 +157,19 @@ function spawnDebugger(args: string[]): cp.ChildProcess {
     output.clear();
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
+
+    let lldbEnv: any = config.get('environment', {});
+    let env = Object.assign({}, process.env);
+    for (var key in lldbEnv) {
+        env[key] = util.expandVariables(lldbEnv[key], (type, key) => {
+            if (type == 'env') return process.env[key];
+            throw new Error('Unknown variable type ' + type);
+        });
+    }
+
     let options = {
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: Object.assign({}, process.env),
+        env: env,
         cwd: workspace.rootPath
     };
     if (process.platform.search('darwin') != -1) {

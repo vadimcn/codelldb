@@ -283,12 +283,20 @@ class DebugSession:
         self.ignore_bp_events = True
         source = args['source']
 
-        # Disassembly breakpoints have only sourceReference, normal breakpoints have a file path.
+        # Disassembly breakpoints have only a sourceReference, source breakpoints have a path too.
         in_dasm = True
         file_id = source.get('sourceReference')
         if file_id is None:
             file_id = opt_lldb_str(source.get('path'))
             in_dasm = False
+
+        # If we have adapterData, try to reconstitute that disassembly object.
+        if in_dasm and file_id is None:
+            adapter_data = source.get('adapterData')
+            if adapter_data:
+                dasm = disassembly.from_adapter_data(adapter_data, self.target)
+                if dasm:
+                    self.add_disassembly(dasm)
 
         if file_id is not None:
             req_bps = args['breakpoints']
@@ -573,11 +581,12 @@ class DebugSession:
                 pc_addr = pc_sbaddr.GetLoadAddress(self.target)
                 dasm = disassembly.find(self.disassembly_by_addr, pc_addr)
                 if dasm is None:
-                    log.info('Creating new disassembly for %x', pc_addr)
-                    dasm = disassembly.Disassembly(pc_sbaddr, self.target)
-                    disassembly.insert(self.disassembly_by_addr, dasm)
-                    dasm.source_ref = self.disassembly_by_handle.create(dasm)
-                stack_frame['source'] = dasm.get_source_ref()
+                    dasm = disassembly.from_sbaddr(pc_sbaddr, self.target)
+                    self.add_disassembly(dasm)
+
+                stack_frame['source'] = { 'name': dasm.source_name,
+                                          'sourceReference': dasm.source_ref,
+                                          'adapterData': dasm.get_adapter_data() }
                 stack_frame['line'] = dasm.line_num_by_address(pc_addr)
                 stack_frame['column'] = 0
 
@@ -587,6 +596,14 @@ class DebugSession:
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
+    # Register a new disassembly.
+    def add_disassembly(self, dasm):
+        log.info('Adding disassembly object for %x', dasm.start_address)
+        disassembly.insert(self.disassembly_by_addr, dasm)
+        dasm.source_ref = self.disassembly_by_handle.create(dasm)
+        return dasm
+
+    # Should we show source or disassembly for this frame?
     def in_disassembly(self, frame):
         le = frame.GetLineEntry()
         if self.show_disassembly == 'never':

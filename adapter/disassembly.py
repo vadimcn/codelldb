@@ -41,6 +41,16 @@ def insert(a, dasm):
     assert i == len(a) or dasm.start_address != a[i].start_address
     a.insert(i, dasm)
 
+def from_sbaddr(pc_sbaddr, target):
+    return Disassembly(pc_sbaddr, target)
+
+def from_adapter_data(adapter_data, target):
+    sbaddr = target.ResolveFileAddress(adapter_data['start'])
+    if sbaddr.IsValid():
+        return Disassembly(sbaddr, target)
+    else:
+        return None
+
 class Disassembly:
     start_sbaddr = None # SBAddress
     start_address = None # physical address
@@ -85,8 +95,8 @@ class Disassembly:
     def address_by_line_num(self, line_num):
         return self.addresses[line_num - 1]
 
-    def get_source_ref(self):
-        return { 'name': self.source_name, 'sourceReference': self.source_ref }
+    def get_adapter_data(self):
+        return { 'start': self.start_sbaddr.GetFileAddress() }
 
     def get_source_text(self):
         line_entry = self.start_sbaddr.GetLineEntry()

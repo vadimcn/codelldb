@@ -41,6 +41,10 @@ class PyEvalContext(dict):
         val = self.sbframe.FindVariable(name)
         if not val.IsValid():
             val = self.sbframe.FindValue(name, lldb.eValueTypeRegister)
+        if not val.IsValid():
+            tmp = self.sbframe.EvaluateExpression(name)
+            if tmp.IsValid() and tmp.GetError().Success():
+                val = tmp
         if val.IsValid():
             val = Value(val)
             self.__setitem__(name, val)
@@ -369,77 +373,100 @@ type_traits = {
     lldb.eBasicTypeNullPtr: (False, False, False),
 }
 
-# Replaces Python keywords with either `locals()["<ident>"]` or `.__getattr__("<ident>")`.
-# Replaces qualified identifiers (e.g. `foo::bar::baz`) with `locals()["<ident>"]`.
-def preprocess(expr):
-    return preprocess_regex.sub(replacer, expr)
-
-# Replaces variable placeholders ($var) with `__frame_vars["var"]`.
-def preprocess_varsubsts(expr):
-    return preprocess_varsubsts_regex.sub(replacer_varsubsts, expr)
-
-pystrings = '|'.join([
+# Matches Python strings
+pystring = '|'.join([
     r'(?:"(?:\\"|\\\\|[^"])*")',
     r"(?:'(?:\\'|\\\\|[^'])*')",
     r'(?:r"[^"]*")',
     r"(?:r'[^']*')",
 ])
-keywords = '|'.join(keyword.kwlist)
-ident = r'\w+'
-qualified_ident = r'(?: \w+ ::)+ \w+'
-preprocess_regex = re.compile(r'(\.)? \b ({keywords} | {qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
 
-maybe_qualified_ident = r'(?: \w+ ::)* \w+'
-preprocess_varsubsts_regex = re.compile(r'(\.)? \$ ({maybe_qualified_ident}) \b | {pystrings}'.format(**locals()), re.X)
+# Matches Python keywords
+keywords = '|'.join(keyword.kwlist)
+
+# Matches identifiers
+ident = r'[A-Za-z_] [A-Za-z0-9_]*'
+
+# Matches `xxx::yyy`, `xxx::yyy::zzz`, etc
+qualified_ident = r'(?: {ident} ::)+ {ident}'.format(**locals())
+
+# Matches `xxx`, `xxx::yyy`, `xxx::yyy::zzz`, etc
+maybe_qualified_ident = r'(?: {ident} ::)* {ident}'.format(**locals())
+
+# Matches `$xxx`, `$xxx::yyy::zzz` or `${...}`
+escaped_ident = r'\$ ({maybe_qualified_ident}) | \$ {{ ([^}}]*) }}'.format(**locals())
+
+preprocess_simple = r'(\.)? \b ({keywords} | {qualified_ident}) \b | {escaped_ident} | {pystring}'
+
+preprocess_python = r'(\.)? {escaped_ident} | {pystring}'
+
+preprocess_simple_regex = re.compile(preprocess_simple.format(**locals()), re.X)
+preprocess_python_regex = re.compile(preprocess_python.format(**locals()), re.X)
 
 def replacer(match):
-    prefix = match.group(1)
-    ident = match.group(2)
-    if ident is not None:
-        if prefix is None:
-            return 'locals()["%s"]' % ident
-        elif prefix == '.':
-            return '.__getattr__("%s")' % ident
-        else:
-            assert False
+    groups = match.groups(None)
+    prefix = groups[0]
+    for ident in groups[1:]:
+        if ident is not None:
+            if prefix is None:
+                return '__frame_vars["%s"]' % ident
+            elif prefix == '.':
+                return '.__getattr__("%s")' % ident
+            else:
+                assert False
     else: # a string - return unchanged
         return match.group(0)
 
-def replacer_varsubsts(match):
-    prefix = match.group(1)
-    ident = match.group(2)
-    if ident is not None:
-        if prefix is None:
-            return '__frame_vars["%s"]' % ident
-        elif prefix == '.':
-            return '.__getattr__("%s")' % ident
-        else:
-            assert False
-    else: # a string - return unchanged
-        return match.group(0)
+# Replaces identifiers that are invalid according to Python syntax in simple expressions:
+# - identifiers that happen to be Python keywords (e.g.`for`),
+# - qualified identifiers (e.g. `foo::bar::baz`),
+# - raw identifiers if the form $xxxxxx,
+# with access via `__frame_vars`, or `__getattr__()` (if prefixed by a dot).
+# For example, `for + foo::bar::baz + foo::bar::baz.class() + $SomeClass<int>::value` will be translated into
+# `__frame_vars["for"] + __frame_vars["foo::bar::baz"] +
+#  __frame_vars["foo::bar::baz"].__getattr__("class") + __frame_vars["SomeClass<int>::value"]`
+def preprocess_simple_expr(expr):
+    return preprocess_simple_regex.sub(replacer, expr)
 
-def test_preprocess():
+# Replaces variable placeholders in native Python expressions with access via __frame_vars,
+# or `__getattr__()` (if prefixed by a dot).
+# For example, `$var + 42` will be translated into `__frame_vars["var"] + 42`.
+def preprocess_python_expr(expr):
+    return preprocess_python_regex.sub(replacer, expr)
+
+# --- Tests ---
+
+def test_preprocess_simple():
     expr = """
         class = from.global.finally
         local::bar::__BAZ()
         local_string()
+        $local::foo::bar
+        ${std::integral_constant<long, 1l>::value}
+        ${std::integral_constant<long, 1l, foo<123>>::value}
+        ${std::allocator_traits<std::allocator<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> > > >::__construct_helper<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> >, std::_Bind_simple<threads(int)::__lambda0(int)> >::value}
         '''continue.exec = pass.print; yield.with = 3'''
         "continue.exec = pass.print; yield.with = 3"
     """
+
     expected = """
-        locals()["class"] = locals()["from"].__getattr__("global").__getattr__("finally")
-        locals()["local::bar::__BAZ"]()
+        __frame_vars["class"] = __frame_vars["from"].__getattr__("global").__getattr__("finally")
+        __frame_vars["local::bar::__BAZ"]()
         local_string()
+        __frame_vars["local::foo::bar"]
+        __frame_vars["std::integral_constant<long, 1l>::value"]
+        __frame_vars["std::integral_constant<long, 1l, foo<123>>::value"]
+        __frame_vars["std::allocator_traits<std::allocator<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> > > >::__construct_helper<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> >, std::_Bind_simple<threads(int)::__lambda0(int)> >::value"]
         '''continue.exec = pass.print; yield.with = 3'''
         "continue.exec = pass.print; yield.with = 3"
     """
-    prepr = preprocess(expr)
+    prepr = preprocess_simple_expr(expr)
     if prepr != expected:
-        print(expected)
-        print(prepr)
+        print('EXPECTED:'); print(expected)
+        print('ACTUAL:'); print(prepr)
     assert prepr == expected
 
-def test_preprocess_varsubsts():
+def test_preprocess_python():
     expr = """
         for x in $foo: print x
         $xxx.$yyy.$zzz
@@ -452,12 +479,12 @@ def test_preprocess_varsubsts():
         __frame_vars["xxx::yyy::zzz"]
         "$xxx::yyy::zzz"
     """
-    prepr = preprocess_varsubsts(expr)
+    prepr = preprocess_python_expr(expr)
     if prepr != expected:
-        print(expected)
-        print(prepr)
+        print('EXPECTED:'); print(expected)
+        print('ACTUAL:'); print(prepr)
     assert prepr == expected
 
 def run_tests():
-    test_preprocess()
-    test_preprocess_varsubsts()
+    test_preprocess_simple()
+    test_preprocess_python()

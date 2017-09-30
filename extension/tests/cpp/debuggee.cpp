@@ -65,6 +65,11 @@ void echo() {
     } while (buffer[0] != '\n'); // till empty line is read
 }
 
+class Klazz {
+    static int m1;
+};
+int Klazz::m1 = 42;
+
 void vars() {
     struct Struct {
         int a;

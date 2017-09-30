@@ -391,7 +391,7 @@ class DebugSession:
             else:
                 if cond.startswith('/py '):
                     # Python expression
-                    pp_cond = expressions.preprocess_varsubsts(cond[4:])
+                    pp_cond = expressions.preprocess_python_expr(cond[4:])
                     try:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
@@ -404,7 +404,7 @@ class DebugSession:
                         return eval(pycode, eval_globals, {})
                 else:
                     # Simple expression
-                    pp_cond = expressions.preprocess(cond)
+                    pp_cond = expressions.preprocess_simple_expr(cond)
                     try:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
@@ -412,7 +412,9 @@ class DebugSession:
                         return
 
                     def eval_condition(frame, eval_globals):
-                        return eval(pycode, self.pyeval_globals, expressions.PyEvalContext(frame))
+                        frame_vars = expressions.PyEvalContext(frame)
+                        eval_globals['__frame_vars'] = frame_vars
+                        return eval(pycode, eval_globals, frame_vars)
 
                 self.breakpoint_conditions[bp.GetID()] = eval_condition
                 bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
@@ -805,7 +807,7 @@ class DebugSession:
 
             if expr.startswith('/py '):
                 # Python expression
-                expr = expressions.preprocess_varsubsts(expr[4:])
+                expr = expressions.preprocess_python_expr(expr[4:])
                 self.set_selected_frame(frame)
                 import __main__
                 eval_globals = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
@@ -813,9 +815,10 @@ class DebugSession:
                 eval_locals = {}
             else:
                 # Simple expression
-                expr = expressions.preprocess(expr)
+                expr = expressions.preprocess_simple_expr(expr)
                 eval_globals = self.pyeval_globals
                 eval_locals = expressions.PyEvalContext(frame)
+                eval_globals['__frame_vars'] = eval_locals
 
             try:
                 log.debug('Evaluating %s', expr)

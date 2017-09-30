@@ -152,8 +152,7 @@ suite('Basic', () => {
         });
 
         let response1 = await dc.evaluateRequest({
-            expression: 'vec_int', context: 'watch',
-            frameId: frameId
+            expression: 'vec_int', context: 'watch', frameId: frameId
         });
         let v = await readVariables(response1.body.variablesReference);
         if (process.platform != 'win32') { // std::vector formatter is broken on Windows :(
@@ -161,6 +160,12 @@ suite('Basic', () => {
         }
         // Check that vector has '[raw]' element.
         assert.ok(v.hasOwnProperty('[raw]'));
+
+        // Read a class-qualified static.
+        let response2 = await dc.evaluateRequest({
+            expression: 'Klazz::m1', context: 'watch', frameId: frameId
+        });
+        assert.equal(response2.body.result, '42');
 
         // Set a variable and check that it has actually changed.
         await dc.send('setVariable', { variablesReference: localsRef, name: 'a', value: '100' });

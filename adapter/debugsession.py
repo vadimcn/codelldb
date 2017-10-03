@@ -1122,10 +1122,16 @@ class DebugSession:
 
     def notify_breakpoint(self, event):
         event_type = lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(event)
-        if event_type == lldb.eBreakpointEventTypeLocationsResolved:
-            bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        if event_type == lldb.eBreakpointEventTypeAdded:
+            bp_info = self.make_bp_resp(bp)
+            self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_info })
+        elif event_type == lldb.eBreakpointEventTypeLocationsResolved:
             bp_info = self.make_bp_resp(bp)
             self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': bp_info })
+        elif event_type == lldb.eBreakpointEventTypeRemoved:
+            bp_info = self.make_bp_resp(bp)
+            self.send_event('breakpoint', { 'reason': 'removed', 'breakpoint': bp_info })
 
     def handle_debugger_output(self, output):
         self.console_msg(output)

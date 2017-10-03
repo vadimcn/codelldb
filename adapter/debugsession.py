@@ -1147,7 +1147,7 @@ class DebugSession:
 
     # Write a message to debug console
     def console_msg(self, output):
-        self.send_event('output', { 'category': 'console', 'output': output })
+        self.send_event('output', { 'category': 'console', 'output': from_lldb_str(output) })
 
     def make_source_map(self):
         source_map = []

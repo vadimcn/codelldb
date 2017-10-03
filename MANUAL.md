@@ -156,8 +156,9 @@ corresponding "to" prefix.  Example:
 ```javascript
     "sourceMap": { "/old/path/*/to/source/" : "/the/new/source/path/" }
 ```
-Note that "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
+- "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
 use one of the meta-characters verbatim, enclose it in brackets (`[?]` matches `?`).
+- "to" prefixes may be null, which will cause CodeLLDB to ignore source paths of the matching files.
 
 # Debugger Features
 

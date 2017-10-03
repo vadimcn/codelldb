@@ -329,7 +329,7 @@ class DebugSession:
                             fs = loc.GetAddress().GetLineEntry().GetFileSpec()
                             if fs.IsValid():
                                 bp_path = self.map_path_to_local(fs.fullpath)
-                                if not same_path(bp_path, file_id):
+                                if not bp_path or not same_path(bp_path, file_id):
                                     loc.SetEnabled(False)
                     else:
                         dasm = self.disassembly_by_handle.get(file_id)
@@ -437,10 +437,11 @@ class DebugSession:
                 if le.IsValid():
                     fs = le.GetFileSpec()
                     path = self.map_path_to_local(fs.fullpath)
-                    bp_resp['source'] = { 'name': fs.basename, 'path': path }
-                    bp_resp['line'] = le.line
-                    bp_resp['verified'] = True
-                    break
+                    if path :
+                        bp_resp['source'] = { 'name': fs.basename, 'path': path }
+                        bp_resp['line'] = le.GetLine()
+                        bp_resp['verified'] = True
+                        break
         return bp_resp
 
     def should_stop_on_bp(self, bp_id, frame, internal_dict):
@@ -573,11 +574,11 @@ class DebugSession:
                 le = frame.GetLineEntry()
                 if le.IsValid():
                     fs = le.GetFileSpec()
-                    # VSCode gets confused if the path contains funky stuff like a double-slash
                     full_path = self.map_path_to_local(fs.fullpath)
-                    stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
-                    stack_frame['line'] = le.GetLine()
-                    stack_frame['column'] = le.GetColumn()
+                    if full_path:
+                        stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
+                        stack_frame['line'] = le.GetLine()
+                        stack_frame['column'] = le.GetColumn()
             else:
                 pc_sbaddr = frame.GetPCAddress()
                 pc_addr = pc_sbaddr.GetLoadAddress(self.target)
@@ -607,13 +608,12 @@ class DebugSession:
 
     # Should we show source or disassembly for this frame?
     def in_disassembly(self, frame):
-        le = frame.GetLineEntry()
         if self.show_disassembly == 'never':
             return False
         elif self.show_disassembly == 'always':
             return True
         else:
-            return not le.IsValid()
+            return not frame.GetLineEntry().IsValid()
 
     def DEBUG_source(self, args):
         sourceRef = int(args['sourceReference'])
@@ -1159,6 +1159,8 @@ class DebugSession:
             source_map.append((regex, local_prefix))
         self.source_map = source_map
 
+    # Replaces path prefix if it matches anything in source_map
+    # Returns None if the target prefix is null.
     def map_path_to_local(self, path):
         if self.source_map is None:
             self.make_source_map()
@@ -1167,6 +1169,7 @@ class DebugSession:
         for remote_prefix_regex, local_prefix in self.source_map:
             m = remote_prefix_regex.match(path_normcased)
             if m:
+                if local_prefix is None: return None
                 # We want to preserve original path casing, however this assumes
                 # that os.path.normcase will not change the string length...
                 return os.path.normpath(local_prefix + path[len(m.group(1)):])

@@ -246,7 +246,10 @@
                                 "type": "object",
                                 "patternProperties": {
                                     ".*": {
-                                        "type": "string"
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
                                     }
                                 },
                                 "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
@@ -292,7 +295,10 @@
                                 "type": "object",
                                 "patternProperties": {
                                     ".*": {
-                                        "type": "string"
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
                                     }
                                 },
                                 "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
@@ -321,7 +327,10 @@
                                 "type": "object",
                                 "patternProperties": {
                                     ".*": {
-                                        "type": "string"
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
                                     }
                                 },
                                 "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",

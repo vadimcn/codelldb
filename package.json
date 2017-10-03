@@ -1,7 +1,7 @@
 {
     "name": "vscode-lldb",
     "displayName": "LLDB Debugger",
-    "version": "0.6.2",
+    "version": "0.7.0",
     "publisher": "vadimcn",
     "description": "Debug your native code with LLDB.",
     "license": "MIT",
@@ -9,8 +9,8 @@
         "name": "vadimcn"
     },
     "engines": {
-        "vscode": "^1.15.0",
-        "node": "^6.3.0"
+        "vscode": "^1.17.0",
+        "node": "^6.5.0"
     },
     "icon": "images/lldb.png",
     "categories": [
@@ -34,12 +34,12 @@
     "dependencies": {},
     "devDependencies": {
         "@types/mocha": "^2.2.42",
-        "@types/node": "^6.0.88",
+        "@types/node": "^6.0.50",
         "mocha": "^3.5.0",
         "typescript": "^2.5.2",
         "vscode": "^1.1.5",
-        "vscode-debugadapter-testsupport": "^1.23.0",
-        "vscode-debugprotocol": "^1.23.0"
+        "vscode-debugadapter-testsupport": "^1.24.0",
+        "vscode-debugprotocol": "^1.24.0"
     },
     "scripts": {
         "postinstall": "node ./node_modules/vscode/bin/install",
@@ -53,8 +53,8 @@
     },
     "main": "./out/extension",
     "activationEvents": [
+        "onDebug",
         "onCommand:lldb.getAdapterExecutable",
-        "onCommand:lldb.startDebugSession",
         "onCommand:lldb.showDisassembly",
         "onCommand:lldb.toggleDisassembly",
         "onCommand:lldb.displayFormat",
@@ -168,7 +168,6 @@
                     "pickProcess": "lldb.pickProcess",
                     "pickMyProcess": "lldb.pickMyProcess"
                 },
-                "startSessionCommand": "lldb.startDebugSession",
                 "adapterExecutableCommand": "lldb.getAdapterExecutable",
                 "configurationAttributes": {
                     "launch": {

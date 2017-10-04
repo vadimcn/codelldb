@@ -1,6 +1,10 @@
 # What's New
-## 0.6.3
+## 0.7.0
+- The minumum VSCode version is now 1.17.
 - Source maps may now contain glob wildcards.
+- Source maps may now be used to suppress source location info (by setting "target" prefix to null).
+- Complex variable names (e.g. statics in templated classes) may now be escaped in expressions as `${...}`.
+- Breakpoints set or deleted via Debug Console commands will now be reflected in VSCode UI.
 
 ## 0.6.2
 - Bug fixes.

@@ -158,7 +158,7 @@ corresponding "to" prefix.  Example:
 ```
 - "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
 use one of the meta-characters verbatim, enclose it in brackets (`[?]` matches `?`).
-- "to" prefixes may be null, which will cause CodeLLDB to ignore source paths of the matching files.
+- "to" prefixes may be null, which will cause CodeLLDB to ignore the matching files.
 
 # Debugger Features
 
@@ -208,9 +208,6 @@ To access LLDB features not exposed via the VS Code UI, you may enter
 [LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the Debug Console.
 
 If you would like to evaluate an expression instead, prefix it with '`?`', e.g. `?a+b`.
-
-Note that any debugger state changes that you make directly through LLDB commands (such as created
-breakpoints) will not be reflected in the UI and will not be persisted across debugging sessions.
 
 ## Expressions
 

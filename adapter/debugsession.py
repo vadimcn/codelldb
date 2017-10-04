@@ -629,7 +629,7 @@ class DebugSession:
         globals_scope_handle = self.var_refs.create(GlobalsScope(frame), '[glob]', frame_id)
         globals = { 'name': 'Global', 'variablesReference': globals_scope_handle, 'expensive': False }
         regs_scope_handle = self.var_refs.create(RegistersScope(frame), '[regs]', frame_id)
-        registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_handle, 'expensive': False }
+        registers = { 'name': 'Registers', 'variablesReference': regs_scope_handle, 'expensive': False }
         return { 'scopes': [locals, statics, globals, registers] }
 
     def DEBUG_variables(self, args):

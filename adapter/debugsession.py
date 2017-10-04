@@ -626,9 +626,11 @@ class DebugSession:
         locals = { 'name': 'Local', 'variablesReference': frame_id, 'expensive': False }
         statics_scope_handle = self.var_refs.create(StaticsScope(frame), '[stat]', frame_id)
         statics = { 'name': 'Static', 'variablesReference': statics_scope_handle, 'expensive': False }
+        globals_scope_handle = self.var_refs.create(GlobalsScope(frame), '[glob]', frame_id)
+        globals = { 'name': 'Global', 'variablesReference': globals_scope_handle, 'expensive': False }
         regs_scope_handle = self.var_refs.create(RegistersScope(frame), '[regs]', frame_id)
         registers = { 'name': 'CPU Registers', 'variablesReference': regs_scope_handle, 'expensive': False }
-        return { 'scopes': [locals, statics, registers] }
+        return { 'scopes': [locals, statics, globals, registers] }
 
     def DEBUG_variables(self, args):
         container_handle = args['variablesReference']
@@ -651,7 +653,11 @@ class DebugSession:
                 variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
                 variables[name] = variable
         elif isinstance(container, StaticsScope):
-            vars_iter = SBValueListIter(container.frame.GetVariables(False, False, True, True))
+            vars_iter = (v for v in SBValueListIter(container.frame.GetVariables(False, False, True, True))
+                         if v.GetValueType() == lldb.eValueTypeVariableStatic)
+        elif isinstance(container, GlobalsScope):
+            vars_iter = (v for v in SBValueListIter(container.frame.GetVariables(False, False, True, True))
+                         if v.GetValueType() != lldb.eValueTypeVariableStatic)
         elif isinstance(container, RegistersScope):
             vars_iter = SBValueListIter(container.frame.GetRegisters())
         elif isinstance(container, lldb.SBValue):
@@ -1194,6 +1200,10 @@ class AsyncResponse:
     pass
 
 class StaticsScope:
+    def __init__(self, frame):
+        self.frame = frame
+
+class GlobalsScope:
     def __init__(self, frame):
         self.frame = frame
 

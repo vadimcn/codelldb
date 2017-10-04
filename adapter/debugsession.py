@@ -663,7 +663,8 @@ class DebugSession:
         elif isinstance(container, lldb.SBValue):
             value_type = container.GetValueType()
             if value_type != lldb.eValueTypeRegisterSet: # Registers are addressed by name, without parent reference.
-                for segment in container_vpath[1:]: # First element is the scope object.
+                # First element in vpath is the stack frame, second - the scope object.
+                for segment in container_vpath[2:]:
                     container_name = compose_eval_name(container_name, segment)
             vars_iter = SBValueChildrenIter(container)
 
@@ -672,7 +673,7 @@ class DebugSession:
             if name is None: # Sometimes LLDB returns junk entries with empty names and values
                 continue
             variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle,
-                         'evaluateName': compose_eval_name(container_name, expressions.escape_variable_name(name)) }
+                         'evaluateName': compose_eval_name(container_name, name) }
             # Ensure proper variable shadowing: if variable of the same name had already been added,
             # remove it and insert the new instance at the end.
             if name in variables:
@@ -1229,11 +1230,11 @@ def same_path(path1, path2):
 
 def compose_eval_name(container, var_name):
     if container is None:
-        return var_name
+        return expressions.escape_variable_name(var_name)
     elif var_name.startswith('['):
         return container + var_name
     else:
-        return container + '.' + var_name
+        return container + '.' + expressions.escape_variable_name(var_name)
 
 languages = {
     'rust': {

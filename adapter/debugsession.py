@@ -623,7 +623,8 @@ class DebugSession:
     def DEBUG_scopes(self, args):
         frame_id = args['frameId']
         frame = self.var_refs.get(frame_id)
-        locals = { 'name': 'Local', 'variablesReference': frame_id, 'expensive': False }
+        locals_scope_handle = self.var_refs.create(LocalsScope(frame), '[locs]', frame_id)
+        locals = { 'name': 'Local', 'variablesReference': locals_scope_handle, 'expensive': False }
         statics_scope_handle = self.var_refs.create(StaticsScope(frame), '[stat]', frame_id)
         statics = { 'name': 'Static', 'variablesReference': statics_scope_handle, 'expensive': False }
         globals_scope_handle = self.var_refs.create(GlobalsScope(frame), '[glob]', frame_id)
@@ -642,11 +643,11 @@ class DebugSession:
         container, container_vpath = container_info
         container_name = None
         variables = collections.OrderedDict()
-        if isinstance(container, lldb.SBFrame):
+        if isinstance(container, LocalsScope):
             # args, locals, statics, in_scope_only
-            vars_iter = SBValueListIter(container.GetVariables(True, True, False, True))
+            vars_iter = SBValueListIter(container.frame.GetVariables(True, True, False, True))
             # Check if we have a return value from the last called function (usually after StepOut).
-            ret_val = container.GetThread().GetStopReturnValue()
+            ret_val = container.frame.GetThread().GetStopReturnValue()
             if ret_val.IsValid():
                 name, value, dtype, handle = self.parse_var(ret_val, self.global_format, container_handle)
                 name = '[return value]'
@@ -895,15 +896,17 @@ class DebugSession:
             raise Exception('Invalid variables reference')
 
         name = to_lldb_str(args['name'])
-        if isinstance(container, lldb.SBFrame):
+        var = None
+        if isinstance(container, (LocalsScope, StaticsScope, GlobalsScope)):
             # args, locals, statics, in_scope_only
-            var = container.FindVariable(name)
+            var = expressions.find_var_in_frame(container.frame, name)
         elif isinstance(container, lldb.SBValue):
             var = container.GetChildMemberWithName(name)
             if not var.IsValid():
                 var = container.GetValueForExpressionPath(name)
-        if not var.IsValid():
-            raise Exception('Could not get a child with name ' + name)
+
+        if var is None or not var.IsValid():
+            raise UserError('Could not set variable %r %r\n' % (name, var.IsValid()))
 
         error = lldb.SBError()
         if not var.SetValueFromCString(to_lldb_str(args['value']), error):
@@ -1199,6 +1202,10 @@ class UserError(Exception):
 # Result type for async handlers
 class AsyncResponse:
     pass
+
+class LocalsScope:
+    def __init__(self, frame):
+        self.frame = frame
 
 class StaticsScope:
     def __init__(self, frame):

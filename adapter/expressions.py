@@ -6,7 +6,7 @@ import lldb
 
 log = logging.getLogger('expressions')
 
-__all__ = ['init_formatters', 'analyze', 'PyEvalContext', 'Value',
+__all__ = ['init_formatters', 'analyze', 'PyEvalContext', 'Value', 'find_var_in_frame',
            'preprocess_simple_expr', 'preprocess_python_expr', 'escape_variable_name']
 
 debugger_obj = None
@@ -35,24 +35,26 @@ def analyze(sbvalue):
         rust_analyze = rust.analyze
     rust_analyze(sbvalue)
 
+
+def find_var_in_frame(sbframe, name):
+    val = sbframe.FindVariable(name)
+    if not val.IsValid():
+        for val_type in [lldb.eValueTypeVariableGlobal,
+                         lldb.eValueTypeVariableStatic,
+                         lldb.eValueTypeRegister,
+                         lldb.eValueTypeConstResult]:
+            val = sbframe.FindValue(name, val_type)
+            if val.IsValid():
+                break
+    return val
+
 # A dictionary-like object that fetches values from SBFrame (and caches them).
 class PyEvalContext(dict):
     def __init__(self, sbframe):
         self.sbframe = sbframe
 
     def __missing__(self, name):
-        val = self.sbframe.FindVariable(name)
-
-        if not val.IsValid():
-            for val_type in [lldb.eValueTypeVariableGlobal,
-                             lldb.eValueTypeVariableStatic,
-                             lldb.eValueTypeRegister,
-                             lldb.eValueTypeConstResult]:
-                val = self.sbframe.FindValue(name, val_type)
-                if val.IsValid():
-                    log.info('%s : %d', name, val_type)
-                    break
-
+        val = find_var_in_frame(self.sbframe, name)
         if val.IsValid():
             val = Value(val)
             self.__setitem__(name, val)

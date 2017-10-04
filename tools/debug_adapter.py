@@ -1,7 +1,10 @@
 #!/usr/bin/python
 import sys
-if 'darwin' in sys.platform:
-    sys.path.append('/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Resources/Python')
+import subprocess
+import string
+
+out = subprocess.check_output(['lldb', '-P'])
+sys.path.append(string.strip(out))
 sys.path.append('.')
 
 import adapter

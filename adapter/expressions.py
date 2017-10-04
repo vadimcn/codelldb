@@ -42,12 +42,17 @@ class PyEvalContext(dict):
 
     def __missing__(self, name):
         val = self.sbframe.FindVariable(name)
+
         if not val.IsValid():
-            val = self.sbframe.FindValue(name, lldb.eValueTypeRegister)
-        if not val.IsValid():
-            tmp = self.sbframe.EvaluateExpression(name)
-            if tmp.IsValid() and tmp.GetError().Success():
-                val = tmp
+            for val_type in [lldb.eValueTypeVariableGlobal,
+                             lldb.eValueTypeVariableStatic,
+                             lldb.eValueTypeRegister,
+                             lldb.eValueTypeConstResult]:
+                val = self.sbframe.FindValue(name, val_type)
+                if val.IsValid():
+                    log.info('%s : %d', name, val_type)
+                    break
+
         if val.IsValid():
             val = Value(val)
             self.__setitem__(name, val)

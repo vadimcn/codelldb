@@ -6,6 +6,9 @@ import lldb
 
 log = logging.getLogger('expressions')
 
+__all__ = ['init_formatters', 'analyze', 'PyEvalContext', 'Value',
+           'preprocess_simple_expr', 'preprocess_python_expr', 'escape_variable_name']
+
 debugger_obj = None
 analyzed = {} # A list of type names that we've already analyzed
 rust_analyze = None
@@ -400,6 +403,7 @@ preprocess_simple = r'(\.)? \b ({keywords} | {qualified_ident}) \b | {escaped_id
 
 preprocess_python = r'(\.)? {escaped_ident} | {pystring}'
 
+maybe_qualified_ident_regex = re.compile('^ {maybe_qualified_ident} $'.format(**locals()), re.X)
 preprocess_simple_regex = re.compile(preprocess_simple.format(**locals()), re.X)
 preprocess_python_regex = re.compile(preprocess_python.format(**locals()), re.X)
 
@@ -433,6 +437,12 @@ def preprocess_simple_expr(expr):
 # For example, `$var + 42` will be translated into `__frame_vars["var"] + 42`.
 def preprocess_python_expr(expr):
     return preprocess_python_regex.sub(replacer, expr)
+
+def escape_variable_name(name):
+    if maybe_qualified_ident_regex.match(name) is not None:
+        return name
+    else:
+        return '${' + name + '}'
 
 # --- Tests ---
 
@@ -485,6 +495,13 @@ def test_preprocess_python():
         print('ACTUAL:'); print(prepr)
     assert prepr == expected
 
+def test_escape_variable_name():
+    assert escape_variable_name('foo') == 'foo'
+    assert escape_variable_name('foo::bar') == 'foo::bar'
+    assert escape_variable_name('foo::bar<34>') == '${foo::bar<34>}'
+    assert escape_variable_name('foo::bar<34>::value') == '${foo::bar<34>::value}'
+
 def run_tests():
     test_preprocess_simple()
     test_preprocess_python()
+    test_escape_variable_name()

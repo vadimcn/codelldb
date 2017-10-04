@@ -666,7 +666,7 @@ class DebugSession:
             if name is None: # Sometimes LLDB returns junk entries with empty names and values
                 continue
             variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle,
-                         'evaluateName': compose_eval_name(container_name, name) }
+                         'evaluateName': compose_eval_name(container_name, expressions.escape_variable_name(name)) }
             # Ensure proper variable shadowing: if variable of the same name had already been added,
             # remove it and insert the new instance at the end.
             if name in variables:

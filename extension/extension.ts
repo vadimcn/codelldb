@@ -69,6 +69,9 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
                 this.launching.push([config.name, adapter]);
                 config.debugServer = adapter.port;
             }
+            if (config._adapterStartDelay) {
+                await new Promise(resolve => setTimeout(resolve, config._adapterStartDelay));
+            }
             return config;
         } catch (err) {
             startup.analyzeStartupError(err);

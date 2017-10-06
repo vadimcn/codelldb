@@ -41,15 +41,24 @@ def insert(a, dasm):
     assert i == len(a) or dasm.start_address != a[i].start_address
     a.insert(i, dasm)
 
-def from_sbaddr(pc_sbaddr, target):
-    return Disassembly(pc_sbaddr, target)
-
-def from_adapter_data(adapter_data, target):
-    sbaddr = target.ResolveFileAddress(adapter_data['start'])
-    if sbaddr.IsValid():
-        return Disassembly(sbaddr, target)
+def create_from_address(target, addr):
+    symbol = addr.GetSymbol()
+    if symbol.IsValid():
+        start_addr = symbol.GetStartAddress()
+        end_addr = symbol.GetEndAddress()
+        instructions = symbol.GetInstructions(target)
     else:
-        return None
+        start_addr = addr
+        instructions = target.ReadInstructions(start_addr, NO_SYMBOL_INSTRUCTIONS + 1)
+        last_instr = self.instructions[len(self.instructions)-1]
+        end_addr = last_instr.GetAddress()
+    return Disassembly(target, start_addr, end_addr, instructions)
+
+def create_from_range(target, start_addr, end_addr):
+    error = lldb.SBError()
+    instr_bytes = target.ReadMemory(start_addr, end_addr.GetLoadAddress(target) - start_addr.GetLoadAddress(target), error)
+    instructions = target.GetInstructions(start_addr, instr_bytes)
+    return Disassembly(target, start_addr, end_addr, instructions)
 
 class Disassembly:
     start_sbaddr = None # SBAddress
@@ -58,45 +67,23 @@ class Disassembly:
     target = None
     source_ref = None
 
-    def __init__(self, pc_sbaddr, target):
+    def __init__(self, target, start_sbaddr, end_sbaddr, instructions):
         self.target = target
-        self.symbol = symbol = pc_sbaddr.GetSymbol()
-        pc_address = pc_sbaddr.GetLoadAddress(self.target)
-        if symbol.IsValid():
-            self.start_sbaddr = symbol.GetStartAddress()
-            self.start_address = self.start_sbaddr.GetLoadAddress(self.target)
-            self.source_name = '%s @%x' % (symbol.GetName(), self.start_address)
-            self.instructions = symbol.GetInstructions(self.target)
-            if len(self.instructions):
-                last_instr = self.instructions[len(self.instructions)-1]
-                self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
-
-        if not symbol.IsValid() or not len(self.instructions) or \
-                not (self.start_address <= pc_address < self.end_address):
-            # Just read some instructions around the PC location.
-            self.start_sbaddr = pc_sbaddr
-            self.start_address = pc_sbaddr.GetLoadAddress(self.target)
-            self.source_name = "@%x" % self.start_address
-            self.instructions = self.target.ReadInstructions(pc_sbaddr, NO_SYMBOL_INSTRUCTIONS)
-            if len(self.instructions):
-                last_instr = self.instructions[len(self.instructions)-1]
-                self.end_address = last_instr.GetAddress().GetLoadAddress(self.target) + last_instr.GetByteSize()
-                assert self.start_address <= pc_address < self.end_address
-            else:
-                self.end_address = self.start_address
-
-        self.addresses = [-1, -1] # addresses corresponding to source lines (-1 = comment)
+        self.start_sbaddr = start_sbaddr
+        self.end_sbaddr = end_sbaddr
+        self.start_address = start_sbaddr.GetLoadAddress(target)
+        self.end_address = end_sbaddr.GetLoadAddress(target)
+        self.instructions = instructions
+        self.source_name = "@%x..%x" % (self.start_address, self.end_address)
+        self.line_addresses = [-1, -1] # addresses corresponding to source lines (-1 = comment)
         for instr in self.instructions:
-            self.addresses.append(instr.GetAddress().GetLoadAddress(self.target))
+            self.line_addresses.append(instr.GetAddress().GetLoadAddress(self.target))
 
     def line_num_by_address(self, load_addr):
-        return lower_bound(self.addresses, load_addr) + 1 # lines numbers are 1-based
+        return lower_bound(self.line_addresses, load_addr) + 1 # lines numbers are 1-based
 
     def address_by_line_num(self, line_num):
-        return self.addresses[line_num - 1]
-
-    def get_adapter_data(self):
-        return { 'start': self.start_sbaddr.GetFileAddress() }
+        return self.line_addresses[line_num - 1]
 
     def get_source_text(self):
         line_entry = self.start_sbaddr.GetLineEntry()
@@ -104,9 +91,10 @@ class Disassembly:
             source_location = '%s:%d' % (line_entry.GetFileSpec(), line_entry.GetLine())
         else:
             source_location = 'unknown'
-        if self.symbol.IsValid():
+        symbol = self.start_sbaddr.GetSymbol()
+        if symbol.IsValid():
             desc = lldb.SBStream()
-            self.symbol.GetDescription(desc)
+            symbol.GetDescription(desc)
             description = desc.GetData()
         else:
             description = 'No symbol info'

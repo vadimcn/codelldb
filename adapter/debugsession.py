@@ -31,12 +31,10 @@ class DebugSession:
         self.event_loop = event_loop
         self.send_message = send_message
         self.var_refs = handles.HandleTree()
-        self.ignore_bp_events = False
         self.line_breakpoints = dict() # { file_id : { line : breakpoint_id } }
-        self.addr_breakpoints = set() # a list breakpoints that were set by address
         self.fn_breakpoints = dict() # { fn_name : breakpoint_id }
         self.exc_breakpoints = set() # list of exception breakpoints
-        self.breakpoint_conditions = dict() # { bp_id : code_object }
+        self.breakpoints = dict() # { breakpoint_id : BreakpointInfo }
         self.target = None
         self.process = None
         self.terminal = None
@@ -133,7 +131,7 @@ class DebugSession:
         stop_on_entry = args.get('stopOnEntry', False)
         # launch!
         error = lldb.SBError()
-        log.info('%s %s %s', target_args, envp, work_dir)
+        log.debug('%s %s %s', target_args, envp, work_dir)
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
@@ -276,111 +274,164 @@ class DebugSession:
                 'kind': kind, 'cwd': cwd, 'args': args, 'env': env, 'title': title
             }, on_complete)
 
+
+    def disable_bp_events(self):
+        self.target.GetBroadcaster().RemoveListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+
+    def enable_bp_events(self):
+        self.target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+
     def DEBUG_setBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):
             return
+        try:
+            self.disable_bp_events()
 
-        result = []
-        self.ignore_bp_events = True
-        source = args['source']
-
-        # Disassembly breakpoints have only a sourceReference, source breakpoints have a path too.
-        in_dasm = True
-        file_id = source.get('sourceReference')
-        if file_id is None:
-            file_id = opt_lldb_str(source.get('path'))
-            in_dasm = False
-
-        # If we have adapterData, try to reconstitute that disassembly object.
-        if in_dasm and file_id is None:
-            adapter_data = source.get('adapterData')
-            if adapter_data:
-                dasm = disassembly.from_adapter_data(adapter_data, self.target)
-                if dasm:
-                    self.add_disassembly(dasm)
-
-        if file_id is not None:
+            source = args['source']
             req_bps = args['breakpoints']
             req_bp_lines = [req['line'] for req in req_bps]
-            # Existing breakpints indexed by line
+
+            dasm = None
+            adapter_data = None
+            file_id = None  # File path or a source reference.
+
+            source_ref = source.get('sourceReference')
+            if source_ref:
+                dasm = self.disassembly_by_handle.get(source_ref)
+                file_id = dasm.source_ref
+                # Construct adapterData for this source, so we can recover breakpoint addresses
+                # in subsequent debug sessions.
+                line_addresses = { str(line) : dasm.address_by_line_num(line) for line in req_bp_lines }
+                source['adapterData'] = { 'start': dasm.start_address, 'end': dasm.end_address,
+                                          'lines': line_addresses }
+            else:
+                adapter_data = source.get('adapterData')
+                file_id = opt_lldb_str(source.get('path'))
+
+            if file_id is None:
+                return  # Shouldn't happen
+
+            # Existing breakpints indexed by line number.
             file_bps = self.line_breakpoints.setdefault(file_id, {})
-            # Existing breakpints that were removed
+
+            # Clear existing breakpints that were removed
             for line, bp_id in list(file_bps.items()):
                 if line not in req_bp_lines:
                     self.target.BreakpointDelete(bp_id)
                     del file_bps[line]
-                    self.breakpoint_conditions.pop(bp_id, None)
-                    self.addr_breakpoints.discard(bp_id)
-            # Added or updated
-            for req in req_bps:
-                line = req['line']
-                bp_id = file_bps.get(line, None)
-                if bp_id is None:
-                    if not in_dasm:
-                        # LLDB is pretty finicky about breakpoint location path exactly matching
-                        # the source path found in debug info.  Unfortunately, this means that
-                        # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same
-                        # file, and debug info contains un-normalized paths like this pretty often.
-                        # The workaroud is to set a breakpoint by file name and line only, then
-                        # check all resolved locations and filter out the ones that don't match
-                        # the full path.
-                        file_name = os.path.basename(file_id)
-                        bp = self.target.BreakpointCreateByLocation(file_name, line)
-                        for loc in bp:
-                            fs = loc.GetAddress().GetLineEntry().GetFileSpec()
-                            if fs.IsValid():
-                                bp_path = self.map_path_to_local(fs.fullpath)
-                                if not bp_path or not same_path(bp_path, file_id):
-                                    loc.SetEnabled(False)
-                    else:
-                        dasm = self.disassembly_by_handle.get(file_id)
-                        addr = dasm.address_by_line_num(line)
-                        bp = self.target.BreakpointCreateByAddress(addr)
-                        self.addr_breakpoints.add(bp.GetID())
-                    self.set_bp_condition(bp, req)
-                    file_bps[line] = bp.GetID()
-                else:
-                    bp = self.target.FindBreakpointByID(bp_id)
-                result.append(self.make_bp_resp(bp))
-        else:
-            result.append({'verified': False})
+                    del self.breakpoints[bp_id]
+            # Added or updated breakpoints
+            if dasm:
+                result = self.set_dasm_breakpoints(file_bps, req_bps,
+                    lambda line: dasm.address_by_line_num(line), source, adapter_data, True)
+            elif adapter_data:
+                line_addresses = adapter_data['lines']
+                result = self.set_dasm_breakpoints(file_bps, req_bps,
+                    lambda line: line_addresses[str(line)], source, adapter_data, False)
+            else:
+                result = self.set_source_breakpoints(file_bps, req_bps, file_id)
+            return { 'breakpoints': result }
+        finally:
+            self.enable_bp_events()
 
-        self.ignore_bp_events = False
-        return { 'breakpoints': result }
+    def set_source_breakpoints(self, file_bps, req_bps, file_path):
+        result = []
+        file_name = os.path.basename(file_path)
+        for req in req_bps:
+            line = req['line']
+            bp_id = file_bps.get(line, None)
+            if bp_id: # Existing breakpoint
+                bp = self.target.FindBreakpointByID(bp_id)
+                bp_resp = { 'id': bp_id, 'verified': True }
+            else:  # New breakpoint
+                # LLDB is pretty finicky about breakpoint location path exactly matching
+                # the source path found in debug info.  Unfortunately, this means that
+                # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same
+                # file, and debug info contains un-normalized paths like this pretty often.
+                # The workaroud is to set a breakpoint by file name and line only, then
+                # check all resolved locations and filter out the ones that don't match
+                # the full path.
+                bp = self.target.BreakpointCreateByLocation(file_name, line)
+                bp_id = bp.GetID()
+                self.breakpoints[bp_id] = BreakpointInfo(bp_id)
+                bp_resp = { 'id': bp_id }
+                for loc in bp:
+                    le = loc.GetAddress().GetLineEntry()
+                    fs = le.GetFileSpec()
+                    if fs.IsValid():
+                        bp_path = self.map_path_to_local(fs.fullpath)
+                        if not bp_path or not same_path(bp_path, file_path):
+                            loc.SetEnabled(False)
+                        else:
+                            bp_resp['source'] =  { 'name': fs.basename, 'path': bp_path }
+                            bp_resp['line'] = le.GetLine()
+                            bp_resp['verified'] = True
+            self.set_bp_condition(bp, req)
+            file_bps[line] = bp_id
+            result.append(bp_resp)
+        return result
+
+    def set_dasm_breakpoints(self, file_bps, req_bps, addr_from_line, source, adapter_data, verified):
+        result = []
+        for req in req_bps:
+            line = req['line']
+            bp_id = file_bps.get(line, None)
+            if bp_id: # Existing breakpoint
+                bp = self.target.FindBreakpointByID(bp_id)
+                bp_resp = { 'id': bp_id, 'source': source, 'verified': verified }
+            else:  # New breakpoint
+                addr = addr_from_line(line)
+                bp = self.target.BreakpointCreateByAddress(addr)
+                bp_id = bp.GetID()
+
+                bp_info = BreakpointInfo(bp_id)
+                bp_info.address = addr
+                bp_info.adapter_data = adapter_data
+                self.breakpoints[bp_id] = bp_info
+
+                bp_resp = { 'id': bp_id }
+                bp_resp['source'] = source
+                bp_resp['line'] = line
+                bp_resp['verified'] = verified
+            self.set_bp_condition(bp, req)
+            file_bps[line] = bp_id
+            result.append(bp_resp)
+        return result
 
     def DEBUG_setFunctionBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):
             return
+        try:
+            self.disable_bp_events()
 
-        result = []
-        self.ignore_bp_events = True
-        # Breakpoint requests indexed by function name
-        req_bps = args['breakpoints']
-        req_bp_names = [req['name'] for req in req_bps]
-        # Existing breakpints that were removed
-        for name, bp_id in list(self.fn_breakpoints.items()):
-            if name not in req_bp_names:
-                self.target.BreakpointDelete(bp_id)
-                del self.fn_breakpoints[name]
-                self.breakpoint_conditions.pop(bp_id, None)
-        # Added or updated
-        result = []
-        for req in req_bps:
-            name = req['name']
-            bp_id = self.fn_breakpoints.get(name, None)
-            if bp_id is None:
-                if name.startswith('/re '):
-                    bp = self.target.BreakpointCreateByRegex(to_lldb_str(name[4:]))
+            result = []
+            # Breakpoint requests indexed by function name
+            req_bps = args['breakpoints']
+            req_bp_names = [req['name'] for req in req_bps]
+            # Existing breakpints that were removed
+            for name, bp_id in list(self.fn_breakpoints.items()):
+                if name not in req_bp_names:
+                    self.target.BreakpointDelete(bp_id)
+                    del self.fn_breakpoints[name]
+                    del self.breakpoints[bp_id]
+            # Added or updated
+            result = []
+            for req in req_bps:
+                name = req['name']
+                bp_id = self.fn_breakpoints.get(name, None)
+                if bp_id is None:
+                    if name.startswith('/re '):
+                        bp = self.target.BreakpointCreateByRegex(to_lldb_str(name[4:]))
+                    else:
+                        bp = self.target.BreakpointCreateByName(to_lldb_str(name))
+                    self.set_bp_condition(bp, req)
+                    self.fn_breakpoints[name] = bp.GetID()
                 else:
-                    bp = self.target.BreakpointCreateByName(to_lldb_str(name))
-                self.set_bp_condition(bp, req)
-                self.fn_breakpoints[name] = bp.GetID()
-            else:
-                bp = self.target.FindBreakpointByID(bp_id)
-            result.append(self.make_bp_resp(bp))
-        self.ignore_bp_events = False
-
-        return { 'breakpoints': result }
+                    bp = self.target.FindBreakpointByID(bp_id)
+                result.append(self.make_bp_resp(bp))
+            return { 'breakpoints': result }
+        finally:
+            self.enable_bp_events()
 
     # Sets up breakpoint stopping condition
     def set_bp_condition(self, bp, req):
@@ -417,7 +468,7 @@ class DebugSession:
                         eval_globals['__frame_vars'] = frame_vars
                         return eval(pycode, eval_globals, frame_vars)
 
-                self.breakpoint_conditions[bp.GetID()] = eval_condition
+                self.breakpoints[bp.GetID()].condition = eval_condition
                 bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
 
         ignoreCount = req.get('hitCondition', None)
@@ -429,28 +480,46 @@ class DebugSession:
 
     # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
-        if bp.GetID() in self.addr_breakpoints: # these originate from disassembly
-            return { 'id': bp.GetID(), 'verified': True }
-        bp_resp =  { 'id': bp.GetID() }
-        for bp_loc in bp:
-            if bp_loc.IsEnabled():
-                le = bp_loc.GetAddress().GetLineEntry()
-                if le.IsValid():
-                    fs = le.GetFileSpec()
-                    path = self.map_path_to_local(fs.fullpath)
-                    if path :
-                        bp_resp['source'] = { 'name': fs.basename, 'path': path }
-                        bp_resp['line'] = le.GetLine()
-                        bp_resp['verified'] = True
-                        break
+        bp_id = bp.GetID()
+        bp_resp =  { 'id': bp_id }
+
+        if not self.breakpoints[bp_id].address: # Don't resolve assembly-level breakpoints to a source file.
+            for bp_loc in bp:
+                if bp_loc.IsEnabled():
+                    le = bp_loc.GetAddress().GetLineEntry()
+                    if le.IsValid():
+                        fs = le.GetFileSpec()
+                        path = self.map_path_to_local(fs.fullpath)
+                        if path :
+                            bp_resp['source'] = { 'name': fs.basename, 'path': path }
+                            bp_resp['line'] = le.GetLine()
+                            bp_resp['verified'] = True
+                            return bp_resp
+
+        loc = bp.GetLocationAtIndex(0)
+        if loc.IsResolved():
+            dasm = self.find_disassembly_by_address(loc.GetAddress())
+            adapter_data = self.breakpoints[bp_id].adapter_data
+            if not dasm and adapter_data:
+                # This must be resolution of location of an assembly-level breakpoint.
+                start = lldb.SBAddress(adapter_data['start'], self.target)
+                end = lldb.SBAddress(adapter_data['end'], self.target)
+                dasm = disassembly.create_from_range(self.target, start, end)
+                self.register_disassembly(dasm)
+
+            bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
+            bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
+            bp_resp['verified'] = True
+        else:
+            bp_resp['verified'] = False
         return bp_resp
 
     def should_stop_on_bp(self, bp_id, frame, internal_dict):
-        cond = self.breakpoint_conditions.get(bp_id)
-        if cond is None:
+        bp_info = self.breakpoints.get(bp_id)
+        if bp_info is None or bp_info.condition is None:
             return True
         try:
-            return cond(frame, internal_dict)
+            return bp_info.condition(frame, internal_dict)
         except Exception as e:
             self.console_msg('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
             return True
@@ -581,17 +650,14 @@ class DebugSession:
                         stack_frame['line'] = le.GetLine()
                         stack_frame['column'] = le.GetColumn()
             else:
-                pc_sbaddr = frame.GetPCAddress()
-                pc_addr = pc_sbaddr.GetLoadAddress(self.target)
-                dasm = disassembly.find(self.disassembly_by_addr, pc_addr)
-                if dasm is None:
-                    dasm = disassembly.from_sbaddr(pc_sbaddr, self.target)
-                    self.add_disassembly(dasm)
+                pc_addr = frame.GetPCAddress()
+                dasm = self.find_disassembly_by_address(pc_addr)
+                if not dasm:
+                    dasm = disassembly.create_from_address(self.target, pc_addr)
+                    self.register_disassembly(dasm)
 
-                stack_frame['source'] = { 'name': dasm.source_name,
-                                          'sourceReference': dasm.source_ref,
-                                          'adapterData': dasm.get_adapter_data() }
-                stack_frame['line'] = dasm.line_num_by_address(pc_addr)
+                stack_frame['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref }
+                stack_frame['line'] = dasm.line_num_by_address(pc_addr.GetLoadAddress(self.target))
                 stack_frame['column'] = 0
 
             if not frame.GetLineEntry().IsValid():
@@ -600,12 +666,14 @@ class DebugSession:
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
 
-    # Register a new disassembly.
-    def add_disassembly(self, dasm):
+    def find_disassembly_by_address(self, sbaddr):
+        load_addr = sbaddr.GetLoadAddress(self.target)
+        return disassembly.find(self.disassembly_by_addr, load_addr)
+
+    def register_disassembly(self, dasm):
         log.info('Adding disassembly object for %x', dasm.start_address)
         disassembly.insert(self.disassembly_by_addr, dasm)
         dasm.source_ref = self.disassembly_by_handle.create(dasm)
-        return dasm
 
     # Should we show source or disassembly for this frame?
     def in_disassembly(self, frame):
@@ -619,6 +687,8 @@ class DebugSession:
     def DEBUG_source(self, args):
         sourceRef = int(args['sourceReference'])
         dasm = self.disassembly_by_handle.get(sourceRef)
+        if not dasm:
+            raise UserError('Source is not available.')
         return { 'content': dasm.get_source_text(), 'mimeType': 'text/x-lldb.disassembly' }
 
     def DEBUG_scopes(self, args):
@@ -719,7 +789,8 @@ class DebugSession:
         result = self.execute_command_in_frame(expr, frame)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
         # returning output as result would display all line breaks as '\n'
-        self.console_msg(output)
+        if output:
+            self.console_msg(output)
         return { 'result': '' }
 
     def execute_command_in_frame(self, command, frame):
@@ -1055,7 +1126,7 @@ class DebugSession:
                     self.send_event('terminated', {})
             elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
                 self.notify_stdio(ev_type)
-        elif lldb.SBBreakpoint.EventIsBreakpointEvent(event) and not self.ignore_bp_events:
+        elif lldb.SBBreakpoint.EventIsBreakpointEvent(event):
             self.notify_breakpoint(event)
 
     def notify_target_stopped(self, lldb_event):
@@ -1134,15 +1205,17 @@ class DebugSession:
     def notify_breakpoint(self, event):
         event_type = lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(event)
         bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        bp_id = bp.GetID()
         if event_type == lldb.eBreakpointEventTypeAdded:
-            bp_info = self.make_bp_resp(bp)
-            self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_info })
+            self.breakpoints[bp_id] = BreakpointInfo(bp_id)
+            bp_resp = self.make_bp_resp(bp)
+            self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_resp })
         elif event_type == lldb.eBreakpointEventTypeLocationsResolved:
-            bp_info = self.make_bp_resp(bp)
-            self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': bp_info })
+            bp_resp = self.make_bp_resp(bp)
+            self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': bp_resp })
         elif event_type == lldb.eBreakpointEventTypeRemoved:
-            bp_info = self.make_bp_resp(bp)
-            self.send_event('breakpoint', { 'reason': 'removed', 'breakpoint': bp_info })
+            self.send_event('breakpoint', { 'reason': 'removed', 'breakpoint': { 'id': bp_id } })
+            del self.breakpoints[bp_id]
 
     def handle_debugger_output(self, output):
         self.console_msg(output)
@@ -1219,6 +1292,15 @@ class GlobalsScope:
 class RegistersScope:
     def __init__(self, frame):
         self.frame = frame
+
+# Various info we mantain about a breakpoint
+class BreakpointInfo:
+    __slots__ = ['id', 'condition', 'address', 'adapter_data']
+    def __init__(self, id):
+        self.id = id
+        self.condition = None
+        self.address = None
+        self.adapter_data = None
 
 def SBValueListIter(val_list):
     get_value = val_list.GetValueAtIndex

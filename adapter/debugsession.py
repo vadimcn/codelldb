@@ -127,6 +127,7 @@ class DebugSession:
         # stdio
         stdio, extra_flags = self.configure_stdio(args)
         flags |= extra_flags
+        flags |= lldb.eLaunchFlagDisableASLR
         # working directory
         work_dir = opt_lldb_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)

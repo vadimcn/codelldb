@@ -46,6 +46,8 @@ def find_var_in_frame(sbframe, name):
             val = sbframe.FindValue(name, val_type)
             if val.IsValid():
                 break
+    if not val.IsValid():
+        val = sbframe.GetValueForVariablePath(name)
     return val
 
 # A dictionary-like object that fetches values from SBFrame (and caches them).
@@ -397,16 +399,16 @@ keywords = '|'.join(keyword.kwlist)
 # Matches identifiers
 ident = r'[A-Za-z_] [A-Za-z0-9_]*'
 
-# Matches `xxx::yyy`, `xxx::yyy::zzz`, etc
-qualified_ident = r'(?: {ident} ::)+ {ident}'.format(**locals())
+# Matches `::xxx`, `xxx::yyy`, `::xxx::yyy`, `xxx::yyy::zzz`, etc
+qualified_ident = r'(?: (?: ::)? (?: {ident} ::)+ | :: ) {ident}'.format(**locals())
 
-# Matches `xxx`, `xxx::yyy`, `xxx::yyy::zzz`, etc
-maybe_qualified_ident = r'(?: {ident} ::)* {ident}'.format(**locals())
+# Matches `xxx`, `::xxx`, `xxx::yyy`, `::xxx::yyy`, `xxx::yyy::zzz`, etc
+maybe_qualified_ident = r'(?: ::)? (?: {ident} ::)* {ident}'.format(**locals())
 
 # Matches `$xxx`, `$xxx::yyy::zzz` or `${...}`
 escaped_ident = r'\$ ({maybe_qualified_ident}) | \$ {{ ([^}}]*) }}'.format(**locals())
 
-preprocess_simple = r'(\.)? \b ({keywords} | {qualified_ident}) \b | {escaped_ident} | {pystring}'
+preprocess_simple = r'(\.)? (\b (?:{keywords}) \b | {qualified_ident}) | {escaped_ident} | {pystring}'
 
 preprocess_python = r'(\.)? {escaped_ident} | {pystring}'
 
@@ -453,11 +455,20 @@ def escape_variable_name(name):
 
 # --- Tests ---
 
+def compare(expected, actual):
+    if expected != actual:
+        print('EXPECTED:'); print(expected)
+        print('ACTUAL:'); print(actual)
+        raise AssertionError('expected != actual')
+
 def test_preprocess_simple():
     expr = """
         class = from.global.finally
         local::bar::__BAZ()
         local_string()
+        ::foo
+        ::foo::bar::baz
+        foo::bar::baz
         $local::foo::bar
         ${std::integral_constant<long, 1l>::value}
         ${std::integral_constant<long, 1l, foo<123>>::value}
@@ -470,6 +481,9 @@ def test_preprocess_simple():
         __frame_vars["class"] = __frame_vars["from"].__getattr__("global").__getattr__("finally")
         __frame_vars["local::bar::__BAZ"]()
         local_string()
+        __frame_vars["::foo"]
+        __frame_vars["::foo::bar::baz"]
+        __frame_vars["foo::bar::baz"]
         __frame_vars["local::foo::bar"]
         __frame_vars["std::integral_constant<long, 1l>::value"]
         __frame_vars["std::integral_constant<long, 1l, foo<123>>::value"]
@@ -478,29 +492,25 @@ def test_preprocess_simple():
         "continue.exec = pass.print; yield.with = 3"
     """
     prepr = preprocess_simple_expr(expr)
-    if prepr != expected:
-        print('EXPECTED:'); print(expected)
-        print('ACTUAL:'); print(prepr)
-    assert prepr == expected
+    compare(expected, prepr)
 
 def test_preprocess_python():
     expr = """
         for x in $foo: print x
         $xxx.$yyy.$zzz
         $xxx::yyy::zzz
+        $::xxx
         "$xxx::yyy::zzz"
     """
     expected = """
         for x in __frame_vars["foo"]: print x
         __frame_vars["xxx"].__getattr__("yyy").__getattr__("zzz")
         __frame_vars["xxx::yyy::zzz"]
+        __frame_vars["::xxx"]
         "$xxx::yyy::zzz"
     """
     prepr = preprocess_python_expr(expr)
-    if prepr != expected:
-        print('EXPECTED:'); print(expected)
-        print('ACTUAL:'); print(prepr)
-    assert prepr == expected
+    compare(expected, prepr)
 
 def test_escape_variable_name():
     assert escape_variable_name('foo') == 'foo'

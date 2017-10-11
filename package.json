@@ -153,14 +153,20 @@
                 "enableBreakpointsFor": {
                     "languageIds": [
                         "ada",
+                        "arm",
+                        "asm",
                         "c",
                         "cpp",
+                        "crystal",
                         "d",
                         "fortan",
+                        "fortran-modern",
+                        "lldb.disassembly",
+                        "nim",
                         "objective-c",
+                        "objectpascal",
                         "pascal",
                         "rust",
-                        "lldb.disassembly",
                         "swift"
                     ]
                 },

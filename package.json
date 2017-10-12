@@ -31,6 +31,7 @@
     "bugs": {
         "url": "https://github.com/vadimcn/vscode-lldb/issues"
     },
+    "qna": "https://gitter.im/vscode-lldb/QnA",
     "dependencies": {},
     "devDependencies": {
         "@types/mocha": "^2.2.42",

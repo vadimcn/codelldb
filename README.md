@@ -41,8 +41,8 @@ Here's a minimal debug configuration to get you started:
 
 See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging), [the Manual](MANUAL.md).
 
-# [Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB)
-
-# [The Fine Manual](MANUAL.md)
-
-# [Wiki](https://github.com/vadimcn/vscode-lldb/wiki)
+# Links
+- [Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB)
+- [The Fine Manual](MANUAL.md)
+- [Wiki](https://github.com/vadimcn/vscode-lldb/wiki)
+- [Chat](https://gitter.im/vscode-lldb/QnA)

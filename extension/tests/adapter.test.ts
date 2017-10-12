@@ -143,13 +143,17 @@ suite('Basic', () => {
             'array_int': 'int [10]',
             's': 'Struct',
             'str1': '"The quick brown fox"',
-            'invalid_utf8': '"ABC\uFFFD\\x01\uFFFDXYZ',
             'str_ptr': '"The quick brown fox"',
             'str_ref': '"The quick brown fox"',
             'empty_str': '""',
             'wstr1': 'L"Превед йожэг!"',
             'wstr2': 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
         });
+        if (process.platform != 'win32') {
+            assertDictContains(locals, { 'invalid_utf8': '"ABC\uFFFD\\x01\uFFFDXYZ' });
+        } else {
+            assertDictContains(locals, { 'invalid_utf8': '"ABC\uDCFF\\x01\uDCFEXYZ' });
+        }
 
         let response1 = await dc.evaluateRequest({
             expression: 'vec_int', context: 'watch', frameId: frameId

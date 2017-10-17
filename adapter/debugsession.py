@@ -505,11 +505,11 @@ class DebugSession:
                 end = lldb.SBAddress(adapter_data['end'], self.target)
                 dasm = disassembly.create_from_range(self.target, start, end)
                 self.register_disassembly(dasm)
-
+            if dasm:
             bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
             bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
             bp_resp['verified'] = True
-        else:
+                return bp_resp
             bp_resp['verified'] = False
         return bp_resp
 

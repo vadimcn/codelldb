@@ -306,10 +306,9 @@ class DebugSession:
                                           'lines': line_addresses }
             else:
                 adapter_data = source.get('adapterData')
-                file_id = opt_lldb_str(source.get('path'))
+                file_id = os.path.normcase(from_lldb_str(source.get('path')))
 
-            if file_id is None:
-                return  # Shouldn't happen
+            assert file_id is not None
 
             # Existing breakpints indexed by line number.
             file_bps = self.line_breakpoints.setdefault(file_id, {})

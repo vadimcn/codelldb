@@ -96,7 +96,7 @@ class DebugSession:
         }
 
     def DEBUG_launch(self, args):
-        if args.get('request') == 'custom':
+        if args.get('request') == 'custom' or args.get('custom', False):
             return self.custom_launch(args)
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
@@ -131,7 +131,6 @@ class DebugSession:
         stop_on_entry = args.get('stopOnEntry', False)
         # launch!
         error = lldb.SBError()
-        log.debug('%s %s %s', target_args, envp, work_dir)
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
@@ -506,11 +505,11 @@ class DebugSession:
                 dasm = disassembly.create_from_range(self.target, start, end)
                 self.register_disassembly(dasm)
             if dasm:
-            bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
-            bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
-            bp_resp['verified'] = True
+                bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
+                bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
+                bp_resp['verified'] = True
                 return bp_resp
-            bp_resp['verified'] = False
+        bp_resp['verified'] = False
         return bp_resp
 
     def should_stop_on_bp(self, bp_id, frame, internal_dict):

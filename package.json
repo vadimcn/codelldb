@@ -229,6 +229,11 @@
                                 "description": "Automatically stop debuggee after launch.",
                                 "default": true
                             },
+                            "custom": {
+                                "type": "boolean",
+                                "description": "Custom launch sequence: use `initCommands` to set up debug target, `preRunCommands` to create a process.",
+                                "default": true
+                            },
                             "initCommands": {
                                 "type": "array",
                                 "description": "Initialization commands executed upon debugger startup.",
@@ -381,8 +386,9 @@
                         "label": "LLDB: Custom Launch",
                         "body": {
                             "type": "lldb",
-                            "request": "custom",
+                            "request": "launch",
                             "name": "${2:Custom launch}",
+                            "custom": true,
                             "initCommands": [
                                 "^\"target create \\${workspaceRoot}/${1:<your program>}\""
                             ],

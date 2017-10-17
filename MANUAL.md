@@ -87,9 +87,10 @@ happens in three steps:
 |-------------------|--------|:--:|---------|
 |**name**           |string  |Y| Launch configuration name.|
 |**type**           |string  |Y| Set to `lldb`.|
-|**request**        |string  |Y| Set to `custom`.|
-|**initCommands**   |[string]| | A sequence of commands that creates the debug target.|
-|**preRunCommands** |[string]| | A sequence of commands that creates the debuggee process.|
+|**request**        |string  |Y| Set to `launch`.|
+|**custom**         |bool    |Y| Set to `true`.|
+|**initCommands**   |[string]| | A sequence of commands that creates debug target.|
+|**preRunCommands** |[string]| | A sequence of commands that creates debuggee process.|
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.|
 |**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.|
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).|
@@ -128,7 +129,8 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 {
     "name": "Remote attach",
     "type": "lldb",
-    "request": "custom",
+    "request": "launch",
+    "custom": true,
     "initCommands": ["target create ${workspaceRoot}/build/debuggee"],
     "preRunCommands": ["gdb-remote <remote_host>:<port>"]
 }
@@ -141,7 +143,8 @@ Use custom launch with `target crate -c <core path>` init command:
 {
     "name": "Core dump",
     "type": "lldb",
-    "request": "custom",
+    "request": "launch",
+    "custom": true,
     "initCommands": ["target create -c ${workspaceRoot}/core"],
 }
 ```

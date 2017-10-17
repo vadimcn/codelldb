@@ -85,7 +85,8 @@
 		{
 			"name": "debuggee custom",
 			"type": "lldb",
-			"request": "custom",
+			"request": "launch",
+			"custom": true,
 			"initCommands": [
 				"target create ${workspaceRoot}/out/tests/debuggee"
 			],
@@ -96,7 +97,8 @@
 		{
 			"name": "debuggee remote",
 			"type": "lldb",
-			"request": "custom",
+			"request": "launch",
+			"custom": true,
 			"initCommands": [
 				"target create  ${workspaceRoot}/out/tests/debuggee"
 			],

@@ -1,5 +1,6 @@
 import logging
 import lldb
+from . import handles
 
 log = logging.getLogger('disassembly')
 
@@ -27,40 +28,60 @@ def upper_bound(a, x, get_key = lambda x: x):
         else: lo = mid+1
     return lo
 
-# Find a Dissassembly whose range the address belongs to (assuming a is sorted on start_address)
-def find(a, address):
-    i  = upper_bound(a, address, lambda dasm: dasm.start_address) - 1
-    if i >= 0 and a[i].start_address <= address < a[i].end_address:
-        return a[i]
-    else:
-        return None
+class AddressSpace:
+    def __init__(self, target):
+        self.target = target
+        self.by_handle = handles.Handles()
+        self.by_address = [] # A list of DisassembledRange's sorted by start_address
 
-# Insert Dissassembly in sorted order
-def insert(a, dasm):
-    i = lower_bound(a, dasm.start_address, lambda dasm: dasm.start_address)
-    assert i == len(a) or dasm.start_address != a[i].start_address
-    a.insert(i, dasm)
+    def create_from_address(self, addr):
+        symbol = addr.GetSymbol()
+        if symbol.IsValid():
+            start_addr = symbol.GetStartAddress()
+            end_addr = symbol.GetEndAddress()
+            instructions = symbol.GetInstructions(self.target)
+        else:
+            start_addr = addr
+            instructions = self.target.ReadInstructions(start_addr, NO_SYMBOL_INSTRUCTIONS + 1)
+            if len(instructions) == 0:
+                return None
+            end_addr = instructions[-1].GetAddress()
+        dasm = DisassembledRange(self.target, start_addr, end_addr, instructions)
+        self.insert(dasm)
+        return dasm
 
-def create_from_address(target, addr):
-    symbol = addr.GetSymbol()
-    if symbol.IsValid():
-        start_addr = symbol.GetStartAddress()
-        end_addr = symbol.GetEndAddress()
-        instructions = symbol.GetInstructions(target)
-    else:
-        start_addr = addr
-        instructions = target.ReadInstructions(start_addr, NO_SYMBOL_INSTRUCTIONS + 1)
-        last_instr = self.instructions[len(self.instructions)-1]
-        end_addr = last_instr.GetAddress()
-    return Disassembly(target, start_addr, end_addr, instructions)
+    def create_from_range(self, start_addr, end_addr):
+        error = lldb.SBError()
+        length = end_addr.GetLoadAddress(self.target) - start_addr.GetLoadAddress(self.target)
+        instr_bytes = self.target.ReadMemory(start_addr, length, error)
+        instructions = self.target.GetInstructions(start_addr, instr_bytes)
+        dasm = DisassembledRange(self.target, start_addr, end_addr, instructions)
+        self.insert(dasm)
+        return dasm
 
-def create_from_range(target, start_addr, end_addr):
-    error = lldb.SBError()
-    instr_bytes = target.ReadMemory(start_addr, end_addr.GetLoadAddress(target) - start_addr.GetLoadAddress(target), error)
-    instructions = target.GetInstructions(start_addr, instr_bytes)
-    return Disassembly(target, start_addr, end_addr, instructions)
+    def get_by_handle(self, h):
+        return self.by_handle.get(h)
 
-class Disassembly:
+    # Find a Dissassembly whose range the address belongs to (assuming a is sorted on start_address)
+    def get_by_address(self, address):
+        if isinstance(address, lldb.SBAddress):
+            address = address.GetLoadAddress(self.target)
+        a = self.by_address
+        i  = upper_bound(a, address, lambda dasm: dasm.start_address) - 1
+        if i >= 0 and a[i].start_address <= address < a[i].end_address:
+            return a[i]
+        else:
+            return None
+
+    def insert(self, dasm):
+        log.info('Adding disassembled range 0x%x-0x%x', dasm.start_address, dasm.end_address)
+        a = self.by_address
+        i = lower_bound(a, dasm.start_address, lambda dasm: dasm.start_address)
+        assert i == len(a) or dasm.start_address != a[i].start_address
+        a.insert(i, dasm)
+        dasm.source_ref = self.by_handle.create(dasm)
+
+class DisassembledRange:
     start_sbaddr = None # SBAddress
     start_address = None # physical address
     end_address = None # physical address

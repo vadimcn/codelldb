@@ -40,10 +40,9 @@ class DebugSession:
         self.terminal = None
         self.launch_args = None
         self.process_launched = False
+        self.disassembly = None # disassembly.AddressSpace; need SBTarget to create
         self.show_disassembly = 'auto' # never | auto | always
         self.global_format = lldb.eFormatDefault
-        self.disassembly_by_handle = handles.Handles()
-        self.disassembly_by_addr = []
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
         self.known_threads = set()
@@ -100,6 +99,7 @@ class DebugSession:
             return self.custom_launch(args)
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
+        self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
         # defer actual launching till configurationDone request, so that
         # we can receive and set initial breakpoints before the target starts running
@@ -149,6 +149,7 @@ class DebugSession:
             raise UserError('Either the \'program\' or the \'pid\' must be specified.')
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
+        self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
         self.do_launch = self.complete_attach
         self.launch_args = args
@@ -179,6 +180,7 @@ class DebugSession:
         if not self.target.IsValid():
             self.console_msg('Warning: target is invalid after running "initCommands"')
         self.target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+        self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
         self.do_launch = self.complete_custom_launch
         self.launch_args = args
@@ -227,7 +229,8 @@ class DebugSession:
                 interp.HandleCommand(to_lldb_str(command), result)
                 sys.stdout.flush()
                 output = result.GetOutput() if result.Succeeded() else result.GetError()
-                self.console_msg(output)
+                if output:
+                    self.console_msg(output)
             sys.stdout.flush()
 
     def configure_stdio(self, args):
@@ -296,7 +299,7 @@ class DebugSession:
 
             source_ref = source.get('sourceReference')
             if source_ref:
-                dasm = self.disassembly_by_handle.get(source_ref)
+                dasm = self.disassembly.get_by_handle(source_ref)
                 file_id = dasm.source_ref
                 # Construct adapterData for this source, so we can recover breakpoint addresses
                 # in subsequent debug sessions.
@@ -349,7 +352,7 @@ class DebugSession:
                 # The workaroud is to set a breakpoint by file name and line only, then
                 # check all resolved locations and filter out the ones that don't match
                 # the full path.
-                bp = self.target.BreakpointCreateByLocation(file_name, line)
+                bp = self.target.BreakpointCreateByLocation(to_lldb_str(file_name), line)
                 bp_id = bp.GetID()
                 self.breakpoints[bp_id] = BreakpointInfo(bp_id)
                 bp_resp = { 'id': bp_id }
@@ -423,7 +426,9 @@ class DebugSession:
                     else:
                         bp = self.target.BreakpointCreateByName(to_lldb_str(name))
                     self.set_bp_condition(bp, req)
-                    self.fn_breakpoints[name] = bp.GetID()
+                    bp_id = bp.GetID()
+                    self.fn_breakpoints[name] = bp_id
+                    self.breakpoints[bp_id] = BreakpointInfo(bp_id)
                 else:
                     bp = self.target.FindBreakpointByID(bp_id)
                 result.append(self.make_bp_resp(bp))
@@ -496,14 +501,13 @@ class DebugSession:
 
         loc = bp.GetLocationAtIndex(0)
         if loc.IsResolved():
-            dasm = self.find_disassembly_by_address(loc.GetAddress())
+            dasm = self.disassembly.get_by_address(loc.GetAddress())
             adapter_data = self.breakpoints[bp_id].adapter_data
             if not dasm and adapter_data:
                 # This must be resolution of location of an assembly-level breakpoint.
                 start = lldb.SBAddress(adapter_data['start'], self.target)
                 end = lldb.SBAddress(adapter_data['end'], self.target)
-                dasm = disassembly.create_from_range(self.target, start, end)
-                self.register_disassembly(dasm)
+                dasm = self.disassembly.create_from_range(start, end)
             if dasm:
                 bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
                 bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
@@ -649,29 +653,19 @@ class DebugSession:
                         stack_frame['column'] = le.GetColumn()
             else:
                 pc_addr = frame.GetPCAddress()
-                dasm = self.find_disassembly_by_address(pc_addr)
+                dasm = self.disassembly.get_by_address(pc_addr)
                 if not dasm:
-                    dasm = disassembly.create_from_address(self.target, pc_addr)
-                    self.register_disassembly(dasm)
-
-                stack_frame['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref }
-                stack_frame['line'] = dasm.line_num_by_address(pc_addr.GetLoadAddress(self.target))
-                stack_frame['column'] = 0
+                    dasm = self.disassembly.create_from_address(pc_addr)
+                if dasm:
+                    stack_frame['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref }
+                    stack_frame['line'] = dasm.line_num_by_address(pc_addr.GetLoadAddress(self.target))
+                    stack_frame['column'] = 0
 
             if not frame.GetLineEntry().IsValid():
                 stack_frame['presentationHint'] = 'subtle' # No line debug info.
 
             stack_frames.append(stack_frame)
         return { 'stackFrames': stack_frames, 'totalFrames': len(thread) }
-
-    def find_disassembly_by_address(self, sbaddr):
-        load_addr = sbaddr.GetLoadAddress(self.target)
-        return disassembly.find(self.disassembly_by_addr, load_addr)
-
-    def register_disassembly(self, dasm):
-        log.info('Adding disassembly object for %x', dasm.start_address)
-        disassembly.insert(self.disassembly_by_addr, dasm)
-        dasm.source_ref = self.disassembly_by_handle.create(dasm)
 
     # Should we show source or disassembly for this frame?
     def in_disassembly(self, frame):
@@ -684,7 +678,7 @@ class DebugSession:
 
     def DEBUG_source(self, args):
         sourceRef = int(args['sourceReference'])
-        dasm = self.disassembly_by_handle.get(sourceRef)
+        dasm = self.disassembly.get_by_handle(sourceRef)
         if not dasm:
             raise UserError('Source is not available.')
         return { 'content': dasm.get_source_text(), 'mimeType': 'text/x-lldb.disassembly' }

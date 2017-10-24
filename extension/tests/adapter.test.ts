@@ -6,6 +6,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
+
 import * as ver from '../ver';
 import * as util from '../util';
 
@@ -214,6 +215,33 @@ suite('Basic', () => {
         let locals = await readVariables(localsRef);
         assert.equal(locals['i'], "5");
     });
+
+    test('disassembly', async () => {
+        let setBreakpointAsync = setFnBreakpoint('/re disassembly1');
+        let stoppedEvent = await launchAndWaitForStop({ program: debuggee,  args: ['dasm'] });
+        let stackTrace = await dc.stackTraceRequest({
+            threadId: stoppedEvent.body.threadId,
+            startFrame: 0, levels: 5
+        });
+        let sourceRef = stackTrace.body.stackFrames[0].source.sourceReference;
+        let source = await dc.sourceRequest({ sourceReference: sourceRef });
+        assert.equal(source.body.mimeType, 'text/x-lldb.disassembly');
+
+        // Set a new breakpoint two instructions ahead
+        await dc.setBreakpointsRequest({
+            source: { sourceReference: sourceRef },
+            breakpoints: [{ line: 5 }]
+        });
+        let waitStoppedEvent2 = waitForStopEvent();
+        await dc.continueRequest({ threadId: stoppedEvent.body.threadId });
+        let stoppedEvent2 = await waitStoppedEvent2;
+        let stackTrace2 = await dc.stackTraceRequest({
+            threadId: stoppedEvent2.body.threadId,
+            startFrame: 0, levels: 5
+        });
+        assert.equal(stackTrace2.body.stackFrames[0].source.sourceReference, sourceRef);
+        assert.equal(stackTrace2.body.stackFrames[0].line, 5);
+    });
 });
 
 async function waitForStopEvent(): Promise<dp.StoppedEvent> {
@@ -378,7 +406,6 @@ async function attach(attachArgs: any): Promise<dp.AttachResponse> {
 }
 
 async function setBreakpoint(file: string, line: number, condition?: string): Promise<dp.SetBreakpointsResponse> {
-    let waitStopAsync = waitForStopEvent();
     await dc.waitForEvent('initialized');
     let breakpointResp = await dc.setBreakpointsRequest({
         source: { path: file },
@@ -387,6 +414,15 @@ async function setBreakpoint(file: string, line: number, condition?: string): Pr
     let bp = breakpointResp.body.breakpoints[0];
     assert.ok(bp.verified);
     assert.equal(bp.line, line);
+    return breakpointResp;
+}
+
+async function setFnBreakpoint(name: string, condition?: string): Promise<dp.SetFunctionBreakpointsResponse> {
+    await dc.waitForEvent('initialized');
+    let breakpointResp = await dc.setFunctionBreakpointsRequest({
+        breakpoints: [{ name: name, condition: condition }]
+    });
+    let bp = breakpointResp.body.breakpoints[0];
     return breakpointResp;
 }
 

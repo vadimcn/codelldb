@@ -10,6 +10,9 @@
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
 
+extern "C"
+void disassembly1();
+
 void deepstack(int levelsToGo) {
     if (levelsToGo > 0) {
         deepstack(levelsToGo-1);
@@ -165,6 +168,8 @@ int main(int argc, char* argv[]) {
         header_fn2(2);
     } else if (testcase == "mandelbrot") {
         mandelbrot();
+    } else if (testcase == "dasm") {
+        disassembly1();
     }
     return 0;
 }

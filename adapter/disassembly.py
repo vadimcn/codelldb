@@ -45,7 +45,8 @@ class AddressSpace:
             instructions = self.target.ReadInstructions(start_addr, NO_SYMBOL_INSTRUCTIONS + 1)
             if len(instructions) == 0:
                 return None
-            end_addr = instructions[-1].GetAddress()
+            last_instr = instructions[len(instructions)-1] # SBInstructionList doesn't support negative indices!
+            end_addr = last_instr.GetAddress()
         dasm = DisassembledRange(self.target, start_addr, end_addr, instructions)
         self.insert(dasm)
         return dasm

@@ -41,16 +41,18 @@
 				"--harmony"
 			],
 			"args": [
-				"-u",
-				"tdd",
-				"--timeout",
-				"999999",
+				"-u", "tdd",
+				"--timeout", "999999",
 				"--colors",
+				//"-g", "disassembly",
 				"./out/tests"
 			],
+			"env": {
+				"ADAPTER_LOG": "${workspaceRoot}/adapter.log"
+			},
 			"sourceMaps": true,
 			"outFiles": [
-				"${workspaceRoot}/out/tests"
+				"${workspaceRoot}/out/**/*.js"
 			]
 		},
 		{
@@ -73,7 +75,17 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/out/tests/debuggee",
 			"args": ["mandelbrot"],
-			"initCommands": ["command script import '${workspaceRoot}/extension/tests/debugvis.py"]
+			"initCommands": [
+				"command script import '${workspaceRoot}/debuggee/debugvis.py"
+			]
+		},
+		{
+			"name": "debuggee launch disassembly",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"stopOnEntry": true,
+			"args": ["dasm"]
 		},
 		{
 			"name": "debuggee attach",
@@ -124,7 +136,10 @@
 	"compounds": [
 		{
 			"name": "vars + rusttypes",
-			"configurations": ["debuggee launch vars", "rusttypes"]
+			"configurations": [
+				"debuggee launch vars",
+				"rusttypes"
+			]
 		}
 	]
 }

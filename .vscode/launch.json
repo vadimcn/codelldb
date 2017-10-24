@@ -59,21 +59,21 @@
 			"name": "debuggee launch vars",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/debuggee",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"args": ["vars", "Farbfüllung", "äöüßÄÖÜ"]
 		},
 		{
 			"name": "debuggee launch threads",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/debuggee",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"args": ["threads"]
 		},
 		{
 			"name": "debuggee launch mandelbrot",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/debuggee",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"args": ["mandelbrot"],
 			"initCommands": [
 				"command script import '${workspaceRoot}/debuggee/debugvis.py"
@@ -91,7 +91,7 @@
 			"name": "debuggee attach",
 			"type": "lldb",
 			"request": "attach",
-			"program": "${workspaceRoot}/out/tests/debuggee",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"pid": "${command:pickMyProcess}"
 		},
 		{
@@ -100,7 +100,7 @@
 			"request": "launch",
 			"custom": true,
 			"initCommands": [
-				"target create ${workspaceRoot}/out/tests/debuggee"
+				"target create ${workspaceRoot}/out/debuggee/debuggee"
 			],
 			"preRunCommands": [
 				"process launch -- vars"
@@ -112,7 +112,7 @@
 			"request": "launch",
 			"custom": true,
 			"initCommands": [
-				"target create  ${workspaceRoot}/out/tests/debuggee"
+				"target create  ${workspaceRoot}/out/debuggee/debuggee"
 			],
 			"preRunCommands": [
 				"gdb-remote 127.0.0.1:1234",
@@ -123,7 +123,7 @@
 			"name": "rusttypes",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceRoot}/out/tests/rusttypes",
+			"program": "${workspaceRoot}/out/debuggee/rusttypes",
 			"cwd": "${workspaceRoot}",
 			"sourceLanguages": [
 				"rust"

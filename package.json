@@ -44,10 +44,10 @@
     },
     "scripts": {
         "postinstall": "node ./node_modules/vscode/bin/install",
-        "build": "tsc -p .",
-        "watch": "tsc -w -p .",
+        "build": "tsc -p extension",
+        "watch": "tsc -w -p extension",
         "build:debuggee": "python tools/build_debuggee.py",
-        "build:rusttypes": "rustc extension/tests/rusttypes.rs -g --out-dir out/tests",
+        "build:rusttypes": "rustc debuggee/rusttypes.rs -g --out-dir out/debuggee",
         "test:adapter": "mocha -u tdd --timeout 5000 ./out/tests",
         "test:internals": "python tools/test_internals.py",
         "test": "npm run build && npm run test:internals && npm run build:debuggee && npm run build:rusttypes && npm run test:adapter"

@@ -7,10 +7,7 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": true,
-		"rootDir": "extension",
-		"outDir": "out"
-	},
-	"exclude": [
-		"node_modules"
-	]
+		"rootDir": ".",
+		"outDir": "../out"
+	}
 }

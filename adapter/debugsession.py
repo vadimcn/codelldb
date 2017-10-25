@@ -990,7 +990,7 @@ class DebugSession:
         self.event_loop.stop()
 
     def DEBUG_test(self, args):
-        self.console_msg('TEST\n')
+        self.console_msg('TEST')
 
     def DEBUG_showDisassembly(self, args):
         value = args.get('value', 'toggle')
@@ -1208,7 +1208,7 @@ class DebugSession:
             del self.breakpoints[bp_id]
 
     def handle_debugger_output(self, output):
-        self.console_msg(output)
+        self.send_event('output', { 'category': 'stdout', 'output': output })
 
     def send_event(self, event, body):
         message = {
@@ -1221,7 +1221,11 @@ class DebugSession:
 
     # Write a message to debug console
     def console_msg(self, output, category=None):
-        self.send_event('output', { 'category': category, 'output': from_lldb_str(output) })
+        if output:
+            self.send_event('output', {
+                'category': category,
+                'output': from_lldb_str(output) + '\n'
+            })
 
     def console_err(self, output):
         self.console_msg(output, 'stderr')

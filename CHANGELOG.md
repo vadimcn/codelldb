@@ -1,4 +1,8 @@
 # What's New
+
+## 0.7.1
+- Bug fixes.
+
 ## 0.7.0
 - The minumum VSCode version is now 1.17.
 - Source maps may now contain glob wildcards.

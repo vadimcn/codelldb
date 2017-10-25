@@ -135,7 +135,7 @@ class DebugSession:
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
-            self.console_msg(error.GetCString())
+            self.console_err(error.GetCString())
             self.send_event('terminated', {})
             raise UserError('Process launch failed.')
 
@@ -167,7 +167,7 @@ class DebugSession:
             program = to_lldb_str(args['program'])
             self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
         if not error.Success():
-            self.console_msg(error.GetCString())
+            self.console_err(error.GetCString())
             raise UserError('Failed to attach to the process.')
         assert self.process.IsValid()
         self.process_launched = False
@@ -178,7 +178,7 @@ class DebugSession:
         self.exec_commands(args.get('initCommands'))
         self.target = self.debugger.GetSelectedTarget()
         if not self.target.IsValid():
-            self.console_msg('Warning: target is invalid after running "initCommands"')
+            self.console_err('Warning: target is invalid after running "initCommands"')
         self.target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
@@ -191,7 +191,7 @@ class DebugSession:
         self.exec_commands(args.get('preRunCommands'))
         self.process = self.target.GetProcess()
         if not self.process.IsValid():
-            self.console_msg('Warning: process is invalid after running "preRunCommands"')
+            self.console_err('Warning: process is invalid after running "preRunCommands"')
         self.process.GetBroadcaster().AddListener(self.event_listener, 0xFFFFFF)
         self.process_launched = False
 
@@ -228,9 +228,10 @@ class DebugSession:
             for command in commands:
                 interp.HandleCommand(to_lldb_str(command), result)
                 sys.stdout.flush()
-                output = result.GetOutput() if result.Succeeded() else result.GetError()
-                if output:
-                    self.console_msg(output)
+                if result.Succeeded():
+                    self.console_msg(result.GetOutput())
+                else:
+                    self.console_err(result.GetError())
             sys.stdout.flush()
 
     def configure_stdio(self, args):
@@ -450,7 +451,7 @@ class DebugSession:
                     try:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
-                        self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+                        self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
                         return
 
                     def eval_condition(frame, eval_globals):
@@ -463,7 +464,7 @@ class DebugSession:
                     try:
                         pycode = compile(pp_cond, '<string>', 'eval')
                     except Exception as e:
-                        self.console_msg('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+                        self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
                         return
 
                     def eval_condition(frame, eval_globals):
@@ -479,7 +480,7 @@ class DebugSession:
             try:
                 bp.SetIgnoreCount(int(ignoreCount))
             except ValueError:
-                self.console_msg('Could not parse hit count: %s' % ignoreCount)
+                self.console_err('Could not parse hit count: %s' % ignoreCount)
 
     # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
@@ -523,7 +524,7 @@ class DebugSession:
         try:
             return bp_info.condition(frame, internal_dict)
         except Exception as e:
-            self.console_msg('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
+            self.console_err('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
             return True
 
     def DEBUG_setExceptionBreakpoints(self, args):
@@ -545,7 +546,7 @@ class DebugSession:
                         bp = language['ef_uncaught'](self.target)
                         self.exc_breakpoints.add(bp.GetID())
                 else:
-                    self.console_msg('Unknown source language: %s' % lang)
+                    self.console_err('Unknown source language: %s' % lang)
 
     def DEBUG_configurationDone(self, args):
         try:
@@ -615,7 +616,7 @@ class DebugSession:
         for command in commands:
             interp.HandleCommand(command, result)
             if not result.Succeeded():
-                self.console_msg(result.GetError())
+                self.console_err(result.GetError())
                 return
 
     def DEBUG_threads(self, args):
@@ -780,7 +781,7 @@ class DebugSession:
         frame = self.var_refs.get(args.get('frameId'), None)
         result = self.execute_command_in_frame(expr, frame)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
-        return { 'result': output }
+        return { 'result': from_lldb_str(output or '') }
 
     def execute_command_in_frame(self, command, frame):
         # set up evaluation context
@@ -842,7 +843,7 @@ class DebugSession:
         if isinstance(result, lldb.SBError):
             error_message = result.GetCString()
             if context == 'repl':
-                self.console_msg(error_message)
+                self.console_err(error_message)
                 return None
             else:
                 raise UserError(error_message.replace('\n', '; '), no_console=True)
@@ -1072,13 +1073,13 @@ class DebugSession:
             response['body'] = result
         elif isinstance(result, UserError):
             if not result.no_console:
-                self.console_msg('Error: ' + str(result))
+                self.console_err('Error: ' + str(result))
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': str(result), 'showUser': True } }
         elif isinstance(result, Exception):
             tb = traceback.format_exc()
             log.error('Internal debugger error:\n%s', tb)
-            self.console_msg('Internal debugger error:\n' + tb)
+            self.console_err('Internal debugger error:\n' + tb)
             msg = 'Internal debugger error: ' + str(result)
             response['success'] = False
             response['body'] = { 'error': { 'id': 0, 'format': msg, 'showUser': True } }
@@ -1219,8 +1220,11 @@ class DebugSession:
         self.send_message(message)
 
     # Write a message to debug console
-    def console_msg(self, output):
-        self.send_event('output', { 'category': 'console', 'output': from_lldb_str(output) })
+    def console_msg(self, output, category=None):
+        self.send_event('output', { 'category': category, 'output': from_lldb_str(output) })
+
+    def console_err(self, output):
+        self.console_msg(output, 'stderr')
 
     def make_source_map(self):
         source_map = []

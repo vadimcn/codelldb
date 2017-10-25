@@ -780,10 +780,7 @@ class DebugSession:
         frame = self.var_refs.get(args.get('frameId'), None)
         result = self.execute_command_in_frame(expr, frame)
         output = result.GetOutput() if result.Succeeded() else result.GetError()
-        # returning output as result would display all line breaks as '\n'
-        if output:
-            self.console_msg(output)
-        return { 'result': '' }
+        return { 'result': output }
 
     def execute_command_in_frame(self, command, frame):
         # set up evaluation context

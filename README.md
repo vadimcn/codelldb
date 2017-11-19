@@ -25,7 +25,7 @@ Rust debugging:
 
 # Prerequisites
 - Visual Studio Code 1.15.0.
-- LLDB with Python scripting support on system PATH. ([Installing LLDB](#installing-lldb))
+- LLDB with Python scripting support on system PATH. ([Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB))
 
 # Quick Start
 Here's a minimal debug configuration to get you started:

@@ -298,16 +298,25 @@ class DebugSession:
             adapter_data = None
             file_id = None  # File path or a source reference.
 
+            # We handle three cases here:
+            # - `source` has `sourceReference` attribute, which indicates breakpoints in disassembly,
+            #   for which we had already generated an ephemeral file in the current debug session.
+            # - `source` has `adapterData` attribute, which indicates breakpoints in disassembly that
+            #   were set in an earlier session.  We'll attempt to re-create the Disassembly object
+            #   using `adapterData`.
+            # - Otherwise, `source` refers to a regular source file that exists on file system.
             source_ref = source.get('sourceReference')
             if source_ref:
                 dasm = self.disassembly.get_by_handle(source_ref)
-                file_id = dasm.source_ref
-                # Construct adapterData for this source, so we can recover breakpoint addresses
-                # in subsequent debug sessions.
-                line_addresses = { str(line) : dasm.address_by_line_num(line) for line in req_bp_lines }
-                source['adapterData'] = { 'start': dasm.start_address, 'end': dasm.end_address,
-                                          'lines': line_addresses }
-            else:
+                # Sometimes VSCode hands us stale source refs, so this lookup is not guarantted to succeed
+                if dasm:
+                    file_id = dasm.source_ref
+                    # Construct adapterData for this source, so we can recover breakpoint addresses
+                    # in subsequent debug sessions.
+                    line_addresses = { str(line) : dasm.address_by_line_num(line) for line in req_bp_lines }
+                    source['adapterData'] = { 'start': dasm.start_address, 'end': dasm.end_address,
+                                            'lines': line_addresses }
+            if not dasm:
                 adapter_data = source.get('adapterData')
                 file_id = os.path.normcase(from_lldb_str(source.get('path')))
 

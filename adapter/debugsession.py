@@ -251,8 +251,8 @@ class DebugSession:
         for i in range(0, len(stdio)):
             if stdio[i] == missing:
                 stdio[i] = stdio[i-1] if i > 0 else None
-        # Map '*' to None
-        stdio = [None if s == '*' else s for s in stdio]
+        # Map '*' to None and convert strings to ASCII
+        stdio = [to_lldb_str(s) if s not in ['*', None] else None for s in stdio]
         # open a new terminal window if needed
         extra_flags = 0
         if None in stdio:

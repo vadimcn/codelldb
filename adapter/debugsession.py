@@ -272,12 +272,16 @@ class DebugSession:
             stdio = [term_fd if s is None else to_lldb_str(s) for s in stdio]
         return stdio, extra_flags
 
-    def spawn_vscode_terminal(self, kind, args=[], cwd='', env={}, title='Debuggee'):
-        on_complete = lambda ok, body: None
-        self.send_request('runInTerminal', {
-                'kind': kind, 'cwd': cwd, 'args': args, 'env': env, 'title': title
-            }, on_complete)
+    def spawn_vscode_terminal(self, kind, args=[], cwd='', env=None, title='Debuggee'):
+        if kind == 'integrated':
+            # Send dummy command first to clear the command line.
+            self.send_request('runInTerminal', {
+                'kind': kind, 'cwd': cwd, 'args': [], 'env': None, 'title': title
+            }, lambda ok, body: None)
 
+        self.send_request('runInTerminal', {
+            'kind': kind, 'cwd': cwd, 'args': args, 'env': env, 'title': title
+        }, lambda ok, body: None)
 
     def disable_bp_events(self):
         self.target.GetBroadcaster().RemoveListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)

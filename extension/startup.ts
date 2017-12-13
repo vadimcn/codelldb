@@ -40,9 +40,11 @@ export class AdapterProcess {
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
 export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
+    output.clear();
+
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let params = getAdapterParameters();
-    let args = ['-b', '-Q',
+    let args = ['-b',
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
@@ -68,15 +70,10 @@ enum DiagnosticsStatus {
 }
 
 export async function diagnose(): Promise<boolean> {
-    let args = ['-b', '-Q',
-        '-O', 'script import sys, io, lldb; ' +
-        'print(lldb.SBDebugger.Create().GetVersionString()); ' +
-        'print("OK")'
-    ];
-    var status = null;
+    output.clear();
+    var status = DiagnosticsStatus.Succeeded;
     try {
-        let lldb = spawnDebugger(args);
-
+        output.appendLine('--- Checking version ---');
         var versionPattern = '^lldb version ([0-9.]+)';
         var desiredVersion = '3.9.1';
         if (process.platform.search('win32') != -1) {
@@ -85,23 +82,36 @@ export async function diagnose(): Promise<boolean> {
             versionPattern = '^lldb-([0-9.]+)';
             desiredVersion = '360.1.68';
         }
-        let pattern = new RegExp('(?:' + versionPattern + '[^]*)?^OK$', 'm');
-        let match = await waitPattern(lldb, pattern);
-        status = DiagnosticsStatus.Succeeded;
-        let version = match[1];
+        let pattern = new RegExp(versionPattern, 'm');
+        let lldb1 = spawnDebugger(['-v']);
+        let match1 = await waitPattern(lldb1, pattern);
+        let version = match1[1];
         if (version && ver.lt(version, desiredVersion)) {
             output.appendLine(
-                format('The version of your LLDB has been detected as %s. ' +
-                    'For best results please consider upgrading to least %s.',
+                format('Warning: The version of your LLDB was detected as %s, which had never been tested with this extension. ' +
+                    'Please consider upgrading to least version %s.',
                     version, desiredVersion));
             status = DiagnosticsStatus.Warning;
         }
+
+        output.appendLine('--- Checking Python ---');
+        let lldb2 = spawnDebugger(['-b',
+            '-O', 'script import sys, io, lldb',
+            '-O', 'script print(lldb.SBDebugger.Create().IsValid())',
+            '-O', 'script print("OK")'
+        ]);
+        // [^] = match any char, including newline
+        let match2 = await waitPattern(lldb2, new RegExp('^True$[^]*^OK$', 'm'));
+
         if (process.platform.indexOf('linux') >= 0) {
+            output.appendLine('--- Checking ptrace ---');
             status = Math.max(status, checkPTraceScope());
         }
+        output.appendLine('--- Done ---');
     } catch (err) {
-        output.appendLine('---');
-        output.appendLine(format('An exception was raised while launching debugger: %s', inspect(err)));
+        output.appendLine('');
+        output.appendLine('*** An exception was raised during self-test ***');
+        output.appendLine(inspect(err));
         status = DiagnosticsStatus.Failed;
     }
     output.show(true);
@@ -113,7 +123,7 @@ export async function diagnose(): Promise<boolean> {
             window.showWarningMessage('LLDB self-test completed with warnings.  Please check LLDB output panel for details.');
             break;
         case DiagnosticsStatus.Failed:
-            window.showInformationMessage('LLDB self-test FAILED.');
+            window.showErrorMessage('LLDB self-test has FAILED.');
             break;
     }
     return status != DiagnosticsStatus.Failed;
@@ -154,7 +164,6 @@ function checkPTraceScope(): DiagnosticsStatus {
 // Spawn LLDB with the specified arguments, wait for it to output something matching
 // regex pattern, or until the timeout expires.
 function spawnDebugger(args: string[]): cp.ChildProcess {
-    output.clear();
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
 
@@ -261,7 +270,7 @@ export async function getAdapterExecutable(context: ExtensionContext): Promise<a
     let params = getAdapterParameters();
     return {
         command: lldbPath,
-        args: ['-b', '-Q',
+        args: ['-b',
             '-O', format('command script import \'%s\'', adapterPath),
             '-O', format('script adapter.main.run_stdio_session(\'%s\')', params)
         ]

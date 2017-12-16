@@ -1,0 +1,17 @@
+os:
+  - linux
+  - osx
+
+language: node_js
+node_js: "4"
+
+dist: trusty
+addons:
+  apt:
+    packages:
+    - python-lldb-3.9
+    
+before_script:
+  - if [ $TRAVIS_OS_NAME = linux ]; then ln -s /usr/bin/lldb-3.9 $HOME/bin/lldb; fi
+  - curl https://sh.rustup.rs -sSf | sh -s - -y
+  - export PATH="$HOME/.cargo/bin:$PATH"

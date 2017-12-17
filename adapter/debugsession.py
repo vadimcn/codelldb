@@ -696,6 +696,10 @@ class DebugSession:
     def DEBUG_scopes(self, args):
         frame_id = args['frameId']
         frame = self.var_refs.get(frame_id)
+        if frame is None:
+            log.error('Invalid frame reference: %d', frame_id)
+            return
+
         locals_scope_handle = self.var_refs.create(LocalsScope(frame), '[locs]', frame_id)
         locals = { 'name': 'Local', 'variablesReference': locals_scope_handle, 'expensive': False }
         statics_scope_handle = self.var_refs.create(StaticsScope(frame), '[stat]', frame_id)

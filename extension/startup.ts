@@ -2,7 +2,7 @@
 
 import {
     workspace, languages, window, commands,
-    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel
+    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel, ConfigurationTarget, WorkspaceConfiguration
 } from 'vscode';
 import { format, inspect } from 'util';
 import * as cp from 'child_process';
@@ -42,13 +42,14 @@ export class AdapterProcess {
 export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
     output.clear();
 
+    let config = workspace.getConfiguration('lldb');
     let adapterPath = path.join(context.extensionPath, 'adapter');
-    let params = getAdapterParameters();
+    let params = getAdapterParameters(config);
     let args = ['-b',
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
-    let lldb = spawnDebugger(args);
+    let lldb = spawnDebugger(args, config.get('executable', 'lldb'), config.get('environment', {}));
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
 
@@ -57,8 +58,7 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
     return adapter;
 }
 
-function getAdapterParameters(): string {
-    let config = workspace.getConfiguration('lldb');
+function getAdapterParameters(config: WorkspaceConfiguration): string {
     let params = config.get('parameters');
     return new Buffer(JSON.stringify(params)).toString('base64');
 }
@@ -83,31 +83,77 @@ export async function diagnose(): Promise<boolean> {
             desiredVersion = '360.1.68';
         }
         let pattern = new RegExp(versionPattern, 'm');
-        let lldb1 = spawnDebugger(['-v']);
-        let match1 = await waitPattern(lldb1, pattern);
-        let version = match1[1];
-        if (version && ver.lt(version, desiredVersion)) {
-            output.appendLine(
-                format('Warning: The version of your LLDB was detected as %s, which had never been tested with this extension. ' +
-                    'Please consider upgrading to least version %s.',
-                    version, desiredVersion));
-            status = DiagnosticsStatus.Warning;
+
+        let config = workspace.getConfiguration('lldb');
+        let lldbPathOrginal = config.get('executable', 'lldb');
+        let lldbPath = lldbPathOrginal;
+        let lldbEnv = config.get('environment', {});
+
+        // Try to locate LLDB and get its version.
+        var version: string = null;
+        var lldbNames: string[] = [];
+        if (process.platform.search('linux')) {
+            // Linux tends to have versioned binaries only.
+            lldbNames = ['lldb', 'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
+        }
+        if (lldbNames.indexOf(lldbPathOrginal) != -1) {
+            lldbNames.unshift(lldbPathOrginal); // Also try configured value.
+        }
+        for (var name of lldbNames) {
+            try {
+                let lldb = spawnDebugger(['-v'], name, lldbEnv);
+                version = (await waitPattern(lldb, pattern))[1];
+                lldbPath = name;
+                break;
+            } catch (err) {
+                output.appendLine(inspect(err));
+            }
         }
 
-        output.appendLine('--- Checking Python ---');
-        let lldb2 = spawnDebugger(['-b',
-            '-O', 'script import sys, io, lldb',
-            '-O', 'script print(lldb.SBDebugger.Create().IsValid())',
-            '-O', 'script print("OK")'
-        ]);
-        // [^] = match any char, including newline
-        let match2 = await waitPattern(lldb2, new RegExp('^True$[^]*^OK$', 'm'));
+        if (!version) {
+            status = DiagnosticsStatus.Failed;
+        } else {
+            if (ver.lt(version, desiredVersion)) {
+                output.appendLine(
+                    format('Warning: The version of your LLDB was detected as %s, which had never been tested with this extension. ' +
+                        'Please consider upgrading to least version %s.',
+                        version, desiredVersion));
+                status = DiagnosticsStatus.Warning;
+            }
 
-        if (process.platform.indexOf('linux') >= 0) {
-            output.appendLine('--- Checking ptrace ---');
-            status = Math.max(status, checkPTraceScope());
+            // Check if Python scripting is usable.
+            output.appendLine('--- Checking Python ---');
+            let lldb2 = spawnDebugger(['-b',
+                '-O', 'script import sys, io, lldb',
+                '-O', 'script print(lldb.SBDebugger.Create().IsValid())',
+                '-O', 'script print("OK")'
+            ], lldbPath, lldbEnv);
+            // [^] = match any char, including newline
+            let match2 = await waitPattern(lldb2, new RegExp('^True$[^]*^OK$', 'm'));
+
+            if (process.platform.indexOf('linux') >= 0) {
+                output.appendLine('--- Checking ptrace ---');
+                status = Math.max(status, checkPTraceScope());
+            }
         }
         output.appendLine('--- Done ---');
+        output.show(true);
+
+        // If we updated lldbPath, ask user what to do.
+        if (lldbPathOrginal != lldbPath) {
+            let action = await window.showInformationMessage(
+                format('Could not launch LLDB executable "%s", ' +
+                    'however we did locate a usable LLDB binary: "%s". ' +
+                    'Would you like to update LLDB configuration with this value?',
+                    lldbPathOrginal, lldbPath),
+                'Yes', 'No');
+            if (action == 'Yes') {
+                output.appendLine('Setting "lldb.executable": "' + lldbPath + '".');
+                config.update('executable', lldbPath, ConfigurationTarget.Global);
+            } else {
+                status = DiagnosticsStatus.Failed;
+            }
+        }
     } catch (err) {
         output.appendLine('');
         output.appendLine('*** An exception was raised during self-test ***');
@@ -123,7 +169,7 @@ export async function diagnose(): Promise<boolean> {
             window.showWarningMessage('LLDB self-test completed with warnings.  Please check LLDB output panel for details.');
             break;
         case DiagnosticsStatus.Failed:
-            window.showErrorMessage('LLDB self-test has FAILED.');
+            window.showErrorMessage('LLDB self-test has faled!');
             break;
     }
     return status != DiagnosticsStatus.Failed;
@@ -163,11 +209,7 @@ function checkPTraceScope(): DiagnosticsStatus {
 
 // Spawn LLDB with the specified arguments, wait for it to output something matching
 // regex pattern, or until the timeout expires.
-function spawnDebugger(args: string[]): cp.ChildProcess {
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-
-    let lldbEnv: any = config.get('environment', {});
+function spawnDebugger(args: string[], lldbPath: string, lldbEnv: any): cp.ChildProcess {
     let env = Object.assign({}, process.env);
     for (var key in lldbEnv) {
         env[key] = util.expandVariables(lldbEnv[key], (type, key) => {
@@ -267,7 +309,7 @@ export async function getAdapterExecutable(context: ExtensionContext): Promise<a
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');
     let adapterPath = path.join(context.extensionPath, 'adapter');
-    let params = getAdapterParameters();
+    let params = getAdapterParameters(config);
     return {
         command: lldbPath,
         args: ['-b',

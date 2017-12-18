@@ -108,7 +108,6 @@ class DebugSession:
         return AsyncResponse
 
     def complete_launch(self, args):
-        log.info('Launching...')
         self.exec_commands(args.get('preRunCommands'))
         flags = 0
         # argumetns
@@ -130,6 +129,8 @@ class DebugSession:
         work_dir = opt_lldb_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)
         # launch!
+        log.debug("Launching: program=%r, args=%r, envp=%r, stdio=%r, cwd=%r, flags=0x%X",
+            args['program'], target_args, envp, stdio, work_dir, flags)
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio[0], stdio[1], stdio[2],

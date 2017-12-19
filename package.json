@@ -1,415 +1,415 @@
 {
-    "name": "vscode-lldb",
-    "displayName": "LLDB Debugger",
-    "version": "0.7.1",
-    "publisher": "vadimcn",
-    "description": "Debug your native code with LLDB.",
-    "license": "MIT",
-    "author": {
-        "name": "vadimcn"
-    },
-    "engines": {
-        "vscode": "^1.17.0",
-        "node": "^6.5.0"
-    },
-    "icon": "images/lldb.png",
-    "categories": [
-        "Debuggers"
-    ],
-    "keywords": [
-        "LLDB",
-        "Native",
-        "C++",
-        "Rust",
-        "Disassembly"
-    ],
-    "private": true,
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/vadimcn/vscode-lldb.git"
-    },
-    "bugs": {
-        "url": "https://github.com/vadimcn/vscode-lldb/issues"
-    },
-    "qna": "https://gitter.im/vscode-lldb/QnA",
-    "dependencies": {},
-    "devDependencies": {
-        "@types/mocha": "^2.2.42",
-        "@types/node": "^6.0.50",
-        "mocha": "^3.5.0",
-        "typescript": "^2.5.2",
-        "vscode": "^1.1.5",
-        "vscode-debugadapter-testsupport": "^1.24.0",
-        "vscode-debugprotocol": "^1.24.0"
-    },
-    "scripts": {
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "build": "tsc -p extension",
-        "watch": "tsc -w -p extension",
-        "build:debuggee": "python tools/build_debuggee.py",
-        "build:rusttypes": "rustc debuggee/rusttypes.rs -g --out-dir out/debuggee",
-        "test:adapter": "mocha -u tdd --timeout 10000 ./out/tests",
-        "test:internals": "python tools/test_internals.py",
-        "test": "npm run build && npm run test:internals && npm run build:debuggee && npm run build:rusttypes && npm run test:adapter"
-    },
-    "main": "./out/extension",
-    "activationEvents": [
-        "onDebug",
-        "onCommand:lldb.getAdapterExecutable",
-        "onCommand:lldb.showDisassembly",
-        "onCommand:lldb.toggleDisassembly",
-        "onCommand:lldb.displayFormat",
-        "onCommand:lldb.launchDebugServer",
-        "onCommand:lldb.diagnose",
-        "onCommand:lldb.pickProcess",
-        "onCommand:lldb.pickMyProcess"
-    ],
-    "contributes": {
-        "configuration": {
-            "type": "object",
-            "title": "LLDB configuration",
-            "properties": {
-                "lldb.executable": {
-                    "type": "string",
-                    "default": "lldb",
-                    "description": "Path to LLDB executable."
-                },
-                "lldb.environment": {
-                    "type": "object",
-                    "patternProperties": {
-                        ".*": {
-                            "type": "string"
-                        }
-                    },
-                    "default": {},
-                    "description": "Environment variables to set for LLDB."
-                },
-                "lldb.parameters": {
-                    "type": "object",
-                    "default": {},
-                    "description": "Startup parameters passed to the debug adapter.",
-                    "properties": {
-                        "logLevel": {
-                            "type": "number",
-                            "default": 0,
-                            "description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
-                        },
-                        "logFile": {
-                            "type": "string",
-                            "description": "Log file path. (default=VSCode 'Output' panel)"
-                        },
-                        "reverseDebugging": {
-                            "type": "boolean",
-                            "default": true,
-                            "description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
-                        }
-                    }
-                }
-            }
-        },
-        "commands": [
-            {
-                "command": "lldb.showDisassembly",
-                "title": "LLDB: Show Disassembly ..."
-            },
-            {
-                "command": "lldb.toggleDisassembly",
-                "title": "LLDB: Toggle Disassembly"
-            },
-            {
-                "command": "lldb.displayFormat",
-                "title": "LLDB: Display Format ..."
-            },
-            {
-                "command": "lldb.launchDebugServer",
-                "title": "LLDB: Launch Debug Server"
-            },
-            {
-                "command": "lldb.diagnose",
-                "title": "LLDB: Run diagnostics"
-            }
-        ],
-        "languages": [
-            {
-                "id": "lldb.disassembly",
-                "aliases": [
-                    "Disassembly"
-                ],
-                "extensions": [
-                    ".disasm"
-                ]
-            }
-        ],
-        "grammars": [
-            {
-                "language": "lldb.disassembly",
-                "scopeName": "source.disassembly",
-                "path": "./syntaxes/disassembly.json"
-            }
-        ],
-        "debuggers": [
-            {
-                "type": "lldb",
-                "label": "LLDB Debugger",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "ada",
-                        "arm",
-                        "asm",
-                        "c",
-                        "cpp",
-                        "crystal",
-                        "d",
-                        "fortan",
-                        "fortran-modern",
-                        "lldb.disassembly",
-                        "nim",
-                        "objective-c",
-                        "objectpascal",
-                        "pascal",
-                        "rust",
-                        "swift"
-                    ]
-                },
-                "variables": {
-                    "pickProcess": "lldb.pickProcess",
-                    "pickMyProcess": "lldb.pickMyProcess"
-                },
-                "adapterExecutableCommand": "lldb.getAdapterExecutable",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Path to the program to debug."
-                            },
-                            "args": {
-                                "type": [
-                                    "array",
-                                    "string"
-                                ],
-                                "description": "Program arguments.",
-                                "default": []
-                            },
-                            "cwd": {
-                                "type": "string",
-                                "description": "Program working directory.",
-                                "default": "${workspaceRoot}"
-                            },
-                            "env": {
-                                "type": "object",
-                                "description": "Additional environment variables.",
-                                "default": []
-                            },
-                            "stdio": {
-                                "type": [
-                                    "null",
-                                    "string",
-                                    "array",
-                                    "object"
-                                ],
-                                "description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
-                                "default": null
-                            },
-                            "terminal": {
-                                "type": "string",
-                                "enum": [
-                                    "integrated",
-                                    "external",
-                                    "console"
-                                ],
-                                "default": "integrated",
-                                "description": "Terminal type to use for the program."
-                            },
-                            "stopOnEntry": {
-                                "type": "boolean",
-                                "description": "Automatically stop debuggee after launch.",
-                                "default": true
-                            },
-                            "custom": {
-                                "type": "boolean",
-                                "description": "Custom launch sequence: use `initCommands` to set up debug target, `preRunCommands` to create a process.",
-                                "default": true
-                            },
-                            "initCommands": {
-                                "type": "array",
-                                "description": "Initialization commands executed upon debugger startup.",
-                                "default": []
-                            },
-                            "preRunCommands": {
-                                "type": "array",
-                                "description": "Commands executed just before the program is launched.",
-                                "default": []
-                            },
-                            "exitCommands": {
-                                "type": "array",
-                                "description": "Commands executed at the end of debugging session.",
-                                "default": []
-                            },
-                            "sourceLanguages": {
-                                "type": "array",
-                                "description": "A list of source languages used in the program.",
-                                "default": []
-                            },
-                            "sourceMap": {
-                                "type": "object",
-                                "patternProperties": {
-                                    ".*": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    }
-                                },
-                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-                                "default": {}
-                            }
-                        }
-                    },
-                    "attach": {
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Path to the program to attach to."
-                            },
-                            "pid": {
-                                "type": [
-                                    "number",
-                                    "string"
-                                ],
-                                "description": "Process id to attach to.",
-                                "default": "${command:pickMyProcess}"
-                            },
-                            "stopOnEntry": {
-                                "type": "boolean",
-                                "description": "Automatically stop debuggee after attach.",
-                                "default": true
-                            },
-                            "initCommands": {
-                                "type": "array",
-                                "description": "Initialization commands executed upon debugger startup.",
-                                "default": []
-                            },
-                            "preRunCommands": {
-                                "type": "array",
-                                "description": "Commands executed just before the program is attached to.",
-                                "default": []
-                            },
-                            "sourceLanguages": {
-                                "type": "array",
-                                "description": "A list of source languages used in the program.",
-                                "default": []
-                            },
-                            "sourceMap": {
-                                "type": "object",
-                                "patternProperties": {
-                                    ".*": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    }
-                                },
-                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-                                "default": {}
-                            }
-                        }
-                    },
-                    "custom": {
-                        "properties": {
-                            "initCommands": {
-                                "type": "array",
-                                "description": "Commands that create the debugging target.",
-                                "default": []
-                            },
-                            "preRunCommands": {
-                                "type": "array",
-                                "description": "Commands that create the debuggee process.",
-                                "default": []
-                            },
-                            "sourceLanguages": {
-                                "type": "array",
-                                "description": "A list of source languages used in the program.",
-                                "default": []
-                            },
-                            "sourceMap": {
-                                "type": "object",
-                                "patternProperties": {
-                                    ".*": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    }
-                                },
-                                "description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-                                "default": {}
-                            }
-                        }
-                    }
-                },
-                "configurationSnippets": [
-                    {
-                        "label": "LLDB: Launch",
-                        "description": "",
-                        "body": {
-                            "type": "lldb",
-                            "request": "launch",
-                            "name": "${2:Launch}",
-                            "program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
-                            "args": [],
-                            "cwd": "^\"\\${workspaceRoot}\""
-                        }
-                    },
-                    {
-                        "label": "LLDB: Attach by Process ID",
-                        "body": {
-                            "type": "lldb",
-                            "request": "attach",
-                            "name": "${2:Attach}",
-                            "pid": "^\"\\${command:pickMyProcess}\" // use \\${command:pickProcess} to pick other users' processes"
-                        }
-                    },
-                    {
-                        "label": "LLDB: Attach by Program Path",
-                        "body": {
-                            "type": "lldb",
-                            "request": "attach",
-                            "name": "${2:Attach}",
-                            "program": "^\"\\${workspaceRoot}/${1:<your program>}\""
-                        }
-                    },
-                    {
-                        "label": "LLDB: Custom Launch",
-                        "body": {
-                            "type": "lldb",
-                            "request": "launch",
-                            "name": "${2:Custom launch}",
-                            "custom": true,
-                            "initCommands": [
-                                "^\"target create \\${workspaceRoot}/${1:<your program>}\""
-                            ],
-                            "preRunCommands": [
-                                "settings set target.run-args ${3:value1 value2 value3}",
-                                "process launch"
-                            ]
-                        }
-                    }
-                ],
-                "initialConfigurations": [
-                    {
-                        "type": "lldb",
-                        "request": "launch",
-                        "name": "Debug",
-                        "program": "${workspaceRoot}/<your program>",
-                        "args": [],
-                        "cwd": "${workspaceRoot}"
-                    }
-                ]
-            }
-        ]
-    }
+	"name": "vscode-lldb",
+	"displayName": "LLDB Debugger",
+	"version": "0.7.2",
+	"publisher": "vadimcn",
+	"description": "Debug your native code with LLDB.",
+	"license": "MIT",
+	"author": {
+		"name": "vadimcn"
+	},
+	"engines": {
+		"vscode": "^1.17.0",
+		"node": "^6.5.0"
+	},
+	"icon": "images/lldb.png",
+	"categories": [
+		"Debuggers"
+	],
+	"keywords": [
+		"LLDB",
+		"Native",
+		"C++",
+		"Rust",
+		"Disassembly"
+	],
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/vadimcn/vscode-lldb.git"
+	},
+	"bugs": {
+		"url": "https://github.com/vadimcn/vscode-lldb/issues"
+	},
+	"qna": "https://gitter.im/vscode-lldb/QnA",
+	"dependencies": {},
+	"devDependencies": {
+		"@types/mocha": "^2.2.42",
+		"@types/node": "^6.0.50",
+		"mocha": "^3.5.0",
+		"typescript": "^2.5.2",
+		"vscode": "^1.1.5",
+		"vscode-debugadapter-testsupport": "^1.24.0",
+		"vscode-debugprotocol": "^1.24.0"
+	},
+	"scripts": {
+		"postinstall": "node ./node_modules/vscode/bin/install",
+		"build": "tsc -p extension",
+		"watch": "tsc -w -p extension",
+		"build:debuggee": "python tools/build_debuggee.py",
+		"build:rusttypes": "rustc debuggee/rusttypes.rs -g --out-dir out/debuggee",
+		"test:adapter": "mocha -u tdd --timeout 10000 ./out/tests",
+		"test:internals": "python tools/test_internals.py",
+		"test": "npm run build && npm run test:internals && npm run build:debuggee && npm run build:rusttypes && npm run test:adapter"
+	},
+	"main": "./out/extension",
+	"activationEvents": [
+		"onDebug",
+		"onCommand:lldb.getAdapterExecutable",
+		"onCommand:lldb.showDisassembly",
+		"onCommand:lldb.toggleDisassembly",
+		"onCommand:lldb.displayFormat",
+		"onCommand:lldb.launchDebugServer",
+		"onCommand:lldb.diagnose",
+		"onCommand:lldb.pickProcess",
+		"onCommand:lldb.pickMyProcess"
+	],
+	"contributes": {
+		"configuration": {
+			"type": "object",
+			"title": "LLDB configuration",
+			"properties": {
+				"lldb.executable": {
+					"type": "string",
+					"default": "lldb",
+					"description": "Path to LLDB executable."
+				},
+				"lldb.environment": {
+					"type": "object",
+					"patternProperties": {
+						".*": {
+							"type": "string"
+						}
+					},
+					"default": {},
+					"description": "Environment variables to set for LLDB."
+				},
+				"lldb.parameters": {
+					"type": "object",
+					"default": {},
+					"description": "Startup parameters passed to the debug adapter.",
+					"properties": {
+						"logLevel": {
+							"type": "number",
+							"default": 0,
+							"description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
+						},
+						"logFile": {
+							"type": "string",
+							"description": "Log file path. (default=VSCode 'Output' panel)"
+						},
+						"reverseDebugging": {
+							"type": "boolean",
+							"default": true,
+							"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
+						}
+					}
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "lldb.showDisassembly",
+				"title": "LLDB: Show Disassembly ..."
+			},
+			{
+				"command": "lldb.toggleDisassembly",
+				"title": "LLDB: Toggle Disassembly"
+			},
+			{
+				"command": "lldb.displayFormat",
+				"title": "LLDB: Display Format ..."
+			},
+			{
+				"command": "lldb.launchDebugServer",
+				"title": "LLDB: Launch Debug Server"
+			},
+			{
+				"command": "lldb.diagnose",
+				"title": "LLDB: Run diagnostics"
+			}
+		],
+		"languages": [
+			{
+				"id": "lldb.disassembly",
+				"aliases": [
+					"Disassembly"
+				],
+				"extensions": [
+					".disasm"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "lldb.disassembly",
+				"scopeName": "source.disassembly",
+				"path": "./syntaxes/disassembly.json"
+			}
+		],
+		"debuggers": [
+			{
+				"type": "lldb",
+				"label": "LLDB Debugger",
+				"enableBreakpointsFor": {
+					"languageIds": [
+						"ada",
+						"arm",
+						"asm",
+						"c",
+						"cpp",
+						"crystal",
+						"d",
+						"fortan",
+						"fortran-modern",
+						"lldb.disassembly",
+						"nim",
+						"objective-c",
+						"objectpascal",
+						"pascal",
+						"rust",
+						"swift"
+					]
+				},
+				"variables": {
+					"pickProcess": "lldb.pickProcess",
+					"pickMyProcess": "lldb.pickMyProcess"
+				},
+				"adapterExecutableCommand": "lldb.getAdapterExecutable",
+				"configurationAttributes": {
+					"launch": {
+						"required": [
+							"program"
+						],
+						"properties": {
+							"program": {
+								"type": "string",
+								"description": "Path to the program to debug."
+							},
+							"args": {
+								"type": [
+									"array",
+									"string"
+								],
+								"description": "Program arguments.",
+								"default": []
+							},
+							"cwd": {
+								"type": "string",
+								"description": "Program working directory.",
+								"default": "${workspaceRoot}"
+							},
+							"env": {
+								"type": "object",
+								"description": "Additional environment variables.",
+								"default": []
+							},
+							"stdio": {
+								"type": [
+									"null",
+									"string",
+									"array",
+									"object"
+								],
+								"description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
+								"default": null
+							},
+							"terminal": {
+								"type": "string",
+								"enum": [
+									"integrated",
+									"external",
+									"console"
+								],
+								"default": "integrated",
+								"description": "Terminal type to use for the program."
+							},
+							"stopOnEntry": {
+								"type": "boolean",
+								"description": "Automatically stop debuggee after launch.",
+								"default": true
+							},
+							"custom": {
+								"type": "boolean",
+								"description": "Custom launch sequence: use `initCommands` to set up debug target, `preRunCommands` to create a process.",
+								"default": true
+							},
+							"initCommands": {
+								"type": "array",
+								"description": "Initialization commands executed upon debugger startup.",
+								"default": []
+							},
+							"preRunCommands": {
+								"type": "array",
+								"description": "Commands executed just before the program is launched.",
+								"default": []
+							},
+							"exitCommands": {
+								"type": "array",
+								"description": "Commands executed at the end of debugging session.",
+								"default": []
+							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages used in the program.",
+								"default": []
+							},
+							"sourceMap": {
+								"type": "object",
+								"patternProperties": {
+									".*": {
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+								"default": {}
+							}
+						}
+					},
+					"attach": {
+						"properties": {
+							"program": {
+								"type": "string",
+								"description": "Path to the program to attach to."
+							},
+							"pid": {
+								"type": [
+									"number",
+									"string"
+								],
+								"description": "Process id to attach to.",
+								"default": "${command:pickMyProcess}"
+							},
+							"stopOnEntry": {
+								"type": "boolean",
+								"description": "Automatically stop debuggee after attach.",
+								"default": true
+							},
+							"initCommands": {
+								"type": "array",
+								"description": "Initialization commands executed upon debugger startup.",
+								"default": []
+							},
+							"preRunCommands": {
+								"type": "array",
+								"description": "Commands executed just before the program is attached to.",
+								"default": []
+							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages used in the program.",
+								"default": []
+							},
+							"sourceMap": {
+								"type": "object",
+								"patternProperties": {
+									".*": {
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+								"default": {}
+							}
+						}
+					},
+					"custom": {
+						"properties": {
+							"initCommands": {
+								"type": "array",
+								"description": "Commands that create the debugging target.",
+								"default": []
+							},
+							"preRunCommands": {
+								"type": "array",
+								"description": "Commands that create the debuggee process.",
+								"default": []
+							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages used in the program.",
+								"default": []
+							},
+							"sourceMap": {
+								"type": "object",
+								"patternProperties": {
+									".*": {
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
+								"default": {}
+							}
+						}
+					}
+				},
+				"configurationSnippets": [
+					{
+						"label": "LLDB: Launch",
+						"description": "",
+						"body": {
+							"type": "lldb",
+							"request": "launch",
+							"name": "${2:Launch}",
+							"program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
+							"args": [],
+							"cwd": "^\"\\${workspaceRoot}\""
+						}
+					},
+					{
+						"label": "LLDB: Attach by Process ID",
+						"body": {
+							"type": "lldb",
+							"request": "attach",
+							"name": "${2:Attach}",
+							"pid": "^\"\\${command:pickMyProcess}\" // use \\${command:pickProcess} to pick other users' processes"
+						}
+					},
+					{
+						"label": "LLDB: Attach by Program Path",
+						"body": {
+							"type": "lldb",
+							"request": "attach",
+							"name": "${2:Attach}",
+							"program": "^\"\\${workspaceRoot}/${1:<your program>}\""
+						}
+					},
+					{
+						"label": "LLDB: Custom Launch",
+						"body": {
+							"type": "lldb",
+							"request": "launch",
+							"name": "${2:Custom launch}",
+							"custom": true,
+							"initCommands": [
+								"^\"target create \\${workspaceRoot}/${1:<your program>}\""
+							],
+							"preRunCommands": [
+								"settings set target.run-args ${3:value1 value2 value3}",
+								"process launch"
+							]
+						}
+					}
+				],
+				"initialConfigurations": [
+					{
+						"type": "lldb",
+						"request": "launch",
+						"name": "Debug",
+						"program": "${workspaceRoot}/<your program>",
+						"args": [],
+						"cwd": "${workspaceRoot}"
+					}
+				]
+			}
+		]
+	}
 }

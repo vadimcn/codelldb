@@ -1,5 +1,8 @@
 # What's New
 
+## 0.7.2
+- Bug fixes.
+
 ## 0.7.1
 - Bug fixes.
 

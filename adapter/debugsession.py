@@ -118,7 +118,7 @@ class DebugSession:
             target_args = [to_lldb_str(arg) for arg in target_args]
         # environment
         env = args.get('env', None)
-        envp = [to_lldb_str('%s=%s' % pair) for pair in os.environ.items()]
+        envp = [str('%s=%s' % pair) for pair in os.environ.items()]
         if env is not None: # Convert dict to a list of 'key=value' strings
             envp = envp + ([to_lldb_str('%s=%s' % pair) for pair in env.items()])
         # stdio

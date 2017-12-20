@@ -169,7 +169,7 @@ export async function diagnose(): Promise<boolean> {
             window.showWarningMessage('LLDB self-test completed with warnings.  Please check LLDB output panel for details.');
             break;
         case DiagnosticsStatus.Failed:
-            window.showErrorMessage('LLDB self-test has faled!');
+            window.showErrorMessage('LLDB self-test has failed!');
             break;
     }
     return status != DiagnosticsStatus.Failed;

@@ -433,9 +433,9 @@ def replacer(match):
 # Replaces identifiers that are invalid according to Python syntax in simple expressions:
 # - identifiers that happen to be Python keywords (e.g.`for`),
 # - qualified identifiers (e.g. `foo::bar::baz`),
-# - raw identifiers if the form $xxxxxx,
+# - raw identifiers of the form $xxxxxx,
 # with access via `__frame_vars`, or `__getattr__()` (if prefixed by a dot).
-# For example, `for + foo::bar::baz + foo::bar::baz.class() + $SomeClass<int>::value` will be translated into
+# For example, `for + foo::bar::baz + foo::bar::baz.class() + $SomeClass<int>::value` will be translated to
 # `__frame_vars["for"] + __frame_vars["foo::bar::baz"] +
 #  __frame_vars["foo::bar::baz"].__getattr__("class") + __frame_vars["SomeClass<int>::value"]`
 def preprocess_simple_expr(expr):
@@ -443,7 +443,7 @@ def preprocess_simple_expr(expr):
 
 # Replaces variable placeholders in native Python expressions with access via __frame_vars,
 # or `__getattr__()` (if prefixed by a dot).
-# For example, `$var + 42` will be translated into `__frame_vars["var"] + 42`.
+# For example, `$var + 42` will be translated to `__frame_vars["var"] + 42`.
 def preprocess_python_expr(expr):
     return preprocess_python_regex.sub(replacer, expr)
 

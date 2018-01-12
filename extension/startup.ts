@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as ver from './ver';
 import * as util from './util';
 
-let output = window.createOutputChannel('LLDB');
+export var output: OutputChannel;
 
 export class AdapterProcess {
     public isAlive: boolean;

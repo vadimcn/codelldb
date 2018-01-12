@@ -10,6 +10,9 @@ import * as path from 'path';
 import * as startup from './startup';
 import * as util from './util';
 
+let output = window.createOutputChannel('LLDB');
+(<any>startup).output = output;
+
 export function activate(context: ExtensionContext) {
     new Extension(context);
 }

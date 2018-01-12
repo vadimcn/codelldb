@@ -106,7 +106,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
             if (activeSession) {
                 // Adapter should exit automatically when VSCode disconnects, but in case it
                 // doesn't, we kill it (after giving a bit of time to shut down gracefully).
-                setTimeout(activeSession.adapter.terminate, 1500);
+                setTimeout(() => activeSession.adapter.terminate(), 1500);
             }
             delete this.activeSessions[session.id];
         }

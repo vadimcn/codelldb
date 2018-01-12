@@ -117,10 +117,10 @@ class DebugSession:
                 target_args = shlex.split(target_args)
             target_args = [to_lldb_str(arg) for arg in target_args]
         # environment
-        env = args.get('env', None)
-        envp = [to_lldb_str('%s=%s' % pair) for pair in os.environ.items()]
-        if env is not None: # Convert dict to a list of 'key=value' strings
-            envp = envp + ([to_lldb_str('%s=%s' % pair) for pair in env.items()])
+        environment = dict(os.environ)
+        environment.update(args.get('env', {}))
+        # convert dict to a list of 'key=value' strings
+        envp = [to_lldb_str('%s=%s' % pair) for pair in environment.items()]
         # stdio
         stdio, extra_flags = self.configure_stdio(args)
         flags |= extra_flags

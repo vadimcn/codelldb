@@ -440,10 +440,10 @@ class DebugSession:
                         bp = self.target.BreakpointCreateByRegex(to_lldb_str(name[4:]))
                     else:
                         bp = self.target.BreakpointCreateByName(to_lldb_str(name))
-                    self.set_bp_condition(bp, req)
                     bp_id = bp.GetID()
                     self.fn_breakpoints[name] = bp_id
                     self.breakpoints[bp_id] = BreakpointInfo(bp_id)
+                    self.set_bp_condition(bp, req)
                 else:
                     bp = self.target.FindBreakpointByID(bp_id)
                 result.append(self.make_bp_resp(bp))
@@ -453,48 +453,83 @@ class DebugSession:
 
     # Sets up breakpoint stopping condition
     def set_bp_condition(self, bp, req):
+        bp_info = self.breakpoints[bp.GetID()]
+
+        bp_info.condition = None
+        bp_info.ignore_count = 0
+        bp.SetCondition(None)
+        bp.SetScriptCallbackFunction('')
+
         cond = opt_lldb_str(req.get('condition', None))
-        if cond is not None:
+        if cond:
             if cond.startswith('/nat '):
                 # LLDB native expression
                 bp.SetCondition(cond[5:])
             else:
                 if cond.startswith('/py '):
-                    # Python expression
-                    pp_cond = expressions.preprocess_python_expr(cond[4:])
-                    try:
-                        pycode = compile(pp_cond, '<string>', 'eval')
-                    except Exception as e:
-                        self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
-                        return
-
-                    def eval_condition(frame, eval_globals):
-                        self.set_selected_frame(frame)
-                        eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
-                        return eval(pycode, eval_globals, {})
+                    eval_condition = self.make_python_expression_bpcond(cond[4:])
                 else:
-                    # Simple expression
-                    pp_cond = expressions.preprocess_simple_expr(cond)
-                    try:
-                        pycode = compile(pp_cond, '<string>', 'eval')
-                    except Exception as e:
-                        self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
-                        return
+                    eval_condition = self.make_simple_expression_pbcond(cond)
 
-                    def eval_condition(frame, eval_globals):
-                        frame_vars = expressions.PyEvalContext(frame)
-                        eval_globals['__frame_vars'] = frame_vars
-                        return eval(pycode, eval_globals, frame_vars)
+                if eval_condition:
+                    bp_info.condition = eval_condition
 
-                self.breakpoints[bp.GetID()].condition = eval_condition
-                bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
-
-        ignoreCount = req.get('hitCondition', None)
-        if ignoreCount is not None:
+        ignore_count_str = req.get('hitCondition', None)
+        if ignore_count_str:
             try:
-                bp.SetIgnoreCount(int(ignoreCount))
+                bp_info.ignore_count = int(ignore_count_str)
+                bp.SetIgnoreCount(bp_info.ignore_count)
             except ValueError:
-                self.console_err('Could not parse hit count: %s' % ignoreCount)
+                self.console_err('Could not parse ignore count as integer: %s' % ignore_count_str)
+
+        if bp_info.condition or bp_info.ignore_count:
+            bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
+
+    # Compiles a python expression into a breakpoint condition evaluator
+    def make_python_expression_bpcond(self, cond):
+        pp_cond = expressions.preprocess_python_expr(cond)
+        # Try compiling as expression first, if that fails, compile as a statement.
+        error = None
+        try:
+            pycode = compile(pp_cond, '<breakpoint condition>', 'eval')
+            is_expression = True
+        except SyntaxError:
+            try:
+                pycode = compile(pp_cond, '<breakpoint condition>', 'exec')
+                is_expression = False
+            except Exception as e:
+                error = e
+        except Exception as e:
+            error = e
+
+        if error is not None:
+            self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(error)))
+            return None
+
+        def eval_condition(bp_loc, frame, eval_globals):
+            self.set_selected_frame(frame)
+            hit_count = bp_loc.GetBreakpoint().GetHitCount()
+            eval_locals = { 'frame': frame, 'bpno': bp_loc, 'hit_count': hit_count }
+            eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
+            result = eval(pycode, eval_globals, eval_locals)
+            # Unconditionally continue execution if 'cond' is a statement
+            return bool(result) if is_expression else False
+        return eval_condition
+
+    # Compiles a simple expression into a breakpoint condition evaluator
+    def make_simple_expression_pbcond(seld, cond):
+        pp_cond = expressions.preprocess_simple_expr(cond)
+        try:
+            pycode = compile(pp_cond, '<breakpoint condition>', 'eval')
+        except Exception as e:
+            self.console_err('Could not set breakpoint condition "%s": %s' % (cond, str(e)))
+            return None
+
+        def eval_condition(bp_loc, frame, eval_globals):
+            frame_vars = expressions.PyEvalContext(frame)
+            eval_globals['__frame_vars'] = frame_vars
+            return eval(pycode, eval_globals, frame_vars)
+        return eval_condition
 
     # Create breakpoint location info for a response message.
     def make_bp_resp(self, bp):
@@ -531,12 +566,17 @@ class DebugSession:
         bp_resp['verified'] = False
         return bp_resp
 
-    def should_stop_on_bp(self, bp_id, frame, internal_dict):
-        bp_info = self.breakpoints.get(bp_id)
-        if bp_info is None or bp_info.condition is None:
+    def should_stop_on_bp(self, bp_loc, frame, internal_dict):
+        bp = bp_loc.GetBreakpoint()
+        bp_info = self.breakpoints.get(bp.GetID())
+        if bp_info is None: # Something's wrong... just stop
             return True
-        try:
-            return bp_info.condition(frame, internal_dict)
+
+        if bp_info.ignore_count: # Reset ignore count after each stop
+            bp.SetIgnoreCount(bp_info.ignore_count)
+
+        try: # Evaluate condition if we have one
+            return bp_info.condition and bp_info.condition(bp_loc, frame, internal_dict)
         except Exception as e:
             self.console_err('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
             return True
@@ -1279,7 +1319,7 @@ class DebugSession:
         self.send_event('displayHtml', body)
 
 def on_breakpoint_hit(frame, bp_loc, internal_dict):
-    return DebugSession.current.should_stop_on_bp(bp_loc.GetBreakpoint().GetID(), frame, internal_dict)
+    return DebugSession.current.should_stop_on_bp(bp_loc, frame, internal_dict)
 
 # For when we need to let user know they screwed up
 class UserError(Exception):
@@ -1310,12 +1350,13 @@ class RegistersScope:
 
 # Various info we mantain about a breakpoint
 class BreakpointInfo:
-    __slots__ = ['id', 'condition', 'address', 'adapter_data']
+    __slots__ = ['id', 'condition', 'ignore_count', 'address', 'adapter_data']
     def __init__(self, id):
         self.id = id
         self.condition = None
         self.address = None
         self.adapter_data = None
+        self.ignore_count = 0
 
 def SBValueListIter(val_list):
     get_value = val_list.GetValueAtIndex

@@ -11,7 +11,7 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 - LLDB commands and expression evaluation in Debug Console.
 - Configurable result formatting.
 - Display of HTML content.
-- Rust language support.
+- Rust language support (excluding LLDB 3.8).
 
 For full details please see the [Manual](MANUAL.md).
 

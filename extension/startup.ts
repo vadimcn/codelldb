@@ -96,8 +96,8 @@ export async function diagnose(): Promise<boolean> {
             // Linux tends to have versioned binaries only.
             lldbNames = ['lldb', 'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
         }
-        if (lldbNames.indexOf(lldbPathOrginal) == -1) {
-            lldbNames.unshift(lldbPathOrginal); // Also try the configured value.
+        if (lldbPathOrginal != 'lldb') {
+            lldbNames.unshift(lldbPathOrginal); // Also try the explicitly configured value.
         }
         for (var name of lldbNames) {
             try {

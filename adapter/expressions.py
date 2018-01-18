@@ -86,12 +86,13 @@ class Value(object):
         return 'Value(' + str(get_value(self)) + ')'
 
     def __getitem__(self, key):
-        # Allow array access if this value has children...
-        key = int(key)
-        child_sbvalue = (self.__sbvalue.GetValueForExpressionPath("[%i]" % key))
-        if child_sbvalue and child_sbvalue.IsValid():
-            return Value(child_sbvalue)
-        raise IndexError("Index '%d' is out of range" % key)
+        if not isinstance(key, slice):
+            child_sbvalue = (self.__sbvalue.GetValueForExpressionPath("[%i]" % operator.index(key)))
+            if child_sbvalue and child_sbvalue.IsValid():
+                return Value(child_sbvalue)
+            raise IndexError("Index '%d' is out of range" % key)
+        else:
+            return [self[i] for i in xrange(*key.indices(len(self)))]
 
     def __iter__(self):
         return ValueIter(self.__sbvalue)

@@ -66,7 +66,8 @@ function getAdapterParameters(config: WorkspaceConfiguration): string {
 enum DiagnosticsStatus {
     Succeeded = 0,
     Warning = 1,
-    Failed = 2
+    Failed = 2,
+    NotFound = 3
 }
 
 export async function diagnose(): Promise<boolean> {
@@ -94,7 +95,8 @@ export async function diagnose(): Promise<boolean> {
         var lldbNames: string[] = [];
         if (process.platform.indexOf('linux') != -1) {
             // Linux tends to have versioned binaries only.
-            lldbNames = ['lldb', 'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
+            lldbNames = ['lldb', 'lldb-10.0', 'lldb-9.0', 'lldb-8.0', 'lldb-7.0',
+                         'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
         }
         if (lldbPathOrginal != 'lldb') {
             lldbNames.unshift(lldbPathOrginal); // Also try the explicitly configured value.
@@ -111,8 +113,7 @@ export async function diagnose(): Promise<boolean> {
         }
 
         if (!version) {
-            window.showErrorMessage('Could not find LLDB on your system.');
-            status = DiagnosticsStatus.Failed;
+            status = DiagnosticsStatus.NotFound;
         } else {
             if (ver.lt(version, desiredVersion)) {
                 output.appendLine(
@@ -172,8 +173,13 @@ export async function diagnose(): Promise<boolean> {
         case DiagnosticsStatus.Failed:
             window.showErrorMessage('LLDB self-test has failed!');
             break;
+        case DiagnosticsStatus.NotFound:
+            let action = await window.showErrorMessage('Could not find LLDB on your system.', 'Show installation instructions');
+            if (action != null)
+                commands.executeCommand('vscode.open', Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB'));
+            break;
     }
-    return status != DiagnosticsStatus.Failed;
+    return status < DiagnosticsStatus.Failed;
 }
 
 function checkPTraceScope(): DiagnosticsStatus {

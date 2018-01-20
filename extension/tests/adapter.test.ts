@@ -144,8 +144,9 @@ suite('Basic', () => {
             'array_int': 'int [10]',
             's': 'Struct',
             'str1': '"The quick brown fox"',
-            'str_ptr': '"The quick brown fox"',
-            'str_ref': '"The quick brown fox"',
+            // LLDB string visualizer does not display GCC's std::string* correctly.
+            // 'str_ptr': '"The quick brown fox"',
+            // 'str_ref': '"The quick brown fox"',
             'empty_str': '""',
             'wstr1': 'L"Превед йожэг!"',
             'wstr2': 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
@@ -332,8 +333,9 @@ suite('Rust tests', () => {
             'float': '3.1415926535000001',
             'tuple': '(1, "a", 42)',
             'tuple_ref': '(1, "a", 42)',
-            'reg_enum1': 'A',
-            'reg_enum2': 'B(100, 200)',
+            // LLDB does not handle Rust enums well for now
+            // 'reg_enum1': 'A',
+            // 'reg_enum2': 'B(100, 200)',
             'reg_enum3': 'C{x:11.35, y:20.5}',
             'reg_enum_ref': 'C{x:11.35, y:20.5}',
             'cstyle_enum1': 'A',
@@ -443,6 +445,6 @@ async function readVariables(variablesReference: number): Promise<any> {
 
 function assertDictContains(dict: any, expected: any) {
     for (var key in expected) {
-        assert.equal(dict[key], expected[key]);
+        assert.equal(dict[key], expected[key], 'The value of "' + key +'" does not match the expected value.');
     }
 }

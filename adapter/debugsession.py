@@ -33,7 +33,6 @@ class DebugSession:
         self.var_refs = handles.HandleTree()
         self.line_breakpoints = dict() # { file_id : { line : breakpoint_id } }
         self.fn_breakpoints = dict() # { fn_name : breakpoint_id }
-        self.exc_breakpoints = set() # list of exception breakpoints
         self.breakpoints = dict() # { breakpoint_id : BreakpointInfo }
         self.target = None
         self.process = None
@@ -535,35 +534,38 @@ class DebugSession:
     def make_bp_resp(self, bp):
         bp_id = bp.GetID()
         bp_resp =  { 'id': bp_id }
+        bp_info = self.breakpoints.get(bp_id)
+        if bp_info:
+            if not bp_info.address: # Don't resolve assembly-level breakpoints to a source file.
+                for bp_loc in bp:
+                    if bp_loc.IsEnabled():
+                        le = bp_loc.GetAddress().GetLineEntry()
+                        if le.IsValid():
+                            fs = le.GetFileSpec()
+                            path = self.map_path_to_local(fs.fullpath)
+                            if path :
+                                bp_resp['source'] = { 'name': fs.basename, 'path': path }
+                                bp_resp['line'] = le.GetLine()
+                                bp_resp['verified'] = True
+                                return bp_resp
 
-        if not self.breakpoints[bp_id].address: # Don't resolve assembly-level breakpoints to a source file.
-            for bp_loc in bp:
-                if bp_loc.IsEnabled():
-                    le = bp_loc.GetAddress().GetLineEntry()
-                    if le.IsValid():
-                        fs = le.GetFileSpec()
-                        path = self.map_path_to_local(fs.fullpath)
-                        if path :
-                            bp_resp['source'] = { 'name': fs.basename, 'path': path }
-                            bp_resp['line'] = le.GetLine()
-                            bp_resp['verified'] = True
-                            return bp_resp
-
-        loc = bp.GetLocationAtIndex(0)
-        if loc.IsResolved():
-            dasm = self.disassembly.get_by_address(loc.GetAddress())
-            adapter_data = self.breakpoints[bp_id].adapter_data
-            if not dasm and adapter_data:
-                # This must be resolution of location of an assembly-level breakpoint.
-                start = lldb.SBAddress(adapter_data['start'], self.target)
-                end = lldb.SBAddress(adapter_data['end'], self.target)
-                dasm = self.disassembly.create_from_range(start, end)
-            if dasm:
-                bp_resp['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref, 'adapterData': adapter_data }
-                bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
-                bp_resp['verified'] = True
-                return bp_resp
-        bp_resp['verified'] = False
+            loc = bp.GetLocationAtIndex(0)
+            if loc.IsResolved():
+                dasm = self.disassembly.get_by_address(loc.GetAddress())
+                adapter_data = bp_info.adapter_data
+                if not dasm and adapter_data:
+                    # This must be resolution of location of an assembly-level breakpoint.
+                    start = lldb.SBAddress(adapter_data['start'], self.target)
+                    end = lldb.SBAddress(adapter_data['end'], self.target)
+                    dasm = self.disassembly.create_from_range(start, end)
+                if dasm:
+                    bp_resp['source'] = { 'name': dasm.source_name,
+                                          'sourceReference': dasm.source_ref,
+                                          'adapterData': adapter_data }
+                    bp_resp['line'] = dasm.line_num_by_address(loc.GetLoadAddress())
+                    bp_resp['verified'] = True
+                    return bp_resp
+            bp_resp['verified'] = False
         return bp_resp
 
     def should_stop_on_bp(self, bp_loc, frame, internal_dict):
@@ -582,25 +584,32 @@ class DebugSession:
             return True
 
     def DEBUG_setExceptionBreakpoints(self, args):
-        if not self.launch_args.get('noDebug', False):
+        if self.launch_args.get('noDebug', False):
+            return
+        try:
+            self.disable_bp_events()
             filters = args['filters']
-            for bp_id in self.exc_breakpoints:
+            # Remove current exception breakpoints
+            exc_bps = [bp_info.id for bp_info in self.breakpoints.values() if bp_info.exception_bp]
+            for bp_id in exc_bps:
                 self.target.BreakpointDelete(bp_id)
-            self.exc_breakpoints.clear()
+                del self.breakpoints[bp_id]
 
             set_all = 'all' in filters
             set_uncaught = 'uncaught' in filters
             for lang in self.launch_args.get('sourceLanguages', []):
                 language = languages.get(lang.lower())
                 if language is not None:
-                    if set_all:
-                        bp = language['ef_throw'](self.target)
-                        self.exc_breakpoints.add(bp.GetID())
-                    if set_uncaught:
-                        bp = language['ef_uncaught'](self.target)
-                        self.exc_breakpoints.add(bp.GetID())
+                    for name, ef_name in [('all', 'ef_throw'), ('uncaught', 'ef_uncaught')]:
+                        if name in filters:
+                            bp = language[ef_name](self.target)
+                            bp_info = BreakpointInfo(bp.GetID())
+                            bp_info.exception_bp = True
+                            self.breakpoints[bp_info.id] = bp_info
                 else:
                     self.console_err('Unknown source language: %s' % lang)
+        finally:
+            self.enable_bp_events()
 
     def DEBUG_configurationDone(self, args):
         try:
@@ -1200,7 +1209,8 @@ class DebugSession:
         if stopped_thread is not None:
             if stop_reason == lldb.eStopReasonBreakpoint:
                 bp_id = thread.GetStopReasonDataAtIndex(0)
-                if bp_id in self.exc_breakpoints:
+                bp_info = self.breakpoints.get(bp_id)
+                if bp_info and bp_info.exception_bp:
                     stop_reason_str = 'exception'
                 else:
                     stop_reason_str = 'breakpoint'
@@ -1350,9 +1360,10 @@ class RegistersScope:
 
 # Various info we mantain about a breakpoint
 class BreakpointInfo:
-    __slots__ = ['id', 'condition', 'ignore_count', 'address', 'adapter_data']
+    __slots__ = ['id', 'exception_bp', 'condition', 'ignore_count', 'address', 'adapter_data']
     def __init__(self, id):
         self.id = id
+        self.exception_bp = False
         self.condition = None
         self.address = None
         self.adapter_data = None

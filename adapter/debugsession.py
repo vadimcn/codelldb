@@ -647,11 +647,12 @@ class DebugSession:
                 le = frame.GetLineEntry()
                 if le.IsValid():
                     fs = le.GetFileSpec()
-                    full_path = self.map_path_to_local(fs.fullpath)
-                    if full_path:
-                        stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
-                        stack_frame['line'] = le.GetLine()
-                        stack_frame['column'] = le.GetColumn()
+                    if fs.fullpath is not None:
+                        full_path = self.map_path_to_local(fs.fullpath)
+                        if full_path:
+                            stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
+                            stack_frame['line'] = le.GetLine()
+                            stack_frame['column'] = le.GetColumn()
             else:
                 pc_addr = frame.GetPCAddress()
                 dasm = self.disassembly.get_by_address(pc_addr)

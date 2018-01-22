@@ -725,7 +725,7 @@ class DebugSession:
         container, container_vpath = container_info
         container_name = None
         variables = collections.OrderedDict()
-        if isinstance(container, LocalsScope):
+        if isinstance(container, LocalsScope) and container.frame is not None:
             # args, locals, statics, in_scope_only
             vars_iter = SBValueListIter(container.frame.GetVariables(True, True, False, True))
             # Check if we have a return value from the last called function (usually after StepOut).

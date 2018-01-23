@@ -98,7 +98,7 @@ class Value(object):
         return ValueIter(self.__sbvalue)
 
     def __getattr__(self, name):
-        child_sbvalue = self.__sbvalue.GetChildMemberWithName (name)
+        child_sbvalue = self.__sbvalue.GetChildMemberWithName(name)
         if child_sbvalue and child_sbvalue.IsValid():
             return Value(child_sbvalue)
         raise AttributeError("Attribute '%s' is not defined" % name)
@@ -403,12 +403,12 @@ qualified_ident = r'(?: (?: ::)? (?: {ident} ::)+ | :: ) {ident}'.format(**local
 # Matches `xxx`, `::xxx`, `xxx::yyy`, `::xxx::yyy`, `xxx::yyy::zzz`, etc
 maybe_qualified_ident = r'(?: ::)? (?: {ident} ::)* {ident}'.format(**locals())
 
-# Matches `$xxx`, `$xxx::yyy::zzz` or `${...}`
+# Matches `$xxx`, `$xxx::yyy::zzz` or `${...}`, captures the escaped text.
 escaped_ident = r'\$ ({maybe_qualified_ident}) | \$ {{ ([^}}]*) }}'.format(**locals())
 
-preprocess_simple = r'(\.)? (\b (?:{keywords}) \b | {qualified_ident}) | {escaped_ident} | {pystring}'
+preprocess_simple = r'(\.)? (?: {pystring} | \b ({keywords}) \b | ({qualified_ident}) | {escaped_ident} )'
 
-preprocess_python = r'(\.)? {escaped_ident} | {pystring}'
+preprocess_python = r'(\.)? (?: {pystring} | {escaped_ident} )'
 
 maybe_qualified_ident_regex = re.compile('^ {maybe_qualified_ident} $'.format(**locals()), re.X)
 preprocess_simple_regex = re.compile(preprocess_simple.format(**locals()), re.X)
@@ -417,6 +417,7 @@ preprocess_python_regex = re.compile(preprocess_python.format(**locals()), re.X)
 def replacer(match):
     groups = match.groups(None)
     prefix = groups[0]
+    # Find the first non-empty capture group (there should be only one).
     for ident in groups[1:]:
         if ident is not None:
             if prefix is None:
@@ -460,7 +461,7 @@ def compare(expected, actual):
         raise AssertionError('expected != actual')
 
 def test_preprocess_simple():
-    expr = """
+    expr = '''
         class = from.global.finally
         local::bar::__BAZ()
         local_string()
@@ -471,11 +472,14 @@ def test_preprocess_simple():
         ${std::integral_constant<long, 1l>::value}
         ${std::integral_constant<long, 1l, foo<123>>::value}
         ${std::allocator_traits<std::allocator<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> > > >::__construct_helper<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> >, std::_Bind_simple<threads(int)::__lambda0(int)> >::value}
-        '''continue.exec = pass.print; yield.with = 3'''
-        "continue.exec = pass.print; yield.with = 3"
-    """
+        vec_int.${std::_Vector_base<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > >}._M_impl._M_start
 
-    expected = """
+        """continue.exec = pass.print; yield.with = 3"""
+        \'''continue.exec = pass.print; yield.with = 3\'''
+        "continue.exec = pass.print; yield.with = 3"
+    '''
+
+    expected = '''
         __frame_vars["class"] = __frame_vars["from"].__getattr__("global").__getattr__("finally")
         __frame_vars["local::bar::__BAZ"]()
         local_string()
@@ -486,27 +490,30 @@ def test_preprocess_simple():
         __frame_vars["std::integral_constant<long, 1l>::value"]
         __frame_vars["std::integral_constant<long, 1l, foo<123>>::value"]
         __frame_vars["std::allocator_traits<std::allocator<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> > > >::__construct_helper<std::thread::_Impl<std::_Bind_simple<threads(int)::__lambda0(int)> >, std::_Bind_simple<threads(int)::__lambda0(int)> >::value"]
-        '''continue.exec = pass.print; yield.with = 3'''
+        vec_int.__getattr__("std::_Vector_base<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > >")._M_impl._M_start
+
+        """continue.exec = pass.print; yield.with = 3"""
+        \'''continue.exec = pass.print; yield.with = 3\'''
         "continue.exec = pass.print; yield.with = 3"
-    """
+    '''
     prepr = preprocess_simple_expr(expr)
     compare(expected, prepr)
 
 def test_preprocess_python():
-    expr = """
+    expr = '''
         for x in $foo: print x
         $xxx.$yyy.$zzz
         $xxx::yyy::zzz
         $::xxx
         "$xxx::yyy::zzz"
-    """
-    expected = """
+    '''
+    expected = '''
         for x in __frame_vars["foo"]: print x
         __frame_vars["xxx"].__getattr__("yyy").__getattr__("zzz")
         __frame_vars["xxx::yyy::zzz"]
         __frame_vars["::xxx"]
         "$xxx::yyy::zzz"
-    """
+    '''
     prepr = preprocess_python_expr(expr)
     compare(expected, prepr)
 
@@ -517,6 +524,8 @@ def test_escape_variable_name():
     assert escape_variable_name('foo::bar<34>::value') == '${foo::bar<34>::value}'
 
 def run_tests():
+    #print preprocess_simple_regex.pattern
+    #print preprocess_python_regex.pattern
     test_preprocess_simple()
     test_preprocess_python()
     test_escape_variable_name()

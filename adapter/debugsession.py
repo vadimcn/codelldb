@@ -23,6 +23,9 @@ log.info('Imported')
 # This is to cope with the not yet initialized objects whose length fields contain garbage.
 MAX_VAR_CHILDREN = 10000
 
+# When None is a valid dictionary entry value, we need some other value to designate missing entries.
+MISSING = ()
+
 class DebugSession:
 
     def __init__(self, parameters, event_loop, send_message):
@@ -46,6 +49,8 @@ class DebugSession:
         self.pending_requests = {} # { seq : on_complete }
         self.known_threads = set()
         self.source_map = None
+        self.filespec_cache = {} # { (dir, filename) : local_file_path }
+        self.suppress_missing_sources = self.parameters.get('suppressMissingSourceFiles', True)
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -236,20 +241,19 @@ class DebugSession:
 
     def configure_stdio(self, args):
         stdio = args.get('stdio', None)
-        missing = () # None is a valid value here, so we need a new one to designate 'missing'
         if isinstance(stdio, dict): # Flatten it into a list
-            stdio = [stdio.get('stdin', missing),
-                     stdio.get('stdout', missing),
-                     stdio.get('stderr', missing)]
+            stdio = [stdio.get('stdin', MISSING),
+                     stdio.get('stdout', MISSING),
+                     stdio.get('stderr', MISSING)]
         elif stdio is None or is_string(stdio):
             stdio = [stdio] * 3
         elif isinstance(stdio, list):
-            stdio.extend([missing] * (3-len(stdio))) # pad up to 3 items
+            stdio.extend([MISSING] * (3-len(stdio))) # pad up to 3 items
         else:
             raise UserError('stdio must be either a string, a list or an object')
         # replace all missing's with the previous stream's value
         for i in range(0, len(stdio)):
-            if stdio[i] == missing:
+            if stdio[i] is MISSING:
                 stdio[i] = stdio[i-1] if i > 0 else None
         # Map '*' to None and convert strings to ASCII
         stdio = [to_lldb_str(s) if s not in ['*', None] else None for s in stdio]
@@ -373,14 +377,13 @@ class DebugSession:
                 for loc in bp:
                     le = loc.GetAddress().GetLineEntry()
                     fs = le.GetFileSpec()
-                    if fs.IsValid():
-                        bp_path = self.map_path_to_local(fs.fullpath)
-                        if not bp_path or not same_path(bp_path, file_path):
-                            loc.SetEnabled(False)
-                        else:
-                            bp_resp['source'] =  { 'name': fs.basename, 'path': bp_path }
-                            bp_resp['line'] = le.GetLine()
-                            bp_resp['verified'] = True
+                    bp_local_path = self.map_filespec_to_local(fs)
+                    if bp_local_path is None or not same_path(bp_local_path, file_path):
+                        loc.SetEnabled(False)
+                    else:
+                        bp_resp['source'] =  { 'name': fs.GetFilename(), 'path': bp_local_path }
+                        bp_resp['line'] = le.GetLine()
+                        bp_resp['verified'] = True
             self.set_bp_condition(bp, req)
             file_bps[line] = bp_id
             result.append(bp_resp)
@@ -540,14 +543,13 @@ class DebugSession:
                 for bp_loc in bp:
                     if bp_loc.IsEnabled():
                         le = bp_loc.GetAddress().GetLineEntry()
-                        if le.IsValid():
-                            fs = le.GetFileSpec()
-                            path = self.map_path_to_local(fs.fullpath)
-                            if path :
-                                bp_resp['source'] = { 'name': fs.basename, 'path': path }
-                                bp_resp['line'] = le.GetLine()
-                                bp_resp['verified'] = True
-                                return bp_resp
+                        fs = le.GetFileSpec()
+                        local_path = self.map_filespec_to_local(fs)
+                        if local_path is not None :
+                            bp_resp['source'] = { 'name': fs.GetFilename(), 'path': local_path }
+                            bp_resp['line'] = le.GetLine()
+                            bp_resp['verified'] = True
+                            return bp_resp
 
             loc = bp.GetLocationAtIndex(0)
             if loc.IsResolved():
@@ -708,14 +710,12 @@ class DebugSession:
 
             if not self.in_disassembly(frame):
                 le = frame.GetLineEntry()
-                if le.IsValid():
-                    fs = le.GetFileSpec()
-                    if fs.fullpath is not None:
-                        full_path = self.map_path_to_local(fs.fullpath)
-                        if full_path:
-                            stack_frame['source'] = { 'name': fs.basename, 'path': full_path }
-                            stack_frame['line'] = le.GetLine()
-                            stack_frame['column'] = le.GetColumn()
+                fs = le.GetFileSpec()
+                local_path = self.map_filespec_to_local(fs)
+                if local_path is not None:
+                    stack_frame['source'] = { 'name': fs.GetFilename(), 'path': local_path }
+                    stack_frame['line'] = le.GetLine()
+                    stack_frame['column'] = le.GetColumn()
             else:
                 pc_addr = frame.GetPCAddress()
                 dasm = self.disassembly.get_by_address(pc_addr)
@@ -739,7 +739,8 @@ class DebugSession:
         elif self.show_disassembly == 'always':
             return True
         else:
-            return not frame.GetLineEntry().IsValid()
+            fs = frame.GetLineEntry().GetFileSpec()
+            return self.map_filespec_to_local(fs) is None
 
     def DEBUG_source(self, args):
         sourceRef = int(args['sourceReference'])
@@ -816,7 +817,7 @@ class DebugSession:
         variables = list(variables.values())
 
         # If this node was synthetic (i.e. a product of a visualizer),
-        # append [raw] pseudo-child, which can be expanded to show the raw view.
+        # append [raw] pseudo-child, which can be expanded to show raw view.
         if isinstance(container, lldb.SBValue) and container.IsSynthetic():
             handle = self.var_refs.create(container.GetNonSyntheticValue(), '[raw]', container_handle)
             variable = { 'name': '[raw]', 'value': container.GetTypeName(), 'variablesReference': handle }
@@ -1299,6 +1300,41 @@ class DebugSession:
     def console_err(self, output):
         self.console_msg(output, 'stderr')
 
+    # Translates SBFileSpec into a local path using mappings in source_map.
+    # Returns None if source info should be suppressed.  There are 3 cases when this happens:
+    # - filespec.IsValid() is false,
+    # - user has directed us to suppress source info by setting the local prefix is source map to None,
+    # - suppress_missing_sources is true and the local file does not exist.
+    def map_filespec_to_local(self, filespec):
+        if not filespec.IsValid():
+            return None
+        key = (filespec.GetDirectory(), filespec.GetFilename())
+        local_path = self.filespec_cache.get(key, MISSING)
+        if local_path is MISSING:
+            local_path = self.map_filespec_to_local_uncached(filespec)
+            if self.suppress_missing_sources and not os.path.isfile(local_path):
+                local_path = None
+            self.filespec_cache[key] = local_path
+        return local_path
+
+    def map_filespec_to_local_uncached(self, filespec):
+        if self.source_map is None:
+            self.make_source_map()
+        path = filespec.fullpath
+        if path is None:
+            return None
+        path = os.path.normpath(path)
+        path_normcased = os.path.normcase(path)
+        for remote_prefix_regex, local_prefix in self.source_map:
+            m = remote_prefix_regex.match(path_normcased)
+            if m:
+                if local_prefix is None: # User directed us to suppress source info.
+                    return None
+                # We want to preserve original path casing, however this assumes
+                # that os.path.normcase will not change the string length...
+                return os.path.normpath(local_prefix + path[len(m.group(1)):])
+        return path
+
     def make_source_map(self):
         source_map = []
         for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
@@ -1308,22 +1344,6 @@ class DebugSession:
             regex = re.compile('(' + regex + ').*', re.M | re.S)
             source_map.append((regex, local_prefix))
         self.source_map = source_map
-
-    # Replaces path prefix if it matches anything in source_map
-    # Returns None if the target prefix is null.
-    def map_path_to_local(self, path):
-        if self.source_map is None:
-            self.make_source_map()
-        path = os.path.normpath(path)
-        path_normcased = os.path.normcase(path)
-        for remote_prefix_regex, local_prefix in self.source_map:
-            m = remote_prefix_regex.match(path_normcased)
-            if m:
-                if local_prefix is None: return None
-                # We want to preserve original path casing, however this assumes
-                # that os.path.normcase will not change the string length...
-                return os.path.normpath(local_prefix + path[len(m.group(1)):])
-        return path
 
     # Ask VSCode extension to display HTML content.
     def display_html(self, body):

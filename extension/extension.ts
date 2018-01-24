@@ -8,6 +8,7 @@ import {
 import { DebugProtocol } from 'vscode-debugprotocol';
 import * as path from 'path';
 import * as startup from './startup';
+import { format, inspect } from 'util';
 import * as util from './util';
 
 let output = window.createOutputChannel('LLDB');
@@ -17,6 +18,10 @@ export function activate(context: ExtensionContext) {
     new Extension(context);
 }
 
+interface Dict<T> {
+    [key: string]: T;
+}
+
 class ActiveDebugSession {
     constructor(adapter: startup.AdapterProcess, debugSession: DebugSession) {
         this.adapter = adapter;
@@ -24,13 +29,13 @@ class ActiveDebugSession {
     }
     adapter: startup.AdapterProcess;
     debugSession: DebugSession;
-    previewContent: { [key: string]: string; } = {};
+    previewContent: Dict<string> = {};
 }
 
 class Extension implements TextDocumentContentProvider, DebugConfigurationProvider {
     context: ExtensionContext;
     launching: [string, startup.AdapterProcess][] = [];
-    activeSessions: { [key: string]: ActiveDebugSession; } = {};
+    activeSessions: Dict<ActiveDebugSession> = {};
     previewContentChanged: EventEmitter<Uri> = new EventEmitter<Uri>();
 
     constructor(context: ExtensionContext) {
@@ -67,11 +72,36 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
             }
         }
         try {
+            let launch = workspace.getConfiguration('lldb.launch');
+            // Merge launch config with workspace settings
+            let mergeConfig = (key: string, reverse: boolean = false) => {
+                let value1 = util.getConfigNoDefault(launch, key);
+                let value2 = config[key];
+                let value = !reverse ? util.mergeValues(value1, value2) : util.mergeValues(value2, value1);
+                if (!util.isEmpty(value))
+                    config[key] = value;
+            }
+            mergeConfig('initCommands');
+            mergeConfig('preRunCommands');
+            mergeConfig('exitCommands', true);
+            mergeConfig('env');
+            mergeConfig('cwd');
+            mergeConfig('terminal');
+            mergeConfig('stdio');
+            mergeConfig('sourceMap');
+            mergeConfig('sourceLanguages');
+
+            output.clear();
+            output.appendLine('Starting new session with:');
+            output.appendLine(inspect(config));
+
+            // If configuration does not provide debugServer explicitly, launch new adapter.
             if (!config.debugServer) {
                 let adapter = await startup.startDebugAdapter(this.context);
                 this.launching.push([config.name, adapter]);
                 config.debugServer = adapter.port;
             }
+            // For adapter debugging
             if (config._adapterStartDelay) {
                 await new Promise(resolve => setTimeout(resolve, config._adapterStartDelay));
             }

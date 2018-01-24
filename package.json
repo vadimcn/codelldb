@@ -72,9 +72,9 @@
 				"lldb.executable": {
 					"type": "string",
 					"default": "lldb",
-					"description": "Path to LLDB executable."
+					"description": "Path to debugger executable."
 				},
-				"lldb.environment": {
+				"lldb.executable.env": {
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -82,28 +82,81 @@
 						}
 					},
 					"default": {},
-					"description": "Environment variables to set for LLDB."
+					"description": "Environment variables to pass to debugger."
 				},
-				"lldb.parameters": {
+				"lldb.logLevel": {
+					"type": "integer",
+					"description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
+				},
+				"lldb.logFile": {
+					"type": "string",
+					"description": "Log file path. (default=VSCode 'Output' panel)"
+				},
+				"lldb.reverseDebugging": {
+					"type": "boolean",
+					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
+				},
+				"lldb.suppressMissingSourceFiles": {
+					"type": "boolean",
+					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file)."
+				},
+				"lldb.launch.initCommands": {
+					"type": "array",
+					"default": [],
+					"description": "Commands executed *before* initCommands in individual launch configurations."
+				},
+				"lldb.launch.preRunCommands": {
+					"type": "array",
+					"default": [],
+					"description": "Commands executed *before* preRunCommands in individual launch configurations."
+				},
+				"lldb.launch.exitCommands": {
+					"type": "array",
+					"default": [],
+					"description": "Commands executed *after* exitCommands in individual launch configurations."
+				},
+				"lldb.launch.env": {
 					"type": "object",
-					"default": {},
-					"description": "Startup parameters passed to the debug adapter.",
-					"properties": {
-						"logLevel": {
-							"type": "number",
-							"default": 0,
-							"description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
-						},
-						"logFile": {
-							"type": "string",
-							"description": "Log file path. (default=VSCode 'Output' panel)"
-						},
-						"reverseDebugging": {
-							"type": "boolean",
-							"default": true,
-							"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
+					"patternProperties": {
+						".*": {
+							"type": "string"
 						}
-					}
+					},
+					"default": {},
+					"description": "Additional environment variables merged with 'env' individual launch configurations."
+				},
+				"lldb.launch.cwd": {
+					"type": "string",
+					"default": "${workspaceRoot}",
+					"description": "Default program working directory."
+				},
+				"lldb.launch.terminal": {
+					"type": "string",
+					"default": "console",
+					"description": "Default terminal type."
+				},
+				"lldb.launch.stdio": {
+					"type": [
+						"null",
+						"string",
+						"array",
+						"object"
+					],
+					"default": null,
+					"description": "Default stdio destination."
+				},
+				"lldb.launch.sourceMap": {
+					"type": "object",
+					"patternProperties": {
+						".*": {
+							"type": [
+								"string",
+								"null"
+							]
+						}
+					},
+					"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
+					"default": {}
 				}
 			}
 		},
@@ -201,8 +254,13 @@
 							},
 							"env": {
 								"type": "object",
+								"patternProperties": {
+									".*": {
+										"type": "string"
+									}
+								},
 								"description": "Additional environment variables.",
-								"default": []
+								"default": {}
 							},
 							"stdio": {
 								"type": [
@@ -298,6 +356,11 @@
 								"description": "Commands executed just before the program is attached to.",
 								"default": []
 							},
+							"exitCommands": {
+								"type": "array",
+								"description": "Commands executed at the end of debugging session.",
+								"default": []
+							},
 							"sourceLanguages": {
 								"type": "array",
 								"description": "A list of source languages used in the program.",
@@ -328,6 +391,11 @@
 							"preRunCommands": {
 								"type": "array",
 								"description": "Commands that create the debuggee process.",
+								"default": []
+							},
+							"exitCommands": {
+								"type": "array",
+								"description": "Commands executed at the end of debugging session.",
 								"default": []
 							},
 							"sourceLanguages": {

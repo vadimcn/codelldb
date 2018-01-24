@@ -40,8 +40,6 @@ export class AdapterProcess {
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
 export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
-    output.clear();
-
     let config = workspace.getConfiguration('lldb');
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let params = getAdapterParameters(config);
@@ -49,7 +47,7 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
-    let lldb = spawnDebugger(args, config.get('executable', 'lldb'), config.get('environment', {}));
+    let lldb = spawnDebugger(args, config.get('executable', 'lldb'), config.get('executable.env', {}));
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
 
@@ -58,8 +56,18 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
     return adapter;
 }
 
+function setIfDefined(target: any, config: WorkspaceConfiguration, key: string) {
+    let value = util.getConfigNoDefault(config, key);
+    if (value !== undefined)
+        target[key] = value;
+}
+
 function getAdapterParameters(config: WorkspaceConfiguration): string {
-    let params = config.get('parameters');
+    let params = {};
+    setIfDefined(params, config, 'logLevel');
+    setIfDefined(params, config, 'logFile');
+    setIfDefined(params, config, 'reverseDebugging');
+    setIfDefined(params, config, 'suppressMissingSourceFiles');
     return new Buffer(JSON.stringify(params)).toString('base64');
 }
 
@@ -96,7 +104,7 @@ export async function diagnose(): Promise<boolean> {
         if (process.platform.indexOf('linux') != -1) {
             // Linux tends to have versioned binaries only.
             lldbNames = ['lldb', 'lldb-10.0', 'lldb-9.0', 'lldb-8.0', 'lldb-7.0',
-                         'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
+                'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
         }
         if (lldbPathOrginal != 'lldb') {
             lldbNames.unshift(lldbPathOrginal); // Also try the explicitly configured value.

@@ -1,7 +1,7 @@
 'use strict';
 import * as cp from 'child_process';
 import { format } from 'util';
-import { QuickPickItem } from 'vscode';
+import { QuickPickItem, WorkspaceConfiguration } from 'vscode';
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
@@ -57,4 +57,40 @@ export async function getProcessList(currentUserOnly: boolean):
         }
     }
     return items;
+}
+
+export function getConfigNoDefault(config: WorkspaceConfiguration, key: string): any {
+    let x = config.inspect(key);
+    var value = x.globalValue;
+    if (value === undefined)
+        value = x.workspaceValue;
+    if (value === undefined)
+        value = x.workspaceFolderValue;
+    return value;
+}
+
+export function isEmpty(obj: any): boolean {
+    if (obj === null || obj === undefined)
+        return true;
+    if (typeof obj == 'string' || obj instanceof String)
+        return obj.length == 0;
+    if (obj instanceof Array)
+        return obj.length == 0;
+    return Object.keys(obj).length == 0;
+}
+
+export function mergeValues(value1: any, value2: any): any {
+    if (value2 === undefined)
+        return value1;
+    // For non-container types, value2 wins.
+    if (value1 === null || value1 === undefined ||
+        typeof value1 == 'boolean' || value1 instanceof Boolean ||
+        typeof value1 == 'number' || value1 instanceof Number ||
+        typeof value1 == 'string' || value1 instanceof String)
+        return value2;
+    // Concatenate arrays.
+    if (value1 instanceof Array && value2 instanceof Array)
+        return value1.concat(value2);
+    // Merge dictionaries.
+    return Object.assign({}, value1, value2);
 }

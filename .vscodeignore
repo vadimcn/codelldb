@@ -1,8 +1,8 @@
-.github/**
-.gitignore
-.vscode/**
+.*
+.*/**
 **/*.js.map
 **/*.pyc
+package-lock.json
 debuggee/**
 extension/**
 out/debuggee/**

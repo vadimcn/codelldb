@@ -1,5 +1,14 @@
 # What's New
 
+## 0.7.4
+- It is now possible to set [default values for launch configurations](MANUAL.md#workspace-configuration) per-workspace.
+- The debugger will now suppress source location information if the source files does not exist on local machine (after mapping paths through `sourceMap`).
+This behavior may be altered via `lldb.suppressMissingSourceFiles` configuration setting.
+- Bug fixes.
+
+## 0.7.3
+- Bug fixes.
+
 ## 0.7.2
 - Bug fixes.
 

@@ -1,5 +1,8 @@
 # What's New
 
+## 0.7.5
+- Fixed LLDB detection on OSX and Windows.
+
 ## 0.7.4
 - It is now possible to set [default values for launch configurations](MANUAL.md#workspace-configuration) per-workspace.
 - The debugger will now suppress source location information if the source files does not exist on local machine (after mapping paths through `sourceMap`).

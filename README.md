@@ -34,7 +34,7 @@ Here's a minimal debug configuration to get you started:
     "name": "Launch",
     "type": "lldb",
     "request": "launch",
-    "program": "${workspaceRoot}/<my program>",
+    "program": "${workspaceFolder}/<my program>",
     "args": ["-arg1", "-arg2"],
 }
 ```

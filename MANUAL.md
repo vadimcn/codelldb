@@ -107,7 +107,7 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
     "name": "Remote launch",
     "type": "lldb",
     "request": "launch",
-    "program": "${workspaceRoot}/build/debuggee", // Local path.
+    "program": "${workspaceFolder}/build/debuggee", // Local path.
     "initCommands": [
         "platform select <platform>",
         "platform connect connect://<remote_host>:<port>"
@@ -131,7 +131,7 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
     "type": "lldb",
     "request": "launch",
     "custom": true,
-    "initCommands": ["target create ${workspaceRoot}/build/debuggee"],
+    "initCommands": ["target create ${workspaceFolder}/build/debuggee"],
     "preRunCommands": ["gdb-remote <remote_host>:<port>"]
 }
 ```
@@ -145,7 +145,7 @@ Use custom launch with `target crate -c <core path>` init command:
     "type": "lldb",
     "request": "launch",
     "custom": true,
-    "initCommands": ["target create -c ${workspaceRoot}/core"],
+    "initCommands": ["target create -c ${workspaceFolder}/core"],
 }
 ```
 

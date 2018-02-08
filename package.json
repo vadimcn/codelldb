@@ -127,11 +127,16 @@
 				},
 				"lldb.launch.cwd": {
 					"type": "string",
-					"default": "${workspaceRoot}",
+					"default": "${workspaceFolder}",
 					"description": "Default program working directory."
 				},
 				"lldb.launch.terminal": {
 					"type": "string",
+					"enum": [
+						"integrated",
+						"external",
+						"console"
+					],
 					"default": "console",
 					"description": "Default terminal type."
 				},
@@ -250,7 +255,7 @@
 							"cwd": {
 								"type": "string",
 								"description": "Program working directory.",
-								"default": "${workspaceRoot}"
+								"default": "${workspaceFolder}"
 							},
 							"env": {
 								"type": "object",
@@ -427,9 +432,9 @@
 							"type": "lldb",
 							"request": "launch",
 							"name": "${2:Launch}",
-							"program": "^\"\\${workspaceRoot}/${1:<your program>}\"",
+							"program": "^\"\\${workspaceFolder}/${1:<your program>}\"",
 							"args": [],
-							"cwd": "^\"\\${workspaceRoot}\""
+							"cwd": "^\"\\${workspaceFolder}\""
 						}
 					},
 					{
@@ -447,7 +452,7 @@
 							"type": "lldb",
 							"request": "attach",
 							"name": "${2:Attach}",
-							"program": "^\"\\${workspaceRoot}/${1:<your program>}\""
+							"program": "^\"\\${workspaceFolder}/${1:<your program>}\""
 						}
 					},
 					{
@@ -458,7 +463,7 @@
 							"name": "${2:Custom launch}",
 							"custom": true,
 							"initCommands": [
-								"^\"target create \\${workspaceRoot}/${1:<your program>}\""
+								"^\"target create \\${workspaceFolder}/${1:<your program>}\""
 							],
 							"preRunCommands": [
 								"settings set target.run-args ${3:value1 value2 value3}",
@@ -472,9 +477,9 @@
 						"type": "lldb",
 						"request": "launch",
 						"name": "Debug",
-						"program": "${workspaceRoot}/<your program>",
+						"program": "${workspaceFolder}/<your program>",
 						"args": [],
-						"cwd": "${workspaceRoot}"
+						"cwd": "${workspaceFolder}"
 					}
 				]
 			}

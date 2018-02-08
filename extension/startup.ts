@@ -47,7 +47,8 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
-    let lldb = spawnDebugger(args, config.get('executable', 'lldb'), config.get('executable.env', {}));
+    let lldbEnv = config.get('executable.env', {});
+    let lldb = spawnDebugger(args, config.get('executable', 'lldb'), lldbEnv);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
 
@@ -96,15 +97,17 @@ export async function diagnose(): Promise<boolean> {
         let config = workspace.getConfiguration('lldb');
         let lldbPathOrginal = config.get('executable', 'lldb');
         let lldbPath = lldbPathOrginal;
-        let lldbEnv = config.get('environment', {});
+        let lldbEnv = config.get('executable.env', {});
 
         // Try to locate LLDB and get its version.
         var version: string = null;
-        var lldbNames: string[] = [];
+        var lldbNames: string[];
         if (process.platform.indexOf('linux') != -1) {
             // Linux tends to have versioned binaries only.
             lldbNames = ['lldb', 'lldb-10.0', 'lldb-9.0', 'lldb-8.0', 'lldb-7.0',
                 'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
+        } else {
+            lldbNames = ['lldb'];
         }
         if (lldbPathOrginal != 'lldb') {
             lldbNames.unshift(lldbPathOrginal); // Also try the explicitly configured value.

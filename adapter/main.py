@@ -16,12 +16,6 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 sys.modules['debugger'] = debugger_api
 
-if 'linux' in sys.platform or 'darwin' in sys.platform:
-    # Limit memory usage to 16GB to prevent runaway visualizers from killing the machine
-    import resource
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, hard))
-
 def decode_params(params):
     try:
         if isinstance(params, dict):

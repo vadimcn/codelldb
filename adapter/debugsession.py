@@ -14,6 +14,7 @@ from . import disassembly
 from . import handles
 from . import terminal
 from . import formatters
+from . import mem_limit
 from . import PY2, is_string, from_lldb_str, to_lldb_str, xrange
 
 log = logging.getLogger('debugsession')
@@ -133,7 +134,7 @@ class DebugSession:
         work_dir = opt_lldb_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)
         # launch!
-        log.debug("Launching: program=%r, args=%r, envp=%r, stdio=%r, cwd=%r, flags=0x%X",
+        log.debug('Launching: program=%r, args=%r, envp=%r, stdio=%r, cwd=%r, flags=0x%X',
             args['program'], target_args, envp, stdio, work_dir, flags)
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
@@ -619,6 +620,8 @@ class DebugSession:
             result = self.do_launch(self.launch_args)
             # do_launch is asynchronous so we need to send its result
             self.send_response(self.launch_args['response'], result)
+            # do this after launch, so that the debuggee does not inherit debugger's limits
+            mem_limit.enable()
         except Exception as e:
             self.send_response(self.launch_args['response'], e)
         # Make sure VSCode knows if the process was initially stopped.

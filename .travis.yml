@@ -6,12 +6,19 @@ language: node_js
 node_js: "4"
 
 dist: trusty
+sudo: required
 addons:
   apt:
     packages:
+    - lldb-3.9
     - python-lldb-3.9
-    
+
 before_script:
-  - if [ $TRAVIS_OS_NAME = linux ]; then ln -s /usr/bin/lldb-3.9 $HOME/bin/lldb; fi
   - curl https://sh.rustup.rs -sSf | sh -s - -y
   - export PATH="$HOME/.cargo/bin:$PATH"
+  - if [ $TRAVIS_OS_NAME = linux ]; then export LLDB_EXECUTABLE=lldb-3.9; fi
+  - export LLDB_LOGFILE=$HOME/lldb.log
+
+after_failure:
+  - cat $HOME/lldb.log
+  - ls -R

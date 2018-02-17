@@ -44,13 +44,14 @@ class DebugSession:
         self.launch_args = None
         self.process_launched = False
         self.disassembly = None # disassembly.AddressSpace; need SBTarget to create
-        self.show_disassembly = 'auto' # never | auto | always
-        self.global_format = lldb.eFormatDefault
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
         self.known_threads = set()
         self.source_map = None
         self.filespec_cache = {} # { (dir, filename) : local_file_path }
+        self.global_format = lldb.eFormatDefault
+        self.show_disassembly = 'auto' # never | auto | always
+        self.deref_pointers = True
         self.suppress_missing_sources = self.parameters.get('suppressMissingSourceFiles', True)
 
     def DEBUG_initialize(self, args):
@@ -100,6 +101,7 @@ class DebugSession:
         }
 
     def DEBUG_launch(self, args):
+        self.update_display_settings(args.get('_displaySettings'))
         if args.get('request') == 'custom' or args.get('custom', False):
             return self.custom_launch(args)
         self.exec_commands(args.get('initCommands'))
@@ -149,6 +151,7 @@ class DebugSession:
         self.process_launched = True
 
     def DEBUG_attach(self, args):
+        self.update_display_settings(args.get('_displaySettings'))
         pid = args.get('pid', None)
         program = args.get('program', None)
         if pid is None and program is None:
@@ -1003,21 +1006,25 @@ class DebugSession:
     def get_var_value(self, var, format):
         expressions.analyze(var)
         var.SetFormat(format)
+        value = None
+
+        # try var.GetValue(), except for pointers and references we may
+        # wish to display the summary of the referenced value instead.
         is_pointer = var.GetType().GetTypeClass() in [lldb.eTypeClassPointer,
                                                       lldb.eTypeClassReference]
-        if is_pointer and format == lldb.eFormatDefault:
-            # For pointers and references, when format is eFormatDefault, fall through
-            # to var.GetSummary() below which will extract the summary of the object it points to.
-            value = None
-        else:
+        if not (is_pointer and self.deref_pointers and format == lldb.eFormatDefault):
             value = var.GetValue()
 
+        # if None, fall back to var.GetSummary()
         if value is None:
             value = var.GetSummary()
             if value is not None:
                 value = value.replace('\n', '') # VSCode won't display line breaks
+
+        # deal with encodings
         if value is not None:
             value = from_lldb_str(value)
+
         return value
 
     # Clears out cached state that become invalid once debuggee resumes.
@@ -1064,25 +1071,26 @@ class DebugSession:
     def DEBUG_test(self, args):
         self.console_msg('TEST')
 
-    def DEBUG_showDisassembly(self, args):
-        value = args.get('value', 'toggle')
-        if value == 'toggle':
-            self.show_disassembly = 'auto' if self.show_disassembly != 'auto' else 'always'
-        else:
-            self.show_disassembly = value
+    def DEBUG_displaySettings(self, args):
+        self.update_display_settings(args)
         self.refresh_client_display()
 
-    def DEBUG_displayFormat(self, args):
-        value = args.get('value', 'auto')
-        if value == 'hex':
+    def update_display_settings(self, settings):
+        if not settings: return
+
+        self.show_disassembly = settings['showDisassembly']
+
+        format = settings['displayFormat']
+        if format == 'hex':
             self.global_format = lldb.eFormatHex
-        elif value == 'decimal':
+        elif format == 'decimal':
             self.global_format = lldb.eFormatDecimal
-        elif value == 'binary':
+        elif format == 'binary':
             self.global_format = lldb.eFormatBinary
         else:
             self.global_format = lldb.eFormatDefault
-        self.refresh_client_display()
+
+        self.deref_pointers = settings['dereferencePointers']
 
     def DEBUG_provideContent(self, args):
         return { 'content': self.provide_content(args['uri']) }

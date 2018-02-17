@@ -55,10 +55,10 @@
 	"main": "./out/extension",
 	"activationEvents": [
 		"onDebug",
-		"onCommand:lldb.getAdapterExecutable",
 		"onCommand:lldb.showDisassembly",
 		"onCommand:lldb.toggleDisassembly",
 		"onCommand:lldb.displayFormat",
+		"onCommand:lldb.toggleDerefPointers",
 		"onCommand:lldb.launchDebugServer",
 		"onCommand:lldb.diagnose",
 		"onCommand:lldb.pickProcess",
@@ -179,6 +179,10 @@
 				"title": "LLDB: Display Format ..."
 			},
 			{
+				"command": "lldb.toggleDerefPointers",
+				"title": "LLDB: Toggle pointer dereferencing"
+			},
+			{
 				"command": "lldb.launchDebugServer",
 				"title": "LLDB: Launch Debug Server"
 			},
@@ -233,7 +237,6 @@
 					"pickProcess": "lldb.pickProcess",
 					"pickMyProcess": "lldb.pickMyProcess"
 				},
-				"adapterExecutableCommand": "lldb.getAdapterExecutable",
 				"configurationAttributes": {
 					"launch": {
 						"required": [

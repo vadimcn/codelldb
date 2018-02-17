@@ -32,6 +32,12 @@ class ActiveDebugSession {
     previewContent: Dict<string> = {};
 }
 
+class DisplaySettings {
+    showDisassembly: string = 'auto'; // 'always' | 'auto' | 'never'
+    displayFormat: string = 'auto'; // 'auto' | 'hex' | 'decimal' | 'binary'
+    dereferencePointers: boolean = true;
+};
+
 class Extension implements TextDocumentContentProvider, DebugConfigurationProvider {
     context: ExtensionContext;
     launching: [string, startup.AdapterProcess][] = [];
@@ -50,10 +56,10 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         subscriptions.push(commands.registerCommand('lldb.showDisassembly', this.showDisassembly, this));
         subscriptions.push(commands.registerCommand('lldb.toggleDisassembly', this.toggleDisassembly, this));
         subscriptions.push(commands.registerCommand('lldb.displayFormat', this.displayFormat, this));
+        subscriptions.push(commands.registerCommand('lldb.toggleDerefPointers', this.toggleDerefPointers, this));
         subscriptions.push(commands.registerCommand('lldb.diagnose', startup.diagnose));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
-        subscriptions.push(commands.registerCommand('lldb.getAdapterExecutable', () => startup.getAdapterExecutable(this.context)));
         subscriptions.push(commands.registerCommand('lldb.launchDebugServer', () => startup.launchDebugServer(this.context)));
     }
 
@@ -105,6 +111,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
             if (config._adapterStartDelay) {
                 await new Promise(resolve => setTimeout(resolve, config._adapterStartDelay));
             }
+            config._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
             return config;
         } catch (err) {
             startup.analyzeStartupError(err);
@@ -154,22 +161,36 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
     }
 
     async showDisassembly() {
-        if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            let selection = await window.showQuickPick(['always', 'auto', 'never']);
-            debug.activeDebugSession.customRequest('showDisassembly', { value: selection });
-        }
+        let selection = await window.showQuickPick(['always', 'auto', 'never']);
+        this.updateDisplaySettings(settings => settings.showDisassembly = selection);
     }
 
-    async  toggleDisassembly() {
-        if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            debug.activeDebugSession.customRequest('showDisassembly', { value: 'toggle' });
+    async toggleDisassembly() {
+        await this.updateDisplaySettings(settings => {
+            if (settings.showDisassembly == 'auto') {
+                settings.showDisassembly = 'always';
+            } else {
+                settings.showDisassembly = 'auto';
         }
+        });
     }
 
-    async  displayFormat() {
+    async displayFormat() {
+        let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
+        await this.updateDisplaySettings(settings => settings.displayFormat = selection);
+    }
+
+    async toggleDerefPointers() {
+        await this.updateDisplaySettings(
+            settings => settings.dereferencePointers = !settings.dereferencePointers);
+    }
+
+    async updateDisplaySettings(updater: (settings: DisplaySettings) => void) {
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-            debug.activeDebugSession.customRequest('displayFormat', { value: selection });
+            var settings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+            updater(settings);
+            this.context.globalState.update('display_settings', settings);
+            await debug.activeDebugSession.customRequest('displaySettings', settings);
         }
     }
 

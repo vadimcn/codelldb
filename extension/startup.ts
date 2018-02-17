@@ -323,20 +323,6 @@ export async function analyzeStartupError(err: Error) {
     }
 }
 
-export async function getAdapterExecutable(context: ExtensionContext): Promise<any> {
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-    let adapterPath = path.join(context.extensionPath, 'adapter');
-    let params = getAdapterParameters(config);
-    return {
-        command: lldbPath,
-        args: ['-b',
-            '-O', format('command script import \'%s\'', adapterPath),
-            '-O', format('script adapter.main.run_stdio_session(\'%s\')', params)
-        ]
-    }
-}
-
 export async function launchDebugServer(context: ExtensionContext) {
     let config = workspace.getConfiguration('lldb');
     let lldbPath = config.get('executable', 'lldb');

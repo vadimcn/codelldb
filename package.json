@@ -198,28 +198,34 @@
 		},
 		"commands": [
 			{
-				"command": "lldb.showDisassembly",
-				"title": "LLDB: Show Disassembly ..."
+				"category": "LLDB",
+				"title": "Show Disassembly ...",
+				"command": "lldb.showDisassembly"
 			},
 			{
-				"command": "lldb.toggleDisassembly",
-				"title": "LLDB: Toggle Disassembly"
+				"category": "LLDB",
+				"title": "Toggle Disassembly",
+				"command": "lldb.toggleDisassembly"
 			},
 			{
-				"command": "lldb.displayFormat",
-				"title": "LLDB: Display Format ..."
+				"category": "LLDB",
+				"title": "Display Format ...",
+				"command": "lldb.displayFormat"
 			},
 			{
-				"command": "lldb.toggleDerefPointers",
-				"title": "LLDB: Toggle pointer dereferencing"
+				"category": "LLDB",
+				"title": "Toggle Pointer Address Display",
+				"command": "lldb.toggleDerefPointers"
 			},
 			{
-				"command": "lldb.launchDebugServer",
-				"title": "LLDB: Launch Debug Server"
+				"category": "LLDB",
+				"title": "Launch Debug Server",
+				"command": "lldb.launchDebugServer"
 			},
 			{
-				"command": "lldb.diagnose",
-				"title": "LLDB: Run diagnostics"
+				"category": "LLDB",
+				"title": "Run Diagnostics",
+				"command": "lldb.diagnose"
 			}
 		],
 		"languages": [

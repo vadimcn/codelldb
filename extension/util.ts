@@ -5,11 +5,27 @@ import { QuickPickItem, WorkspaceConfiguration } from 'vscode';
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
-export function expandVariables(str: string, expander: (type: string, key: string) => string): string {
+export function expandVariables(str: string | String, expander: (type: string, key: string) => string): string {
     let result = str.replace(expandVarRegex, (all: string, type: string, key: string): string => {
-        return expander(type, key);
+        let replacement = expander(type, key);
+        return replacement != null ? replacement : all;
     });
     return result;
+}
+
+export function expandVariablesInObject(obj: any, expander: (type: string, key: string) => string): any {
+    if (typeof obj == 'string' || obj instanceof String)
+        return expandVariables(obj, expander);
+
+    if (isScalarValue(obj))
+        return obj;
+
+    if (obj instanceof Array)
+        return obj.map(v => expandVariablesInObject(v, expander));
+
+    for (var prop of Object.keys(obj))
+        obj[prop] = expandVariablesInObject(obj[prop], expander)
+    return obj;
 }
 
 export async function getProcessList(currentUserOnly: boolean):
@@ -61,11 +77,11 @@ export async function getProcessList(currentUserOnly: boolean):
 
 export function getConfigNoDefault(config: WorkspaceConfiguration, key: string): any {
     let x = config.inspect(key);
-    var value = x.globalValue;
+    var value = x.workspaceFolderValue;
     if (value === undefined)
         value = x.workspaceValue;
     if (value === undefined)
-        value = x.workspaceFolderValue;
+        value = x.globalValue;
     return value;
 }
 
@@ -83,14 +99,18 @@ export function mergeValues(value1: any, value2: any): any {
     if (value2 === undefined)
         return value1;
     // For non-container types, value2 wins.
-    if (value1 === null || value1 === undefined ||
-        typeof value1 == 'boolean' || value1 instanceof Boolean ||
-        typeof value1 == 'number' || value1 instanceof Number ||
-        typeof value1 == 'string' || value1 instanceof String)
+    if (isScalarValue(value1))
         return value2;
     // Concatenate arrays.
     if (value1 instanceof Array && value2 instanceof Array)
         return value1.concat(value2);
     // Merge dictionaries.
     return Object.assign({}, value1, value2);
+}
+
+function isScalarValue(value: any) {
+    return value === null || value === undefined ||
+        typeof value == 'boolean' || value instanceof Boolean ||
+        typeof value == 'number' || value instanceof Number ||
+        typeof value == 'string' || value instanceof String;
 }

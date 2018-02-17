@@ -2,7 +2,7 @@
 import {
     workspace, languages, window, commands, debug,
     ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter,
-    TextDocumentContentProvider, WorkspaceFolder, CancellationToken,
+    TextDocumentContentProvider, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugSession, DebugSessionCustomEvent
 } from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
@@ -66,7 +66,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
     // Invoked by VSCode to initiate a new debugging session.
     async resolveDebugConfiguration(
         folder: WorkspaceFolder | undefined,
-        config: DebugConfiguration,
+        debugConfig: DebugConfiguration,
         token?: CancellationToken): Promise<DebugConfiguration> {
 
         if (!this.context.globalState.get('lldb_works')) {
@@ -77,46 +77,95 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
                 return null;
             }
         }
+
+        let launchConfig = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
+        debugConfig = this.mergeWorkspaceSettings(debugConfig, launchConfig);
+
+        let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
+        debugConfig = this.expandDbgConfig(debugConfig, dbgconfigConfig);
+
+        output.clear();
+        output.appendLine('Starting new session with:');
+        output.appendLine(inspect(debugConfig));
+
         try {
-            let launch = workspace.getConfiguration('lldb.launch');
-            // Merge launch config with workspace settings
-            let mergeConfig = (key: string, reverse: boolean = false) => {
-                let value1 = util.getConfigNoDefault(launch, key);
-                let value2 = config[key];
-                let value = !reverse ? util.mergeValues(value1, value2) : util.mergeValues(value2, value1);
-                if (!util.isEmpty(value))
-                    config[key] = value;
-            }
-            mergeConfig('initCommands');
-            mergeConfig('preRunCommands');
-            mergeConfig('exitCommands', true);
-            mergeConfig('env');
-            mergeConfig('cwd');
-            mergeConfig('terminal');
-            mergeConfig('stdio');
-            mergeConfig('sourceMap');
-            mergeConfig('sourceLanguages');
-
-            output.clear();
-            output.appendLine('Starting new session with:');
-            output.appendLine(inspect(config));
-
             // If configuration does not provide debugServer explicitly, launch new adapter.
-            if (!config.debugServer) {
+            if (!debugConfig.debugServer) {
                 let adapter = await startup.startDebugAdapter(this.context);
-                this.launching.push([config.name, adapter]);
-                config.debugServer = adapter.port;
+                this.launching.push([debugConfig.name, adapter]);
+                debugConfig.debugServer = adapter.port;
             }
             // For adapter debugging
-            if (config._adapterStartDelay) {
-                await new Promise(resolve => setTimeout(resolve, config._adapterStartDelay));
+            if (debugConfig._adapterStartDelay) {
+                await new Promise(resolve => setTimeout(resolve, debugConfig._adapterStartDelay));
             }
-            config._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
-            return config;
+            debugConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+            return debugConfig;
         } catch (err) {
             startup.analyzeStartupError(err);
             return null;
         }
+    }
+
+    // Merge launch configuration with workspace settings
+    mergeWorkspaceSettings(debugConfig: DebugConfiguration, launchConfig: WorkspaceConfiguration): DebugConfiguration {
+        let mergeConfig = (key: string, reverse: boolean = false) => {
+            let value1 = util.getConfigNoDefault(launchConfig, key);
+            let value2 = debugConfig[key];
+            let value = !reverse ? util.mergeValues(value1, value2) : util.mergeValues(value2, value1);
+            if (!util.isEmpty(value))
+                debugConfig[key] = value;
+        }
+        mergeConfig('initCommands');
+        mergeConfig('preRunCommands');
+        mergeConfig('exitCommands', true);
+        mergeConfig('env');
+        mergeConfig('cwd');
+        mergeConfig('terminal');
+        mergeConfig('stdio');
+        mergeConfig('sourceMap');
+        mergeConfig('sourceLanguages');
+        return debugConfig;
+    }
+
+    // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
+    expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
+        let dbgconfig: Dict<any> = Object.assign({}, dbgconfigConfig);
+
+        // Compute fixed-point of expansion of dbgconfig properties.
+        var expanding = '';
+        var converged = true;
+        let expander = (type: string, key: string) => {
+            if (type == 'dbgconfig') {
+                if (key == expanding)
+                    throw new Error('Circular dependency detected during expansion of dbgconfig:' + key);
+                let value = dbgconfig[key];
+                if (value == undefined)
+                    throw new Error('dbgconfig:' + key + ' is not defined');
+                converged = false;
+                return value.toString();
+            }
+            return null;
+        };
+        do {
+            converged = true;
+            for (var prop of Object.keys(dbgconfig)) {
+                expanding = prop;
+                dbgconfig[prop] = util.expandVariablesInObject(dbgconfig[prop], expander);
+            }
+        } while (!converged);
+
+        // Now expand dbgconfigs in the launch configuration.
+        debugConfig = util.expandVariablesInObject(debugConfig, (type, key) => {
+            if (type == 'dbgconfig') {
+                let value = dbgconfig[key];
+                if (value == undefined)
+                    throw new Error('dbgconfig:' + key + ' is not defined');
+                return value.toString();
+            }
+            return null;
+        });
+        return debugConfig;
     }
 
     onStartedDebugSession(session: DebugSession) {
@@ -171,7 +220,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
                 settings.showDisassembly = 'always';
             } else {
                 settings.showDisassembly = 'auto';
-        }
+            }
         });
     }
 

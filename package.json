@@ -72,7 +72,8 @@
 				"lldb.executable": {
 					"type": "string",
 					"default": "lldb",
-					"description": "Path to debugger executable."
+					"description": "Path to debugger executable.",
+					"scope": "resource"
 				},
 				"lldb.executable.env": {
 					"type": "object",
@@ -82,38 +83,46 @@
 						}
 					},
 					"default": {},
-					"description": "Environment variables to pass to debugger."
+					"description": "Environment variables to pass to debugger.",
+					"scope": "resource"
 				},
 				"lldb.logLevel": {
 					"type": "integer",
-					"description": "Logging level as defined by Python's 'logging' module (0=Verbose)."
+					"description": "Logging level as defined by Python's 'logging' module (0=Verbose).",
+					"scope": "resource"
 				},
 				"lldb.logFile": {
 					"type": "string",
-					"description": "Log file path. (default=VSCode 'Output' panel)"
+					"description": "Log file path. (default=VSCode 'Output' panel)",
+					"scope": "resource"
 				},
 				"lldb.reverseDebugging": {
 					"type": "boolean",
-					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)"
+					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)",
+					"scope": "resource"
 				},
 				"lldb.suppressMissingSourceFiles": {
 					"type": "boolean",
-					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file)."
+					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
+					"scope": "resource"
 				},
 				"lldb.launch.initCommands": {
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *before* initCommands in individual launch configurations."
+					"description": "Commands executed *before* initCommands in individual launch configurations.",
+					"scope": "resource"
 				},
 				"lldb.launch.preRunCommands": {
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *before* preRunCommands in individual launch configurations."
+					"description": "Commands executed *before* preRunCommands in individual launch configurations.",
+					"scope": "resource"
 				},
 				"lldb.launch.exitCommands": {
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *after* exitCommands in individual launch configurations."
+					"description": "Commands executed *after* exitCommands in individual launch configurations.",
+					"scope": "resource"
 				},
 				"lldb.launch.env": {
 					"type": "object",
@@ -123,12 +132,14 @@
 						}
 					},
 					"default": {},
-					"description": "Additional environment variables merged with 'env' individual launch configurations."
+					"description": "Additional environment variables merged with 'env' individual launch configurations.",
+					"scope": "resource"
 				},
 				"lldb.launch.cwd": {
 					"type": "string",
 					"default": "${workspaceFolder}",
-					"description": "Default program working directory."
+					"description": "Default program working directory.",
+					"scope": "resource"
 				},
 				"lldb.launch.terminal": {
 					"type": "string",
@@ -138,7 +149,8 @@
 						"console"
 					],
 					"default": "console",
-					"description": "Default terminal type."
+					"description": "Default terminal type.",
+					"scope": "resource"
 				},
 				"lldb.launch.stdio": {
 					"type": [
@@ -148,7 +160,8 @@
 						"object"
 					],
 					"default": null,
-					"description": "Default stdio destination."
+					"description": "Default stdio destination.",
+					"scope": "resource"
 				},
 				"lldb.launch.sourceMap": {
 					"type": "object",
@@ -161,7 +174,25 @@
 						}
 					},
 					"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
-					"default": {}
+					"default": {},
+					"scope": "resource"
+				},
+				"lldb.dbgconfig": {
+					"type": "object",
+					"patternProperties": {
+						".*": {
+							"type": [
+								"string",
+								"number",
+								"array",
+								"boolean",
+								"null"
+							]
+						}
+					},
+					"description": "User settings",
+					"default": {},
+					"scope": "resource"
 				}
 			}
 		},

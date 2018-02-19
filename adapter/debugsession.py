@@ -1182,17 +1182,20 @@ class DebugSession:
             ev_type = event.GetType()
             if ev_type == lldb.SBProcess.eBroadcastBitStateChanged:
                 state = lldb.SBProcess.GetStateFromEvent(event)
-                if state == lldb.eStateStopped:
+                if state == lldb.eStateRunning:
+                    self.send_event('continued', { 'threadId': 0, 'allThreadsContinued': True })
+                elif state == lldb.eStateStopped:
                     if not lldb.SBProcess.GetRestartedFromEvent(event):
                         self.notify_target_stopped(event)
-                elif state == lldb.eStateRunning:
-                    self.send_event('continued', { 'threadId': 0, 'allThreadsContinued': True })
+                elif state == lldb.eStateCrashed:
+                    self.notify_target_stopped(event)
                 elif state == lldb.eStateExited:
                     exit_code = self.process.GetExitStatus()
-                    self.console_msg('Process exited with code %d' % exit_code)
+                    self.console_msg('Process exited with code %d.' % exit_code)
                     self.send_event('exited', { 'exitCode': exit_code })
                     self.send_event('terminated', {}) # TODO: VSCode doesn't seem to handle 'exited' for now
-                elif state in [lldb.eStateCrashed, lldb.eStateDetached]:
+                elif state == lldb.eStateDetached:
+                    self.console_msg('Debugger has detached from process.')
                     self.send_event('terminated', {})
             elif ev_type & (lldb.SBProcess.eBroadcastBitSTDOUT | lldb.SBProcess.eBroadcastBitSTDERR) != 0:
                 self.notify_stdio(ev_type)

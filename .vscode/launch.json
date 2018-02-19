@@ -70,6 +70,13 @@
 			"args": ["threads"]
 		},
 		{
+			"name": "debuggee launch crash",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"args": ["crash"]
+		},
+		{
 			"name": "debuggee launch mandelbrot",
 			"type": "lldb",
 			"request": "launch",

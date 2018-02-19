@@ -9,11 +9,13 @@
     - [Remote Debugging](#remote-debugging)
     - [Loading a Core Dump](#loading-a-core-dump)
     - [Source Path Remapping](#source-path-remapping)
+    - [Parameterized Launch Configurations](#parameterized-launch-configurations)
 - [Debugger Features](#debugger-features)
     - [Regex Breakpoints](#regex-breakpoints)
     - [Conditional Breakpoints](#conditional-breakpoints)
     - [Disassembly View](#disassembly-view)
-    - [Formatting of Results](#formatting)
+    - [Formatting](#formatting)
+        - [Pointers](#pointers)
     - [Expressions](#expressions)
     - [Debugger API](#debugger-api)
 - [Rust Language Support](#rust-language-support)
@@ -53,7 +55,7 @@ stderr to the specified file.
 - A scalar value will configure all three streams identically: `"stdio": null`.
 
 <sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
-as described above.
+as described above.<br>
 <sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.
 
 ## Attaching
@@ -153,15 +155,42 @@ Use custom launch with `target crate -c <core path>` init command:
 Source path remapping is helpful in cases when program's source code is located in a different
 directory then it was in during the build (for example, if a build server was used).
 
-A source map consists of pairs of "from" and "to" path prefixes.  When debugger encounters a source
-file path beginning with one of the "from" prefixes, it will automatically replace it with the
-corresponding "to" prefix.  Example:
+A source map consists of pairs of "from" and "to" path prefixes.  When the debugger encounters a source
+file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
+instead.  Example:
 ```javascript
     "sourceMap": { "/old/path/*/to/source/" : "/the/new/source/path/" }
 ```
 - "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
 use one of the meta-characters verbatim, enclose it in brackets (`[?]` matches `?`).
-- "to" prefixes may be null, which will cause CodeLLDB to ignore the matching files.
+- "to" prefixes may be null, which will cause CodeLLDB to ignore matching source files.
+
+## Parameterized Launch Configurations
+Sometimes you'll find yourself adding the same parameters (e.g. a path of a dataset directory)
+to multiple launch configurations over and over again.  CodeLLDB provides a feature to help with
+configuration management in such cases: you may put common configuration values in `lldb.dbgconfig`
+section of your workspace configuration, and then reference them using `${dbgconfig:variable}` syntax
+in your launch configurations:
+
+```javascript
+// settings.json
+...
+    "lldb.dbgconfig":
+    {
+        "dateset": "dataset1",
+        "datadir": "${env:HOME}/mydata/${dbgconfig:dataset}" // "dbgconfig" properties may reference each other,
+                                                             // as long as there is no recursion.
+    }
+
+// launch.json
+...
+    {
+        "name": "Debug program",
+        "type": "lldb",
+        "program": "${workspaceFolder}/build/bin/program",
+        "cwd": "${dbgconfig:datadir}" // will be expanded to "/home/user/mydata/dataset1"
+    }
+```
 
 # Debugger Features
 
@@ -177,8 +206,8 @@ Any other value (or expression evaluation error) will cause the debugger to stop
 
 ## Disassembly View
 When execution steps into code for which debug info is not available, CodeLLDB will automatically
-switch to disassembly view.  This behavior may be controlled using `LLDB: Show Disassembly`
-and `LLDB: Toggle Disassembly` commands.  The former allows to choose between `never`,
+switch to disassembly view.  This behavior may be controlled using **Show Disassembly**
+and **Toggle Disassembly** commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
 
 While is disassembly view, the 'step over' and 'step into' debug actions will perform instruction-level
@@ -187,7 +216,7 @@ stepping rather than source-level stepping.
 ![disassembly view](images/disasm.png)
 
 ## Formatting
-You may change the default display format of evaluation results using the `LLDB: Display Format` command.
+You may change the default display format of evaluation results using the `Display Format` command.
 
 When evaluating expressions in Debug Console or in Watch panel, you may control formatting of
 individual expressions by adding one of the suffixes listed below.  For example evaluation of `var,x`
@@ -205,6 +234,14 @@ will display the value of `var` formatted as hex.
 |**s**  | C string
 |**y**  | Bytes
 |**Y**  | Bytes with ASCII
+
+### Pointers
+
+When displaying pointer and reference variables, CodeLLDB will prefer to display the
+value of the object pointed to.  If you would like to see the raw address value,
+you may toggle this behavior using **Toggle pointer address display** command.
+Another way to display raw pointer address is to add the pointer variable to Watch panel and specify
+an explicit format, as described in the previous section.
 
 ## LLDB Commands
 To access LLDB features not exposed via the VS Code UI, you may enter
@@ -300,6 +337,8 @@ have this problem fixed.
 |**lldb.logFile**       |Log file.
 |**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
 |**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
+
 
 ## Default launch configuration settings
 |                       |                                                         |

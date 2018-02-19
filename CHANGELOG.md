@@ -1,5 +1,11 @@
 # What's New
 
+## X.Y
+- Added [Parameterized Launch Configurations](MANUAL.md#parameterized-launch-configurations).
+- Display settings such as disassembly display, default variable formats, will now be persisted across debug sessions.
+- New command to toggle pointer address display setting.
+- Fixed order of precedence when merging of lldb.launch... properties across multiple levels of settings.
+
 ## 0.7.5
 - Fixed LLDB detection on OSX and Windows.
 

@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"lldb.launch.env": {
+			"TEST": "workspace"
+		},
+		"lldb.logLevel": 0
+	}
+}

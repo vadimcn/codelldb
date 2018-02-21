@@ -15,7 +15,7 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 
 For full details please see the [Manual](MANUAL.md).
 
-# Eye Candy
+---
 
 C++ debugging with data visualization ([Howto](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization)):
 ![source](images/plotting.png)

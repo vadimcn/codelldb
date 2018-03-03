@@ -461,10 +461,13 @@ class DebugSession:
     def set_bp_condition(self, bp, req):
         bp_info = self.breakpoints[bp.GetID()]
 
-        bp_info.condition = None
-        bp_info.ignore_count = 0
-        bp.SetCondition(None)
-        bp.SetScriptCallbackFunction('')
+        if bp_info.condition or bp_info.ignore_count:
+            bp_info.condition = None
+            bp_info.ignore_count = 0
+            bp.SetCondition(None)
+            # Ain't no way to completely unset a breakpoint callback,
+            # but this will do the least amount of work.
+            bp.SetScriptCallbackFunction('')
 
         cond = opt_lldb_str(req.get('condition', None))
         if cond:

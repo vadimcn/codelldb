@@ -267,8 +267,9 @@ class DebugSession:
             term_type = args.get('terminal', 'console')
             if 'win32' not in sys.platform:
                 if term_type in ['integrated', 'external']:
+                    title = 'Debug - ' + args.get('name', '?')
                     self.terminal = terminal.create(
-                        lambda args: self.spawn_vscode_terminal(kind=term_type, args=args))
+                        lambda args: self.spawn_vscode_terminal(kind=term_type, args=args, title=title))
                     term_fd = self.terminal.tty
                 else:
                     term_fd = None # that'll send them to VSCode debug console
@@ -281,10 +282,7 @@ class DebugSession:
 
     def spawn_vscode_terminal(self, kind, args=[], cwd='', env=None, title='Debuggee'):
         if kind == 'integrated':
-            # Send dummy command first to clear the command line.
-            self.send_request('runInTerminal', {
-                'kind': kind, 'cwd': cwd, 'args': [], 'env': None, 'title': title
-            }, lambda ok, body: None)
+            args[0] = '\n' + args[0] # Extra end of line to flush junk
 
         self.send_request('runInTerminal', {
             'kind': kind, 'cwd': cwd, 'args': args, 'env': env, 'title': title

@@ -47,7 +47,7 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
         '-O', format('command script import \'%s\'', adapterPath),
         '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
     ];
-    let lldbEnv = config.get('executable.env', {});
+    let lldbEnv = config.get('executable_env', {});
     let lldb = spawnDebugger(args, config.get('executable', 'lldb'), lldbEnv);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
@@ -97,7 +97,7 @@ export async function diagnose(): Promise<boolean> {
         let config = workspace.getConfiguration('lldb');
         let lldbPathOrginal = config.get('executable', 'lldb');
         let lldbPath = lldbPathOrginal;
-        let lldbEnv = config.get('executable.env', {});
+        let lldbEnv = config.get('executable_env', {});
 
         // Try to locate LLDB and get its version.
         var version: string = null;

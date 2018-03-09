@@ -75,7 +75,7 @@
 					"description": "Path to debugger executable.",
 					"scope": "resource"
 				},
-				"lldb.executable.env": {
+				"lldb.executable_env": {
 					"type": "object",
 					"patternProperties": {
 						".*": {

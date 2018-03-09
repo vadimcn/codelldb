@@ -332,7 +332,7 @@ have this problem fixed.
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
 |**lldb.executable**    |Path to debugger executable. (default="lldb")
-|**lldb.executable.env**|Environment variables to pass to debugger.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
+|**lldb.executable_env**|Environment variables to pass to debugger.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
 |**lldb.logLevel**      |Logging level as defined by Python's 'logging' module.
 |**lldb.logFile**       |Log file.
 |**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)

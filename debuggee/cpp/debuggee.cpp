@@ -93,6 +93,9 @@ void vars() {
         std::vector<std::vector<int>> vec_int(10, {i*1, i*2, i*3, i*4, i*5});
         std::vector<std::vector<int>> empty_vec;
         Struct s = { i+1, 'a', 3.0f };
+        Struct* s_ptr = &s;
+        Struct* null_s_ptr = nullptr;
+        Struct* invalid_s_ptr = (Struct*)1;
         std::vector<Struct> vec_struct(3, { i*2, 'b', 4.0f});
         std::array<int, 5> stdarr_int;
         Struct array_struct[5] = { { i*2, 'b', 4.0f} };

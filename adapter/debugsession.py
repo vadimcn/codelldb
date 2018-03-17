@@ -1013,17 +1013,21 @@ class DebugSession:
         # wish to display the summary of the referenced value instead.
         is_pointer = var.GetType().GetTypeClass() in [lldb.eTypeClassPointer,
                                                       lldb.eTypeClassReference]
-        if not (is_pointer and self.deref_pointers and format == lldb.eFormatDefault):
-            value = var.GetValue()
 
-        # if None, fall back to var.GetSummary()
-        if value is None:
-            value = var.GetSummary()
-            if value is not None:
-                value = value.replace('\n', '') # VSCode won't display line breaks
+        if is_pointer and self.deref_pointers and format == lldb.eFormatDefault:
+            # try to get summary of the pointee
+            if var.GetValueAsUnsigned() == 0:
+                value = '<null>'
+            else:
+                value = var.GetSummary()
+        else:
+            value = var.GetValue()
+            if value is None:
+                value = var.GetSummary()
 
         # deal with encodings
         if value is not None:
+            value = value.replace('\n', '') # VSCode won't display line breaks
             value = from_lldb_str(value)
 
         return value

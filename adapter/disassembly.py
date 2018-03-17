@@ -124,20 +124,23 @@ class DisassembledRange:
         lines = [
             '; %s' % description,
             '; Source location: %s' % source_location ]
+        dump = []
         for instr in self.instructions:
             addr = instr.GetAddress().GetLoadAddress(self.target)
-            dump = ''
+            del dump[:]
             for i,b in enumerate(instr.GetData(self.target).uint8):
                 if i >= MAX_INSTR_BYTES:
-                    dump += '>'
+                    dump.append('>')
                     break
-                dump += '%02X ' % b
-            dump = dump.ljust(MAX_INSTR_BYTES * 3 + 2)
-            line = '%08X: %s %-6s %s' % (addr, dump,
-                instr.GetMnemonic(self.target), instr.GetOperands(self.target))
+                dump.append('%02X ' % b)
             comment = instr.GetComment(self.target)
-            if len(comment) > 0:
-                line += '  ; ' + comment
-            #line = str(instr)
+            line = '%08X: %s %-6s %s%s%s' % (
+                addr,
+                ''.join(dump).ljust(MAX_INSTR_BYTES * 3 + 2),
+                instr.GetMnemonic(self.target),
+                instr.GetOperands(self.target),
+                '  ; ' if len(comment) > 0 else '',
+                comment
+            )
             lines.append(line)
         return '\n'.join(lines)

@@ -476,7 +476,7 @@ class DebugSession:
                 if cond.startswith('/py '):
                     eval_condition = self.make_python_expression_bpcond(cond[4:])
                 else:
-                    eval_condition = self.make_simple_expression_pbcond(cond)
+                    eval_condition = self.make_simple_expression_bpcond(cond)
 
                 if eval_condition:
                     bp_info.condition = eval_condition
@@ -524,7 +524,7 @@ class DebugSession:
         return eval_condition
 
     # Compiles a simple expression into a breakpoint condition evaluator
-    def make_simple_expression_pbcond(seld, cond):
+    def make_simple_expression_bpcond(self, cond):
         pp_cond = expressions.preprocess_simple_expr(cond)
         try:
             pycode = compile(pp_cond, '<breakpoint condition>', 'eval')

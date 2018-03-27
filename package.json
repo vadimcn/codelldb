@@ -177,6 +177,15 @@
 					"default": {},
 					"scope": "resource"
 				},
+				"lldb.launch.expressions": {
+					"type": "string",
+					"enum": [
+						"simple",
+						"python",
+						"native"
+					],
+					"description": "The default evaluator type used for expressions."
+				},
 				"lldb.dbgconfig": {
 					"type": "object",
 					"patternProperties": {
@@ -351,6 +360,15 @@
 								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
 								"default": []
+							},
+							"expressions": {
+								"type": "string",
+								"enum": [
+									"simple",
+									"python",
+									"native"
+								],
+								"description": "The default evaluator type used for expressions."
 							},
 							"sourceLanguages": {
 								"type": "array",

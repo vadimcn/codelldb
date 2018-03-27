@@ -27,6 +27,11 @@ MAX_VAR_CHILDREN = 10000
 # When None is a valid dictionary entry value, we need some other value to designate missing entries.
 MISSING = ()
 
+# Expression types
+SIMPLE = 'simple'
+PYTHON = 'python'
+NATIVE = 'native'
+
 class DebugSession:
 
     def __init__(self, parameters, event_loop, send_message):
@@ -469,13 +474,13 @@ class DebugSession:
 
         cond = opt_lldb_str(req.get('condition', None))
         if cond:
-            if cond.startswith('/nat '):
-                # LLDB native expression
-                bp.SetCondition(cond[5:])
+            ty, cond = self.get_expression_type(cond)
+            if ty == NATIVE:
+                bp.SetCondition(cond)
             else:
-                if cond.startswith('/py '):
-                    eval_condition = self.make_python_expression_bpcond(cond[4:])
-                else:
+                if ty == PYTHON:
+                    eval_condition = self.make_python_expression_bpcond(cond)
+                else: # SIMPLE
                     eval_condition = self.make_simple_expression_bpcond(cond)
 
                 if eval_condition:
@@ -894,6 +899,17 @@ class DebugSession:
         lldb.process = process
         lldb.target = process.GetTarget()
 
+    # Classify expression by evaluator type
+    def get_expression_type(self, expr):
+        if expr.startswith('/nat '):
+            return NATIVE, expr[5:]
+        elif expr.startswith('/py '):
+            return PYTHON, expr[4:]
+        elif expr.startswith('/se '):
+            return SIMPLE, expr[4:]
+        else:
+            return self.launch_args.get('expressions', SIMPLE), expr
+
     def evaluate_expr(self, args, expr):
         frame_id = args.get('frameId') # May be null
         # parse format suffix, if any
@@ -935,9 +951,8 @@ class DebugSession:
     # Evaluates expr in the context of frame (or in global context if frame is None)
     # Returns expressions.Value or SBValue on success, SBError on failure.
     def evaluate_expr_in_frame(self, expr, frame):
-        if expr.startswith('/nat '):
-            # Using LLDB native evaluator
-            expr = expr[5:]
+        ty, expr = self.get_expression_type(expr)
+        if ty == NATIVE:
             if frame is not None:
                 result = frame.EvaluateExpression(expr) # In frame context
             else:
@@ -951,16 +966,14 @@ class DebugSession:
             if frame is None: # Use the currently selected frame
                 frame = self.process.GetSelectedThread().GetSelectedFrame()
 
-            if expr.startswith('/py '):
-                # Python expression
-                expr = expressions.preprocess_python_expr(expr[4:])
+            if ty == PYTHON:
+                expr = expressions.preprocess_python_expr(expr)
                 self.set_selected_frame(frame)
                 import __main__
                 eval_globals = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
                 eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
                 eval_locals = {}
-            else:
-                # Simple expression
+            else: # SIMPLE
                 expr = expressions.preprocess_simple_expr(expr)
                 eval_globals = self.pyeval_globals
                 eval_locals = expressions.PyEvalContext(frame)

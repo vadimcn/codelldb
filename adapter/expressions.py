@@ -392,7 +392,7 @@ pystring = '|'.join([
 ])
 
 # Matches Python keywords
-keywords = '|'.join(keyword.kwlist)
+keywords = '|'.join([kw for kw in keyword.kwlist if kw not in ['and', 'or', 'not']])
 
 # Matches identifiers
 ident = r'[A-Za-z_] [A-Za-z0-9_]*'

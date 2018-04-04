@@ -106,6 +106,11 @@
 					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
 					"scope": "resource"
 				},
+				"lldb.sourceLanguages": {
+					"type": "array",
+					"description": "A list of source languages to enable language-specific features for.",
+					"default": ["cpp", "rust"]
+				},
 				"lldb.launch.initCommands": {
 					"type": "array",
 					"default": [],
@@ -370,11 +375,6 @@
 								],
 								"description": "The default evaluator type used for expressions."
 							},
-							"sourceLanguages": {
-								"type": "array",
-								"description": "A list of source languages used in the program.",
-								"default": []
-							},
 							"sourceMap": {
 								"type": "object",
 								"patternProperties": {
@@ -424,11 +424,6 @@
 								"description": "Commands executed at the end of debugging session.",
 								"default": []
 							},
-							"sourceLanguages": {
-								"type": "array",
-								"description": "A list of source languages used in the program.",
-								"default": []
-							},
 							"sourceMap": {
 								"type": "object",
 								"patternProperties": {
@@ -459,11 +454,6 @@
 							"exitCommands": {
 								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
-								"default": []
-							},
-							"sourceLanguages": {
-								"type": "array",
-								"description": "A list of source languages used in the program.",
 								"default": []
 							},
 							"sourceMap": {

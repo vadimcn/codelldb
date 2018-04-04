@@ -124,7 +124,6 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         mergeConfig('terminal');
         mergeConfig('stdio');
         mergeConfig('sourceMap');
-        mergeConfig('sourceLanguages');
         mergeConfig('expressions');
         return debugConfig;
     }

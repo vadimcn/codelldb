@@ -92,6 +92,10 @@ class DebugSession:
         self.debugger.SetErrorFileHandle(write_end, False)
         sys.stdout = write_end
         sys.stderr = write_end
+
+        src_langs = self.parameters.get('sourceLanguages', ['cpp'])
+        exc_filters = [{ 'filter':filter, 'label':label, 'default':default }
+                       for filter, label, default in self.get_exception_filters(src_langs)]
         return {
             'supportsConfigurationDoneRequest': True,
             'supportsEvaluateForHovers': True,
@@ -102,7 +106,8 @@ class DebugSession:
             'supportsCompletionsRequest': True,
             'supportTerminateDebuggee': True,
             'supportsDelayedStackTraceLoading': True,
-            'supportsStepBack': self.parameters.get('reverseDebugging', False)
+            'supportsStepBack': self.parameters.get('reverseDebugging', False),
+            'exceptionBreakpointFilters': exc_filters,
         }
 
     def DEBUG_launch(self, args):
@@ -607,21 +612,37 @@ class DebugSession:
                 self.target.BreakpointDelete(bp_id)
                 del self.breakpoints[bp_id]
 
-            set_all = 'all' in filters
-            set_uncaught = 'uncaught' in filters
-            for lang in self.launch_args.get('sourceLanguages', []):
-                language = languages.get(lang.lower())
-                if language is not None:
-                    for name, ef_name in [('all', 'ef_throw'), ('uncaught', 'ef_uncaught')]:
-                        if name in filters:
-                            bp = language[ef_name](self.target)
-                            bp_info = BreakpointInfo(bp.GetID())
-                            bp_info.exception_bp = True
-                            self.breakpoints[bp_info.id] = bp_info
-                else:
-                    self.console_err('Unknown source language: %s' % lang)
+            for bp in self.set_exception_breakpoints(filters):
+                bp_info = BreakpointInfo(bp.GetID())
+                bp_info.exception_bp = True
+                self.breakpoints[bp_info.id] = bp_info
         finally:
             self.enable_bp_events()
+
+    def get_exception_filters(self, source_langs):
+        filters = []
+        for lang in source_langs:
+            if lang == 'cpp':
+                filters.extend([
+                    ('cpp_throw', 'C++: on throw', True),
+                    ('cpp_catch', 'C++: on catch', False),
+                ])
+            elif lang == 'rust':
+                filters.extend([
+                    ('rust_panic', 'Rust: on panic', True)
+                ])
+        return filters
+
+    def set_exception_breakpoints(self, filters):
+        cpp_throw = 'cpp_throw' in filters
+        cpp_catch = 'cpp_catch' in filters
+        rust_panic = 'rust_panic' in filters
+        bps = []
+        if cpp_throw or cpp_catch:
+            bps.append(self.target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, cpp_catch, cpp_throw))
+        if rust_panic:
+            bps.append(self.target.BreakpointCreateByName('rust_panic'))
+        return bps
 
     def DEBUG_configurationDone(self, args):
         try:
@@ -1445,14 +1466,3 @@ def compose_eval_name(container, var_name):
         return container + var_name
     else:
         return container + '.' + expressions.escape_variable_name(var_name)
-
-languages = {
-    'rust': {
-        'ef_throw': lambda target: target.BreakpointCreateByName('rust_panic'),
-        'ef_uncaught': lambda target: target.BreakpointCreateByName('abort'),
-    },
-    'cpp': {
-        'ef_throw': lambda target: target.BreakpointCreateForException(lldb.eLanguageTypeC_plus_plus, False, True),
-        'ef_uncaught': lambda target: target.BreakpointCreateByName('terminate'),
-    }
-}

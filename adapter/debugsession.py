@@ -7,6 +7,7 @@ import collections
 import tempfile
 import re
 import fnmatch
+import json
 import lldb
 from . import expressions
 from . import debugevents
@@ -996,15 +997,16 @@ class DebugSession:
                 eval_locals = {}
             else: # SIMPLE
                 expr = expressions.preprocess_simple_expr(expr)
+                log.info('Preprocessed expr: %s', expr)
                 eval_globals = self.pyeval_globals
                 eval_locals = expressions.PyEvalContext(frame)
                 eval_globals['__frame_vars'] = eval_locals
 
             try:
-                log.debug('Evaluating %s', expr)
+                log.info('Evaluating %s', expr)
                 return eval(expr, eval_globals, eval_locals)
             except Exception as e:
-                log.debug('Evaluation error: %s', traceback.format_exc())
+                log.info('Evaluation error: %s', traceback.format_exc())
                 error = lldb.SBError()
                 error.SetErrorString(to_lldb_str(str(e)))
                 return error
@@ -1169,7 +1171,9 @@ class DebugSession:
                          'request_seq': message['seq'], 'success': False }
             args['response'] = response
 
-            log.debug('### Handling command: %s', command)
+            log.info('### Handling command: %s', command)
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug('Command args: %s', json.dumps(args, indent=4))
             handler = getattr(self, 'DEBUG_' + command, None)
             if handler is not None:
                 try:
@@ -1188,9 +1192,12 @@ class DebugSession:
     # sends response with `result` as a body
     def send_response(self, response, result):
         if result is None or isinstance(result, dict):
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug('Command result: %s', json.dumps(result, indent=4))
             response['success'] = True
             response['body'] = result
         elif isinstance(result, UserError):
+            log.debug('Command result is UserError: %s', result)
             if not result.no_console:
                 self.console_err('Error: ' + str(result))
             response['success'] = False

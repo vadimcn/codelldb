@@ -24,10 +24,10 @@ class WorkerThread(Thread):
         return ScopeGuard(self.shutdown)
 
     def shutdown(self):
-        log.debug('%s thread is shutting down', self.__class__.__name__)
+        log.info('%s thread is shutting down', self.__class__.__name__)
         self.stopping = True
         self.join()
-        log.debug('%s thread has stopped', self.__class__.__name__)
+        log.info('%s thread has stopped', self.__class__.__name__)
 
     def run(self):
         try:

@@ -1,5 +1,12 @@
 # What's New
 
+## 0.8.1
+- Added launch `expressions` ∈ { `simple`, `python`, `native` } configuration property, which selects the default
+  [expression evaluator type](MANUAL.md#expressions).
+- Exception breakpoints are now language specific: "on throw" and "on catch" for C++, "on panic" for Rust.<br>
+  In order to implement this, the "sourceLanguages" setting had to be moved to [workspace configuration](#workspace-configuration) level.
+- Fixed watch panel bug, which, in rare circumstances, could cause display of incorrect evaluation results.
+
 ## 0.8.0
 - Added [Parameterized Launch Configurations](MANUAL.md#parameterized-launch-configurations).
 - Display settings such as disassembly display, default variable formats, will now be persisted across debug sessions.

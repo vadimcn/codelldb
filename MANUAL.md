@@ -41,18 +41,18 @@ To start a debug session you will need to create a [launch configuration](https:
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceLanguages**|[string]| | A list of source languages used in the program. This is used to enable language-specific debugger features.
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 
 ### Stdio
 The **stdio** property is a list of redirection targets for each of debuggee's stdio streams:
-- `null` (default) will connect the stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
-- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or TTY device <sup>2</sup>.
+- `null` (default) will connect stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
+- `"/some/path"` will cause stream to be redirected to the specified file, pipe or a TTY device <sup>2</sup>.
 
 For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
 stderr to the specified file.
-- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
 - A scalar value will configure all three streams identically: `"stdio": null`.
+- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
 
 <sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
 as described above.<br>
@@ -68,21 +68,21 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**type**           |string  |Y| Set to `lldb`.
 |**request**        |string  |Y| Set to `attach`.
 |**program**        |string  |Y| Path to debuggee executable.
-|**pid**            |number  | | Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` here to choose a process interactively.
+|**pid**            |number  | | Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` or `${command.pickMyProcess}` here to choose a process interactively.
 |**stopOnEntry**    |boolean | | Whether to stop the debuggee immediately after attaching.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before attaching to debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 
 ## Custom Launch
 
-The custom launch method puts you in complete control of how the debuggee process is created.  This
+The custom launch method puts you in complete control of how debuggee process is created.  This
 happens in three steps:
 
 1. `initCommands` sequence is executed.  It is responsible for creation of the debug target.
-2. Debugger configures breakpoints using the target created in step 1.
+2. Debugger configures breakpoints using target created in step 1.
 3. `preRunCommands` sequence is executed.  It is responsible for creation of (or attaching to) the debuggee process.
 
 |parameter          |type    |req |         |
@@ -94,8 +94,8 @@ happens in three steps:
 |**initCommands**   |[string]| | A sequence of commands that creates debug target.
 |**preRunCommands** |[string]| | A sequence of commands that creates debuggee process.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 
 ## Remote debugging
 
@@ -210,7 +210,7 @@ switch to disassembly view.  This behavior may be controlled using **Show Disass
 and **Toggle Disassembly** commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
 
-While is disassembly view, the 'step over' and 'step into' debug actions will perform instruction-level
+While is disassembly view, 'step over' and 'step into' debug actions will perform instruction-level
 stepping rather than source-level stepping.
 
 ![disassembly view](images/disasm.png)
@@ -251,31 +251,38 @@ If you would like to evaluate an expression instead, prefix it with '`?`', e.g. 
 
 ## Expressions
 
-CodeLLDB implements three expression syntaxes:
+CodeLLDB implements three expression evaluator types: "simple", "python" and "native".  These are used
+wherever user-entered expression needs to be evaluated: in "Watch" panel, in the Debug Console (for input
+prefixed with `?`) and in breakpoint conditions.<br>
+By default, "simple" is assumed, however you may change this using the [expressions](#launching) launch
+configuration property.  The default type may also be overridden on a per-expression basis by using a prefix.
 
 ### Simple expressions
-Simple expressions are used by default in all contexts, including Debug Console evaluator, Watch
-panel and conditional breakpoints.
-They may consist of variables and most of the Python operators (however, no keywords are allowed).<br>
-Simple expressions are layered on top of the view of debuggee's types provided by LLDB's variable
-formatters (such as the built-in formatters for C++ and Rust), so things like indexing
-`std::vector` with an integer, or comparing `std::string` to a string literal should just work.
+Prefix: `/se `<br>
+Simple expressions consist of debuggee's variables (local or static), Python operators, as well as
+operator keywords `and`, `or`, `not`.  No other Python keywords are allowed.
+The values of debuggee variables are obtained through [LLDB data formatters](https://lldb.llvm.org/varformats.html),
+thus if you have formatters installed for specific library types, they will work as expected.
+For example, things like indexing an `std::vector` with an integer, or comparing `std::string` to
+a string literal should just work.<br>
+Variables, whose names are not valid Python identifiers may be accessed by escaping them with `${`...`}`.
 
 ### Python expressions
 Prefix: `/py `<br>
-Python expressions allow usage of normal Python syntax.  In addition to this, any identifier prefixed
-with `$`, will be substituted with the value of the corresponding debuggee variable.
-Such values may be mixed with regular Python variables.  For example `/py [math.sqrt(x) for x in $a]`
-will evaluate to a list containing square roots of the values contained in debuggee's array `a`.
+Python expressions use normal Python syntax.  In addition to that, any identifier prefixed with `$`
+(or enclosed in `${`...`}`), will be replaced with the value of the corresponding debuggee
+variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $a]`
+will evaluate to a list containing square roots of  values contained in debuggee's array `a`.
 
 ### Native expressions
 Prefix: `/nat `<br>
-These use LLDB built-in expression evaluators.  The specifics depend on the source language of the
-current debug target (e.g. C, C++ or Swift).  For unknown languages LLDB will default to the
-C++ expression syntax, which offers many powerful features, including interactive definition of new
-data types, instantiation of C++ classes, invocation of functions and class methods, and more.
+These use LLDB built-in expression evaluators.  The specifics depend on source language of the
+current debug target (e.g. C, C++ or Swift).<br>
+For example, the C++ expression evaluator offers many powerful features including interactive definition
+of new data types, instantiation of C++ classes, invocation of functions and class methods, and more.
 
-Note, however, that native evaluators ignore data formatters and operate of "raw" data structures.
+Note, however, that native evaluators ignore data formatters and operate on "raw" data structures,
+thus they are often not as convenient as "simple" or "python" expressions.
 
 ## Debugger API
 
@@ -286,7 +293,7 @@ debugger's main script context).
 Allows dynamic evaluation of [simple expressions](#simple-expressions).
 
 ### debugger.unwrap(obj: Value) -> lldb.SBValue
-Extract lldb.SBValue from the result of evaluation of a simple expression.
+Extract [lldb.SBValue](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from result of evaluation of a simple expression.
 
 ### debugger.wrap(obj: lldb.SBValue) -> Value
 Converts lldb.SBValue to an object the may be used in [simple expressions](#simple-expressions).
@@ -308,8 +315,8 @@ Displays HTML content in VSCode UI.
 
 ### debugger.register_content_provider(provider: Callable[[string],string])
 Allows generation of dynamic content for HTML display.  Any `debugger:` content not found in the `content`
-dictionary, will be directed to the `provider` callback, which takes a URL parameter and
-returns content string.
+dictionary, will be directed to `provider` callback, which takes a URL parameter and returns content
+as a string.
 
 # Rust Language Support
 
@@ -317,7 +324,7 @@ CodeLLDB supports visualization of most common Rust data types:
 - Built-in types: tuples, enums, arrays, array and string slices.
 - Standard library types: Vec, String, CString, OSString.
 
-To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
+To enable this feature, add `"sourceLanguages": ["rust"]` into your workspace configuration.
 
 Note: There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
 you won't be able to step through code or inspect variables if you have this version.
@@ -337,6 +344,7 @@ have this problem fixed.
 |**lldb.logFile**       |Log file.
 |**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
 |**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 
 

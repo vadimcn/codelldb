@@ -816,9 +816,16 @@ class DebugSession:
             # Check if we have a return value from the last called function (usually after StepOut).
             ret_val = container.frame.GetThread().GetStopReturnValue()
             if ret_val.IsValid():
-                name, value, dtype, handle = self.parse_var(ret_val, self.global_format, container_handle)
                 name = '[return value]'
-                variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle }
+                dtype = var.GetTypeName()
+                handle = self.get_var_handle(var, name, container_handle)
+                value = self.get_var_value_not_null(ret_val, self.global_format, handle != 0)
+                variable = {
+                    'name': name,
+                    'value': value,
+                    'type': dtype,
+                    'variablesReference': handle
+                }
                 variables[name] = variable
         elif isinstance(container, StaticsScope):
             vars_iter = (v for v in SBValueListIter(container.frame.GetVariables(False, False, True, True))
@@ -837,11 +844,19 @@ class DebugSession:
             vars_iter = SBValueChildrenIter(container)
 
         for var in vars_iter:
-            name, value, dtype, handle = self.parse_var(var, self.global_format, container_handle)
+            name = var.GetName()
             if name is None: # Sometimes LLDB returns junk entries with empty names and values
                 continue
-            variable = { 'name': name, 'value': value, 'type': dtype, 'variablesReference': handle,
-                         'evaluateName': compose_eval_name(container_name, name) }
+            dtype = var.GetTypeName()
+            handle = self.get_var_handle(var, name, container_handle)
+            value = self.get_var_value_not_null(var, self.global_format, handle != 0)
+            variable = {
+                'name': name,
+                'value': value,
+                'type': dtype,
+                'variablesReference': handle,
+                'evaluateName': compose_eval_name(container_name, name)
+            }
             # Ensure proper variable shadowing: if variable of the same name had already been added,
             # remove it and insert the new instance at the end.
             if name in variables:
@@ -854,7 +869,11 @@ class DebugSession:
         # append [raw] pseudo-child, which can be expanded to show raw view.
         if isinstance(container, lldb.SBValue) and container.IsSynthetic():
             handle = self.var_refs.create(container.GetNonSyntheticValue(), '[raw]', container_handle)
-            variable = { 'name': '[raw]', 'value': container.GetTypeName(), 'variablesReference': handle }
+            variable = {
+                'name': '[raw]',
+                'value': container.GetTypeName(),
+                'variablesReference': handle
+            }
             variables.append(variable)
 
         return { 'variables': variables }
@@ -954,15 +973,20 @@ class DebugSession:
         finally:
             sys.stderr = saved_stderr
 
-        if isinstance(result, lldb.SBError):
+        if isinstance(result, lldb.SBError): # Evaluation error
             error_message = result.GetCString()
             if context == 'repl':
                 self.console_err(error_message)
                 return None
             else:
                 raise UserError(error_message.replace('\n', '; '), no_console=True)
-        elif isinstance(result, expressions.Value):
-            _, value, dtype, handle = self.parse_var(expressions.Value.unwrap(result), format)
+
+        # Success
+        if isinstance(result, expressions.Value): # A wrapped SBValue
+            var = expressions.Value.unwrap(result)
+            dtype = var.GetTypeName();
+            handle = self.get_var_handle(var, expr, None)
+            value = self.get_var_value_not_null(var, format, handle != 0)
             return { 'result': value, 'type': dtype, 'variablesReference': handle }
         else: # Some Python value
             return { 'result': str(result), 'variablesReference': 0 }
@@ -1023,23 +1047,7 @@ class DebugSession:
                     (',y', lldb.eFormatBytes),
                     (',Y', lldb.eFormatBytesWithASCII)]
 
-    def parse_var(self, var, format, parent_handle=None):
-        name = var.GetName()
-        value = self.get_var_value(var, format)
-        dtype = var.GetTypeName()
-        # Synthetic vars will at least have the [raw] child.
-        if var.GetNumChildren() > 0 or var.IsSynthetic():
-            handle = self.var_refs.create(var, name, parent_handle)
-            if value is None:
-                value = dtype
-            if value is None:
-                value = ''
-        else:
-            handle = 0
-            if value is None:
-                value = '<not available>'
-        return name, value, dtype, handle
-
+    # Extracts a printable value from SBValue.
     def get_var_value(self, var, format):
         expressions.analyze(var)
         var.SetFormat(format)
@@ -1067,6 +1075,23 @@ class DebugSession:
             value = from_lldb_str(value)
 
         return value
+
+    # Same as get_var_value, but with a fallback in case there is no value.
+    def get_var_value_not_null(self, var, format, is_container):
+        value = self.get_var_value(var, format)
+        if value is not None:
+            return value
+        if is_container:
+            return var.GetTypeName()
+        else:
+            return '<not available>'
+
+    # Generate a handle for a variable.
+    def get_var_handle(self, var, key, parent_handle):
+        if var.GetNumChildren() > 0 or var.IsSynthetic(): # Might have children
+            return self.var_refs.create(var, key, parent_handle)
+        else:
+            return 0
 
     # Clears out cached state that become invalid once debuggee resumes.
     def before_resume(self):

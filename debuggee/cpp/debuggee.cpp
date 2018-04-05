@@ -78,6 +78,7 @@ void vars() {
         int a;
         char b;
         float c;
+        int d[4];
     };
 
     int a = 10;
@@ -92,8 +93,9 @@ void vars() {
         int array_int[10] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         std::vector<std::vector<int>> vec_int(10, {i*1, i*2, i*3, i*4, i*5});
         std::vector<std::vector<int>> empty_vec;
-        Struct s = { i+1, 'a', 3.0f };
-        Struct* s_ptr = &s;
+        Struct s1 = { i+1, 'a', 3.0f, {i, i, i, i} };
+        Struct s2 = { i+10, 'b', 999.0f, {i*10, i*10, i*10, i*10} };
+        Struct* s_ptr = &s1;
         Struct* null_s_ptr = nullptr;
         Struct* invalid_s_ptr = (Struct*)1;
         std::vector<Struct> vec_struct(3, { i*2, 'b', 4.0f});

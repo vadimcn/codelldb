@@ -155,7 +155,7 @@ suite('Basic', () => {
             'a': '30',
             'b': '40',
             'array_int': 'int [10]',
-            's': 'Struct',
+            's1': 'Struct',
             'str1': '"The quick brown fox"',
             // LLDB string visualizer does not display GCC's std::string* correctly.
             // 'str_ptr': '"The quick brown fox"',
@@ -206,6 +206,21 @@ suite('Basic', () => {
 
         // let response3 = await dc.evaluateRequest({ expression: "/nat 2+2", frameId: frameId, context: "watch" });
         // assert.ok(response3.body.result.endsWith("4")); // "(int) $0 = 70"
+
+        for (var i = 1; i < 10; ++i) {
+            let waitForStopAsync = waitForStopEvent();
+            await dc.continueRequest({ threadId: 0 });
+            let stoppedEvent = await waitForStopAsync;
+            let frameId = await getTopFrameId(stoppedEvent.body.threadId);
+
+            let response1 = await dc.evaluateRequest({ expression: "s1.d", frameId: frameId, context: "watch" });
+            let response2 = await dc.evaluateRequest({ expression: "s2.d", frameId: frameId, context: "watch" });
+
+            let locals1 = await readVariables(response1.body.variablesReference);
+            assertDictContains(locals1, { "[0]": i, "[1]": i, "[2]": i, "[3]": i });
+            let locals2 = await readVariables(response2.body.variablesReference);
+            assertDictContains(locals2, { "[0]": i*10, "[1]": i*10, "[2]": i*10, "[3]": i*10 });
+        }
     });
 
     test('conditional breakpoint 1', async () => {

@@ -95,6 +95,13 @@
 			"args": ["dasm"]
 		},
 		{
+			"name": "debuggee launch header",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"args": ["header"]
+		},
+		{
 			"name": "debuggee attach",
 			"type": "lldb",
 			"request": "attach",

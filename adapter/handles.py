@@ -21,8 +21,11 @@ class Handles:
     def reset(self):
         self.obj_by_handle.clear()
 
-# A version of Handles that maintains parent-child relationship between stored objects.
-# HandleTree tries to preserve the numeric values of handles across calls to reset().
+# In order to enable "nice" variable refresh behavior in VSCode, (expanded subtrees stay expanded,
+# values that had changed are rendered with different shade of color), we need to preserve
+# the values of `variablesReference` across debuggee stops.
+# Hence, this version of Handles that memoizes the hierarchy of stored objects, and tries to
+# preserve the numeric values of object handles across calls to reset().
 class HandleTree:
     def __init__(self):
         self.obj_by_handle = {}

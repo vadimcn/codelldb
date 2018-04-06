@@ -1,5 +1,8 @@
 # What's New
 
+## 0.8.2
+- Fixed startup bug on Windows.
+
 ## 0.8.1
 - Added launch `expressions` ∈ { `simple`, `python`, `native` } configuration property, which selects the default
   [expression evaluator type](MANUAL.md#expressions).

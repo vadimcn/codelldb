@@ -14,7 +14,8 @@ from . import PY2, is_string, debugger_api
 log = logging.getLogger('main')
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
-signal.signal(signal.SIGHUP, signal.SIG_DFL)
+if hasattr(signal, 'SIGHUP'):
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
 
 sys.modules['debugger'] = debugger_api
 

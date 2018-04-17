@@ -40,7 +40,7 @@ export class AdapterProcess {
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
 export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
-    let config = workspace.getConfiguration('lldb');
+    let config = workspace.getConfiguration('lldb', null);
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let params = getAdapterParameters(config);
     let args = ['-b',

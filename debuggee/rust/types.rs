@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+mod tests;
+
 use std::collections::HashMap;
 
 enum RegularEnum {

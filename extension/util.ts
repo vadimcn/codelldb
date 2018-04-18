@@ -1,7 +1,8 @@
-'use strict';
+import { DebugConfiguration } from 'vscode';
 import * as cp from 'child_process';
 import { format } from 'util';
 import { QuickPickItem, WorkspaceConfiguration } from 'vscode';
+import { Dict } from './extension';
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
@@ -26,6 +27,46 @@ export function expandVariablesInObject(obj: any, expander: (type: string, key: 
     for (var prop of Object.keys(obj))
         obj[prop] = expandVariablesInObject(obj[prop], expander)
     return obj;
+}
+
+// Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
+export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
+    let dbgconfig: Dict<any> = Object.assign({}, dbgconfigConfig);
+
+    // Compute fixed-point of expansion of dbgconfig properties.
+    var expanding = '';
+    var converged = true;
+    let expander = (type: string, key: string) => {
+        if (type == 'dbgconfig') {
+            if (key == expanding)
+                throw new Error('Circular dependency detected during expansion of dbgconfig:' + key);
+            let value = dbgconfig[key];
+            if (value == undefined)
+                throw new Error('dbgconfig:' + key + ' is not defined');
+            converged = false;
+            return value.toString();
+        }
+        return null;
+    };
+    do {
+        converged = true;
+        for (var prop of Object.keys(dbgconfig)) {
+            expanding = prop;
+            dbgconfig[prop] = expandVariablesInObject(dbgconfig[prop], expander);
+        }
+    } while (!converged);
+
+    // Now expand dbgconfigs in the launch configuration.
+    debugConfig = expandVariablesInObject(debugConfig, (type, key) => {
+        if (type == 'dbgconfig') {
+            let value = dbgconfig[key];
+            if (value == undefined)
+                throw new Error('dbgconfig:' + key + ' is not defined');
+            return value.toString();
+        }
+        return null;
+    });
+    return debugConfig;
 }
 
 export async function getProcessList(currentUserOnly: boolean):

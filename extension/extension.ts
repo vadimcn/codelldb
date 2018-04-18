@@ -1,4 +1,3 @@
-'use strict';
 import {
     workspace, languages, window, commands, debug,
     ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter,
@@ -7,18 +6,15 @@ import {
 } from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import * as path from 'path';
-import * as startup from './startup';
+import * as cp from 'child_process';
 import { format, inspect } from 'util';
+import * as startup from './startup';
 import * as util from './util';
+import * as cargo from './cargo';
 
-let output = window.createOutputChannel('LLDB');
-(<any>startup).output = output;
+export let output = window.createOutputChannel('LLDB');
 
-export function activate(context: ExtensionContext) {
-    new Extension(context);
-}
-
-interface Dict<T> {
+export interface Dict<T> {
     [key: string]: T;
 }
 
@@ -37,6 +33,10 @@ class DisplaySettings {
     displayFormat: string = 'auto'; // 'auto' | 'hex' | 'decimal' | 'binary'
     dereferencePointers: boolean = true;
 };
+
+export function activate(context: ExtensionContext) {
+    new Extension(context);
+}
 
 class Extension implements TextDocumentContentProvider, DebugConfigurationProvider {
     context: ExtensionContext;
@@ -63,12 +63,30 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         subscriptions.push(commands.registerCommand('lldb.launchDebugServer', () => startup.launchDebugServer(this.context)));
     }
 
+    async provideDebugConfigurations(
+        folder: WorkspaceFolder | undefined,
+        token?: CancellationToken
+    ): Promise<DebugConfiguration[]> {
+        let debugConfigs = await cargo.getLaunchConfigs();
+        if (debugConfigs.length == 0) {
+            debugConfigs.push({
+                type: 'lldb',
+                request: 'launch',
+                name: 'Debug',
+                program: '${workspaceFolder}/<your program>',
+                args: [],
+                cwd: '${workspaceFolder}'
+            });
+        }
+        return debugConfigs;
+    }
+
     // Invoked by VSCode to initiate a new debugging session.
     async resolveDebugConfiguration(
         folder: WorkspaceFolder | undefined,
         debugConfig: DebugConfiguration,
-        token?: CancellationToken): Promise<DebugConfiguration> {
-
+        token?: CancellationToken
+    ): Promise<DebugConfiguration> {
         if (!this.context.globalState.get('lldb_works')) {
             window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
             let succeeded = await startup.diagnose();
@@ -78,20 +96,29 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
             }
         }
 
+        output.clear();
+
         let launchConfig = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
         debugConfig = this.mergeWorkspaceSettings(debugConfig, launchConfig);
 
         let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
         debugConfig = this.expandDbgConfig(debugConfig, dbgconfigConfig);
 
-        output.clear();
+        let adapterParams: any = {};
+
+        if (debugConfig.cargo != undefined) {
+            debugConfig.program = await cargo.getProgramFromCargo(debugConfig.cargo);
+            adapterParams.sourceLanguages = ['rust'];
+            delete debugConfig.cargo;
+        }
+
         output.appendLine('Starting new session with:');
         output.appendLine(inspect(debugConfig));
 
         try {
             // If configuration does not provide debugServer explicitly, launch new adapter.
             if (!debugConfig.debugServer) {
-                let adapter = await startup.startDebugAdapter(this.context);
+                let adapter = await startup.startDebugAdapter(this.context, adapterParams);
                 this.launching.push([debugConfig.name, adapter]);
                 debugConfig.debugServer = adapter.port;
             }

@@ -1,0 +1,21 @@
+[package]
+name = "rust-debuggee"
+version = "0.1.0"
+authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
+
+[lib]
+name = "types_lib"
+path = "rust/types.rs"
+crate-type = ["lib", "staticlib", "dylib"]
+
+[[bin]]
+name = "types"
+path = "rust/types.rs"
+
+[[bin]]
+name = "types2"
+path = "rust/types.rs"
+
+[[test]]
+name = "types_test"
+path = "rust/types.rs"

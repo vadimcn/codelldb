@@ -1,6 +1,6 @@
 {
 	"name": "vscode-lldb",
-	"displayName": "LLDB Debugger",
+	"displayName": "CodeLLDB",
 	"version": "0.8.2",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
@@ -46,11 +46,11 @@
 		"postinstall": "node ./node_modules/vscode/bin/install",
 		"build": "tsc -p extension",
 		"watch": "tsc -w -p extension",
-		"build:debuggee": "python tools/build_debuggee.py",
-		"build:rusttypes": "rustc debuggee/rusttypes.rs -g --out-dir out/debuggee",
+		"build:debuggee:cpp": "python tools/build_debuggee.py",
+		"build:debuggee:rust": "rustc debuggee/rust/types.rs -g -o out/debuggee/rusttypes",
 		"test:adapter": "mocha -u tdd --timeout 10000 ./out/tests",
 		"test:internals": "python tools/test_internals.py",
-		"test": "npm run build && npm run test:internals && npm run build:debuggee && npm run build:rusttypes && npm run test:adapter"
+		"test": "npm run build && npm run test:internals && npm run build:debuggee:cpp && npm run build:debuggee:rust && npm run test:adapter"
 	},
 	"main": "./out/extension",
 	"activationEvents": [
@@ -109,7 +109,10 @@
 				"lldb.sourceLanguages": {
 					"type": "array",
 					"description": "A list of source languages to enable language-specific features for.",
-					"default": ["cpp", "rust"]
+					"default": [
+						"cpp",
+						"rust"
+					]
 				},
 				"lldb.launch.initCommands": {
 					"type": "array",
@@ -263,7 +266,7 @@
 		"debuggers": [
 			{
 				"type": "lldb",
-				"label": "LLDB Debugger",
+				"label": "LLDB",
 				"enableBreakpointsFor": {
 					"languageIds": [
 						"ada",
@@ -273,7 +276,7 @@
 						"cpp",
 						"crystal",
 						"d",
-						"fortan",
+						"fortran",
 						"fortran-modern",
 						"lldb.disassembly",
 						"nim",
@@ -290,13 +293,26 @@
 				},
 				"configurationAttributes": {
 					"launch": {
-						"required": [
-							"program"
-						],
 						"properties": {
 							"program": {
 								"type": "string",
 								"description": "Path to the program to debug."
+							},
+							"cargo": {
+								"type": "object",
+								"properties": {
+									"args": {
+										"type": "array",
+										"default": [
+											"test",
+											"--no-run"
+										]
+									}
+								},
+								"required": [
+									"args"
+								],
+								"description": "Cargo invocation that will produce path to the program to debug."
 							},
 							"args": {
 								"type": [
@@ -388,7 +404,19 @@
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
 							}
-						}
+						},
+						"oneOf": [
+							{
+								"required": [
+									"program"
+								]
+							},
+							{
+								"required": [
+									"cargo"
+								]
+							}
+						]
 					},
 					"attach": {
 						"properties": {
@@ -518,16 +546,6 @@
 								"process launch"
 							]
 						}
-					}
-				],
-				"initialConfigurations": [
-					{
-						"type": "lldb",
-						"request": "launch",
-						"name": "Debug",
-						"program": "${workspaceFolder}/<your program>",
-						"args": [],
-						"cwd": "${workspaceFolder}"
 					}
 				]
 			}

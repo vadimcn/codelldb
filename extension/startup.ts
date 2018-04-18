@@ -1,5 +1,3 @@
-'use strict';
-
 import {
     workspace, languages, window, commands,
     ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel, ConfigurationTarget, WorkspaceConfiguration
@@ -10,8 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as ver from './ver';
 import * as util from './util';
-
-export var output: OutputChannel;
+import { output, Dict } from './extension';
 
 export class AdapterProcess {
     public isAlive: boolean;
@@ -23,7 +20,7 @@ export class AdapterProcess {
         process.on('exit', (code, signal) => {
             this.isAlive = false;
             if (signal) {
-                output.appendLine(format('Adapter teminated by %s signal.', signal));
+                output.appendLine(format('Adapter terminated by %s signal.', signal));
             }
             if (code) {
                 output.appendLine(format('Adapter exit code: %d.', code));
@@ -39,15 +36,16 @@ export class AdapterProcess {
 }
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
-export async function startDebugAdapter(context: ExtensionContext): Promise<AdapterProcess> {
+export async function startDebugAdapter(context: ExtensionContext, params: Dict<any>): Promise<AdapterProcess> {
     let config = workspace.getConfiguration('lldb', null);
     let adapterPath = path.join(context.extensionPath, 'adapter');
-    let params = getAdapterParameters(config);
+    let paramsBase64 = getAdapterParameters(config, params);
+    let lldbPath = config.get('executable', 'lldb');
+    let lldbEnv = config.get('executable_env', {});
     let args = ['-b',
         '-O', format('command script import \'%s\'', adapterPath),
-        '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', params)
+        '-O', format('script adapter.main.run_tcp_session(0, \'%s\')', paramsBase64)
     ];
-    let lldbEnv = config.get('executable_env', {});
     let lldb = spawnDebugger(args, config.get('executable', 'lldb'), lldbEnv);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     let match = await waitPattern(lldb, regex);
@@ -57,14 +55,27 @@ export async function startDebugAdapter(context: ExtensionContext): Promise<Adap
     return adapter;
 }
 
-function setIfDefined(target: any, config: WorkspaceConfiguration, key: string) {
+export async function launchDebugServer(context: ExtensionContext) {
+    let config = workspace.getConfiguration('lldb', null);
+    let adapterPath = path.join(context.extensionPath, 'adapter');
+    let paramsBase64 = getAdapterParameters(config, {});
+    let lldbPath = config.get('executable', 'lldb');
+
+    let command =
+        format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
+        format('-O "script adapter.main.run_tcp_server()"\n');
+    let terminal = window.createTerminal('LLDB Debug Server');
+    terminal.sendText(command);
+    terminal.show(true);
+}
+
+function setIfDefined(target: Dict<any>, config: WorkspaceConfiguration, key: string) {
     let value = util.getConfigNoDefault(config, key);
     if (value !== undefined)
         target[key] = value;
 }
 
-function getAdapterParameters(config: WorkspaceConfiguration): string {
-    let params = {};
+function getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any>): string {
     setIfDefined(params, config, 'logLevel');
     setIfDefined(params, config, 'logFile');
     setIfDefined(params, config, 'reverseDebugging');
@@ -228,7 +239,7 @@ function checkPTraceScope(): DiagnosticsStatus {
 
 // Spawn LLDB with the specified arguments, wait for it to output something matching
 // regex pattern, or until the timeout expires.
-function spawnDebugger(args: string[], lldbPath: string, lldbEnv: any): cp.ChildProcess {
+function spawnDebugger(args: string[], lldbPath: string, lldbEnv: Dict<string>): cp.ChildProcess {
     let env = Object.assign({}, process.env);
     for (var key in lldbEnv) {
         env[key] = util.expandVariables(lldbEnv[key], (type, key) => {
@@ -322,17 +333,4 @@ export async function analyzeStartupError(err: Error) {
     if ((await actionAsync) == diagnostics) {
         await diagnose();
     }
-}
-
-export async function launchDebugServer(context: ExtensionContext) {
-    let config = workspace.getConfiguration('lldb');
-    let lldbPath = config.get('executable', 'lldb');
-
-    let terminal = window.createTerminal('LLDB Debug Server');
-    let adapterPath = path.join(context.extensionPath, 'adapter');
-    let command =
-        format('%s -b -O "command script import \'%s\'" ', lldbPath, adapterPath) +
-        format('-O "script adapter.main.run_tcp_server()"\n');
-    terminal.sendText(command);
-    terminal.show(true);
 }

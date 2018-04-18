@@ -19,7 +19,7 @@ const debuggeeSource = path.normalize(path.join(projectDir, 'debuggee', 'cpp', '
 const debuggeeHeader = path.normalize(path.join(projectDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
 
 const rusttypes = path.join(projectDir, 'out', 'debuggee', 'rusttypes');
-const rusttypesSource = path.normalize(path.join(projectDir, 'debuggee', 'rusttypes.rs'));
+const rusttypesSource = path.normalize(path.join(projectDir, 'debuggee', 'rust', 'types.rs'));
 
 var port: number = null;
 if (process.env.DEBUG_SERVER) {
@@ -371,8 +371,8 @@ suite('Rust tests', () => {
             'enc_enum1': 'Some("string")',
             'enc_enum2': 'Nothing',
             'tuple_struct': '(3, "xxx", -3)',
-            'reg_struct': 'rusttypes::RegularStruct',
-            'reg_struct_ref': 'rusttypes::RegularStruct *',
+            'reg_struct': 'types::RegularStruct',
+            'reg_struct_ref': 'types::RegularStruct *',
             'array': '(5) [1, 2, 3, 4, 5]',
             'slice': '(5) &[1, 2, 3, 4, 5]',
             'vec_int': '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
@@ -384,7 +384,7 @@ suite('Rust tests', () => {
 
             'cstring': '"C String"',
             'osstring': '"OS String"',
-            'class': 'rusttypes::PyKeywords'
+            'class': 'types::PyKeywords'
         });
 
         let response1 = await dc.evaluateRequest({

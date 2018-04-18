@@ -17,10 +17,10 @@
       "isBuildCommand": true
     },
     {
-      "taskName": "build:debuggee"
+      "taskName": "build:debuggee:cpp"
     },
     {
-      "taskName": "build:rusttypes"
+      "taskName": "build:debuggee:rust"
     },
     {
       "taskName": "watch"

@@ -1,5 +1,3 @@
-'use strict';
-
 export function cmp(ver_a:string, ver_b:string): number {
     let a_parts = ver_a.split('.');
     let b_parts = ver_b.split('.');

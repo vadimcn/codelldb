@@ -31,10 +31,16 @@ def decode_params(params):
     return {}
 
 def init_logging(params):
+    # Global configuration
     log_file = params.get('logFile', None)
     log_level = params.get('logLevel', logging.CRITICAL)
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
+    # Individuial loggers
+    loggers = params.get('loggers')
+    if loggers:
+        for name, level in loggers.items():
+            logging.getLogger(name).setLevel(level)
 
 def run_session(read, write, params):
     event_loop = EventLoop()

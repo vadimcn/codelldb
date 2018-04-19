@@ -88,7 +88,19 @@
 				},
 				"lldb.logLevel": {
 					"type": "integer",
-					"description": "Logging level as defined by Python's 'logging' module (0=Verbose).",
+					"default": 0,
+					"description": "Global logging level, as defined by Python's 'logging' module (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical).",
+					"scope": "resource"
+				},
+				"lldb.loggers": {
+					"type": "object",
+					"patternProperties": {
+						".*": {
+							"type": "integer",
+							"default": 0
+						}
+					},
+					"description": "Logging level for individual loggers as <logger name>:<log level> (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical)",
 					"scope": "resource"
 				},
 				"lldb.logFile": {

@@ -77,6 +77,7 @@ function setIfDefined(target: Dict<any>, config: WorkspaceConfiguration, key: st
 
 function getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any>): string {
     setIfDefined(params, config, 'logLevel');
+    setIfDefined(params, config, 'loggers');
     setIfDefined(params, config, 'logFile');
     setIfDefined(params, config, 'reverseDebugging');
     setIfDefined(params, config, 'suppressMissingSourceFiles');

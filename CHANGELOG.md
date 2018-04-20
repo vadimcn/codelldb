@@ -1,10 +1,14 @@
 # What's New
 
+## 0.8.5
+- Added support for [Cargo projects](MANUAL.md#cargo-support).
+- Added support for [logpoints](https://code.visualstudio.com/updates/v1_22#_logpoints).
+
 ## 0.8.2
 - Fixed startup bug on Windows.
 
 ## 0.8.1
-- Added launch `expressions` ∈ { `simple`, `python`, `native` } configuration property, which selects the default
+- Added `expressions` ∈ { `simple`, `python`, `native` } launch configuration property, which selects the default
   [expression evaluator type](MANUAL.md#expressions).
 - Exception breakpoints are now language specific: "on throw" and "on catch" for C++, "on panic" for Rust.<br>
   In order to implement this, the "sourceLanguages" setting had to be moved to [workspace configuration](#workspace-configuration) level.

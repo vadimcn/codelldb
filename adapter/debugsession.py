@@ -107,6 +107,7 @@ class DebugSession:
             'supportsCompletionsRequest': True,
             'supportTerminateDebuggee': True,
             'supportsDelayedStackTraceLoading': True,
+            'supportsLogPoints': True,
             'supportsStepBack': self.parameters.get('reverseDebugging', False),
             'exceptionBreakpointFilters': exc_filters,
         }
@@ -500,7 +501,9 @@ class DebugSession:
             except ValueError:
                 self.console_err('Could not parse ignore count as integer: %s' % ignore_count_str)
 
-        if bp_info.condition or bp_info.ignore_count:
+        bp_info.log_message = req.get('logMessage', None)
+
+        if bp_info.condition or bp_info.log_message or bp_info.ignore_count:
             bp.SetScriptCallbackFunction('adapter.debugsession.on_breakpoint_hit')
 
     # Compiles a python expression into a breakpoint condition evaluator
@@ -586,6 +589,10 @@ class DebugSession:
             bp_resp['verified'] = False
         return bp_resp
 
+    substitution_regex = re.compile('{( (?:' +
+                                    expressions.nested_brackets_matcher('{', '}', 10) +
+                                    '|[^}])* )}', re.X)
+
     def should_stop_on_bp(self, bp_loc, frame, internal_dict):
         bp = bp_loc.GetBreakpoint()
         bp_info = self.breakpoints.get(bp.GetID())
@@ -595,11 +602,36 @@ class DebugSession:
         if bp_info.ignore_count: # Reset ignore count after each stop
             bp.SetIgnoreCount(bp_info.ignore_count)
 
-        try: # Evaluate condition if we have one
-            return bp_info.condition and bp_info.condition(bp_loc, frame, internal_dict)
+        # Evaluate condition if we have one
+        try:
+            if bp_info.condition and not bp_info.condition(bp_loc, frame, internal_dict):
+                return False
         except Exception as e:
             self.console_err('Could not evaluate breakpoint condition: %s' % traceback.format_exc())
             return True
+
+        # If we are supposed to stop and there's a log message, evaluate and print the message but don't stop.
+        if  bp_info.log_message:
+            try:
+                def replacer(match):
+                    expr = match.group(1)
+                    result = self.evaluate_expr_in_frame(expr, frame)
+                    result = expressions.Value.unwrap(result)
+                    if isinstance(result, lldb.SBValue):
+                        is_container = result.GetNumChildren() > 0
+                        strvalue = self.get_var_value_not_null(result, self.global_format, is_container)
+                    else:
+                        strvalue = str(result)
+                    return strvalue
+
+                message = self.substitution_regex.sub(replacer, bp_info.log_message)
+                self.console_msg(message)
+                return False
+            except Exception:
+                self.console_err('Could not evaluate breakpoint log message: %s' % traceback.format_exc())
+                return True
+
+        return True
 
     def DEBUG_setExceptionBreakpoints(self, args):
         if self.launch_args.get('noDebug', False):
@@ -894,7 +926,7 @@ class DebugSession:
             log.error('evaluate without a process')
             return { 'result': '' }
         context = args.get('context')
-        expr = to_lldb_str(args['expression'])
+        expr = args['expression']
         if context in ['watch', 'hover', None]: # 'Copy Value' in Locals does not send context.
             return self.evaluate_expr(args, expr)
         elif expr.startswith('?'): # "?<expr>" in 'repl' context
@@ -982,11 +1014,11 @@ class DebugSession:
                 raise UserError(error_message.replace('\n', '; '), no_console=True)
 
         # Success
-        if isinstance(result, expressions.Value): # A wrapped SBValue
-            var = expressions.Value.unwrap(result)
-            dtype = var.GetTypeName();
-            handle = self.get_var_handle(var, expr, None)
-            value = self.get_var_value_not_null(var, format, handle != 0)
+        result = expressions.Value.unwrap(result)
+        if isinstance(result, lldb.SBValue):
+            dtype = result.GetTypeName();
+            handle = self.get_var_handle(result, expr, None)
+            value = self.get_var_value_not_null(result, format, handle != 0)
             return { 'result': value, 'type': dtype, 'variablesReference': handle }
         else: # Some Python value
             return { 'result': str(result), 'variablesReference': 0 }
@@ -1000,9 +1032,9 @@ class DebugSession:
         ty, expr = self.get_expression_type(expr)
         if ty == NATIVE:
             if frame is not None:
-                result = frame.EvaluateExpression(expr) # In frame context
+                result = frame.EvaluateExpression(to_lldb_str(expr)) # In frame context
             else:
-                result = self.target.EvaluateExpression(expr) # In global context
+                result = self.target.EvaluateExpression(to_lldb_str(expr)) # In global context
             error = result.GetError()
             if error.Success():
                 return result
@@ -1467,11 +1499,12 @@ class RegistersScope:
 
 # Various info we mantain about a breakpoint
 class BreakpointInfo:
-    __slots__ = ['id', 'exception_bp', 'condition', 'ignore_count', 'address', 'adapter_data']
+    __slots__ = ['id', 'exception_bp', 'condition', 'ignore_count', 'log_message', 'address', 'adapter_data']
     def __init__(self, id):
         self.id = id
         self.exception_bp = False
         self.condition = None
+        self.log_message = None
         self.address = None
         self.adapter_data = None
         self.ignore_count = 0

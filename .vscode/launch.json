@@ -23,6 +23,7 @@
 			"pythonPath": "${config:python.pythonPath}",
 			"console": "integratedTerminal",
 			"program": "${workspaceRoot}/tools/debug_adapter.py",
+			"env": { "LLDB_EXECUTABLE": "${config:lldb.executable}" },
 			"cwd": "${workspaceRoot}",
 			"debugOptions": [
 				"WaitOnAbnormalExit",
@@ -61,6 +62,15 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"args": ["vars", "Farbfüllung", "äöüßÄÖÜ"]
+		},
+		{
+			"name": "debuggee launch vars/w debug server",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"args": ["vars"],
+			"debugServer": 4711,
+			"_adapterStartDelay": 2000
 		},
 		{
 			"name": "debuggee launch threads",
@@ -139,9 +149,6 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/out/debuggee/rusttypes",
 			"cwd": "${workspaceRoot}",
-			"sourceLanguages": [
-				"rust"
-			],
 			"sourceMap": {
 				"/Users/travis/build/rust-lang/rust/": "${workspaceRoot}/../rust/"
 			}
@@ -149,10 +156,10 @@
 	],
 	"compounds": [
 		{
-			"name": "vars + rusttypes",
+			"name": "adapter + vars",
 			"configurations": [
-				"debuggee launch vars",
-				"rusttypes"
+				"adapter",
+				"debuggee launch vars/w debug server",
 			]
 		}
 	]

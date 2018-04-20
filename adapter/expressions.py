@@ -452,6 +452,13 @@ def escape_variable_name(name):
     else:
         return '${' + name + '}'
 
+# Generates regex that can match up to n levels of nested brackets (all hail Zalgo!)
+def nested_brackets_matcher(open, close, n):
+    pattern = '[^{0}]'.format(close)
+    for _ in range(n):
+        pattern = '{1}(?:(?:{0})|[^{2}])*{2}'.format(pattern, open, close)
+    return '(?:{0})'.format(pattern)
+
 # --- Tests ---
 
 def compare(expected, actual):

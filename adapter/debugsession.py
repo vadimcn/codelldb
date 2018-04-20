@@ -1397,6 +1397,7 @@ class DebugSession:
         local_path = self.filespec_cache.get(key, MISSING)
         if local_path is MISSING:
             local_path = self.map_filespec_to_local_uncached(filespec)
+            log.info('Mapped "%s" to "%s"', filespec, local_path)
             if self.suppress_missing_sources and not os.path.isfile(local_path):
                 local_path = None
             self.filespec_cache[key] = local_path

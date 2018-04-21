@@ -104,6 +104,11 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
         debugConfig = this.expandDbgConfig(debugConfig, dbgconfigConfig);
 
+        if (debugConfig.request == 'custom') {
+            debugConfig.request = 'launch';
+            debugConfig.custom = true;
+        }
+
         let adapterParams: any = {};
 
         if (debugConfig.cargo != undefined) {

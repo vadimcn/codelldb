@@ -119,26 +119,24 @@
 			"pid": "${command:pickMyProcess}"
 		},
 		{
-			"name": "debuggee custom",
+			"name": "debuggee custom vars",
 			"type": "lldb",
-			"request": "launch",
-			"custom": true,
-			"initCommands": [
+			"request": "custom",
+			"targetCreateCommands": [
 				"target create ${workspaceRoot}/out/debuggee/debuggee"
 			],
-			"preRunCommands": [
+			"processCreateCommands": [
 				"process launch -- vars"
 			]
 		},
 		{
 			"name": "debuggee remote",
 			"type": "lldb",
-			"request": "launch",
-			"custom": true,
-			"initCommands": [
+			"request": "custom",
+			"targetCreateCommands": [
 				"target create  ${workspaceRoot}/out/debuggee/debuggee"
 			],
-			"preRunCommands": [
+			"processCreateCommands": [
 				"gdb-remote 127.0.0.1:1234",
 				"continue"
 			]

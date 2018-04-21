@@ -374,11 +374,6 @@
 								"description": "Automatically stop debuggee after launch.",
 								"default": true
 							},
-							"custom": {
-								"type": "boolean",
-								"description": "Custom launch sequence: use `initCommands` to set up debug target, `preRunCommands` to create a process.",
-								"default": true
-							},
 							"initCommands": {
 								"type": "array",
 								"description": "Initialization commands executed upon debugger startup.",
@@ -415,6 +410,10 @@
 								},
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
+							},
+							"custom": {
+								"type": "boolean",
+								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead."
 							}
 						},
 						"oneOf": [
@@ -481,14 +480,14 @@
 					},
 					"custom": {
 						"properties": {
-							"initCommands": {
+							"targetCreateCommands": {
 								"type": "array",
-								"description": "Commands that create the debugging target.",
+								"description": "Commands that will create debug target.",
 								"default": []
 							},
-							"preRunCommands": {
+							"processCreateCommands": {
 								"type": "array",
-								"description": "Commands that create the debuggee process.",
+								"description": "Commands that will create debuggee process.",
 								"default": []
 							},
 							"exitCommands": {
@@ -508,6 +507,14 @@
 								},
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
+							},
+							"initCommands": {
+								"type": "array",
+								"deprecationMessage": "Deprecated, use \"targetCreateCommands\" instead."
+							},
+							"preRunCommands": {
+								"type": "array",
+								"deprecationMessage": "Deprecated, use \"processCreateCommands\" instead."
 							}
 						}
 					}

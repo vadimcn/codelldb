@@ -90,10 +90,9 @@ happens in three steps:
 |-------------------|--------|:--:|---------|
 |**name**           |string  |Y| Launch configuration name.
 |**type**           |string  |Y| Set to `lldb`.
-|**request**        |string  |Y| Set to `launch`.
-|**custom**         |bool    |Y| Set to `true`.
-|**initCommands**   |[string]| | A sequence of commands that creates debug target.
-|**preRunCommands** |[string]| | A sequence of commands that creates debuggee process.
+|**request**        |string  |Y| Set to `custom`.
+|**targetCreateCommands**  |[string]| | Commands that will create debug target.
+|**processCreateCommands** |[string]| | Commands that will create debuggee process.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
@@ -132,10 +131,9 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 {
     "name": "Remote attach",
     "type": "lldb",
-    "request": "launch",
-    "custom": true,
-    "initCommands": ["target create ${workspaceFolder}/build/debuggee"],
-    "preRunCommands": ["gdb-remote <remote_host>:<port>"]
+    "request": "custom",
+    "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
+    "processCreateCommands": ["gdb-remote <remote_host>:<port>"]
 }
 ```
 - Start debugging.
@@ -146,9 +144,8 @@ Use custom launch with `target crate -c <core path>` init command:
 {
     "name": "Core dump",
     "type": "lldb",
-    "request": "launch",
-    "custom": true,
-    "initCommands": ["target create -c ${workspaceFolder}/core"],
+    "request": "custom",
+    "targetCreateCommands": ["target create -c ${workspaceFolder}/core"],
 }
 ```
 

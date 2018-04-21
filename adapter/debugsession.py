@@ -196,10 +196,11 @@ class DebugSession:
             self.process.Continue()
 
     def custom_launch(self, args):
-        self.exec_commands(args.get('initCommands'))
+        create_target = args.get('targetCreateCommands') or args.get('initCommands')
+        self.exec_commands(create_target)
         self.target = self.debugger.GetSelectedTarget()
         if not self.target.IsValid():
-            self.console_err('Warning: target is invalid after running "initCommands"')
+            self.console_err('Warning: target is invalid after running "targetCreateCommands".')
         self.target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
@@ -209,10 +210,11 @@ class DebugSession:
 
     def complete_custom_launch(self, args):
         log.info('Custom launching...')
-        self.exec_commands(args.get('preRunCommands'))
+        create_process = args.get('processCreateCommands') or args.get('preRunCommands')
+        self.exec_commands(create_process)
         self.process = self.target.GetProcess()
         if not self.process.IsValid():
-            self.console_err('Warning: process is invalid after running "preRunCommands"')
+            self.console_err('Warning: process is invalid after running "processCreateCommands".')
         self.process.GetBroadcaster().AddListener(self.event_listener, 0xFFFFFF)
         self.process_launched = False
 

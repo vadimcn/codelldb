@@ -3,6 +3,10 @@
 ## 0.8.5
 - Added support for [Cargo projects](MANUAL.md#cargo-support).
 - Added support for [logpoints](https://code.visualstudio.com/updates/v1_22#_logpoints).
+- Custom launch configuration changes (the old ways still work, but marked deprecated):
+  - Use `{"request":"custom"}`, instead of `{"request":"launch", "custom":true}`.
+  - Renamed `initCommands` and `preRunCommands` to
+  `targetCreateCommands` and `processCreateCommands` respectively, to clarify what they do.
 
 ## 0.8.2
 - Fixed startup bug on Windows.

@@ -167,7 +167,7 @@ class DebugSession:
         pid = args.get('pid', None)
         program = args.get('program', None)
         if pid is None and program is None:
-            raise UserError('Either the \'program\' or the \'pid\' must be specified.')
+            raise UserError('One of \'program\', \'pid\' properties is required for attach.')
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
         self.disassembly = disassembly.AddressSpace(self.target)
@@ -237,7 +237,7 @@ class DebugSession:
                 raise UserError('Could not initialize debug target: ' + error.GetCString())
         else:
             if args['request'] == 'launch':
-                raise UserError('Program path is required for launch.')
+                raise UserError('\program\' is required for launch.')
             target = self.debugger.CreateTarget('') # OK if attaching by pid
         target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         return target
@@ -1208,7 +1208,7 @@ class DebugSession:
     def handle_message(self, message):
         if message is None:
             # Client connection lost; treat this the same as a normal disconnect.
-            self.DEBUG_disconnect(None)
+            self.DEBUG_disconnect({})
             return
 
         if message['type'] == 'response':

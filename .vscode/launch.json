@@ -45,11 +45,12 @@
 				"-u", "tdd",
 				"--timeout", "999999",
 				"--colors",
-				//"-g", "disassembly",
+				//"-g", "stack",
 				"./out/tests"
 			],
 			"env": {
-				"ADAPTER_LOG": "${workspaceRoot}/adapter.log"
+				"LLDB_LOGFILE": "${workspaceRoot}/adapter.log",
+				"LLDB_EXECUTABLE": "${config:lldb.executable}",
 			},
 			"sourceMaps": true,
 			"outFiles": [

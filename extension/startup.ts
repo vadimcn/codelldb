@@ -81,7 +81,6 @@ function getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any>)
     setIfDefined(params, config, 'logFile');
     setIfDefined(params, config, 'reverseDebugging');
     setIfDefined(params, config, 'suppressMissingSourceFiles');
-    setIfDefined(params, config, 'sourceLanguages');
     return new Buffer(JSON.stringify(params)).toString('base64');
 }
 

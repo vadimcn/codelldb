@@ -118,14 +118,6 @@
 					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
 					"scope": "resource"
 				},
-				"lldb.sourceLanguages": {
-					"type": "array",
-					"description": "A list of source languages to enable language-specific features for.",
-					"default": [
-						"cpp",
-						"rust"
-					]
-				},
 				"lldb.launch.initCommands": {
 					"type": "array",
 					"default": [],
@@ -196,6 +188,14 @@
 					"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
 					"default": {},
 					"scope": "resource"
+				},
+				"lldb.launch.sourceLanguages": {
+					"type": "array",
+					"description": "A list of source languages to enable language-specific features for.",
+					"default": [
+						"cpp",
+						"rust"
+					]
 				},
 				"lldb.launch.expressions": {
 					"type": "string",
@@ -411,6 +411,11 @@
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
 							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages to enable language-specific features for.",
+								"default": []
+							},
 							"custom": {
 								"type": "boolean",
 								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead."
@@ -463,6 +468,15 @@
 								"description": "Commands executed at the end of debugging session.",
 								"default": []
 							},
+							"expressions": {
+								"type": "string",
+								"enum": [
+									"simple",
+									"python",
+									"native"
+								],
+								"description": "The default evaluator type used for expressions."
+							},
 							"sourceMap": {
 								"type": "object",
 								"patternProperties": {
@@ -475,6 +489,11 @@
 								},
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
+							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages to enable language-specific features for.",
+								"default": []
 							}
 						}
 					},
@@ -495,6 +514,15 @@
 								"description": "Commands executed at the end of debugging session.",
 								"default": []
 							},
+							"expressions": {
+								"type": "string",
+								"enum": [
+									"simple",
+									"python",
+									"native"
+								],
+								"description": "The default evaluator type used for expressions."
+							},
 							"sourceMap": {
 								"type": "object",
 								"patternProperties": {
@@ -507,6 +535,11 @@
 								},
 								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
+							},
+							"sourceLanguages": {
+								"type": "array",
+								"description": "A list of source languages to enable language-specific features for.",
+								"default": []
 							},
 							"initCommands": {
 								"type": "array",

@@ -656,16 +656,15 @@ class DebugSession:
 
     def get_exception_filters(self, source_langs):
         filters = []
-        for lang in source_langs:
-            if lang == 'cpp':
-                filters.extend([
-                    ('cpp_throw', 'C++: on throw', True),
-                    ('cpp_catch', 'C++: on catch', False),
-                ])
-            elif lang == 'rust':
-                filters.extend([
-                    ('rust_panic', 'Rust: on panic', True)
-                ])
+        if 'cpp' in source_langs:
+            filters.extend([
+                ('cpp_throw', 'C++: on throw', True),
+                ('cpp_catch', 'C++: on catch', False),
+            ])
+        if 'rust' in source_langs:
+            filters.extend([
+                ('rust_panic', 'Rust: on panic', True)
+            ])
         return filters
 
     def set_exception_breakpoints(self, filters):

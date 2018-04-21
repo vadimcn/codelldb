@@ -84,7 +84,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
     // Invoked by VSCode to initiate a new debugging session.
     async resolveDebugConfiguration(
         folder: WorkspaceFolder | undefined,
-        debugConfig: DebugConfiguration,
+        launchConfig: DebugConfiguration,
         token?: CancellationToken
     ): Promise<DebugConfiguration> {
         if (!this.context.globalState.get('lldb_works')) {
@@ -98,41 +98,47 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
 
         output.clear();
 
-        let launchConfig = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
-        debugConfig = this.mergeWorkspaceSettings(debugConfig, launchConfig);
+        let workspaceConfig = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
+        launchConfig = this.mergeWorkspaceSettings(launchConfig, workspaceConfig);
 
         let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
-        debugConfig = this.expandDbgConfig(debugConfig, dbgconfigConfig);
+        launchConfig = this.expandDbgConfig(launchConfig, dbgconfigConfig);
 
-        if (debugConfig.request == 'custom') {
-            debugConfig.request = 'launch';
-            debugConfig.custom = true;
+        if (launchConfig.request == 'custom') {
+            launchConfig.request = 'launch';
+            launchConfig.custom = true;
         }
 
         let adapterParams: any = {};
 
-        if (debugConfig.cargo != undefined) {
-            debugConfig.program = await cargo.getProgramFromCargo(debugConfig.cargo);
-            adapterParams.sourceLanguages = ['rust'];
-            delete debugConfig.cargo;
+        if (launchConfig.cargo != undefined) {
+            launchConfig.program = await cargo.getProgramFromCargo(launchConfig.cargo);
+            if (!launchConfig.sourceLanguages) launchConfig.sourceLanguages = [];
+            launchConfig.sourceLanguages.push('rust');
+            delete launchConfig.cargo;
+        }
+
+        if (launchConfig.sourceLanguages) {
+            adapterParams.sourceLanguages = launchConfig.sourceLanguages;
+            delete launchConfig.sourceLanguages;
         }
 
         output.appendLine('Starting new session with:');
-        output.appendLine(inspect(debugConfig));
+        output.appendLine(inspect(launchConfig));
 
         try {
             // If configuration does not provide debugServer explicitly, launch new adapter.
-            if (!debugConfig.debugServer) {
+            if (!launchConfig.debugServer) {
                 let adapter = await startup.startDebugAdapter(this.context, adapterParams);
-                this.launching.push([debugConfig.name, adapter]);
-                debugConfig.debugServer = adapter.port;
+                this.launching.push([launchConfig.name, adapter]);
+                launchConfig.debugServer = adapter.port;
             }
             // For adapter debugging
-            if (debugConfig._adapterStartDelay) {
-                await new Promise(resolve => setTimeout(resolve, debugConfig._adapterStartDelay));
+            if (launchConfig._adapterStartDelay) {
+                await new Promise(resolve => setTimeout(resolve, launchConfig._adapterStartDelay));
             }
-            debugConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
-            return debugConfig;
+            launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+            return launchConfig;
         } catch (err) {
             startup.analyzeStartupError(err);
             return null;
@@ -155,8 +161,9 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         mergeConfig('cwd');
         mergeConfig('terminal');
         mergeConfig('stdio');
-        mergeConfig('sourceMap');
         mergeConfig('expressions');
+        mergeConfig('sourceMap');
+        mergeConfig('sourceLanguages');
         return debugConfig;
     }
 

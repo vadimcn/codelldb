@@ -7,6 +7,8 @@
   - Use `{"request":"custom"}`, instead of `{"request":"launch", "custom":true}`.
   - Renamed `initCommands` and `preRunCommands` to
   `targetCreateCommands` and `processCreateCommands` respectively, to clarify what they do.
+- `sourceLanguages` can once again be specified at the launch configuration level.  Workspace-level configuration
+ is still possible via `lldb.sourceLanguages`.
 
 ## 0.8.2
 - Fixed startup bug on Windows.

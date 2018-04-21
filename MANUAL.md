@@ -42,8 +42,9 @@ To start a debug session you will need to create a [launch configuration](https:
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
+|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ### Stdio
 The **stdio** property is a list of redirection targets for each of debuggee's stdio streams:
@@ -74,8 +75,9 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before attaching to debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
+|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ## Custom Launch
 
@@ -94,8 +96,9 @@ happens in three steps:
 |**targetCreateCommands**  |[string]| | Commands that will create debug target.
 |**processCreateCommands** |[string]| | Commands that will create debuggee process.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
+|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ## Remote debugging
 
@@ -322,7 +325,7 @@ CodeLLDB supports visualization of most common Rust data types:
 - Built-in types: tuples, enums, arrays, array and string slices.
 - Standard library types: Vec, String, CString, OSString.
 
-To enable this feature, add `"sourceLanguages": ["rust"]` into your workspace configuration.
+To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
 
 Note: There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
 you won't be able to step through code or inspect variables if you have this version.
@@ -364,7 +367,6 @@ configurations (if there is no `launch.json` in the workspace).
 |**lldb.logFile**       |Log file.
 |**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
 |**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
-|**lldb.sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 
 
@@ -379,3 +381,4 @@ configurations (if there is no `launch.json` in the workspace).
 |**lldb.launch.stdio** |Default stdio destination.
 |**lldb.launch.terminal** |Default terminal type.
 |**lldb.launch.sourceMap** |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
+|**lldb.launch.sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.

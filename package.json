@@ -453,6 +453,11 @@
 								"description": "Automatically stop debuggee after attach.",
 								"default": true
 							},
+							"waitFor": {
+								"type": "boolean",
+								"description": "Wait for the process to launch.",
+								"default": true
+							},
 							"initCommands": {
 								"type": "array",
 								"description": "Initialization commands executed upon debugger startup.",

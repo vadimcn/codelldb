@@ -72,6 +72,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**program**        |string  |Y| Path to debuggee executable.
 |**pid**            |number  | | Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command.pickProcess}` or `${command.pickMyProcess}` here to choose a process interactively.
 |**stopOnEntry**    |boolean | | Whether to stop the debuggee immediately after attaching.
+|**waitFor**        |boolean | | Wait for the process to launch.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before attaching to debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.

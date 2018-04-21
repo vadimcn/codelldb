@@ -186,7 +186,8 @@ class DebugSession:
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
             program = to_lldb_str(args['program'])
-            self.process = self.target.AttachToProcessWithName(self.event_listener, program, False, error)
+            waitFor = args.get('waitFor', False)
+            self.process = self.target.AttachToProcessWithName(self.event_listener, program, waitFor, error)
         if not error.Success():
             self.console_err(error.GetCString())
             raise UserError('Failed to attach to the process.')

@@ -3,6 +3,7 @@
 ## 0.8.5
 - Added support for [Cargo projects](MANUAL.md#cargo-support).
 - Added support for [logpoints](https://code.visualstudio.com/updates/v1_22#_logpoints).
+- Added `waitFor` property for "attach" configurations - to wait for the process to launch.
 - Custom launch configuration changes (the old ways still work, but marked deprecated):
   - Use `{"request":"custom"}`, instead of `{"request":"launch", "custom":true}`.
   - Renamed `initCommands` and `preRunCommands` to

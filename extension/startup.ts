@@ -98,9 +98,9 @@ export async function diagnose(): Promise<boolean> {
         output.appendLine('--- Checking version ---');
         var versionPattern = '^lldb version ([0-9.]+)';
         var desiredVersion = '3.9.1';
-        if (process.platform.indexOf('win32') != -1) {
+        if (process.platform.includes('win32')) {
             desiredVersion = '4.0.0';
-        } else if (process.platform.indexOf('darwin') != -1) {
+        } else if (process.platform.includes('darwin')) {
             versionPattern = '^lldb-([0-9.]+)';
             desiredVersion = '360.1.68';
         }
@@ -114,7 +114,7 @@ export async function diagnose(): Promise<boolean> {
         // Try to locate LLDB and get its version.
         var version: string = null;
         var lldbNames: string[];
-        if (process.platform.indexOf('linux') != -1) {
+        if (process.platform.includes('linux')) {
             // Linux tends to have versioned binaries only.
             lldbNames = ['lldb', 'lldb-10.0', 'lldb-9.0', 'lldb-8.0', 'lldb-7.0',
                 'lldb-6.0', 'lldb-5.0', 'lldb-4.0', 'lldb-3.9'];
@@ -156,7 +156,7 @@ export async function diagnose(): Promise<boolean> {
             // [^] = match any char, including newline
             let match2 = await waitPattern(lldb2, new RegExp('^True$[^]*^OK$', 'm'));
 
-            if (process.platform.indexOf('linux') != -1) {
+            if (process.platform.includes('linux')) {
                 output.appendLine('--- Checking ptrace ---');
                 status = Math.max(status, checkPTraceScope());
             }
@@ -253,7 +253,7 @@ function spawnDebugger(args: string[], lldbPath: string, lldbEnv: Dict<string>):
         env: env,
         cwd: workspace.rootPath
     };
-    if (process.platform.indexOf('darwin') != -1) {
+    if (process.platform.includes('darwin')) {
         // Make sure LLDB finds system Python before Brew Python
         // https://github.com/Homebrew/legacy-homebrew/issues/47201
         options.env['PATH'] = '/usr/bin:' + process.env['PATH'];

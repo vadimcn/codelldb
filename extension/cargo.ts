@@ -29,7 +29,7 @@ async function getCargoArtifacts(cargoArgs: string[]): Promise<string[]> {
     let exitCode = await runCargo(cargoArgs,
         message => {
             if (message.reason == 'compiler-artifact') {
-                if (message.target.crate_types.indexOf('bin') >= 0 ||
+                if (message.target.crate_types.includes('bin') ||
                     message.profile.test) {
                     artifacts = artifacts.concat(message.filenames);
                 }
@@ -63,15 +63,15 @@ export async function getLaunchConfigs(): Promise<DebugConfiguration[]> {
 
                     var debug_selector = null;
                     var test_selector = null;
-                    if (target_kinds.indexOf('bin') >= 0) {
+                    if (target_kinds.includes('bin')) {
                         debug_selector = ['--bin=' + target.name];
                         test_selector = ['--bin=' + target.name];
                     }
-                    if (target_kinds.indexOf('test') >= 0) {
+                    if (target_kinds.includes('test')) {
                         debug_selector = ['--test=' + target.name];
                         test_selector = ['--test=' + target.name];
                     }
-                    if (target_kinds.indexOf('lib') >= 0) {
+                    if (target_kinds.includes('lib')) {
                         test_selector = ['--lib'];
                     }
 

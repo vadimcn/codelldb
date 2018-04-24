@@ -851,8 +851,8 @@ class DebugSession:
             ret_val = container.frame.GetThread().GetStopReturnValue()
             if ret_val.IsValid():
                 name = '[return value]'
-                dtype = var.GetTypeName()
-                handle = self.get_var_handle(var, name, container_handle)
+                dtype = ret_val.GetTypeName()
+                handle = self.get_var_handle(ret_val, name, container_handle)
                 value = self.get_var_value_not_null(ret_val, self.global_format, handle != 0)
                 variable = {
                     'name': name,

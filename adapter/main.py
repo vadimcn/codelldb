@@ -33,7 +33,7 @@ def decode_params(params):
 def init_logging(params):
     # Global configuration
     log_file = params.get('logFile', None)
-    log_level = params.get('logLevel', logging.CRITICAL)
+    log_level = params.get('logLevel', logging.ERROR)
     logging.basicConfig(level=log_level, filename=log_file, datefmt='%H:%M:%S',
                         format='[%(asctime)s %(name)s] %(message)s')
     # Individuial loggers

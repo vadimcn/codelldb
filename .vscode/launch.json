@@ -113,11 +113,24 @@
 			"args": ["header"]
 		},
 		{
-			"name": "debuggee attach",
+			"name": "debuggee launch check_env",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"args": ["check_env", "FOO", "BAR"]
+		},
+		{
+			"name": "debuggee attach by pid",
 			"type": "lldb",
 			"request": "attach",
 			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"pid": "${command:pickMyProcess}"
+		},
+		{
+			"name": "debuggee attach by name",
+			"type": "lldb",
+			"request": "attach",
+			"program": "${workspaceRoot}/out/debuggee/debuggee"
 		},
 		{
 			"name": "debuggee custom vars",
@@ -131,11 +144,27 @@
 			]
 		},
 		{
-			"name": "debuggee remote",
+			"name": "debuggee remote platform launch vars",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			// lldb-server platform --server --listen *:1234
+			"initCommands": [
+				"platform select remote-linux",
+				"platform connect connect://127.0.0.1:1234",
+				"platform settings -w /tmp"
+			],
+			"args": [
+				"vars"
+			]
+		},
+		{
+			"name": "debuggee remote gdb vars",
 			"type": "lldb",
 			"request": "custom",
+			// gdbserver 127.0.0.1:1234 out/debuggee/debuggee vars
 			"targetCreateCommands": [
-				"target create  ${workspaceRoot}/out/debuggee/debuggee"
+				"target create  ${workspaceRoot}/out/debuggee/debuggee",
 			],
 			"processCreateCommands": [
 				"gdb-remote 127.0.0.1:1234",

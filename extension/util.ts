@@ -30,7 +30,7 @@ export function expandVariablesInObject(obj: any, expander: (type: string, key: 
 }
 
 // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
-export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
+export function expandDbgConfig(launchConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
     let dbgconfig: Dict<any> = Object.assign({}, dbgconfigConfig);
 
     // Compute fixed-point of expansion of dbgconfig properties.
@@ -57,7 +57,7 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
     } while (!converged);
 
     // Now expand dbgconfigs in the launch configuration.
-    debugConfig = expandVariablesInObject(debugConfig, (type, key) => {
+    launchConfig = expandVariablesInObject(launchConfig, (type, key) => {
         if (type == 'dbgconfig') {
             let value = dbgconfig[key];
             if (value == undefined)
@@ -66,7 +66,7 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
         }
         return null;
     });
-    return debugConfig;
+    return launchConfig;
 }
 
 export async function getProcessList(currentUserOnly: boolean):

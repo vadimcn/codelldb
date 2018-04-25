@@ -2,36 +2,78 @@ import { workspace, window, QuickPickItem, DebugConfiguration } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { output } from './extension';
+import { inspect } from 'util';
+import * as util from './util';
+import { output, Dict } from './extension';
 
-export async function getProgramFromCargo(cargoConfig: any): Promise<string> {
+export interface CargoConfig {
+    args: string[];
+    filter?: {
+        name?: string;
+        kind?: string;
+    }
+}
+
+interface CompilationArtifact {
+    fileName: string;
+    name: string;
+    kind: string
+}
+
+export async function getProgramFromCargo(cargoConfig: CargoConfig): Promise<string> {
     let cargoArgs = cargoConfig.args;
     let pos = cargoArgs.indexOf('--');
     // Insert either before `--` or at the end.
     cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
+
     output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
     let artifacts = await getCargoArtifacts(cargoArgs);
-    output.appendLine('Cargo artifacts: ' + artifacts.join(', '));
-    if (artifacts.length < 1) {
+
+    if (artifacts.length == 0) {
         output.show();
-        throw new Error('Cargo produced no binary artifacts.')
+        window.showErrorMessage('Cargo has produced no binary artifacts.', { modal: true });
+        throw new Error('Cannot start debugging.');
+    }
+
+    if (cargoConfig.filter != undefined) {
+        let filter = cargoConfig.filter;
+        artifacts = artifacts.filter(a => {
+            if (filter.name != undefined && a.name != filter.name)
+                return false;
+            if (filter.kind != undefined && a.kind != filter.kind)
+                return false;
+            return true;
+        });
+    }
+
+    output.appendLine('Matching compilation artifacts: ');
+    for (var artifact of artifacts) {
+        output.appendLine(inspect(artifact));
     }
     if (artifacts.length > 1) {
         output.show();
-        window.showWarningMessage('Cargo produced more than one binary artifact.')
+        window.showErrorMessage('Cargo has produced more than one binary artifact.', { modal: true });
+        throw new Error('Cannot start debugging.');
     }
-    return artifacts[0];
+    return artifacts[0].fileName;
 }
 
 // Runs cargo, returns a list of compilation artifacts.
-async function getCargoArtifacts(cargoArgs: string[]): Promise<string[]> {
-    var artifacts: string[] = [];
+async function getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
+    var artifacts: CompilationArtifact[] = [];
     let exitCode = await runCargo(cargoArgs,
         message => {
             if (message.reason == 'compiler-artifact') {
-                if (message.target.crate_types.includes('bin') ||
-                    message.profile.test) {
-                    artifacts = artifacts.concat(message.filenames);
+                let isBinary = message.target.crate_types.includes('bin');
+                let isBuildScript = message.target.kind.includes('custom-build');
+                if ((isBinary && !isBuildScript) || message.profile.test) {
+                    for (var i = 0; i < message.filenames.length; ++i) {
+                        artifacts.push({
+                            fileName: message.filenames[i],
+                            name: message.target.name,
+                            kind: message.target.kind[i]
+                        });
+                    }
                 }
             } else if (message.reason == 'compiler-message') {
                 output.appendLine(message.message.rendered);
@@ -135,4 +177,16 @@ async function runCargo(
             resolve(exitCode);
         });
     });
+}
+
+export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<string>): DebugConfiguration {
+    let expander = (type: string, key: string) => {
+        if (type == 'cargo') {
+            let value = cargoDict[key];
+            if (value == undefined)
+                throw new Error('cargo:' + key + ' is not defined');
+            return value.toString();
+        }
+    };
+    return util.expandVariablesInObject(launchConfig, expander);
 }

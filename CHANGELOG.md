@@ -1,5 +1,10 @@
 # What's New
 
+## 0.8.6
+- Filter out build scripts when looking parsing Cargo output.
+- New substitution variable for launch configs: `${cargo:program}`.
+- Bug fixes.
+
 ## 0.8.5
 - Added support for [Cargo projects](MANUAL.md#cargo-support).
 - Added support for [logpoints](https://code.visualstudio.com/updates/v1_22#_logpoints).

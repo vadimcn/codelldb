@@ -2,6 +2,7 @@
 name = "rust-debuggee"
 version = "0.1.0"
 authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
+build = "rust/build.rs"
 
 [lib]
 name = "types_lib"

@@ -311,20 +311,33 @@
 								"type": "string"
 							},
 							"cargo": {
+								"description": "Cargo invocation parameters.",
 								"type": "object",
 								"properties": {
 									"args": {
+										"description": "Cargo command line arguments.",
 										"type": "array",
 										"default": [
 											"test",
 											"--no-run"
 										]
+									},
+									"filter": {
+										"description": "Filter applied to compilation artifacts.",
+										"type": "object",
+										"properties": {
+											"name": {
+												"type": "string"
+											},
+											"kind": {
+												"type": "string"
 											}
+										}
+									}
 								},
 								"required": [
 									"args"
-								],
-								"description": "Cargo invocation that will produce path to the program to debug."
+								]
 							},
 							"args": {
 								"description": "Program arguments.",

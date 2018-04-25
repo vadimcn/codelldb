@@ -351,8 +351,12 @@ to use this feature, replace `program` property in your launch configuration wit
     }
 }
 ```
-Try to be as specific as possible when specifying build target, because should Cargo invocation
-produce more than one binary artifact, only the first will be debugged.
+Try to be as specific as possible when specifying the build target, because if there's more than one
+binary output, CodeLLDB won't know which one you want to debug!
+
+Normally, Cargo output will be used to set the `program` property (but only if it isn't defined).
+However, in order to support custom launch and other odd-ball scenarios, there is also
+a substitution variable, which expands to the same thing: `${cargo:program}`.
 
 CodeLLDB will also use `Cargo.toml` in the workspace root to generate initial debug
 configurations (if there is no `launch.json` in the workspace).

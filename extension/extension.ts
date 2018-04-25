@@ -104,20 +104,32 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
         launchConfig = this.expandDbgConfig(launchConfig, dbgconfigConfig);
 
+        // Transform "request":"custom" to "request":"launch" + "custom":true
         if (launchConfig.request == 'custom') {
             launchConfig.request = 'launch';
             launchConfig.custom = true;
         }
 
-        let adapterParams: any = {};
-
+        // Deal with Cargo
+        let cargoDict: Dict<string> = {};
         if (launchConfig.cargo != undefined) {
-            launchConfig.program = await cargo.getProgramFromCargo(launchConfig.cargo);
-            if (!launchConfig.sourceLanguages) launchConfig.sourceLanguages = [];
-            launchConfig.sourceLanguages.push('rust');
+            cargoDict.program = await cargo.getProgramFromCargo(launchConfig.cargo);
             delete launchConfig.cargo;
+
+            // Expand ${cargo:program}.
+            launchConfig = cargo.expandCargo(launchConfig, cargoDict);
+
+            if (launchConfig.program == undefined) {
+                launchConfig.program = cargoDict.program;
+            }
+
+            // Add 'rust' to sourceLanguages, since this project obviously (ha!) involves Rust.
+            if (!launchConfig.sourceLanguages)
+                launchConfig.sourceLanguages = [];
+            launchConfig.sourceLanguages.push('rust');
         }
 
+        let adapterParams: any = {};
         if (launchConfig.sourceLanguages) {
             adapterParams.sourceLanguages = launchConfig.sourceLanguages;
             delete launchConfig.sourceLanguages;

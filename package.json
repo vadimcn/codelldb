@@ -70,12 +70,13 @@
 			"title": "LLDB configuration",
 			"properties": {
 				"lldb.executable": {
+					"description": "Path to debugger executable.",
 					"type": "string",
 					"default": "lldb",
-					"description": "Path to debugger executable.",
 					"scope": "resource"
 				},
 				"lldb.executable_env": {
+					"description": "Environment variables to pass to debugger.",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -83,16 +84,16 @@
 						}
 					},
 					"default": {},
-					"description": "Environment variables to pass to debugger.",
 					"scope": "resource"
 				},
 				"lldb.logLevel": {
+					"description": "Global logging level, as defined by Python's 'logging' module (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical).",
 					"type": "integer",
 					"default": 0,
-					"description": "Global logging level, as defined by Python's 'logging' module (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical).",
 					"scope": "resource"
 				},
 				"lldb.loggers": {
+					"description": "Logging level for individual loggers as <logger name>:<log level> (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical)",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -100,43 +101,43 @@
 							"default": 0
 						}
 					},
-					"description": "Logging level for individual loggers as <logger name>:<log level> (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical)",
 					"scope": "resource"
 				},
 				"lldb.logFile": {
-					"type": "string",
 					"description": "Log file path. (default=VSCode 'Output' panel)",
+					"type": "string",
 					"scope": "resource"
 				},
 				"lldb.reverseDebugging": {
-					"type": "boolean",
 					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)",
+					"type": "boolean",
 					"scope": "resource"
 				},
 				"lldb.suppressMissingSourceFiles": {
-					"type": "boolean",
 					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
+					"type": "boolean",
 					"scope": "resource"
 				},
 				"lldb.launch.initCommands": {
+					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"scope": "resource"
 				},
 				"lldb.launch.preRunCommands": {
+					"description": "Commands executed *before* preRunCommands in individual launch configurations.",
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *before* preRunCommands in individual launch configurations.",
 					"scope": "resource"
 				},
 				"lldb.launch.exitCommands": {
+					"description": "Commands executed *after* exitCommands in individual launch configurations.",
 					"type": "array",
 					"default": [],
-					"description": "Commands executed *after* exitCommands in individual launch configurations.",
 					"scope": "resource"
 				},
 				"lldb.launch.env": {
+					"description": "Additional environment variables merged with 'env' individual launch configurations.",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -144,16 +145,16 @@
 						}
 					},
 					"default": {},
-					"description": "Additional environment variables merged with 'env' individual launch configurations.",
 					"scope": "resource"
 				},
 				"lldb.launch.cwd": {
+					"description": "Default program working directory.",
 					"type": "string",
 					"default": "${workspaceFolder}",
-					"description": "Default program working directory.",
 					"scope": "resource"
 				},
 				"lldb.launch.terminal": {
+					"description": "Default terminal type.",
 					"type": "string",
 					"enum": [
 						"integrated",
@@ -161,10 +162,10 @@
 						"console"
 					],
 					"default": "console",
-					"description": "Default terminal type.",
 					"scope": "resource"
 				},
 				"lldb.launch.stdio": {
+					"description": "Default stdio destination.",
 					"type": [
 						"null",
 						"string",
@@ -172,10 +173,10 @@
 						"object"
 					],
 					"default": null,
-					"description": "Default stdio destination.",
 					"scope": "resource"
 				},
 				"lldb.launch.sourceMap": {
+					"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -185,28 +186,28 @@
 							]
 						}
 					},
-					"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
 					"default": {},
 					"scope": "resource"
 				},
 				"lldb.launch.sourceLanguages": {
-					"type": "array",
 					"description": "A list of source languages to enable language-specific features for.",
+					"type": "array",
 					"default": [
 						"cpp",
 						"rust"
 					]
 				},
 				"lldb.launch.expressions": {
+					"description": "The default evaluator type used for expressions.",
 					"type": "string",
 					"enum": [
 						"simple",
 						"python",
 						"native"
-					],
-					"description": "The default evaluator type used for expressions."
+					]
 				},
 				"lldb.dbgconfig": {
+					"description": "User settings",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -219,7 +220,6 @@
 							]
 						}
 					},
-					"description": "User settings",
 					"default": {},
 					"scope": "resource"
 				}
@@ -307,8 +307,8 @@
 					"launch": {
 						"properties": {
 							"program": {
-								"type": "string",
-								"description": "Path to the program to debug."
+								"description": "Path to the program to debug.",
+								"type": "string"
 							},
 							"cargo": {
 								"type": "object",
@@ -319,7 +319,7 @@
 											"test",
 											"--no-run"
 										]
-									}
+											}
 								},
 								"required": [
 									"args"
@@ -327,78 +327,79 @@
 								"description": "Cargo invocation that will produce path to the program to debug."
 							},
 							"args": {
+								"description": "Program arguments.",
 								"type": [
 									"array",
 									"string"
 								],
-								"description": "Program arguments.",
 								"default": []
 							},
 							"cwd": {
-								"type": "string",
 								"description": "Program working directory.",
+								"type": "string",
 								"default": "${workspaceFolder}"
 							},
 							"env": {
+								"description": "Additional environment variables.",
 								"type": "object",
 								"patternProperties": {
 									".*": {
 										"type": "string"
 									}
 								},
-								"description": "Additional environment variables.",
 								"default": {}
 							},
 							"stdio": {
+								"description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
 								"type": [
 									"null",
 									"string",
 									"array",
 									"object"
 								],
-								"description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
 								"default": null
 							},
 							"terminal": {
+								"description": "Terminal type to use for the program.",
 								"type": "string",
 								"enum": [
 									"integrated",
 									"external",
 									"console"
 								],
-								"default": "integrated",
-								"description": "Terminal type to use for the program."
+								"default": "integrated"
 							},
 							"stopOnEntry": {
-								"type": "boolean",
 								"description": "Automatically stop debuggee after launch.",
+								"type": "boolean",
 								"default": true
 							},
 							"initCommands": {
-								"type": "array",
 								"description": "Initialization commands executed upon debugger startup.",
+								"type": "array",
 								"default": []
 							},
 							"preRunCommands": {
-								"type": "array",
 								"description": "Commands executed just before the program is launched.",
+								"type": "array",
 								"default": []
 							},
 							"exitCommands": {
-								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
+								"type": "array",
 								"default": []
 							},
 							"expressions": {
+								"description": "The default evaluator type used for expressions.",
 								"type": "string",
 								"enum": [
 									"simple",
 									"python",
 									"native"
-								],
-								"description": "The default evaluator type used for expressions."
+								]
 							},
 							"sourceMap": {
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"type": "object",
 								"patternProperties": {
 									".*": {
@@ -408,17 +409,16 @@
 										]
 									}
 								},
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
 							},
 							"sourceLanguages": {
-								"type": "array",
 								"description": "A list of source languages to enable language-specific features for.",
+								"type": "array",
 								"default": []
 							},
 							"custom": {
-								"type": "boolean",
-								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead."
+								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead.",
+								"type": "boolean"
 							}
 						},
 						"oneOf": [
@@ -437,52 +437,53 @@
 					"attach": {
 						"properties": {
 							"program": {
-								"type": "string",
-								"description": "Path to the program to attach to."
+								"description": "Path to the program to attach to.",
+								"type": "string"
 							},
 							"pid": {
+								"description": "Process id to attach to.",
 								"type": [
 									"number",
 									"string"
 								],
-								"description": "Process id to attach to.",
 								"default": "${command:pickMyProcess}"
 							},
 							"stopOnEntry": {
-								"type": "boolean",
 								"description": "Automatically stop debuggee after attach.",
+								"type": "boolean",
 								"default": true
 							},
 							"waitFor": {
-								"type": "boolean",
 								"description": "Wait for the process to launch.",
+								"type": "boolean",
 								"default": true
 							},
 							"initCommands": {
-								"type": "array",
 								"description": "Initialization commands executed upon debugger startup.",
+								"type": "array",
 								"default": []
 							},
 							"preRunCommands": {
-								"type": "array",
 								"description": "Commands executed just before the program is attached to.",
+								"type": "array",
 								"default": []
 							},
 							"exitCommands": {
-								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
+								"type": "array",
 								"default": []
 							},
 							"expressions": {
+								"description": "The default evaluator type used for expressions.",
 								"type": "string",
 								"enum": [
 									"simple",
 									"python",
 									"native"
-								],
-								"description": "The default evaluator type used for expressions."
+								]
 							},
 							"sourceMap": {
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"type": "object",
 								"patternProperties": {
 									".*": {
@@ -492,12 +493,11 @@
 										]
 									}
 								},
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
 							},
 							"sourceLanguages": {
-								"type": "array",
 								"description": "A list of source languages to enable language-specific features for.",
+								"type": "array",
 								"default": []
 							}
 						}
@@ -505,30 +505,31 @@
 					"custom": {
 						"properties": {
 							"targetCreateCommands": {
-								"type": "array",
 								"description": "Commands that will create debug target.",
+								"type": "array",
 								"default": []
 							},
 							"processCreateCommands": {
-								"type": "array",
 								"description": "Commands that will create debuggee process.",
+								"type": "array",
 								"default": []
 							},
 							"exitCommands": {
-								"type": "array",
 								"description": "Commands executed at the end of debugging session.",
+								"type": "array",
 								"default": []
 							},
 							"expressions": {
+								"description": "The default evaluator type used for expressions.",
 								"type": "string",
 								"enum": [
 									"simple",
 									"python",
 									"native"
-								],
-								"description": "The default evaluator type used for expressions."
+								]
 							},
 							"sourceMap": {
+								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"type": "object",
 								"patternProperties": {
 									".*": {
@@ -538,29 +539,27 @@
 										]
 									}
 								},
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
 								"default": {}
 							},
 							"sourceLanguages": {
-								"type": "array",
 								"description": "A list of source languages to enable language-specific features for.",
+								"type": "array",
 								"default": []
 							},
 							"initCommands": {
-								"type": "array",
-								"deprecationMessage": "Deprecated, use \"targetCreateCommands\" instead."
+								"deprecationMessage": "Deprecated, use \"targetCreateCommands\" instead.",
+								"type": "array"
 							},
 							"preRunCommands": {
-								"type": "array",
-								"deprecationMessage": "Deprecated, use \"processCreateCommands\" instead."
+								"deprecationMessage": "Deprecated, use \"processCreateCommands\" instead.",
+								"type": "array"
 							}
 						}
 					}
 				},
 				"configurationSnippets": [
 					{
-						"label": "LLDB: Launch",
-						"description": "",
+						"label": "LLDB: Launch a New Process",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -571,7 +570,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Attach by Process ID",
+						"label": "LLDB: Attach by PID",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -580,7 +579,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Attach by Program Path",
+						"label": "LLDB: Attach by Name",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -592,16 +591,41 @@
 						"label": "LLDB: Custom Launch",
 						"body": {
 							"type": "lldb",
-							"request": "launch",
+							"request": "custom",
 							"name": "${2:Custom launch}",
-							"custom": true,
-							"initCommands": [
+							"targetCreateCommands": [
 								"^\"target create \\${workspaceFolder}/${1:<your program>}\""
 							],
-							"preRunCommands": [
+							"processCreateCommands": [
 								"settings set target.run-args ${3:value1 value2 value3}",
 								"process launch"
 							]
+						}
+					},
+					{
+						"label": "LLDB: Debug Cargo Output",
+						"body": {
+							"type": "lldb",
+							"request": "launch",
+							"name": "${2:Cargo launch}",
+							"cargo": {
+								"args": ["build", "${1:--lib}"]
+							},
+							"program": "^\"\\${cargo:program}\"",
+							"args": []
+						}
+					},
+					{
+						"label": "LLDB: Debug Cargo Tests",
+						"body": {
+							"type": "lldb",
+							"request": "launch",
+							"name": "${2:Cargo test}",
+							"cargo": {
+								"args": ["test", "--no-run", "${1:--lib}"]
+							},
+							"program": "^\"\\${cargo:program}\"",
+							"args": []
 						}
 					}
 				]

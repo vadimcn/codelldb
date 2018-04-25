@@ -87,6 +87,7 @@ void vars() {
     {
         int a = 30;
         int b = 40;
+        float pi = 3.14159265;
         static int sss = 555;
         const char c[] = "foobar";
         char buffer[10240] = {0};

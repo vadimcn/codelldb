@@ -276,34 +276,23 @@ class Value(object):
         return self.__inplace(self.__or__(other))
 
     # Comparisons
-    def __compare(self, other, op):
-        if type(other) is int:
-            return op(int(self), other)
-        elif type(other) is float:
-            return op(float(self), other)
-        elif type(other) is str:
-            return op(str(self), other)
-        elif type(other) is Value:
-            return op(get_value(self), get_value(other))
-        raise TypeError("Unknown type %s, No comparison operation defined." % str(type(other)))
-
     def __lt__(self, other):
-        return self.__compare(other, operator.lt)
+        return get_value(self) < get_value(other)
 
     def __le__(self, other):
-        return self.__compare(other, operator.le)
+        return get_value(self) <= get_value(other)
 
     def __gt__(self, other):
-        return self.__compare(other, operator.gt)
+        return get_value(self) > get_value(other)
 
     def __ge__(self, other):
-        return self.__compare(other, operator.ge)
+        return get_value(self) >= get_value(other)
 
     def __eq__(self, other):
-        return self.__compare(other, operator.eq)
+        return get_value(self) == get_value(other)
 
     def __ne__(self, other):
-        return self.__compare(other, operator.ne)
+        return get_value(self) != get_value(other)
 
 class ValueIter(object):
     __slots__ = ['index', 'sbvalue', 'length']

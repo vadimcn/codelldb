@@ -155,11 +155,6 @@ export async function diagnose(): Promise<boolean> {
             ], lldbPath, lldbEnv);
             // [^] = match any char, including newline
             let match2 = await waitPattern(lldb2, new RegExp('^True$[^]*^OK$', 'm'));
-
-            if (process.platform.includes('linux')) {
-                output.appendLine('--- Checking ptrace ---');
-                status = Math.max(status, checkPTraceScope());
-            }
         }
         output.appendLine('--- Done ---');
         output.show(true);
@@ -203,38 +198,6 @@ export async function diagnose(): Promise<boolean> {
             break;
     }
     return status < DiagnosticsStatus.Failed;
-}
-
-function checkPTraceScope(): DiagnosticsStatus {
-    let ptraceScopePath = '/proc/sys/kernel/yama/ptrace_scope';
-    try {
-        let ptraceScope = fs.readFileSync(ptraceScopePath).toString('ascii');
-        output.appendLine('The value of \'' + ptraceScopePath + '\' is: ' + ptraceScope);
-        let moreInfo = 'For more information see: https://en.wikipedia.org/wiki/Ptrace, https://www.kernel.org/doc/Documentation/security/Yama.txt';
-        switch (parseInt(ptraceScope)) {
-            case 0:
-                return DiagnosticsStatus.Succeeded;
-            case 1:
-                output.appendLine('Warning: Your system configuration restricts process attach to child processes only.');
-                output.appendLine(moreInfo);
-                return DiagnosticsStatus.Succeeded; // This is a fairly typical setting, let's not annoy user with warnings.
-            case 2:
-                output.appendLine('Warning: Your system configuration restricts debugging to privileged processes only.');
-                output.appendLine(moreInfo);
-                return DiagnosticsStatus.Warning;
-            case 3:
-                output.appendLine('Warning: Your system configuration has disabled debugging.');
-                output.appendLine(moreInfo);
-                return DiagnosticsStatus.Warning;
-            default:
-                output.appendLine('Warning: Unknown value of ptrace_scope.');
-                output.appendLine(moreInfo);
-                return DiagnosticsStatus.Warning;
-        }
-    } catch (err) {
-        output.appendLine('Couldn\'t read ' + ptraceScopePath + ' : ' + err.message);
-        return DiagnosticsStatus.Succeeded; // Ignore
-    }
 }
 
 // Spawn LLDB with the specified arguments, wait for it to output something matching

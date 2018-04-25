@@ -155,9 +155,8 @@ class DebugSession:
             target_args, envp, stdio[0], stdio[1], stdio[2],
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
-            self.console_err(error.GetCString())
             self.send_event('terminated', {})
-            raise UserError('Process launch failed.')
+            raise UserError(error.GetCString())
 
         assert self.process.IsValid()
         self.process_launched = True
@@ -189,12 +188,31 @@ class DebugSession:
             waitFor = args.get('waitFor', False)
             self.process = self.target.AttachToProcessWithName(self.event_listener, program, waitFor, error)
         if not error.Success():
-            self.console_err(error.GetCString())
-            raise UserError('Failed to attach to the process.')
+            self.diagnose_attach_failure(error)
+            raise UserError(error.GetCString())
         assert self.process.IsValid()
         self.process_launched = False
         if not args.get('stopOnEntry', False):
             self.process.Continue()
+
+    def diagnose_attach_failure(self, error):
+        if 'linux' in sys.platform:
+            ptrace_scope_path = '/proc/sys/kernel/yama/ptrace_scope'
+            try:
+                value = int(open(ptrace_scope_path, 'r').read().strip())
+                if value != 0:
+                    if value == 1:
+                        message = '- your system configuration restricts process attachment to child processes only.'
+                    elif value == 2:
+                        message = '- your system configuration restricts debugging to privileged processes only.'
+                    elif value == 3:
+                        message = '- your system configuration does not allow debugging.'
+                    else:
+                        message = '(unknown value).'
+                    self.console_msg('Warning: The value of %s is %d %s' % (ptrace_scope_path, value, message))
+                    self.console_msg('For more information see: https://en.wikipedia.org/wiki/Ptrace, https://www.kernel.org/doc/Documentation/security/Yama.txt')
+            except Error:
+                pass
 
     def custom_launch(self, args):
         create_target = args.get('targetCreateCommands') or args.get('initCommands')

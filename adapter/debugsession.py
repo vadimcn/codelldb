@@ -147,9 +147,12 @@ class DebugSession:
         # working directory
         work_dir = opt_lldb_str(args.get('cwd', None))
         stop_on_entry = args.get('stopOnEntry', False)
+        program = to_lldb_str(args['program'])
         # launch!
+        args_str = ' '.join(target_args) if target_args is not None else ''
+        self.console_msg('Launching %s %s' % (program, args_str))
         log.debug('Launching: program=%r, args=%r, envp=%r, stdio=%r, cwd=%r, flags=0x%X',
-            args['program'], target_args, envp, stdio, work_dir, flags)
+            program, target_args, envp, stdio, work_dir, flags)
         error = lldb.SBError()
         self.process = self.target.Launch(self.event_listener,
             target_args, envp, stdio[0], stdio[1], stdio[2],
@@ -176,15 +179,16 @@ class DebugSession:
         return AsyncResponse
 
     def complete_attach(self, args):
-        log.info('Attaching...')
         self.exec_commands(args.get('preRunCommands'))
         error = lldb.SBError()
         pid = args.get('pid', None)
         if pid is not None:
             if is_string(pid): pid = int(pid)
+            self.console_msg('Attaching to pid=%d' % pid)
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
             program = to_lldb_str(args['program'])
+            self.console_msg('Attaching to %s' % program)
             waitFor = args.get('waitFor', False)
             self.process = self.target.AttachToProcessWithName(self.event_listener, program, waitFor, error)
         if not error.Success():

@@ -2,12 +2,14 @@ import logging
 import lldb
 import codecs
 import re
+import sys
 from .. import xrange, to_lldb_str
 
 log = logging.getLogger('rust')
 
 rust_category = None
 analyze_value = None
+module = sys.modules[__name__]
 
 def initialize(debugger, analyze):
     log.info('initialize')
@@ -20,31 +22,29 @@ def initialize(debugger, analyze):
     #rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
-    attach_summary_to_type('get_str_slice_summary', '&str')
-    attach_synthetic_to_type('SliceSynthProvider', '&str')
+    attach_synthetic_to_type(StrSliceSynthProvider, '&str')
 
-    attach_summary_to_type('get_string_summary', 'collections::string::String')
-    attach_synthetic_to_type('StdStringSynthProvider', 'collections::string::String')
-    # New String location
-    attach_summary_to_type('get_string_summary', 'alloc::string::String')
-    attach_synthetic_to_type('StdStringSynthProvider', 'alloc::string::String')
+    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String')
+    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String')
 
-    attach_summary_to_type('get_array_summary', r'^.*\[[0-9]+\]$', True)
+    attach_summary_to_type(get_array_summary, r'^.*\[[0-9]+\]$', True)
 
-    attach_summary_to_type('get_vector_summary', r'^collections::vec::Vec<.+>$', True)
-    attach_synthetic_to_type('StdVectorSynthProvider', r'^collections::vec::Vec<.+>$', True)
-    # New Vec location
-    attach_summary_to_type('get_vector_summary', r'^alloc::vec::Vec<.+>$', True)
-    attach_synthetic_to_type('StdVectorSynthProvider', r'^alloc::vec::Vec<.+>$', True)
+    attach_summary_to_type(get_vector_summary, r'^collections::vec::Vec<.+>$', True)
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)
+    attach_summary_to_type(get_vector_summary, r'^alloc::vec::Vec<.+>$', True)
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)
 
-    attach_summary_to_type('get_slice_summary', r'^&(mut\s*)?\[.*\]$', True)
-    attach_synthetic_to_type('SliceSynthProvider', r'^&(mut\s*)?\[.*\]$', True)
+    attach_summary_to_type(get_slice_summary, r'^&(mut\s*)?\[.*\]$', True)
+    attach_synthetic_to_type(SliceSynthProvider, r'^&(mut\s*)?\[.*\]$', True)
 
-    attach_summary_to_type('get_cstring_summary', 'std::ffi::c_str::CString')
-    attach_synthetic_to_type('StdCStringSynthProvider', 'std::ffi::c_str::CString')
+    attach_synthetic_to_type(StdCStringSynthProvider, 'std::ffi::c_str::CString')
+    attach_synthetic_to_type(StdCStrSynthProvider, 'std::ffi::c_str::CStr')
 
-    attach_summary_to_type('get_osstring_summary', 'std::ffi::os_str::OsString')
-    attach_synthetic_to_type('StdOsStringSynthProvider', 'std::ffi::os_str::OsString')
+    attach_synthetic_to_type(StdOsStringSynthProvider, 'std::ffi::os_str::OsString')
+    attach_synthetic_to_type(StdOsStrSynthProvider, 'std::ffi::os_str::OsStr')
+
+    attach_synthetic_to_type(StdPathBufSynthProvider, 'std::path::PathBuf')
+    attach_synthetic_to_type(StdPathSynthProvider, 'std::path::Path')
 
 # Enums and tuples cannot be recognized based on type name.
 # These require deeper runtime analysis to tease them apart.
@@ -61,31 +61,45 @@ def analyze(sbvalue):
             first_variant_name = obj_type.GetFieldAtIndex(0).GetName()
             if first_variant_name is None:
                 # Singleton
-                attach_summary_to_type('get_singleton_enum_summary', obj_type.GetName())
+                attach_summary_to_type(get_singleton_enum_summary, obj_type.GetName())
             else:
                 assert first_variant_name.startswith(ENCODED_ENUM_PREFIX)
-                attach_summary_to_type('get_encoded_enum_summary', obj_type.GetName())
-                attach_synthetic_to_type('EncodedEnumProvider', obj_type.GetName())
+                attach_synthetic_to_type(EncodedEnumProvider, obj_type.GetName())
         else:
-            attach_summary_to_type('get_regular_enum_summary', obj_type.GetName())
-            attach_synthetic_to_type('RegularEnumProvider', obj_type.GetName())
+            attach_synthetic_to_type(RegularEnumProvider, obj_type.GetName())
     elif type_class == lldb.eTypeClassStruct:
         if obj_type.GetFieldAtIndex(0).GetName() == ENUM_DISCRIMINANT:
-            attach_summary_to_type('get_enum_variant_summary', obj_type.GetName())
+            attach_summary_to_type(get_enum_variant_summary, obj_type.GetName())
         elif obj_type.GetFieldAtIndex(0).GetName() == '__0':
-            attach_summary_to_type('get_tuple_summary', obj_type.GetName())
-
-def attach_summary_to_type(summary_fn, type_name, is_regex=False):
-    global rust_category
-    summary = lldb.SBTypeSummary.CreateWithFunctionName('adapter.formatters.rust.' + summary_fn)
-    summary.SetOptions(lldb.eTypeOptionCascade)
-    assert rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
+            attach_summary_to_type(get_tuple_summary, obj_type.GetName())
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global rust_category
-    synth = lldb.SBTypeSynthetic.CreateWithClassName('adapter.formatters.rust.' + synth_class)
+    global module
+    synth = lldb.SBTypeSynthetic.CreateWithClassName('adapter.formatters.rust.' + synth_class.__name__)
     synth.SetOptions(lldb.eTypeOptionCascade)
-    assert rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
+    rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
+
+    summary_fn = lambda valobj, dict: get_synth_summary(synth_class, valobj, dict)
+    # LLDB accesses summary fn's by name, so we need to create a unique one.
+    summary_fn.__name__ = '_get_synth_summary_' + synth_class.__name__
+    setattr(module, summary_fn.__name__, summary_fn)
+    attach_summary_to_type(summary_fn, type_name, is_regex)
+
+def attach_summary_to_type(summary_fn, type_name, is_regex=False):
+    global rust_category
+    summary = lldb.SBTypeSummary.CreateWithFunctionName('adapter.formatters.rust.' + summary_fn.__name__)
+    summary.SetOptions(lldb.eTypeOptionCascade)
+    rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
+
+# 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
+# This trick allows us to share data extraction logic between synth providers and their
+# sibling summary providers.
+def get_synth_summary(synth_class, valobj, dict):
+    synth = synth_class(valobj.GetNonSyntheticValue(), dict)
+    synth.update()
+    summary = synth.get_summary()
+    return to_lldb_str(summary)
 
 # Chained GetChildMemberWithName lookups
 def gcm(valobj, *chain):
@@ -114,15 +128,6 @@ def get_obj_summary(valobj):
         return summary
     return '<not available>'
 
-# 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
-# This trick allows us to share data extraction logic between synth providers and their
-# sibling summary providers.
-def get_synth_summary(synth_class, valobj, dict):
-    synth = synth_class(valobj.GetNonSyntheticValue(), dict)
-    synth.update()
-    summary = synth.get_summary()
-    return to_lldb_str(summary)
-
 def print_array_elements(valobj, maxsize=32):
     s = ''
     for i in xrange(0, valobj.GetNumChildren()):
@@ -134,14 +139,21 @@ def print_array_elements(valobj, maxsize=32):
             break
     return s
 
+def get_unqualified_type_name(type_name):
+    if type_name[0] in unqual_type_markers:
+        return type_name
+    return unqual_type_regex.match(type_name).group(1)
+#
+unqual_type_markers = ["(", "[", "&", "*"]
+unqual_type_regex = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
+
+def dump_type(ty):
+    log.info('type %s: size=%d', ty.GetName(), ty.GetByteSize())
+
+# ----- Summaries -----
+
 def get_singleton_enum_summary(valobj, dict):
     return get_obj_summary(valobj.GetChildAtIndex(0))
-
-def get_encoded_enum_summary(valobj, dict):
-    return get_synth_summary(EncodedEnumProvider, valobj, dict)
-
-def get_regular_enum_summary(valobj, doct):
-    return get_synth_summary(RegularEnumProvider, valobj, dict)
 
 def get_enum_variant_summary(valobj, dict):
     obj_type = valobj.GetType()
@@ -161,18 +173,6 @@ def get_tuple_summary(valobj, dict):
     fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
     return '(%s)' % ', '.join(fields)
 
-def get_str_slice_summary(valobj, dict):
-    return get_synth_summary(StrSliceSynthProvider, valobj, dict)
-
-def get_string_summary(valobj, dict):
-    return get_synth_summary(StdStringSynthProvider, valobj, dict)
-
-def get_cstring_summary(valobj, dict):
-    return get_synth_summary(StdCStringSynthProvider, valobj, dict)
-
-def get_osstring_summary(valobj, dict):
-    return get_synth_summary(StdOsStringSynthProvider, valobj, dict)
-
 def get_array_summary(valobj, dict):
     return '(%d) [%s]' % (valobj.GetNumChildren(), print_array_elements(valobj))
 
@@ -184,12 +184,13 @@ def get_slice_summary(valobj, dict):
     length = valobj.GetNumChildren()
     return '(%d) &[%s]' % (length, print_array_elements(valobj))
 
-UNQUAL_TYPE_MARKERS = ["(", "[", "&", "*"]
-UNQUAL_TYPE_REGEX = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
-def get_unqualified_type_name(type_name):
-    if type_name[0] in UNQUAL_TYPE_MARKERS:
-        return type_name
-    return UNQUAL_TYPE_REGEX.match(type_name).group(1)
+def get_path_buf_summary(valobj, dict):
+    return gcm(valobj, 'inner').GetSummary()
+
+def get_path_summary(valobj, dict):
+    return gcm(valobj, 'inner').GetSummary()
+
+# ----- Synth providers ------
 
 # LLDB is somewhat unpredictable about when it calls update() on synth providers.
 # Don't want to put `if self.is_initalized: self.update()` in each method, so...
@@ -295,12 +296,17 @@ class RegularEnumProvider(RustSynthProvider):
 class ArrayLikeSynthProvider(RustSynthProvider):
     def update(self):
         try:
-            self._update() # Should be overridden
+            ptr, len = self.ptr_and_len(self.valobj)
+            self.ptr = ptr
+            self.len = len
             self.item_type = self.ptr.GetType().GetPointeeType()
             self.item_size = self.item_type.GetByteSize()
         except Exception as e:
             log.error('%s', e)
             raise
+
+    def ptr_and_len(self):
+        raise Error('ptr_and_len must be overridden')
 
     def num_children(self):
         return self.len
@@ -326,15 +332,18 @@ class ArrayLikeSynthProvider(RustSynthProvider):
             raise
 
 class StdVectorSynthProvider(ArrayLikeSynthProvider):
-    def _update(self):
-        self.len = gcm(self.valobj, 'len').GetValueAsUnsigned()
-        self.ptr = gcm(self.valobj, 'buf', 'ptr', 'pointer', '__0')
+    def ptr_and_len(self, vec):
+        return (
+            gcm(vec, 'buf', 'ptr', 'pointer', '__0'),
+            gcm(vec, 'len').GetValueAsUnsigned()
+        )
 
 class SliceSynthProvider(ArrayLikeSynthProvider):
-    def _update(self):
-        valobj = self.valobj
-        self.len = gcm(valobj, 'length').GetValueAsUnsigned()
-        self.ptr = gcm(valobj, 'data_ptr')
+    def ptr_and_len(self, vec):
+        return (
+            gcm(vec, 'data_ptr'),
+            gcm(vec, 'length').GetValueAsUnsigned()
+        )
 
 # Base class for *String providers
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
@@ -348,28 +357,63 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         return u'"%s"' % strval
 
 class StrSliceSynthProvider(StringLikeSynthProvider):
-     def _update(self):
-        valobj = self.valobj
-        self.len = gcm(valobj, 'length').GetValueAsUnsigned()
-        self.ptr = gcm(valobj, 'data_ptr')
+     def ptr_and_len(self, valobj):
+         return (
+            gcm(valobj, 'data_ptr'),
+            gcm(valobj, 'length').GetValueAsUnsigned()
+         )
 
 class StdStringSynthProvider(StringLikeSynthProvider):
-    def _update(self):
-        vec = gcm(self.valobj, 'vec')
-        self.len = gcm(vec, 'len').GetValueAsUnsigned()
-        self.ptr = gcm(vec, 'buf', 'ptr', 'pointer', '__0')
+    def ptr_and_len(self, valobj):
+        vec = gcm(valobj, 'vec')
+        return (
+            gcm(vec, 'buf', 'ptr', 'pointer', '__0'),
+            gcm(vec, 'len').GetValueAsUnsigned()
+        )
 
 class StdCStringSynthProvider(StringLikeSynthProvider):
-    def _update(self):
-        inner = gcm(self.valobj, 'inner')
-        self.len = gcm(inner, 'length').GetValueAsUnsigned() - 1
-        self.ptr = gcm(inner, 'data_ptr')
+    def ptr_and_len(self, valobj):
+        vec = gcm(valobj, 'inner')
+        return (
+            gcm(vec, 'data_ptr'),
+            gcm(vec, 'length').GetValueAsUnsigned() - 1
+        )
 
 class StdOsStringSynthProvider(StringLikeSynthProvider):
-    def _update(self):
-        vec = gcm(self.valobj, 'inner', 'inner')
+    def ptr_and_len(self, valobj):
+        vec = gcm(valobj, 'inner', 'inner')
         tmp = gcm(vec, 'bytes') # Windows OSString has an extra layer
         if tmp.IsValid():
             vec = tmp
-        self.len = gcm(vec, 'len').GetValueAsUnsigned()
-        self.ptr = gcm(vec, 'buf', 'ptr', 'pointer', '__0')
+        return (
+            gcm(vec, 'buf', 'ptr', 'pointer', '__0'),
+            gcm(vec, 'len').GetValueAsUnsigned()
+        )
+
+class FFISliceSynthProvider(StringLikeSynthProvider):
+    def ptr_and_len(self, valobj):
+        process = valobj.GetProcess()
+        slice_ptr = valobj.GetLoadAddress()
+        data_ptr_type = valobj.GetType().GetBasicType(lldb.eBasicTypeChar).GetPointerType()
+        # Unsized slice objects have incomplete debug info, so here we just assume standard slice
+        # reference layout: [<pointer to data>, <data size>]
+        error = lldb.SBError()
+        return (
+            valobj.CreateValueFromAddress('data', slice_ptr, data_ptr_type),
+            process.ReadPointerFromMemory(slice_ptr + process.GetAddressByteSize(), error)
+        )
+
+class StdCStrSynthProvider(FFISliceSynthProvider):
+    def ptr_and_len(self, valobj):
+        ptr, len = FFISliceSynthProvider.ptr_and_len(self, valobj)
+        return (ptr, len-1) # drop terminaing '\0'
+
+class StdOsStrSynthProvider(FFISliceSynthProvider):
+    pass
+
+class StdPathBufSynthProvider(StdOsStringSynthProvider):
+    def ptr_and_len(self, valobj):
+        return StdOsStringSynthProvider.ptr_and_len(self, gcm(valobj, 'inner'))
+
+class StdPathSynthProvider(FFISliceSynthProvider):
+    pass

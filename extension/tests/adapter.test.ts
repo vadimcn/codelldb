@@ -377,13 +377,18 @@ suite('Rust tests', () => {
             'slice': '(5) &[1, 2, 3, 4, 5]',
             'vec_int': '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
             'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555" ...]',
+
             'string': '"A String"',
             'str_slice': '"String slice"',
             'wstr1': '"Превед йожэг!"',
             'wstr2': '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
-
             'cstring': '"C String"',
+            'cstr': '"C String"',
             'osstring': '"OS String"',
+            'osstr': '"OS String"',
+            'path_buf': '"foo/bar"',
+            'path': '"foo/bar"',
+
             'class': 'types::PyKeywords'
         });
 

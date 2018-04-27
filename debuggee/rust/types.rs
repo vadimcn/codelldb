@@ -3,6 +3,7 @@
 mod tests;
 
 use std::collections::HashMap;
+use std::path;
 
 enum RegularEnum {
     A,
@@ -59,6 +60,8 @@ fn main() {
     let cstyle_enum2 = CStyleEnum::B;
     let enc_enum1: EncodedEnum<&str> = EncodedEnum::Some("string");
     let enc_enum2: EncodedEnum<&str> = EncodedEnum::Nothing;
+    let opt_str1: Option<&str> = Some("string");
+    let opt_str2: Option<&str> = None;
 
     let tuple_struct = TupleStruct(3, "xxx", -3.0);
     let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0 };
@@ -79,8 +82,25 @@ fn main() {
 
     let cstring = std::ffi::CString::new("C String").unwrap();
     let cstr = &cstring[..];
+
     let osstring = std::ffi::OsString::from("OS String");
     let osstr = &osstring[..];
+
+    let mut path_buf = path::PathBuf::new();
+    path_buf.push("foo");
+    path_buf.push("bar");
+    let path = path_buf.as_path();
+
+    let str_tuple = (
+        string.clone(),
+        str_slice.clone(),
+        cstring.clone(),
+        cstr.clone(),
+        osstring.clone(),
+        osstr.clone(),
+        path_buf.clone(),
+        path.clone()
+    );
 
     let hash = make_hash();
 

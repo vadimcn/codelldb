@@ -68,6 +68,8 @@ async function getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifa
                 let isBuildScript = message.target.kind.includes('custom-build');
                 if ((isBinary && !isBuildScript) || message.profile.test) {
                     for (var i = 0; i < message.filenames.length; ++i) {
+                        if (message.filenames[i].endsWith('.dSYM'))
+                            continue;
                         artifacts.push({
                             fileName: message.filenames[i],
                             name: message.target.name,

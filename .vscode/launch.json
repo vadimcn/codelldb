@@ -103,7 +103,8 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceRoot}/out/debuggee/debuggee",
-			"args": ["header"]
+			"args": ["header"],
+			"cwd": "${workspaceFolder}/out/debuggee"
 		},
 		{
 			"name": "debuggee launch check_env",

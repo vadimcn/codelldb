@@ -111,7 +111,7 @@ suite('Basic', () => {
         let waitForExitAsync = dc.waitForEvent('exited');
         let waitForStopAsync = waitForStopEvent();
 
-        await launch({ program: debuggee, args: ['header'] });
+        await launch({ program: debuggee, args: ['header'], cwd: path.dirname(debuggee) });
         await setBreakpointAsyncSource;
         await setBreakpointAsyncHeader;
 

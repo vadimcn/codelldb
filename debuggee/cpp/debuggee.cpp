@@ -3,15 +3,25 @@
 #include <vector>
 #include <array>
 #include <string>
-#include <unistd.h>
+#include <stdlib.h>
 #include <complex>
 #include <thread>
+#if !defined(_WIN32)
+#include <unistd.h>
+#include <dlfcn.h>
+#else
+#include <windows.h>
+void sleep(unsigned secs) { Sleep(secs * 1000); }
+#endif
 
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
 
 extern "C"
 void disassembly1();
+
+extern "C"
+void sharedlib_entry();
 
 void deepstack(int levelsToGo) {
     if (levelsToGo > 0) {
@@ -154,6 +164,8 @@ int main(int argc, char* argv[]) {
     std::string testcase = args[1];
     if (testcase == "crash") {
         *(volatile int*)0 = 42;
+    } else if (testcase == "throw") {
+        throw std::runtime_error("error");
     } else if (testcase == "deepstack") {
         deepstack(50);
     } else if (testcase == "threads") {
@@ -172,6 +184,14 @@ int main(int argc, char* argv[]) {
     } else if (testcase == "header") {
         header_fn1(1);
         header_fn2(2);
+#if !defined(_WIN32)
+        void* hlib = dlopen("libdebuggee.so", RTLD_NOW);
+        auto sharedlib_entry = reinterpret_cast<void(*)()>(dlsym(hlib, "sharedlib_entry"));
+#else
+        HMODULE hlib = LoadLibrary("libdebuggee.dll");
+        auto sharedlib_entry = reinterpret_cast<void(*)()>(GetProcAddress(hlib, "sharedlib_entry"));
+#endif
+        sharedlib_entry();
     } else if (testcase == "mandelbrot") {
         mandelbrot();
     } else if (testcase == "dasm") {

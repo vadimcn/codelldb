@@ -17,18 +17,13 @@
 			]
 		},
 		{
-			"name": "adapter",
+			"name": "attach to adapter",
 			"type": "python",
-			"request": "launch",
-			"pythonPath": "${config:python.pythonPath}",
-			"console": "integratedTerminal",
-			"program": "${workspaceRoot}/tools/debug_adapter.py",
-			"env": { "LLDB_EXECUTABLE": "${config:lldb.executable}" },
-			"cwd": "${workspaceRoot}",
-			"debugOptions": [
-				"WaitOnAbnormalExit",
-				"WaitOnNormalExit"
-			]
+			"request": "attach",
+			"preLaunchTask": "delay",
+			"host": "127.0.0.1",
+			"port": 3000,
+			"secret": "CodeLLDB",
 		},
 		{
 			"name": "tests",
@@ -65,15 +60,6 @@
 			"args": ["vars", "Farbfüllung", "äöüßÄÖÜ"]
 		},
 		{
-			"name": "debuggee launch vars/w debug server",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceRoot}/out/debuggee/debuggee",
-			"args": ["vars"],
-			"debugServer": 4711,
-			"_adapterStartDelay": 2000
-		},
-		{
 			"name": "debuggee launch threads",
 			"type": "lldb",
 			"request": "launch",
@@ -86,6 +72,13 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/out/debuggee/debuggee",
 			"args": ["crash"]
+		},
+		{
+			"name": "debuggee launch throw",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceRoot}/out/debuggee/debuggee",
+			"args": ["throw"]
 		},
 		{
 			"name": "debuggee launch mandelbrot",
@@ -184,10 +177,10 @@
 	],
 	"compounds": [
 		{
-			"name": "adapter + vars",
+			"name": "adapter attach + ...",
 			"configurations": [
-				"adapter",
-				"debuggee launch vars/w debug server",
+				"debuggee launch header",
+				"attach to adapter",
 			]
 		}
 	]

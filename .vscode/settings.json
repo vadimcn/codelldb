@@ -20,5 +20,10 @@
     ],
     "lldb.launch.exitCommands": [
         "platform shell echo 'exit'"
-    ]
+    ],
+    "lldb.ptvsd": {
+        "port": 3000,
+        "secret": "CodeLLDB",
+        //"waitFor": true
+    },
 }

@@ -41,6 +41,19 @@ def init_logging(params):
     if loggers:
         for name, level in loggers.items():
             logging.getLogger(name).setLevel(level)
+    # Visual Studio debug server
+    ptvsd_params = params.get('ptvsd')
+    if ptvsd_params:
+        try:
+            import ptvsd
+            secret = ptvsd_params.get('secret')
+            address = ptvsd_params.get('address', '127.0.0.1')
+            port = ptvsd_params.get('port', 3000)
+            ptvsd.enable_attach(secret, address = (address, port))
+            if ptvsd_params.get('waitFor', False):
+                ptvsd.wait_for_attach()
+        except Exception as e:
+            log.error('ptvsd setup failed: %s', e)
 
 def run_session(read, write, params):
     event_loop = EventLoop()

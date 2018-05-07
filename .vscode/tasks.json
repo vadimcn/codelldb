@@ -1,29 +1,27 @@
 {
-  "version": "0.1.0",
-  "command": "npm",
-  "windows": {
-    "command": "npm.cmd"
-  },
-  "args": [
-    "run"
-  ],
+  "version": "2.0.0",
+  "problemMatcher": [],
   "tasks": [
     {
-      "taskName": "test",
-      "isTestCommand": true
+      "type": "npm",
+      "script": "build",
+      "problemMatcher":"$tsc"
     },
     {
-      "taskName": "build",
-      "isBuildCommand": true
+      "type": "npm",
+      "script": "build:debuggee:cpp",
+      "problemMatcher": "$gcc"
     },
     {
-      "taskName": "build:debuggee:cpp"
+      "type": "npm",
+      "script": "build:debuggee:rust",
+      "problemMatcher": "$rustc"
     },
     {
-      "taskName": "build:debuggee:rust"
-    },
-    {
-      "taskName": "watch"
+      "label": "delay",
+      "type": "shell",
+      "command": "sleep 1",
+      "problemMatcher": []
     }
   ]
 }

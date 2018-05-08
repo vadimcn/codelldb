@@ -64,6 +64,7 @@ class DebugSession:
         self.global_format = lldb.eFormatDefault
         self.show_disassembly = 'auto' # never | auto | always
         self.deref_pointers = True
+        self.container_summary = True
         self.suppress_missing_sources = self.parameters.get('suppressMissingSourceFiles', True)
 
     def DEBUG_initialize(self, args):
@@ -1151,7 +1152,8 @@ class DebugSession:
                 value = '<null>'
             else:
                 value = var.GetSummary()
-        else:
+
+        if value is None:
             value = var.GetValue()
             if value is None:
                 value = var.GetSummary()
@@ -1169,9 +1171,45 @@ class DebugSession:
         if value is not None:
             return value
         if is_container:
-            return var.GetTypeName()
+            if self.container_summary:
+                return self.get_container_summary(var, format)
+            else:
+                return '{...}'
         else:
             return '<not available>'
+
+    def get_container_summary(self, var, format, maxsize=32):
+        summary = ['{']
+        size = 0
+        n = var.GetNumChildren()
+        for i in xrange(0, n):
+            child = var.GetChildAtIndex(i)
+            name = child.GetName()
+            value = child.GetValue()
+            if value is not None:
+                if size > 0:
+                    summary.append(', ')
+
+                if self.ordinal_name.match(name):
+                summary.append(value)
+                size += len(value)
+                else:
+                    summary.append(name)
+                    summary.append(':')
+                    summary.append(value)
+                    size += len(name) + len(value) + 1
+
+                if size > maxsize:
+                    summary.append(', ...}')
+                    break
+        else:
+            if size == 0:
+                return '{...}'
+            else:
+                summary.append('}')
+        return ''.join(summary)
+
+    ordinal_name = re.compile(r'\[\d+\]')
 
     # Generate a handle for a variable.
     def get_var_handle(self, var, key, parent_handle):
@@ -1231,9 +1269,9 @@ class DebugSession:
     def update_display_settings(self, settings):
         if not settings: return
 
-        self.show_disassembly = settings['showDisassembly']
+        self.show_disassembly = settings.get('showDisassembly', 'auto')
 
-        format = settings['displayFormat']
+        format = settings.get('displayFormat', 'auto')
         if format == 'hex':
             self.global_format = lldb.eFormatHex
         elif format == 'decimal':
@@ -1243,7 +1281,9 @@ class DebugSession:
         else:
             self.global_format = lldb.eFormatDefault
 
-        self.deref_pointers = settings['dereferencePointers']
+        self.deref_pointers = settings.get('dereferencePointers', True)
+
+        self.container_summary = settings.get('containerSummary', True)
 
     def DEBUG_provideContent(self, args):
         return { 'content': self.provide_content(args['uri']) }

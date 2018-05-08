@@ -135,7 +135,7 @@ def print_array_elements(valobj, maxsize=32):
         summary = get_obj_summary(valobj.GetChildAtIndex(i))
         s += summary if summary is not None else '?'
         if len(s) > maxsize:
-            s += ' ...'
+            s += ', ...'
             break
     return s
 

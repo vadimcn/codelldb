@@ -32,6 +32,7 @@ class DisplaySettings {
     showDisassembly: string = 'auto'; // 'always' | 'auto' | 'never'
     displayFormat: string = 'auto'; // 'auto' | 'hex' | 'decimal' | 'binary'
     dereferencePointers: boolean = true;
+    containerSummary: boolean = true;
 };
 
 export function activate(context: ExtensionContext) {
@@ -53,14 +54,27 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         subscriptions.push(debug.onDidTerminateDebugSession(this.onTerminatedDebugSession, this));
         subscriptions.push(debug.onDidReceiveDebugSessionCustomEvent(this.onDebugSessionCustomEvent, this));
         subscriptions.push(workspace.registerTextDocumentContentProvider('debugger', this));
-        subscriptions.push(commands.registerCommand('lldb.showDisassembly', this.showDisassembly, this));
-        subscriptions.push(commands.registerCommand('lldb.toggleDisassembly', this.toggleDisassembly, this));
-        subscriptions.push(commands.registerCommand('lldb.displayFormat', this.displayFormat, this));
-        subscriptions.push(commands.registerCommand('lldb.toggleDerefPointers', this.toggleDerefPointers, this));
+
         subscriptions.push(commands.registerCommand('lldb.diagnose', startup.diagnose));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
         subscriptions.push(commands.registerCommand('lldb.launchDebugServer', () => startup.launchDebugServer(this.context)));
+
+        this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
+            settings.showDisassembly = await window.showQuickPick(['always', 'auto', 'never']);
+        });
+        this.registerDisplaySettingCommand('lldb.toggleDisassembly', async (settings) => {
+            settings.showDisassembly = (settings.showDisassembly == 'auto') ? 'always' : 'auto';
+        });
+        this.registerDisplaySettingCommand('lldb.displayFormat', async (settings) => {
+            settings.displayFormat = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
+        });
+        this.registerDisplaySettingCommand('lldb.toggleDerefPointers', async (settings) => {
+            settings.dereferencePointers = !settings.dereferencePointers;
+        });
+        this.registerDisplaySettingCommand('lldb.toggleContainerSummary', async (settings) => {
+            settings.containerSummary = !settings.containerSummary;
+        });
     }
 
     async provideDebugConfigurations(
@@ -260,38 +274,15 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         }
     }
 
-    async showDisassembly() {
-        let selection = await window.showQuickPick(['always', 'auto', 'never']);
-        this.updateDisplaySettings(settings => settings.showDisassembly = selection);
-    }
-
-    async toggleDisassembly() {
-        await this.updateDisplaySettings(settings => {
-            if (settings.showDisassembly == 'auto') {
-                settings.showDisassembly = 'always';
-            } else {
-                settings.showDisassembly = 'auto';
+    registerDisplaySettingCommand(command: string, updater: (settings: DisplaySettings) => Promise<void>) {
+        this.context.subscriptions.push(commands.registerCommand(command, async () => {
+            if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
+                var settings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+                await updater(settings);
+                this.context.globalState.update('display_settings', settings);
+                await debug.activeDebugSession.customRequest('displaySettings', settings);
             }
-        });
-    }
-
-    async displayFormat() {
-        let selection = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-        await this.updateDisplaySettings(settings => settings.displayFormat = selection);
-    }
-
-    async toggleDerefPointers() {
-        await this.updateDisplaySettings(
-            settings => settings.dereferencePointers = !settings.dereferencePointers);
-    }
-
-    async updateDisplaySettings(updater: (settings: DisplaySettings) => void) {
-        if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            var settings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
-            updater(settings);
-            this.context.globalState.update('display_settings', settings);
-            await debug.activeDebugSession.customRequest('displaySettings', settings);
-        }
+        }));
     }
 
     async pickProcess(currentUserOnly: boolean): Promise<number> {

@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "0.8.6",
+	"version": "0.8.7",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -59,6 +59,7 @@
 		"onCommand:lldb.toggleDisassembly",
 		"onCommand:lldb.displayFormat",
 		"onCommand:lldb.toggleDerefPointers",
+		"onCommand:lldb.toggleContainerSummary",
 		"onCommand:lldb.launchDebugServer",
 		"onCommand:lldb.diagnose",
 		"onCommand:lldb.pickProcess",
@@ -255,6 +256,11 @@
 				"category": "LLDB",
 				"title": "Toggle Pointer Address Display",
 				"command": "lldb.toggleDerefPointers"
+			},
+			{
+				"category": "LLDB",
+				"title": "Toggle Container Summary",
+				"command": "lldb.toggleContainerSummary"
 			},
 			{
 				"category": "LLDB",
@@ -632,7 +638,10 @@
 							"request": "launch",
 							"name": "${2:Cargo launch}",
 							"cargo": {
-								"args": ["build", "${1:--lib}"]
+								"args": [
+									"build",
+									"${1:--lib}"
+								]
 							},
 							"program": "^\"\\${cargo:program}\"",
 							"args": []
@@ -645,7 +654,11 @@
 							"request": "launch",
 							"name": "${2:Cargo test}",
 							"cargo": {
-								"args": ["test", "--no-run", "${1:--lib}"]
+								"args": [
+									"test",
+									"--no-run",
+									"${1:--lib}"
+								]
 							},
 							"program": "^\"\\${cargo:program}\"",
 							"args": []

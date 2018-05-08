@@ -3,7 +3,7 @@
 	"configurations": [
 		{
 			"name": "extension",
-			"preLaunchTask": "build",
+			"preLaunchTask": "npm: build",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",

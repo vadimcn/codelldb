@@ -55,15 +55,8 @@
 	"main": "./out/extension",
 	"activationEvents": [
 		"onDebug",
-		"onCommand:lldb.showDisassembly",
-		"onCommand:lldb.toggleDisassembly",
-		"onCommand:lldb.displayFormat",
-		"onCommand:lldb.toggleDerefPointers",
-		"onCommand:lldb.toggleContainerSummary",
-		"onCommand:lldb.launchDebugServer",
 		"onCommand:lldb.diagnose",
-		"onCommand:lldb.pickProcess",
-		"onCommand:lldb.pickMyProcess"
+		"onCommand:lldb.launchDebugServer"
 	],
 	"contributes": {
 		"configuration": {
@@ -260,12 +253,12 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Toggle Pointer Address Display",
+				"title": "Toggle Numeric Pointer Values",
 				"command": "lldb.toggleDerefPointers"
 			},
 			{
 				"category": "LLDB",
-				"title": "Toggle Container Summary",
+				"title": "Toggle Container Summaries",
 				"command": "lldb.toggleContainerSummary"
 			},
 			{

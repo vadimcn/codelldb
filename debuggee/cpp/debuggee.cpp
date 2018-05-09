@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <vector>
 #include <array>
+#include <map>
+#include <unordered_map>
 #include <string>
 #include <stdlib.h>
 #include <complex>
@@ -17,21 +19,23 @@ void sleep(unsigned secs) { Sleep(secs * 1000); }
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
 
-extern "C"
-void disassembly1();
+extern "C" void disassembly1();
 
-extern "C"
-void sharedlib_entry();
+extern "C" void sharedlib_entry();
 
-void deepstack(int levelsToGo) {
-    if (levelsToGo > 0) {
-        deepstack(levelsToGo-1);
+void deepstack(int levelsToGo)
+{
+    if (levelsToGo > 0)
+    {
+        deepstack(levelsToGo - 1);
     }
 } // #BP2
 
-void inf_loop() {
+void inf_loop()
+{
     long long i = 0;
-    for (;;) {
+    for (;;)
+    {
         printf("\r%lld ", i);
         fflush(stdout);
         sleep(1);
@@ -39,23 +43,27 @@ void inf_loop() {
     }
 }
 
-void threads(int num_threads) {
+void threads(int num_threads)
+{
 #if !defined(__MINGW32__) || defined(_GLIBCXX_HAS_GTHREADS)
     std::vector<int> alive(num_threads);
     std::vector<std::thread> threads;
-    for (int i = 0; i < num_threads; ++i) {
-        int* am_alive = &alive[i];
+    for (int i = 0; i < num_threads; ++i)
+    {
+        int *am_alive = &alive[i];
         std::thread thread([am_alive](int id) {
             *am_alive = 1;
             printf("I'm thread %d\n", id);
             sleep(id % 4 + 1);
             printf("Thread %d exiting\n", id);
             *am_alive = 0;
-        }, i);
+        },
+                           i);
         threads.push_back(std::move(thread));
     }
     sleep(1);
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < num_threads; ++i)
+    {
         printf("Joining %d\n", i);
         threads[i].join();
     }
@@ -64,31 +72,46 @@ void threads(int num_threads) {
 #endif
 }
 
-bool check_env(const char* env_name, const char* expected) {
-    const char* val = getenv(env_name);
+bool check_env(const char *env_name, const char *expected)
+{
+    const char *val = getenv(env_name);
     printf("%s=%s\n", env_name, val);
     return val && std::string(val) == std::string(expected);
 }
 
-void echo() {
+void echo()
+{
     char buffer[1024];
-    do {
+    do
+    {
         fgets(buffer, sizeof(buffer), stdin);
         fputs(buffer, stdout);
     } while (buffer[0] != '\n'); // till empty line is read
 }
 
-class Klazz {
+class Klazz
+{
     static int m1;
 };
 int Klazz::m1 = 42;
 
-void vars() {
-    struct Struct {
+void vars()
+{
+    struct Struct
+    {
         int a;
         char b;
         float c;
         int d[4];
+    };
+
+    struct DeepStruct
+    {
+        int a;
+        const char *b;
+        float c;
+        Struct d;
+        Struct e[5];
     };
 
     int a = 10;
@@ -101,42 +124,53 @@ void vars() {
         static int sss = 555;
         const char c[] = "foobar";
         char buffer[10240] = {0};
-        int array_int[10] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        std::vector<std::vector<int>> vec_int(10, {i*1, i*2, i*3, i*4, i*5});
+        int array_int[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        std::vector<std::vector<int>> vec_int(10, {i * 1, i * 2, i * 3, i * 4, i * 5});
         std::vector<std::vector<int>> empty_vec;
-        Struct s1 = { i+1, 'a', 3.0f, {i, i, i, i} };
-        Struct s2 = { i+10, 'b', 999.0f, {i*10, i*10, i*10, i*10} };
-        Struct* s_ptr = &s1;
-        Struct* null_s_ptr = nullptr;
-        Struct* invalid_s_ptr = (Struct*)1;
-        std::vector<Struct> vec_struct(3, { i*2, 'b', 4.0f});
+        Struct s1 = {i + 1, 'a', 3.0f, {i, i, i, i}};
+        Struct s2 = {i + 10, 'b', 999.0f, {i * 10, i * 10, i * 10, i * 10}};
+        Struct *s_ptr = &s1;
+        Struct *null_s_ptr = nullptr;
+        Struct *invalid_s_ptr = (Struct *)1;
+        DeepStruct ds1 = {13, "foo", 3.14,                   //
+                          {i, 'd', 4.0f, {1, 2, 3, i}},      //
+                          {{i * 2, 's', 5.0f, {4, 5, 6, i}}, //
+                           {i * 3, 'x', 5.5f, {3, 5, 1, i}}}};
+        std::vector<Struct> vec_struct(3, {i * 2, 'b', 4.0f});
         std::array<int, 5> stdarr_int;
-        Struct array_struct[5] = { { i*2, 'b', 4.0f} };
+        std::map<int, float> ord_map = {{1, 2.34}, {2, 3.56}};
+        std::unordered_map<int, float> unord_map = {{1, 2.34}, {2, 3.56}};
+        Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
         std::string str1 = "The quick brown fox";
         char invalid_utf8[] = "ABC\xFF\x01\xFEXYZ";
         std::string empty_str;
-        std::string* str_ptr = &str1;
-        std::string& str_ref = str1;
+        std::string *str_ptr = &str1;
+        std::string &str_ref = str1;
         wchar_t wstr1[] = L"Превед йожэг!";
         std::wstring wstr2 = L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!";
         int zzz = i; // #BP3
     }
 }
 
-void mandelbrot() {
+void mandelbrot()
+{
     const int xdim = 500;
     const int ydim = 500;
     const int max_iter = 100;
     int image[xdim * ydim] = {0};
-    for (int y = 0; y < ydim; ++y) {
+    for (int y = 0; y < ydim; ++y)
+    {
         // /py debugvis.plot_image($image, $xdim, $ydim) if $y % 50 == 0 else False
-        for (int x = 0; x < xdim; ++x) {
+        for (int x = 0; x < xdim; ++x)
+        {
             std::complex<float> xy(-2.05 + x * 3.0 / xdim, -1.5 + y * 3.0 / ydim);
             std::complex<float> z(0, 0);
             int count = max_iter;
-            for (int i = 0; i < max_iter; ++i) {
+            for (int i = 0; i < max_iter; ++i)
+            {
                 z = z * z + xy;
-                if (std::abs(z) >= 2) {
+                if (std::abs(z) >= 2)
+                {
                     count = i;
                     break;
                 }
@@ -144,57 +178,83 @@ void mandelbrot() {
             image[y * xdim + x] = count;
         }
     }
-    for (int y = 0; y < ydim; y += 10) {
-        for (int x = 0; x < xdim; x += 5) {
+    for (int y = 0; y < ydim; y += 10)
+    {
+        for (int x = 0; x < xdim; x += 5)
+        {
             putchar(image[y * xdim + x] < max_iter ? '.' : '#');
         }
         putchar('\n');
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     std::vector<std::string> args;
     for (int i = 0; i < argc; ++i)
         args.push_back(argv[i]);
 
-    if (args.size() < 2) { // #BP1
+    if (args.size() < 2)
+    { // #BP1
         return -1;
     }
 
     std::string testcase = args[1];
-    if (testcase == "crash") {
-        *(volatile int*)0 = 42;
-    } else if (testcase == "throw") {
+    if (testcase == "crash")
+    {
+        *(volatile int *)0 = 42;
+    }
+    else if (testcase == "throw")
+    {
         throw std::runtime_error("error");
-    } else if (testcase == "deepstack") {
+    }
+    else if (testcase == "deepstack")
+    {
         deepstack(50);
-    } else if (testcase == "threads") {
+    }
+    else if (testcase == "threads")
+    {
         threads(15);
-    } else if (testcase == "check_env") {
-        if (argc < 4) {
+    }
+    else if (testcase == "check_env")
+    {
+        if (argc < 4)
+        {
             return -1;
         }
         return (int)check_env(argv[2], argv[3]);
-    } else if (testcase == "inf_loop") {
+    }
+    else if (testcase == "inf_loop")
+    {
         inf_loop();
-    } else if (testcase == "echo") {
+    }
+    else if (testcase == "echo")
+    {
         echo();
-    } else if (testcase == "vars") {
+    }
+    else if (testcase == "vars")
+    {
         vars();
-    } else if (testcase == "header") {
+    }
+    else if (testcase == "header")
+    {
         header_fn1(1);
         header_fn2(2);
 #if !defined(_WIN32)
-        void* hlib = dlopen("libdebuggee.so", RTLD_NOW);
-        auto sharedlib_entry = reinterpret_cast<void(*)()>(dlsym(hlib, "sharedlib_entry"));
+        void *hlib = dlopen("libdebuggee.so", RTLD_NOW);
+        auto sharedlib_entry = reinterpret_cast<void (*)()>(dlsym(hlib, "sharedlib_entry"));
 #else
         HMODULE hlib = LoadLibrary("libdebuggee.dll");
-        auto sharedlib_entry = reinterpret_cast<void(*)()>(GetProcAddress(hlib, "sharedlib_entry"));
+        auto sharedlib_entry = reinterpret_cast<void (*)()>(GetProcAddress(hlib, "sharedlib_entry"));
 #endif
         sharedlib_entry();
-    } else if (testcase == "mandelbrot") {
+    }
+    else if (testcase == "mandelbrot")
+    {
         mandelbrot();
-    } else if (testcase == "dasm") {
+    }
+    else if (testcase == "dasm")
+    {
         disassembly1();
     }
     return 0;

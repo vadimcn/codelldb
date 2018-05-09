@@ -129,6 +129,12 @@
 					"type": "boolean",
 					"scope": "resource"
 				},
+				"lldb.evaluationTimeout": {
+					"description": "Timeout for expression evaluation, in seconds.",
+					"type": "number",
+					"default": 5,
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

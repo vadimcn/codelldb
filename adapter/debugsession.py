@@ -8,6 +8,7 @@ import tempfile
 import re
 import fnmatch
 import json
+import time
 import lldb
 from . import expressions
 from . import debugevents
@@ -66,6 +67,7 @@ class DebugSession:
         self.deref_pointers = True
         self.container_summary = True
         self.suppress_missing_sources = self.parameters.get('suppressMissingSourceFiles', True)
+        self.evaluation_timeout = self.parameters.get('evaluationTimeout', 5)
 
     def DEBUG_initialize(self, args):
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
@@ -931,6 +933,7 @@ class DebugSession:
                     container_name = compose_eval_name(container_name, segment)
             vars_iter = SBValueChildrenIter(container)
 
+        time_limit = time.clock() + self.evaluation_timeout
         for var in vars_iter:
             name = var.GetName()
             if name is None: # Sometimes LLDB returns junk entries with empty names and values
@@ -950,6 +953,10 @@ class DebugSession:
             if name in variables:
                 del variables[name]
             variables[name] = variable
+
+            if time.clock() > time_limit:
+                self.console_err('Child list expansion has timed out.')
+                break
 
         variables = list(variables.values())
 
@@ -1191,8 +1198,8 @@ class DebugSession:
                     summary.append(', ')
 
                 if self.ordinal_name.match(name):
-                summary.append(value)
-                size += len(value)
+                    summary.append(value)
+                    size += len(value)
                 else:
                     summary.append(name)
                     summary.append(':')

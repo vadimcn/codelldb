@@ -194,8 +194,8 @@ int main(int argc, char *argv[])
     for (int i = 0; i < argc; ++i)
         args.push_back(argv[i]);
 
-    if (args.size() < 2)
-    { // #BP1
+    if (args.size() < 2) // #BP1
+    {
         return -1;
     }
 

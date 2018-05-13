@@ -77,13 +77,14 @@ suite('Basic', () => {
 
     test('run program to the end', async () => {
         let terminatedAsync = dc.waitForEvent('terminated');
-        await launch({ program: debuggee });
+        await launch({ name: 'run program to the end', program: debuggee });
         await terminatedAsync;
     });
 
     test('run program with modified environment', async () => {
         let waitExitedAsync = dc.waitForEvent('exited');
         await launch({
+            name: 'run program with modified environment',
             env: { 'FOO': 'bar' },
             program: debuggee,
             args: ['check_env', 'FOO', 'bar'],
@@ -111,7 +112,7 @@ suite('Basic', () => {
         let waitForExitAsync = dc.waitForEvent('exited');
         let waitForStopAsync = waitForStopEvent();
 
-        await launch({ program: debuggee, args: ['header'], cwd: path.dirname(debuggee) });
+        await launch({ name:'stop on a breakpoint', program: debuggee, args: ['header'], cwd: path.dirname(debuggee) });
         await setBreakpointAsyncSource;
         await setBreakpointAsyncHeader;
 
@@ -131,7 +132,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP2');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
         let waitForStopAsync = waitForStopEvent();
-        await launch({ program: debuggee, args: ['deepstack'] });
+        await launch({ name:'page stack',  program: debuggee, args: ['deepstack'] });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
         let response2 = await dc.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
@@ -145,7 +146,7 @@ suite('Basic', () => {
     test('variables', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name:'variables', program: debuggee, args: ['vars'] });
         await verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
@@ -154,8 +155,8 @@ suite('Basic', () => {
         assertDictContains(locals, {
             'a': '30',
             'b': '40',
-            'array_int': 'int [10]',
-            's1': 'Struct',
+            'array_int': '{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}',
+            's1': "{a:1, b:'a', c:3}",
             'str1': '"The quick brown fox"',
             // LLDB string visualizer does not display GCC's std::string* correctly.
             // 'str_ptr': '"The quick brown fox"',
@@ -195,7 +196,7 @@ suite('Basic', () => {
     test('expressions', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name:'expressions', program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
 
         let response1 = await dc.evaluateRequest({ expression: "a+b", frameId: frameId, context: "watch" });
@@ -227,7 +228,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "i == 5");
 
-        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name:'conditional breakpoint 1', program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
         let locals = await readVariables(localsRef);
@@ -238,7 +239,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "/py $i == 5");
 
-        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name:'conditional breakpoint 2',  program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
         let locals = await readVariables(localsRef);
@@ -247,7 +248,7 @@ suite('Basic', () => {
 
     test('disassembly', async () => {
         let setBreakpointAsync = setFnBreakpoint('/re disassembly1');
-        let stoppedEvent = await launchAndWaitForStop({ program: debuggee, args: ['dasm'] });
+        let stoppedEvent = await launchAndWaitForStop({ name:'disassembly',  program: debuggee, args: ['dasm'] });
         let stackTrace = await dc.stackTraceRequest({
             threadId: stoppedEvent.body.threadId,
             startFrame: 0, levels: 5
@@ -347,7 +348,7 @@ suite('Rust tests', () => {
         let bpLine = findMarker(rusttypesSource, '#BP1');
         let setBreakpointAsync = setBreakpoint(rusttypesSource, bpLine);
         let waitForStopAsync = waitForStopEvent();
-        await launch({ program: rusttypes });
+        await launch({ name: 'rust variables', program: rusttypes });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
         await verifyLocation(stoppedEvent.body.threadId, rusttypesSource, bpLine);
@@ -371,12 +372,11 @@ suite('Rust tests', () => {
             'enc_enum1': 'Some("string")',
             'enc_enum2': 'Nothing',
             'tuple_struct': '(3, "xxx", -3)',
-            'reg_struct': 'types::RegularStruct',
-            'reg_struct_ref': 'types::RegularStruct *',
+            'reg_struct': '{a:1, c:12}',
             'array': '(5) [1, 2, 3, 4, 5]',
             'slice': '(5) &[1, 2, 3, 4, 5]',
             'vec_int': '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
-            'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555" ...]',
+            'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
 
             'string': '"A String"',
             'str_slice': '"String slice"',
@@ -389,7 +389,7 @@ suite('Rust tests', () => {
             'path_buf': '"foo/bar"',
             'path': '"foo/bar"',
 
-            'class': 'types::PyKeywords'
+            'class': '{finally:1, import:2, lambda:3, raise:4}'
         });
 
         let response1 = await dc.evaluateRequest({

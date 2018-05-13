@@ -12,7 +12,6 @@ let params: any = {};
 if (process.env.LLDB_LOGFILE) {
     params.logFile = process.env.LLDB_LOGFILE;
     params.logLevel = 0;
-    params.loggers = { wireprotocol: 20 };
 }
 
 var lldb_exe = 'lldb';

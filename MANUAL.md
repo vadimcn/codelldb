@@ -11,6 +11,7 @@
     - [Source Path Remapping](#source-path-remapping)
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
 - [Debugger Features](#debugger-features)
+    - [Commands](#commands)
     - [Regex Breakpoints](#regex-breakpoints)
     - [Conditional Breakpoints](#conditional-breakpoints)
     - [Disassembly View](#disassembly-view)
@@ -196,6 +197,17 @@ in your launch configurations:
 
 # Debugger Features
 
+## Commands
+
+|                                 |                                                         |
+|---------------------------------|---------------------------------------------------------|
+|**Show Disassembly ...**         |Choose when the disassembly view is shown. See [Disassembly View](#disassembly-view).
+|**Toggle Disassembly**           |Choose when the disassembly view is shown. See [Disassembly View](#disassembly-view).
+|**Display Format ...**           |Choose default variable display format. See [Formatting](#formatting).
+|**Toggle Numeric Pointer Values**|Choose whether to display the pointee's value rather than numeric value of the pointer itself. See [Pointers](#pointers).
+|**Toggle Container Summaries**   |Choose whether CodeLLDB should generate summaries of compound objects, for which there is no built-in support.<br> Note that having this on may slow down line stepping, because more data needs to be examined to generate the variables view.
+|**Run Diagnostics**              |Run diagnostic on LLDB, to make sure it can be used with this extension.  The command is executed automatically the first time when CodeLLDB is used.
+
 ## Regex Breakpoints
 Function breakpoints prefixed with '`/re `', are interpreted as regular expressions.
 This causes a breakpoint to be set in every function matching the expression.
@@ -241,7 +253,7 @@ will display the value of `var` formatted as hex.
 
 When displaying pointer and reference variables, CodeLLDB will prefer to display the
 value of the object pointed to.  If you would like to see the raw address value,
-you may toggle this behavior using **Toggle pointer address display** command.
+you may toggle this behavior using **Toggle Numeric Pointer Values** command.
 Another way to display raw pointer address is to add the pointer variable to Watch panel and specify
 an explicit format, as described in the previous section.
 
@@ -373,10 +385,11 @@ configurations (if there is no `launch.json` in the workspace).
 |**lldb.executable**    |Path to debugger executable. (default="lldb")
 |**lldb.executable_env**|Environment variables to pass to debugger.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
 |**lldb.logLevel**      |Logging level as defined by Python's 'logging' module.
-|**lldb.logFile**       |Log file.
-|**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
-|**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.logFile**       |Name of the file to write log to (instead of sending it to VSCode's output panel).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
+|**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
+|**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
 
 
 ## Default launch configuration settings

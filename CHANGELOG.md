@@ -1,5 +1,10 @@
 # What's New
 
+## 0.8.7
+- CodeLLDB will now attempt to auto-generate summaries for compound objects, for which there is no built-in support.
+  Previously, it would fall back to displaying object's type instead.
+- Fixed breakpoint resolution when dynamically-loaded modules are used.
+
 ## 0.8.6
 - Filter out build scripts when looking parsing Cargo output.
 - New substitution variable for launch configs: `${cargo:program}`.

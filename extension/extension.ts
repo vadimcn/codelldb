@@ -81,7 +81,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         folder: WorkspaceFolder | undefined,
         token?: CancellationToken
     ): Promise<DebugConfiguration[]> {
-        let debugConfigs = await cargo.getLaunchConfigs();
+        let debugConfigs = await cargo.getLaunchConfigs(folder ? folder.uri.fsPath : workspace.rootPath);
         if (debugConfigs.length == 0) {
             debugConfigs.push({
                 type: 'lldb',
@@ -127,7 +127,8 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         // Deal with Cargo
         let cargoDict: Dict<string> = {};
         if (launchConfig.cargo != undefined) {
-            cargoDict.program = await cargo.getProgramFromCargo(launchConfig.cargo);
+            let cargoCwd = folder ? folder.uri.fsPath : workspace.rootPath;
+            cargoDict.program = await cargo.getProgramFromCargo(launchConfig.cargo, cargoCwd);
             delete launchConfig.cargo;
 
             // Expand ${cargo:program}.

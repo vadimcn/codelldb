@@ -1,4 +1,4 @@
-import { workspace, window, QuickPickItem, DebugConfiguration } from 'vscode';
+import { workspace, window, QuickPickItem, DebugConfiguration, WorkspaceFolder } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -20,14 +20,14 @@ interface CompilationArtifact {
     kind: string
 }
 
-export async function getProgramFromCargo(cargoConfig: CargoConfig): Promise<string> {
+export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string): Promise<string> {
     let cargoArgs = cargoConfig.args;
     let pos = cargoArgs.indexOf('--');
     // Insert either before `--` or at the end.
     cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
 
     output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
-    let artifacts = await getCargoArtifacts(cargoArgs);
+    let artifacts = await getCargoArtifacts(cargoArgs, cwd);
 
     if (artifacts.length == 0) {
         output.show();
@@ -59,9 +59,9 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig): Promise<str
 }
 
 // Runs cargo, returns a list of compilation artifacts.
-async function getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
+async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<CompilationArtifact[]> {
     var artifacts: CompilationArtifact[] = [];
-    let exitCode = await runCargo(cargoArgs,
+    let exitCode = await runCargo(cargoArgs, folder,
         message => {
             if (message.reason == 'compiler-artifact') {
                 let isBinary = message.target.crate_types.includes('bin');
@@ -91,11 +91,11 @@ async function getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifa
 }
 
 
-export async function getLaunchConfigs(): Promise<DebugConfiguration[]> {
+export async function getLaunchConfigs(folder: string): Promise<DebugConfiguration[]> {
     let configs = [];
-    if (fs.existsSync(path.join(workspace.rootPath, 'Cargo.toml'))) {
+    if (fs.existsSync(path.join(folder, 'Cargo.toml'))) {
         var metadata: any = null;
-        let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'],
+        let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'], folder,
             m => { metadata = m },
             stderr => { output.append(stderr); }
         );
@@ -148,14 +148,14 @@ export async function getLaunchConfigs(): Promise<DebugConfiguration[]> {
 
 // Runs cargo, invokes stdout/stderr callbacks as data comes in, returns the exit code.
 async function runCargo(
-    cargoArgs: string[],
+    cargoArgs: string[], cwd: string,
     onStdoutJson: (obj: any) => void,
     onStderrString: (data: string) => void
 ): Promise<number> {
     return new Promise<number>((resolve, reject) => {
         let cargo = cp.spawn('cargo', cargoArgs, {
             stdio: ['ignore', 'pipe', 'pipe'],
-            cwd: workspace.rootPath
+            cwd: cwd
         });
 
         cargo.on('error', err => reject(err));

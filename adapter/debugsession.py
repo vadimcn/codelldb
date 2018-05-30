@@ -172,6 +172,7 @@ class DebugSession:
 
         assert self.process.IsValid()
         self.process_launched = True
+        self.exec_commands(args.get('postRunCommands'))
 
     def DEBUG_attach(self, args):
         self.update_display_settings(args.get('_displaySettings'))
@@ -207,6 +208,7 @@ class DebugSession:
         self.process_launched = False
         if not args.get('stopOnEntry', False):
             self.process.Continue()
+        self.exec_commands(args.get('postRunCommands'))
 
     def diagnose_attach_failure(self, error):
         if 'linux' in sys.platform:

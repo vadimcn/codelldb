@@ -42,6 +42,7 @@ To start a debug session you will need to create a [launch configuration](https:
 |**stopOnEntry**    |boolean| | Whether to stop debuggee immediately after launching.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.
+|**postRunCommands**|[string]| | LLDB commands executed just after launching the debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
@@ -75,7 +76,8 @@ on some systems.  You may need to adjust system configuration to enable it.
 |**stopOnEntry**    |boolean | | Whether to stop the debuggee immediately after attaching.
 |**waitFor**        |boolean | | Wait for the process to launch.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
-|**preRunCommands** |[string]| | LLDB commands executed just before attaching to debuggee.
+|**preRunCommands** |[string]| | LLDB commands executed just before attaching to the debuggee.
+|**postRunCommands**|[string]| | LLDB commands executed just after attaching to the debuggee.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).

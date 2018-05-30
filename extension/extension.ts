@@ -183,6 +183,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         }
         mergeConfig('initCommands');
         mergeConfig('preRunCommands');
+        mergeConfig('postRunCommands');
         mergeConfig('exitCommands', true);
         mergeConfig('env');
         mergeConfig('cwd');

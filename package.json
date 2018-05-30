@@ -140,6 +140,12 @@
 					"default": [],
 					"scope": "resource"
 				},
+				"lldb.launch.postRunCommands": {
+					"description": "Commands executed *before* postRunCommands in individual launch configurations.",
+					"type": "array",
+					"default": [],
+					"scope": "resource"
+				},
 				"lldb.launch.exitCommands": {
 					"description": "Commands executed *after* exitCommands in individual launch configurations.",
 					"type": "array",
@@ -412,6 +418,11 @@
 								"type": "array",
 								"default": []
 							},
+							"postRunCommands": {
+								"description": "Commands executed just after the program has been launched.",
+								"type": "array",
+								"default": []
+							},
 							"exitCommands": {
 								"description": "Commands executed at the end of debugging session.",
 								"type": "array",
@@ -493,6 +504,11 @@
 							},
 							"preRunCommands": {
 								"description": "Commands executed just before the program is attached to.",
+								"type": "array",
+								"default": []
+							},
+							"postRunCommands": {
+								"description": "Commands executed just after the program has been attached to.",
 								"type": "array",
 								"default": []
 							},

@@ -108,7 +108,7 @@
 					"default": {
 						"port": 3000,
 						"secret": "CodeLLDB",
-						"waitFor": false
+						"waitFor": 1
 					},
 					"scope": "resource"
 				},

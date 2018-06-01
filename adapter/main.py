@@ -50,8 +50,9 @@ def init_logging(params):
             address = ptvsd_params.get('address', '127.0.0.1')
             port = ptvsd_params.get('port', 3000)
             ptvsd.enable_attach(secret, address = (address, port))
-            if ptvsd_params.get('waitFor', False):
-                ptvsd.wait_for_attach()
+            wait_for = ptvsd_params.get('waitFor')
+            if wait_for is not None:
+                ptvsd.wait_for_attach(wait_for if wait_for > 0 else None)
         except Exception as e:
             log.error('ptvsd setup failed: %s', e)
 

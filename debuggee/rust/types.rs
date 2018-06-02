@@ -24,10 +24,12 @@ enum EncodedEnum<T> {
 
 struct TupleStruct<'a>(i32, &'a str, f32);
 
+#[derive(Clone)]
 struct RegularStruct<'a> {
-    a: i32,
     b: &'a str,
-    c: f32
+    a: i32,
+    c: f32,
+    d: Vec<u32>,
 }
 
 struct PyKeywords {
@@ -64,8 +66,10 @@ fn main() {
     let opt_str2: Option<&str> = None;
 
     let tuple_struct = TupleStruct(3, "xxx", -3.0);
-    let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0 };
+    let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0, d: vec![12, 34, 56] };
     let reg_struct_ref = &reg_struct;
+    let opt_reg_struct1 = Some(reg_struct.clone());
+    let opt_reg_struct2: Option<RegularStruct> = None;
 
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];

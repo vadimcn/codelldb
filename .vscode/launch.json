@@ -180,7 +180,7 @@
 		{
 			"name": "adapter attach + ...",
 			"configurations": [
-				"debuggee launch header",
+				"rusttypes",
 				"attach to adapter",
 			]
 		}

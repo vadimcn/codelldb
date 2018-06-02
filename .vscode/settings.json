@@ -24,6 +24,11 @@
     "lldb.ptvsd": {
         "port": 3000,
         "secret": "CodeLLDB",
-        //"waitFor": true
+        //"waitFor": 0
     },
+    "lldb.logLevel": 30,
+    "lldb.loggers": {
+        "rust": 10
+        //"wireprotocol": 20
+    }
 }

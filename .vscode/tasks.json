@@ -21,7 +21,13 @@
       "label": "delay",
       "type": "shell",
       "command": "sleep 1",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": {
+        "echo": false,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      }
     }
   ]
 }

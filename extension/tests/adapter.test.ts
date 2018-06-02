@@ -371,13 +371,19 @@ suite('Rust tests', () => {
             'cstyle_enum2': 'B',
             'enc_enum1': 'Some("string")',
             'enc_enum2': 'Nothing',
+            'opt_str1': 'Some("string")',
+            'opt_str2': 'None',
             'tuple_struct': '(3, "xxx", -3)',
             'reg_struct': '{a:1, c:12}',
+            'reg_struct_ref': '{a:1, c:12}',
+            'opt_reg_struct1': 'Some({...})',
+            'opt_reg_struct2': 'None',
             'array': '(5) [1, 2, 3, 4, 5]',
             'slice': '(5) &[1, 2, 3, 4, 5]',
             'vec_int': '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
             'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
-
+            'large_vec': '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
+            'empty_string': '""',
             'string': '"A String"',
             'str_slice': '"String slice"',
             'wstr1': '"Превед йожэг!"',
@@ -388,7 +394,7 @@ suite('Rust tests', () => {
             'osstr': '"OS String"',
             'path_buf': '"foo/bar"',
             'path': '"foo/bar"',
-
+            'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", "foo/bar", "foo/bar")',
             'class': '{finally:1, import:2, lambda:3, raise:4}'
         });
 

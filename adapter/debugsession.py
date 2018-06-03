@@ -1305,6 +1305,11 @@ class DebugSession:
 
         self.container_summary = settings.get('containerSummary', True)
 
+        self.console_msg('Display settings: variable format=%s, show disassembly=%s, numeric pointer values=%s, container summaries=%s.' % (
+                         format, self.show_disassembly,
+                         'off' if self.deref_pointers else 'on',
+                         'on' if self.container_summary else 'off'))
+
     def DEBUG_provideContent(self, args):
         return { 'content': self.provide_content(args['uri']) }
 

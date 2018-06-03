@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
         header_fn1(1);
         header_fn2(2);
 #if !defined(_WIN32)
-        void *hlib = dlopen("libdebuggee.so", RTLD_NOW);
+        void *hlib = dlopen("./libdebuggee.so", RTLD_NOW);
         auto sharedlib_entry = reinterpret_cast<void (*)()>(dlsym(hlib, "sharedlib_entry"));
 #else
         HMODULE hlib = LoadLibrary("libdebuggee.dll");

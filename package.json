@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "0.8.7",
+	"version": "0.8.8-dev",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -10,7 +10,7 @@
 	},
 	"engines": {
 		"vscode": "^1.17.0",
-		"node": "^6.5.0"
+		"node": "^7.9.0"
 	},
 	"icon": "images/lldb.png",
 	"categories": [
@@ -34,13 +34,13 @@
 	"qna": "https://gitter.im/vscode-lldb/QnA",
 	"dependencies": {},
 	"devDependencies": {
-		"@types/mocha": "^2.2.42",
+		"@types/mocha": "^5.2.0",
 		"@types/node": "^6.0.50",
-		"mocha": "^3.5.0",
+		"mocha": "^5.2.0",
 		"typescript": "^2.5.2",
-		"vscode": "^1.1.5",
-		"vscode-debugadapter-testsupport": "^1.24.0",
-		"vscode-debugprotocol": "^1.24.0"
+		"vscode": "^1.1.18",
+		"vscode-debugadapter-testsupport": "^1.29.0",
+		"vscode-debugprotocol": "^1.29.0"
 	},
 	"scripts": {
 		"postinstall": "node ./node_modules/vscode/bin/install",
@@ -48,7 +48,7 @@
 		"watch": "tsc -w -p extension",
 		"build:debuggee:cpp": "python tools/build_debuggee.py",
 		"build:debuggee:rust": "rustc debuggee/rust/types.rs -g -o out/debuggee/rusttypes",
-		"test:adapter": "mocha -u tdd --timeout 10000 ./out/tests",
+		"test:adapter": "mocha -u tdd --timeout 10000 --exit ./out/tests",
 		"test:internals": "python tools/test_internals.py",
 		"test": "npm run build && npm run test:internals && npm run build:debuggee:cpp && npm run build:debuggee:rust && npm run test:adapter"
 	},

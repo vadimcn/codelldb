@@ -4,6 +4,7 @@
 #include <array>
 #include <map>
 #include <unordered_map>
+#include <memory>
 #include <string>
 #include <stdlib.h>
 #include <complex>
@@ -140,6 +141,7 @@ void vars()
         std::array<int, 5> stdarr_int;
         std::map<int, float> ord_map = {{1, 2.34}, {2, 3.56}};
         std::unordered_map<int, float> unord_map = {{1, 2.34}, {2, 3.56}};
+        auto shared_ptr = std::make_shared<std::map<int, float>>(ord_map);
         Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
         std::string str1 = "The quick brown fox";
         char invalid_utf8[] = "ABC\xFF\x01\xFEXYZ";

@@ -899,6 +899,7 @@ class DebugSession:
 
         container, container_vpath = container_info
         container_name = None
+        descendant_of_raw = False
         variables = collections.OrderedDict()
         if isinstance(container, LocalsScope):
             # args, locals, statics, in_scope_only
@@ -932,6 +933,9 @@ class DebugSession:
                 for segment in container_vpath[2:]:
                     container_name = compose_eval_name(container_name, segment)
             vars_iter = SBValueChildrenIter(container)
+            # PreferSyntheticValue is a sticky flag passed on to child values;
+            # we use it to identify descendents of the [raw] node, since that's the only time we reset it.
+            descendant_of_raw = not container.GetPreferSyntheticValue()
 
         time_limit = time.clock() + self.evaluation_timeout
         for var in vars_iter:
@@ -940,13 +944,21 @@ class DebugSession:
                 continue
             dtype = var.GetTypeName()
             handle = self.get_var_handle(var, name, container_handle)
-            value = self.get_var_value_not_null(var, self.global_format, handle != 0)
+            value = self.get_var_value_str(var, self.global_format, handle != 0)
+
+            if not descendant_of_raw:
+                evalName = compose_eval_name(container_name, name)
+            else:
+                stm = lldb.SBStream()
+                var.GetExpressionPath(stm)
+                evalName = '/nat ' + stm.GetData()
+
             variable = {
                 'name': name,
                 'value': value,
                 'type': dtype,
                 'variablesReference': handle,
-                'evaluateName': compose_eval_name(container_name, name)
+                'evaluateName': evalName
             }
             # Ensure proper variable shadowing: if variable of the same name had already been added,
             # remove it and insert the new instance at the end.
@@ -963,11 +975,16 @@ class DebugSession:
         # If this node was synthetic (i.e. a product of a visualizer),
         # append [raw] pseudo-child, which can be expanded to show raw view.
         if isinstance(container, lldb.SBValue) and container.IsSynthetic():
-            handle = self.var_refs.create(container.GetNonSyntheticValue(), '[raw]', container_handle)
+            raw_var = container.GetNonSyntheticValue()
+            stm = lldb.SBStream()
+            raw_var.GetExpressionPath(stm)
+            evalName = '/nat ' + stm.GetData()
+            handle = self.var_refs.create(raw_var, '[raw]', container_handle)
             variable = {
                 'name': '[raw]',
                 'value': container.GetTypeName(),
-                'variablesReference': handle
+                'variablesReference': handle,
+                'evaluateName': evalName
             }
             variables.append(variable)
 

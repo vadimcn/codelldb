@@ -168,7 +168,10 @@ class DebugSession:
             work_dir, flags, stop_on_entry, error)
         if not error.Success():
             self.send_event('terminated', {})
-            raise UserError(error.GetCString())
+            err_msg = error.GetCString()
+            if self.target.GetPlatform().GetFilePermissions(work_dir) == 0:
+                err_msg += '\n\nPossible cause: the working directory "%s" is missing or inaccessible.' % work_dir
+            raise UserError(err_msg)
 
         assert self.process.IsValid()
         self.process_launched = True

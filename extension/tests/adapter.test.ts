@@ -357,6 +357,7 @@ suite('Rust tests', () => {
         let locals = await readVariables(scopes.body.scopes[0].variablesReference);
         //console.log('locals = ', locals);
 
+        let foo_bar = (process.platform != 'win32') ? '"foo/bar"' : '"foo\\bar"';
         assertDictContains(locals, {
             'int': '17',
             'float': '3.1415926535000001',
@@ -392,9 +393,9 @@ suite('Rust tests', () => {
             'cstr': '"C String"',
             'osstring': '"OS String"',
             'osstr': '"OS String"',
-            'path_buf': '"foo/bar"',
-            'path': '"foo/bar"',
-            'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", "foo/bar", "foo/bar")',
+            'path_buf': foo_bar,
+            'path': foo_bar,
+            'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", ' + foo_bar + ', '+ foo_bar + ')',
             'class': '{finally:1, import:2, lambda:3, raise:4}'
         });
 

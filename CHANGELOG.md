@@ -1,5 +1,9 @@
 # What's New
 
+## 0.8.8
+- Added [`postRunCommands`](MANUAL.md#launching).
+- Bug fixes.
+
 ## 0.8.7
 - CodeLLDB will now attempt to auto-generate summaries for compound objects, for which there is no built-in support.
   Previously, it would fall back to displaying object's type instead.

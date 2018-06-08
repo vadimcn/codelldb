@@ -70,6 +70,9 @@ class DebugSession:
         self.evaluation_timeout = self.parameters.get('evaluationTimeout', 5)
 
     def DEBUG_initialize(self, args):
+        init_hook = self.parameters.get('init_hook')
+        if init_hook: init_hook()
+
         self.line_offset = 0 if args.get('linesStartAt1', True) else 1
         self.col_offset = 0 if args.get('columnsStartAt1', True) else 1
 

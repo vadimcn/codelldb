@@ -173,7 +173,10 @@
 			"cwd": "${workspaceRoot}",
 			"sourceMap": {
 				"/Users/travis/build/rust-lang/rust/": "${workspaceRoot}/../rust/"
-			}
+			},
+			"sourceLanguages": [
+				"rust"
+			]
 		}
 	],
 	"compounds": [

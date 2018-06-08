@@ -50,7 +50,9 @@ ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
 ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
 
 def analyze(sbvalue):
-    log.info('rust.analyze for "%s" typeclass=0x%X', sbvalue.GetType().GetName(), sbvalue.GetType().GetTypeClass())
+    #log.info('rust.analyze for "%s" typeclass=0x%X', sbvalue.GetType().GetName(), sbvalue.GetType().GetTypeClass())
+    if sbvalue.IsSynthetic():
+        return
     obj_type = sbvalue.GetType()
     type_class = obj_type.GetTypeClass()
 
@@ -184,38 +186,44 @@ def get_array_summary(valobj, dict):
 
 # ----- Synth providers ------
 
-
 class RustSynthProvider(object):
     def __init__(self, valobj, dict={}):
         self.valobj = valobj
+        self._real_class = self.__class__
+        self.__class__ = RustSynthProvider.Uninitialized
 
-    def update(self):
-        try:
-            log.info('update for %s', self.valobj.GetName())
-            return self.rust_update()
-        except Exception as e:
-            log.error('%s', e)
-            raise
-
-    def rust_update(self): return True
+    def initialize(self): return None
+    def update(self): return True
     def num_children(self): return 0
     def has_children(self): return False
     def get_child_at_index(self, index): return None
     def get_child_index(self, name): return None
     def get_summary(self): return None
 
-    # def __getattribute__(self, name):
-    #     attr = object.__getattribute__(self, name)
-    #     if hasattr(attr, '__call__'):
-    #         def newfunc(*args, **kwargs):
-    #             try:
-    #                 log.debug('Calling %s.%s', self.__class__.__name__, name)
-    #                 return attr(*args, **kwargs)
-    #             except Exception as e:
-    #                 log.error('RustSynthProvider.%s raised %s', name, e)
-    #         return newfunc
-    #     else:
-    #         return attr
+    class Uninitialized(object):
+        def __do_init(self, update=False):
+            self.__class__ = self._real_class
+            try:
+                if not update:
+                    log.warning('Synth provider method has been called before update()')
+                self.initialize()
+            except Exception as e:
+                log.error('Error during RustSynthProvider initialization: %s', e)
+                self.__class__ = RustSynthProvider # This object is in a broken state, so fall back to default impls.
+            return self
+        def update(self):
+            return self.__do_init(True).update()
+        def num_children(self):
+            return self.__do_init().num_children()
+        def has_children(self):
+            return self.__do_init().has_children()
+        def get_child_at_index(self, index):
+            return self.__do_init().get_child_at_index(index)
+        def get_child_index(self, name):
+            return self.__do_init().get_child_index(name)
+        def get_summary(self):
+            return self.__do_init().get_summary()
+
 
 def make_encoded_enum_provider_class(variant_name):
     # 'Encoded' enums always have two variants, of which one contains no data,
@@ -229,7 +237,7 @@ def make_encoded_enum_provider_class(variant_name):
         disr_field_indices = [int(index) for index in indices_substring]
         null_variant_name = variant_name[last_separator_index + 1:]
 
-        def rust_update(self):
+        def initialize(self):
             discriminant = self.valobj.GetChildAtIndex(0)
             for disr_field_index in self.disr_field_indices:
                 discriminant = discriminant.GetChildAtIndex(disr_field_index)
@@ -269,7 +277,7 @@ def make_encoded_enum_provider_class(variant_name):
     return EncodedEnumProvider
 
 class RegularEnumProvider(RustSynthProvider):
-    def rust_update(self):
+    def initialize(self):
         # Regular enums are represented as unions of structs, containing discriminant in the
         # first field.
         discriminant = self.valobj.GetChildAtIndex(0).GetChildAtIndex(0).GetValueAsUnsigned()
@@ -293,7 +301,7 @@ class RegularEnumProvider(RustSynthProvider):
 
 # Base class for providers that represent array-like objects
 class ArrayLikeSynthProvider(RustSynthProvider):
-    def rust_update(self):
+    def initialize(self):
         ptr, len = self.ptr_and_len(self.valobj)
         self.ptr = ptr
         self.len = len

@@ -156,7 +156,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         try {
             // If configuration does not provide debugServer explicitly, launch new adapter.
             if (!launchConfig.debugServer) {
-                let adapter = await startup.startDebugAdapter(this.context, adapterParams);
+                let adapter = await startup.startDebugAdapter(this.context, folder, adapterParams);
                 this.launching.push([launchConfig.name, adapter]);
                 launchConfig.debugServer = adapter.port;
             }

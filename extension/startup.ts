@@ -1,6 +1,7 @@
 import {
     workspace, languages, window, commands,
-    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel, ConfigurationTarget, WorkspaceConfiguration
+    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter, OutputChannel, ConfigurationTarget,
+    WorkspaceFolder, WorkspaceConfiguration
 } from 'vscode';
 import { format, inspect } from 'util';
 import * as cp from 'child_process';
@@ -36,8 +37,12 @@ export class AdapterProcess {
 }
 
 // Start debug adapter in TCP session mode and return the port number it is listening on.
-export async function startDebugAdapter(context: ExtensionContext, params: Dict<any>): Promise<AdapterProcess> {
-    let config = workspace.getConfiguration('lldb', null);
+export async function startDebugAdapter(
+    context: ExtensionContext,
+    folder: WorkspaceFolder | undefined,
+    params: Dict<any>
+): Promise<AdapterProcess> {
+    let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
     let adapterPath = path.join(context.extensionPath, 'adapter');
     let paramsBase64 = getAdapterParameters(config, params);
     let lldbPath = config.get('executable', 'lldb');
@@ -108,7 +113,7 @@ export async function diagnose(): Promise<boolean> {
         }
         let pattern = new RegExp(versionPattern, 'm');
 
-        let config = workspace.getConfiguration('lldb');
+        let config = workspace.getConfiguration('lldb', null);
         let lldbPathOrginal = config.get('executable', 'lldb');
         let lldbPath = lldbPathOrginal;
         let lldbEnv = config.get('executable_env', {});

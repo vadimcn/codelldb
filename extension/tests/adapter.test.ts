@@ -112,7 +112,7 @@ suite('Basic', () => {
         let waitForExitAsync = dc.waitForEvent('exited');
         let waitForStopAsync = waitForStopEvent();
 
-        await launch({ name:'stop on a breakpoint', program: debuggee, args: ['header'], cwd: path.dirname(debuggee) });
+        await launch({ name: 'stop on a breakpoint', program: debuggee, args: ['header'], cwd: path.dirname(debuggee) });
         await setBreakpointAsyncSource;
         await setBreakpointAsyncHeader;
 
@@ -132,7 +132,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP2');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
         let waitForStopAsync = waitForStopEvent();
-        await launch({ name:'page stack',  program: debuggee, args: ['deepstack'] });
+        await launch({ name: 'page stack', program: debuggee, args: ['deepstack'] });
         await setBreakpointAsync;
         let stoppedEvent = await waitForStopAsync;
         let response2 = await dc.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
@@ -146,7 +146,7 @@ suite('Basic', () => {
     test('variables', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let stoppedEvent = await launchAndWaitForStop({ name:'variables', program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] });
         await verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
@@ -196,7 +196,7 @@ suite('Basic', () => {
     test('expressions', async () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine);
-        let stoppedEvent = await launchAndWaitForStop({ name:'expressions', program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
 
         let response1 = await dc.evaluateRequest({ expression: "a+b", frameId: frameId, context: "watch" });
@@ -220,7 +220,7 @@ suite('Basic', () => {
             let locals1 = await readVariables(response1.body.variablesReference);
             assertDictContains(locals1, { "[0]": i, "[1]": i, "[2]": i, "[3]": i });
             let locals2 = await readVariables(response2.body.variablesReference);
-            assertDictContains(locals2, { "[0]": i*10, "[1]": i*10, "[2]": i*10, "[3]": i*10 });
+            assertDictContains(locals2, { "[0]": i * 10, "[1]": i * 10, "[2]": i * 10, "[3]": i * 10 });
         }
     });
 
@@ -228,7 +228,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "i == 5");
 
-        let stoppedEvent = await launchAndWaitForStop({ name:'conditional breakpoint 1', program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name: 'conditional breakpoint 1', program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
         let locals = await readVariables(localsRef);
@@ -239,7 +239,7 @@ suite('Basic', () => {
         let bpLine = findMarker(debuggeeSource, '#BP3');
         let setBreakpointAsync = setBreakpoint(debuggeeSource, bpLine, "/py $i == 5");
 
-        let stoppedEvent = await launchAndWaitForStop({ name:'conditional breakpoint 2',  program: debuggee, args: ['vars'] });
+        let stoppedEvent = await launchAndWaitForStop({ name: 'conditional breakpoint 2', program: debuggee, args: ['vars'] });
         let frameId = await getTopFrameId(stoppedEvent.body.threadId);
         let localsRef = await getFrameLocalsRef(frameId);
         let locals = await readVariables(localsRef);
@@ -248,7 +248,7 @@ suite('Basic', () => {
 
     test('disassembly', async () => {
         let setBreakpointAsync = setFnBreakpoint('/re disassembly1');
-        let stoppedEvent = await launchAndWaitForStop({ name:'disassembly',  program: debuggee, args: ['dasm'] });
+        let stoppedEvent = await launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] });
         let stackTrace = await dc.stackTraceRequest({
             threadId: stoppedEvent.body.threadId,
             startFrame: 0, levels: 5
@@ -318,29 +318,36 @@ suite('Attach tests', () => {
 
     var debuggeeProc: cp.ChildProcess;
 
-    suiteSetup(() => {
-        debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
-    })
-
     suiteTeardown(() => {
-        debuggeeProc.kill()
+        if (debuggeeProc)
+            debuggeeProc.kill()
     })
 
     test('attach by pid', async () => {
+        debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
         let asyncWaitStopped = waitForStopEvent();
         let attachResp = await attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
     });
 
-    test('attach by name - may fail if a copy of debuggee is already running', async () => {
-        // To fix, try running `killall debuggee` (`taskkill /im debuggee.exe` on Windows)
+    test('attach by name', async () => {
         let asyncWaitStopped = waitForStopEvent();
         let attachResp = await attach({ program: debuggee, stopOnEntry: true });
         assert(attachResp.success);
         await asyncWaitStopped;
-        debuggeeProc.kill()
     });
+
+    // Does not seem to work on OSX either :(
+    // if (process.platform == 'darwin') {
+    //     test('attach by name + waitFor', async () => {
+    //         let asyncWaitStopped = waitForStopEvent();
+    //         let attachResp = await attach({ program: debuggee, waitFor: true, stopOnEntry: true });
+    //         assert(attachResp.success);
+    //         debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
+    //         await asyncWaitStopped;
+    //     });
+    // }
 })
 
 suite('Rust tests', () => {
@@ -360,7 +367,7 @@ suite('Rust tests', () => {
         let foo_bar = (process.platform != 'win32') ? '"foo/bar"' : '"foo\\bar"';
         assertDictContains(locals, {
             'int': '17',
-            'float': '3.1415926535000001',
+            'float': '3.14159274',
             'tuple': '(1, "a", 42)',
             'tuple_ref': '(1, "a", 42)',
             // LLDB does not handle Rust enums well for now
@@ -395,7 +402,7 @@ suite('Rust tests', () => {
             'osstr': '"OS String"',
             'path_buf': foo_bar,
             'path': foo_bar,
-            'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", ' + foo_bar + ', '+ foo_bar + ')',
+            'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", ' + foo_bar + ', ' + foo_bar + ')',
             'class': '{finally:1, import:2, lambda:3, raise:4}'
         });
 

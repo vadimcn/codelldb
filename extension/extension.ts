@@ -287,11 +287,11 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         }));
     }
 
-    async pickProcess(currentUserOnly: boolean): Promise<number> {
+    async pickProcess(currentUserOnly: boolean): Promise<string> {
         let items = util.getProcessList(currentUserOnly);
         let item = await window.showQuickPick(items);
         if (item) {
-            return item.pid;
+            return item.pid.toString();
         } else {
             throw Error('Cancelled');
         }

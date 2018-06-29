@@ -1,5 +1,8 @@
 # What's New
 
+## 0.8.9
+- Bug fixes.
+
 ## 0.8.8
 - Added [`postRunCommands`](MANUAL.md#launching).
 - Bug fixes.

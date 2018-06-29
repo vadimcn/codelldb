@@ -5,17 +5,20 @@
     {
       "type": "npm",
       "script": "build",
-      "problemMatcher":"$tsc"
+      "problemMatcher": "$tsc",
+      "group": "build"
     },
     {
       "type": "npm",
       "script": "build:debuggee:cpp",
-      "problemMatcher": "$gcc"
+      "problemMatcher": "$gcc",
+      "group": "build"
     },
     {
       "type": "npm",
       "script": "build:debuggee:rust",
-      "problemMatcher": "$rustc"
+      "problemMatcher": "$rustc",
+      "group": "build"
     },
     {
       "label": "delay",
@@ -28,6 +31,42 @@
         "focus": false,
         "panel": "shared"
       }
+    },
+    {
+      "type": "shell",
+      "label": "cargo build",
+      "command": "cargo",
+      "args": [
+        "build"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "build"
+    },
+    {
+      "type": "shell",
+      "label": "cargo check",
+      "command": "cargo",
+      "args": [
+        "check"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "build"
+    },
+    {
+      "type": "shell",
+      "label": "cargo test",
+      "command": "cargo",
+      "args": [
+        "test"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "test"
     }
   ]
 }

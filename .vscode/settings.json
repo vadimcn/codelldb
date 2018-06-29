@@ -3,7 +3,7 @@
     "editor.insertSpaces": true,
     "editor.tabSize": 4,
     "editor.autoClosingBrackets": false,
-    "editor.rulers": [100],
+    "editor.rulers": [120],
     "files.exclude": {
         "**/.git": true,
         "**/.DS_Store": true,
@@ -11,16 +11,6 @@
     },
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
-
-    "lldb.launch.initCommands": [
-        "platform shell echo 'init'"
-    ],
-    "lldb.launch.preRunCommands": [
-        "platform shell echo 'run'"
-    ],
-    "lldb.launch.exitCommands": [
-        "platform shell echo 'exit'"
-    ],
     "lldb.ptvsd": {
         "port": 3000,
         "secret": "CodeLLDB",
@@ -28,7 +18,6 @@
     },
     "lldb.logLevel": 30,
     "lldb.loggers": {
-        "rust": 10
-        //"wireprotocol": 20
+        "wireprotocol": 0
     }
 }

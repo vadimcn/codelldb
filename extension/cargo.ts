@@ -124,7 +124,7 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                             type: 'lldb',
                             request: 'launch',
                             name: 'Debug ' + target.name,
-                            cargo: { args: ['build'].concat(debug_selector) },
+                            cargo: { args: ['build', `--package=${pkg.name}`].concat(debug_selector) },
                             args: [],
                             cwd: '${workspaceFolder}'
                         });
@@ -134,7 +134,7 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                             type: 'lldb',
                             request: 'launch',
                             name: 'Debug tests in ' + target.name,
-                            cargo: { args: ['test', '--no-run'].concat(test_selector) },
+                            cargo: { args: ['test', '--no-run', `--package=${pkg.name}`].concat(test_selector) },
                             args: [],
                             cwd: '${workspaceFolder}'
                         });

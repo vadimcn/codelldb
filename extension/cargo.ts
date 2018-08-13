@@ -92,7 +92,7 @@ async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<C
 
 
 export async function getLaunchConfigs(folder: string): Promise<DebugConfiguration[]> {
-    let configs = [];
+    let configs: DebugConfiguration[] = [];
     if (fs.existsSync(path.join(folder, 'Cargo.toml'))) {
         var metadata: any = null;
         let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'], folder,
@@ -103,41 +103,34 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
         if (metadata && exitCode == 0) {
             for (var pkg of metadata.packages) {
                 for (var target of pkg.targets) {
-                    let target_kinds = target.kind as string[];
-
-                    var debug_selector = null;
-                    var test_selector = null;
-                    if (target_kinds.includes('bin')) {
-                        debug_selector = ['--bin=' + target.name];
-                        test_selector = ['--bin=' + target.name];
-                    }
-                    if (target_kinds.includes('test')) {
-                        debug_selector = ['--test=' + target.name];
-                        test_selector = ['--test=' + target.name];
-                    }
-                    if (target_kinds.includes('lib')) {
-                        test_selector = ['--lib'];
-                    }
-
-                    if (debug_selector) {
-                        configs.push({
-                            type: 'lldb',
-                            request: 'launch',
-                            name: 'Debug ' + target.name,
-                            cargo: { args: ['build', `--package=${pkg.name}`].concat(debug_selector) },
-                            args: [],
-                            cwd: '${workspaceFolder}'
-                        });
-                    }
-                    if (test_selector) {
-                        configs.push({
-                            type: 'lldb',
-                            request: 'launch',
-                            name: 'Debug tests in ' + target.name,
-                            cargo: { args: ['test', '--no-run', `--package=${pkg.name}`].concat(test_selector) },
-                            args: [],
-                            cwd: '${workspaceFolder}'
-                        });
+                    for (var kind of target.kind) {
+                        let name = target.name;
+                        let push_config = (label: string, operation: string[]) => {
+                            configs.push({
+                                type: 'lldb',
+                                request: 'launch',
+                                name: `${label} ${name}`,
+                                cargo: {
+                                    args: operation.concat([`--package=${pkg.name}`, `--${kind}=${name}`]),
+                                    filter: { kind: kind }
+                                },
+                                args: [],
+                                cwd: '${workspaceFolder}'
+                            });
+                        };
+                        let op_build = ['build'];
+                        let op_test = ['test', '--no-run'];
+                        if (kind == 'bin') {
+                            push_config('Debug executable', op_build);
+                            push_config('Debug tests in executable', op_test);
+                        } else if (kind == 'lib') {
+                            push_config('Debug tests in library', op_test);
+                        } else if (kind == 'test') {
+                            push_config('Debug integration test', op_test);
+                        } else {
+                            window.showErrorMessage(`Cargo reported unsupported binary artifact kind: ${kind}.`, { modal: true });
+                            throw new Error('Cannot generate launch.json.');
+                        }
                     }
                 }
             }

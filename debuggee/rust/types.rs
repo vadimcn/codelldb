@@ -4,6 +4,8 @@ mod tests;
 
 use std::collections::HashMap;
 use std::path;
+use std::rc;
+use std::sync;
 
 enum RegularEnum {
     A,
@@ -30,6 +32,16 @@ struct RegularStruct<'a> {
     a: i32,
     c: f32,
     d: Vec<u32>,
+}
+
+impl<'a> Drop for RegularStruct<'a>
+{
+    fn drop(&mut self) {
+        self.b = "invalid";
+        self.a = 0;
+        self.c = 0.0;
+        self.d.clear();
+    }
 }
 
 struct PyKeywords {
@@ -89,6 +101,20 @@ fn main() {
 
     let osstring = std::ffi::OsString::from("OS String");
     let osstr = &osstring[..];
+
+    let boxed = Box::new(reg_struct.clone());
+    let rc_box = rc::Rc::new(reg_struct.clone());
+    let rc_box2 = rc::Rc::new(reg_struct.clone());
+    let rc_box2c = rc_box2.clone();
+    let rc_box3 = rc::Rc::new(reg_struct.clone());
+    let rc_weak = rc::Rc::downgrade(&rc_box3);
+    let arc_box = sync::Arc::new(reg_struct.clone());
+    let arc_weak = sync::Arc::downgrade(&arc_box);
+    let mutex_box = sync::Mutex::new(reg_struct.clone());
+
+    let rc_weak_dropped = rc::Rc::downgrade(&rc::Rc::new(reg_struct.clone()));
+
+    let closure = move |x:i32| { x + int };
 
     let mut path_buf = path::PathBuf::new();
     path_buf.push("foo");

@@ -44,6 +44,12 @@ def initialize(debugger, analyze):
     attach_synthetic_to_type(StdPathBufSynthProvider, 'std::path::PathBuf')
     attach_synthetic_to_type(StdPathSynthProvider, 'std::path::Path')
 
+    attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Rc<.+>$', True)
+    attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Weak<.+>$', True)
+    attach_synthetic_to_type(StdArcSynthProvider, r'^alloc::sync::Arc<.+>$', True)
+    attach_synthetic_to_type(StdArcSynthProvider, r'^alloc::sync::Weak<.+>$', True)
+    attach_synthetic_to_type(StdMutexSynthProvider, r'^std::sync::mutex::Mutex<.+>$', True)
+
 # Enums and tuples cannot be recognized based on type name.
 # These require deeper runtime analysis to tease them apart.
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
@@ -351,6 +357,8 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
             log.error('%s', e)
             raise
 
+##################################################################################################################
+
 class SliceSynthProvider(ArrayLikeSynthProvider):
     def ptr_and_len(self, vec):
         return (
@@ -432,3 +440,63 @@ class StdPathBufSynthProvider(StdOsStringSynthProvider):
 
 class StdPathSynthProvider(FFISliceSynthProvider):
     pass
+
+##################################################################################################################
+
+class DerefSynthProvider(RustSynthProvider):
+    def num_children(self):
+        return self.deref.GetNumChildren()
+
+    def has_children(self):
+        return self.deref.MightHaveChildren()
+
+    def get_child_at_index(self, index):
+        return self.deref.GetChildAtIndex(index)
+
+    def get_child_index(self, name):
+        return self.deref.GetIndexOfChildWithName(name)
+
+    def get_summary(self):
+        return get_obj_summary(self.deref)
+
+class StdMutexSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        self.deref = gcm(self.valobj, 'data', 'value')
+
+class StdRcSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        inner = gcm(self.valobj, 'ptr', 'pointer', '__0')
+        self.strong = gcm(inner, 'strong', 'value', 'value').GetValueAsUnsigned()
+        self.weak = gcm(inner, 'weak', 'value', 'value').GetValueAsUnsigned()
+        if self.strong > 0:
+            self.deref = gcm(inner, 'value')
+            self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
+        else:
+            self.deref = lldb.SBValue()
+
+    def get_summary(self):
+        s = '(s:%d,w:%d) ' % (self.strong, self.weak)
+        if self.strong > 0:
+            s += get_obj_summary(self.deref)
+        else:
+            s += '<disposed>'
+        return s
+
+class StdArcSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        inner = gcm(self.valobj, 'ptr', 'pointer', '__0')
+        self.strong = gcm(inner, 'strong', 'v', 'value').GetValueAsUnsigned()
+        self.weak = gcm(inner, 'weak', 'v', 'value').GetValueAsUnsigned() - 1
+        if self.strong > 0:
+            self.deref = gcm(inner, 'data')
+            self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
+        else:
+            self.deref = lldb.SBValue()
+
+    def get_summary(self):
+        s = '(s:%d,w:%d) ' % (self.strong, self.weak)
+        if self.strong > 0:
+            s += get_obj_summary(self.deref)
+        else:
+            s += '<disposed>'
+        return s

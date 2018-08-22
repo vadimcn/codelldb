@@ -105,36 +105,93 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                 for (var target of pkg.targets) {
                     for (var kind of target.kind) {
                         let name = target.name;
-                        let push_config = (label: string, operation: string[]) => {
+
+                        let success = false;
+
+                        enum Operation {
+                            Main,
+                            Test
+                        };
+                        let push_config = (operation: Operation) => {
+                            let prefix, params;
+                            if (operation == Operation.Main) {
+                                prefix = '';
+                                params = ['build'];
+                            } else {
+                                prefix = 'tests in ';
+                                params = ['test', '--no-run'];
+                            }
                             configs.push({
                                 type: 'lldb',
                                 request: 'launch',
-                                name: `${label} ${name}`,
+                                name: `Debug ${prefix}${kind} ${name}`,
                                 cargo: {
-                                    args: operation.concat([`--package=${pkg.name}`, `--${kind}=${name}`]),
+                                    args: params.concat([`--package=${pkg.name}`, `--${kind}=${name}`]),
                                     filter: { kind: kind }
                                 },
                                 args: [],
                                 cwd: '${workspaceFolder}'
                             });
+                            success = true;
                         };
-                        let op_build = ['build'];
-                        let op_test = ['test', '--no-run'];
-                        if (kind == 'bin') {
-                            push_config('Debug executable', op_build);
-                            push_config('Debug tests in executable', op_test);
-                        } else if (kind == 'lib') {
-                            push_config('Debug tests in library', op_test);
-                        } else if (kind == 'test') {
-                            push_config('Debug integration test', op_test);
-                        } else {
-                            window.showErrorMessage(`Cargo reported unsupported binary artifact kind: ${kind}.`, { modal: true });
-                            throw new Error('Cannot generate launch.json.');
+
+                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L141
+                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L94
+                        // See https://github.com/rust-lang/rust/blob/6bf6d50a6ff7685b4aa09172d9d09f03f250da9d/src/librustc/session/config.rs#L2252
+                        // If you change anything, see https://github.com/pzmarzly/crates-of-many-artifacts
+                        // TODO: `example` represents both ExampleLib and ExampleBin.
+                        // If it's ExampleLib, `op_build` should be skipped.
+                        // It's rare to see ExampleLib in the wild, though,
+                        // and I have no idea how to even make one (omitting
+                        // `fn main()` is a compiler error).
+                        // TODO: Find out how to make other `kind`s work
+                        // without requiring a workaround (like changing
+                        // `crate-type = ['staticlib']` to
+                        // `crate-type = ['lib`, 'staticlib']`).
+                        // Some kinds compile, and work when running
+                        // `cargo test --lib`, but don't when running
+                        // `cargo test --lib=name`, which we need,
+                        // or have some other issues.
+                        switch (kind) {
+                            case 'bin':
+                            case 'example':
+                                push_config(Operation.Main);
+                        }
+                        switch (kind) {
+                            case 'lib':
+                            case 'bin':
+                            case 'test':
+                            case 'bench':
+                            case 'example':
+                                push_config(Operation.Test);
+                        }
+                        // We ignore `custom-build` on purpose.
+                        // TODO: find out if you can debug it.
+                        if (kind == 'custom-build') {
+                            success = true;
+                        }
+                        if (!success) {
+                            let tip = '';
+                            // TODO: add `proc-macro` once possible.
+                            // Currently `cargo build` reports
+                            // "error: cannot mix `proc-macro` crate type with others"
+                            switch (kind) {
+                                case 'dylib':
+                                case 'cdylib':
+                                case 'rlib':
+                                case 'staticlib':
+                                    tip += `\n\nIf you want to run tests in ${kind}, compile it also as lib. So crate-type = ['${kind}'] becomes crate-type = ['lib', '${kind}'].`
+                            }
+                            window.showErrorMessage(`Unsupported binary artifact kind: ${kind}. Ignoring...${tip}`, { modal: true });
                         }
                     }
                 }
             }
         }
+    }
+    if (configs.length == 0) {
+        window.showErrorMessage(`No supported binary artifact kinds in the project. Aborting...`, { modal: true });
+        throw new Error('Cannot generate launch.json.');
     }
     return configs;
 }

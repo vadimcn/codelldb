@@ -92,7 +92,7 @@ async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<C
 
 
 export async function getLaunchConfigs(folder: string): Promise<DebugConfiguration[]> {
-    let configs = [];
+    let configs: DebugConfiguration[] = [];
     if (fs.existsSync(path.join(folder, 'Cargo.toml'))) {
         var metadata: any = null;
         let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'], folder,
@@ -103,45 +103,95 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
         if (metadata && exitCode == 0) {
             for (var pkg of metadata.packages) {
                 for (var target of pkg.targets) {
-                    let target_kinds = target.kind as string[];
+                    for (var kind of target.kind) {
+                        let name = target.name;
 
-                    var debug_selector = null;
-                    var test_selector = null;
-                    if (target_kinds.includes('bin')) {
-                        debug_selector = ['--bin=' + target.name];
-                        test_selector = ['--bin=' + target.name];
-                    }
-                    if (target_kinds.includes('test')) {
-                        debug_selector = ['--test=' + target.name];
-                        test_selector = ['--test=' + target.name];
-                    }
-                    if (target_kinds.includes('lib')) {
-                        test_selector = ['--lib'];
-                    }
+                        let success = false;
 
-                    if (debug_selector) {
-                        configs.push({
-                            type: 'lldb',
-                            request: 'launch',
-                            name: 'Debug ' + target.name,
-                            cargo: { args: ['build', `--package=${pkg.name}`].concat(debug_selector) },
-                            args: [],
-                            cwd: '${workspaceFolder}'
-                        });
-                    }
-                    if (test_selector) {
-                        configs.push({
-                            type: 'lldb',
-                            request: 'launch',
-                            name: 'Debug tests in ' + target.name,
-                            cargo: { args: ['test', '--no-run', `--package=${pkg.name}`].concat(test_selector) },
-                            args: [],
-                            cwd: '${workspaceFolder}'
-                        });
+                        enum Operation {
+                            Main,
+                            Test
+                        };
+                        let push_config = (operation: Operation) => {
+                            let prefix, params;
+                            if (operation == Operation.Main) {
+                                prefix = '';
+                                params = ['build'];
+                            } else {
+                                prefix = 'tests in ';
+                                params = ['test', '--no-run'];
+                            }
+                            configs.push({
+                                type: 'lldb',
+                                request: 'launch',
+                                name: `Debug ${prefix}${kind} ${name}`,
+                                cargo: {
+                                    args: params.concat([`--package=${pkg.name}`, `--${kind}=${name}`]),
+                                    filter: { kind: kind }
+                                },
+                                args: [],
+                                cwd: '${workspaceFolder}'
+                            });
+                            success = true;
+                        };
+
+                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L141
+                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L94
+                        // See https://github.com/rust-lang/rust/blob/6bf6d50a6ff7685b4aa09172d9d09f03f250da9d/src/librustc/session/config.rs#L2252
+                        // If you change anything, see https://github.com/pzmarzly/crates-of-many-artifacts
+                        // TODO: `example` represents both ExampleLib and ExampleBin.
+                        // If it's ExampleLib, `op_build` should be skipped.
+                        // It's rare to see ExampleLib in the wild, though,
+                        // and I have no idea how to even make one (omitting
+                        // `fn main()` is a compiler error).
+                        // TODO: Find out how to make other `kind`s work
+                        // without requiring a workaround (like changing
+                        // `crate-type = ['staticlib']` to
+                        // `crate-type = ['lib`, 'staticlib']`).
+                        // Some kinds compile, and work when running
+                        // `cargo test --lib`, but don't when running
+                        // `cargo test --lib=name`, which we need,
+                        // or have some other issues.
+                        switch (kind) {
+                            case 'bin':
+                            case 'example':
+                                push_config(Operation.Main);
+                        }
+                        switch (kind) {
+                            case 'lib':
+                            case 'bin':
+                            case 'test':
+                            case 'bench':
+                            case 'example':
+                                push_config(Operation.Test);
+                        }
+                        // We ignore `custom-build` on purpose.
+                        // TODO: find out if you can debug it.
+                        if (kind == 'custom-build') {
+                            success = true;
+                        }
+                        if (!success) {
+                            let tip = '';
+                            // TODO: add `proc-macro` once possible.
+                            // Currently `cargo build` reports
+                            // "error: cannot mix `proc-macro` crate type with others"
+                            switch (kind) {
+                                case 'dylib':
+                                case 'cdylib':
+                                case 'rlib':
+                                case 'staticlib':
+                                    tip += `\n\nIf you want to run tests in ${kind}, compile it also as lib. So crate-type = ['${kind}'] becomes crate-type = ['lib', '${kind}'].`
+                            }
+                            window.showErrorMessage(`Unsupported binary artifact kind: ${kind}. Ignoring...${tip}`, { modal: true });
+                        }
                     }
                 }
             }
         }
+    }
+    if (configs.length == 0) {
+        window.showErrorMessage(`No supported binary artifact kinds in the project. Aborting...`, { modal: true });
+        throw new Error('Cannot generate launch.json.');
     }
     return configs;
 }

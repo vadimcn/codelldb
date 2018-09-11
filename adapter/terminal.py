@@ -1,7 +1,6 @@
 import os
 import socket
 import subprocess
-import string
 import logging
 
 log = logging.getLogger('terminal')
@@ -21,9 +20,9 @@ def create(spawn_terminal=None):
     ls.bind(('127.0.0.1', 0))
     ls.listen(1)
     addr, port = ls.getsockname()
-    # terminal.sh opens a TCP connection, sends output of `tty`, 
+    # terminal.sh opens a TCP connection, sends output of `tty`,
     # waits till the socket gets closed from our end
-    args = [os.path.join(os.path.dirname(__file__), 'terminal.sh'), str(port)]
+    args = ['/bin/bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/%d; tty >&3; clear; read <&3' % port]
     if spawn_terminal is not None:
         spawn_terminal(args)
     else:
@@ -40,8 +39,8 @@ def create(spawn_terminal=None):
                 reason = 'connection aborted'
                 break
             log.info('received %s', data)
-            output += data
-            lines = string.split(output, '\n')
+            output += data.decode('utf8')
+            lines = output.split('\n')
             if len(lines) > 1:
                 return Terminal(lines[0], conn)
     except (OSError, socket.timeout):

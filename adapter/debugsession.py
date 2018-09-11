@@ -185,7 +185,7 @@ class DebugSession:
         pid = args.get('pid', None)
         program = args.get('program', None)
         if pid is None and program is None:
-            raise UserError('One of \'program\', \'pid\' properties is required for attach.')
+            raise UserError('Either \'program\' or \'pid\' is required for attach.')
         self.exec_commands(args.get('initCommands'))
         self.target = self.create_target(args)
         self.disassembly = disassembly.AddressSpace(self.target)
@@ -276,7 +276,7 @@ class DebugSession:
                 raise UserError('Could not initialize debug target: ' + error.GetCString())
         else:
             if args['request'] == 'launch':
-                raise UserError('\program\' is required for launch.')
+                raise UserError('\'program\' property is required for launch.')
             target = self.debugger.CreateTarget('') # OK if attaching by pid
         target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         return target
@@ -324,7 +324,7 @@ class DebugSession:
                     title = 'Debug - ' + args.get('name', '?')
                     self.terminal = terminal.create(
                         lambda args: self.spawn_vscode_terminal(kind=term_type, args=args, title=title))
-                    term_fd = self.terminal.tty
+                    term_fd = to_lldb_str(self.terminal.tty)
                 else:
                     term_fd = None # that'll send them to VSCode debug console
             else: # Windows
@@ -845,7 +845,11 @@ class DebugSession:
                 fs = le.GetFileSpec()
                 local_path = self.map_filespec_to_local(fs)
                 if local_path is not None:
-                    stack_frame['source'] = { 'name': fs.GetFilename(), 'path': local_path }
+                    stack_frame['source'] = {
+                        'name': fs.GetFilename(),
+                        'path': local_path,
+                        'origin': frame.GetModule().GetFileSpec().GetFilename()
+                    }
                     stack_frame['line'] = le.GetLine()
                     stack_frame['column'] = le.GetColumn()
             else:
@@ -854,7 +858,11 @@ class DebugSession:
                 if not dasm:
                     dasm = self.disassembly.create_from_address(pc_addr)
                 if dasm:
-                    stack_frame['source'] = { 'name': dasm.source_name, 'sourceReference': dasm.source_ref }
+                    stack_frame['source'] = {
+                        'name': dasm.source_name,
+                        'sourceReference': dasm.source_ref,
+                        'origin': frame.GetModule().GetFileSpec().GetFilename()
+                    }
                     stack_frame['line'] = dasm.line_num_by_address(pc_addr.GetLoadAddress(self.target))
                     stack_frame['column'] = 0
 

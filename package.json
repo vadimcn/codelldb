@@ -394,7 +394,7 @@
 								"default": null
 							},
 							"terminal": {
-								"description": "Terminal type to use for the program.",
+								"description": "Terminal type to use.",
 								"type": "string",
 								"enum": [
 									"integrated",

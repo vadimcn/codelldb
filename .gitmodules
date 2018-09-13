@@ -1,3 +1,6 @@
 [submodule "adapter2/deps/cpp"]
 	path = adapter2/deps/cpp
 	url = https://github.com/mystor/rust-cpp.git
+[submodule "adapter2/deps/schemafy"]
+	path = adapter2/deps/schemafy
+	url = https://github.com/Marwes/schemafy.git

@@ -15,7 +15,6 @@ from . import debugevents
 from . import disassembly
 from . import handles
 from . import terminal
-from . import formatters
 from . import mem_limit
 from . import PY2, is_string, from_lldb_str, to_lldb_str, xrange
 
@@ -287,7 +286,11 @@ class DebugSession:
         return program
 
     def pre_launch(self):
-        expressions.init_formatters(self.debugger)
+        formatters = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'formatters')
+        for name in os.listdir(formatters):
+            file_path = os.path.join(formatters, name)
+            if name.endswith('.py') or os.path.isdir(file_path):
+                self.exec_commands(['command script import \'%s\'' % file_path])
 
     def exec_commands(self, commands):
         if commands is not None:
@@ -424,56 +427,20 @@ class DebugSession:
                 bp = self.target.FindBreakpointByID(bp_id)
                 bp_resp = { 'id': bp_id, 'verified': True }
             else:  # New breakpoint
-                # LLDB is pretty finicky about breakpoint location path exactly matching
-                # the source path found in debug info.  Unfortunately, this means that
-                # '/some/dir/file.c' and '/some/dir/./file.c' are not considered the same
-                # file, and debug info contains un-normalized paths like this pretty often.
-                # The workaroud is to set a breakpoint by file name and line only, then
-                # check all resolved locations and filter out the ones that don't match
-                # the full path.
-                bp = self.target.BreakpointCreateByLocation(to_lldb_str(file_name), line)
+                bp = self.target.BreakpointCreateByLocation(to_lldb_str(file_path), line)
                 bp_id = bp.GetID()
-                bp_resp = { 'id': bp_id }
                 bp_info = BreakpointInfo(bp_id, SOURCE)
                 bp_info.file_path = file_path
+                bp_info.line = line
                 self.breakpoints[bp_id] = bp_info
-                # Filter locations on full source file path
                 for bp_loc in bp:
-                    if not self.is_valid_source_bp_location(bp_loc, bp_info):
-                        bp_loc.SetEnabled(False)
-                        log.info('Disabled BP location %s', bp_loc)
-                if bp_info.resolved_line is not None:
-                    bp_resp['source'] =  { 'name': file_name, 'path': file_path }
-                    bp_resp['line'] = bp_info.resolved_line
-                    bp_resp['verified'] = True
-
+                    if bp_loc.IsResolved():
+                        bp_info.verified = True
+                bp_resp = self.make_bp_resp(bp, bp_info)
             self.init_bp_actions(bp, req)
             file_bps[line] = bp_id
             result.append(bp_resp)
         return result
-
-    def is_valid_source_bp_location(self, bp_loc, bp_info=None):
-        if bp_info is None:
-            bp_info = self.breakpoints.get(bp_loc.GetBreakpoint().GetID())
-            if bp_info is None: # We didn't set this breakpoint
-                return True
-        assert bp_info.kind == SOURCE
-        loc_id = bp_loc.GetID()
-        if loc_id in bp_info.valid_locations:
-            return True
-        le = bp_loc.GetAddress().GetLineEntry()
-        fs = le.GetFileSpec()
-        bp_local_path = self.map_filespec_to_local(fs)
-        if bp_local_path and same_path(bp_local_path, bp_info.file_path):
-            if bp_info.resolved_line is None:
-                bp_info.resolved_line = le.GetLine()
-            # There shouldn't be more than one line a source breakpoint resolves to.
-            elif bp_info.resolved_line != le.GetLine():
-                log.error('Multiple source bp locations?!')
-            bp_info.valid_locations.append(loc_id)
-            return True
-        else:
-            return False
 
     def set_asm_breakpoints(self, file_bps, req_bps, addr_from_line, source, adapter_data, verified):
         result = []
@@ -630,11 +597,9 @@ class DebugSession:
         breakpoint = { 'id': bp_info.id }
         if bp_info.kind == SOURCE:
             breakpoint['source'] = { 'name': os.path.basename(bp_info.file_path), 'path': bp_info.file_path }
-            if bp_info.resolved_line is not None:
-                breakpoint['line'] = bp_info.resolved_line
-                breakpoint['verified'] = True
-            else:
-                breakpoint['verified'] = False
+            if bp_info.line is not None:
+                breakpoint['line'] = bp_info.line
+            breakpoint['verified'] = True if bp_info.verified else False
             return breakpoint
         elif bp_info.kind == ASSEMBLY:
             dasm = self.disassembly.get_by_address(bp_info.address)
@@ -664,13 +629,6 @@ class DebugSession:
         bp_info = self.breakpoints.get(bp.GetID())
         if bp_info is None: # Something's wrong... just stop
             return True
-
-        # There's a race condition between us getting a notification about new breakpoint locations
-        # in dynamically loaded libraries (and disabling them) and the debugger hitting those breakpoints,
-        # so we need to check validity here as well.
-        if bp_info.kind == SOURCE:
-            if not self.is_valid_source_bp_location(bp_loc, bp_info):
-                return False
 
         if bp_info.ignore_count: # Reset ignore count after each stop
             bp.SetIgnoreCount(bp_info.ignore_count)
@@ -760,7 +718,9 @@ class DebugSession:
             self.send_response(self.launch_args['response'], e)
         # Make sure VSCode knows if the process was initially stopped.
         if self.process is not None and self.process.is_stopped:
-            self.notify_target_stopped(None)
+            self.update_threads()
+            tid = next(iter(self.known_threads))
+            self.send_event('stopped',  { 'allThreadsStopped': True, 'threadId': tid, 'reason': 'initial' })
 
     def DEBUG_pause(self, args):
         error = self.process.Stop()
@@ -827,6 +787,9 @@ class DebugSession:
             index = thread.GetIndexID()
             tid = thread.GetThreadID()
             display = '%d: tid=%d' % (index, tid)
+            name = thread.GetName()
+            if name is not None:
+                display += ' "%s"' % name
             threads.append({ 'id': tid, 'name': display })
         return { 'threads': threads }
 
@@ -1237,7 +1200,7 @@ class DebugSession:
         n = var.GetNumChildren()
         for i in xrange(0, n):
             child = var.GetChildAtIndex(i)
-            name = child.GetName()
+            name = child.GetName() or ''
             value = child.GetValue()
             if value is not None:
                 if size > 0:
@@ -1552,17 +1515,30 @@ class DebugSession:
     def notify_breakpoint(self, event):
         event_type = lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(event)
         bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
-        bp_id = bp.GetID()
         if event_type == lldb.eBreakpointEventTypeAdded:
-            bp_info = BreakpointInfo(bp_id, SOURCE)
-            self.breakpoints[bp_id] = bp_info
-            bp_resp = self.make_bp_resp(bp, bp_info)
-            self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_resp })
+            self.notify_breakpoint_added(bp, event)
         elif event_type == lldb.eBreakpointEventTypeLocationsResolved:
             self.notify_breakpoint_resolved(bp, event)
         elif event_type == lldb.eBreakpointEventTypeRemoved:
+            bp_id = bp.GetID()
             self.send_event('breakpoint', { 'reason': 'removed', 'breakpoint': { 'id': bp_id } })
             del self.breakpoints[bp_id]
+
+    def notify_breakpoint_added(self, bp, event):
+        bp_id = bp.GetID()
+        loc = bp.GetLocationAtIndex(0)
+        addr = loc.GetAddress()
+        le = addr.GetLineEntry()
+        if le:
+            bp_info = BreakpointInfo(bp_id, SOURCE)
+            bp_info.file_path = le.GetFileSpec().fullpath
+            bp_info.line = le.GetLine()
+        else:
+            bp_info = BreakpointInfo(bp_id, ASSEMBLY)
+            bp_info.address = addr.GetLoadAddress(self.target)
+        self.breakpoints[bp_id] = bp_info
+        bp_resp = self.make_bp_resp(bp, bp_info)
+        self.send_event('breakpoint', { 'reason': 'new', 'breakpoint': bp_resp })
 
     def notify_breakpoint_resolved(self, bp, event):
         bp_id = bp.GetID()
@@ -1573,11 +1549,8 @@ class DebugSession:
             num_locs = lldb.SBBreakpoint.GetNumBreakpointLocationsFromEvent(event)
             bp_locs = [lldb.SBBreakpoint.GetBreakpointLocationAtIndexFromEvent(event, i) for i in range(num_locs)]
             for bp_loc in bp_locs:
-                if not self.is_valid_source_bp_location(bp_loc, bp_info):
-                    bp_loc.SetEnabled(False)
-                    log.info('Disabled BP location %s', bp_loc)
-            if bp_info.resolved_line is None:
-                return # Don't notify if still not resolved
+                if bp_loc.IsResolved():
+                    bp_info.verified = True
         breakpoint = self.make_bp_resp(bp, bp_info)
         self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': breakpoint })
 
@@ -1697,7 +1670,7 @@ class RegistersScope:
 class BreakpointInfo:
     __slots__ = ['id', 'kind', 'condition', 'ignore_count', 'log_message',
                  'address', 'adapter_data',
-                 'file_path', 'resolved_line', 'valid_locations']
+                 'file_path', 'line', 'verified']
     def __init__(self, id, kind):
         self.id = id
         self.kind = kind          # SOURCE | FUNCTION | ASSEMBLY | EXCEPTION
@@ -1709,8 +1682,8 @@ class BreakpointInfo:
         self.adapter_data = None  # Data needed to reconstruct disassembly source across sessions.
         # SOURCE only
         self.file_path = None     # Source file.
-        self.resolved_line = None # Source line, if already resolved.
-        self.valid_locations = []
+        self.line = None          # Source line
+        self.verified = False     # Is it resolved
 
 def SBValueListIter(val_list):
     get_value = val_list.GetValueAtIndex

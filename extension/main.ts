@@ -1,19 +1,18 @@
 import {
     workspace, window, commands, debug,
-    ExtensionContext, Uri, Event, EventEmitter,
-    TextDocumentContentProvider, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
-    DebugConfigurationProvider, DebugConfiguration, DebugSession, DebugSessionCustomEvent,
+    ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
+    DebugConfigurationProvider, DebugConfiguration,
 } from 'vscode';
-import * as os from 'os';
+import { inspect } from 'util';
+import { ChildProcess } from 'child_process';
 import * as path from 'path';
-import * as cp from 'child_process';
-import { format, inspect } from 'util';
 import * as diagnostics from './diagnostics';
-import * as startup from './adapter';
 import * as htmlView from './htmlView';
 import * as cargo from './cargo';
 import * as util from './util';
-import { Dict } from './util';
+import * as adapter from './adapter';
+import * as install from './install';
+import { Dict, AdapterType, toAdapterType } from './common';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -33,7 +32,7 @@ class Extension implements DebugConfigurationProvider {
         let subscriptions = context.subscriptions;
         subscriptions.push(debug.registerDebugConfigurationProvider('lldb', this));
 
-        subscriptions.push(commands.registerCommand('lldb.diagnose', () => diagnostics.diagnose(output)));
+        subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
@@ -70,14 +69,18 @@ class Extension implements DebugConfigurationProvider {
         folder: WorkspaceFolder | undefined,
         token?: CancellationToken
     ): Promise<DebugConfiguration[]> {
-        let debugConfigs = await cargo.getLaunchConfigs(folder ? folder.uri.fsPath : workspace.rootPath);
-        if (debugConfigs.length > 0) {
-            let response = await window.showInformationMessage(
-                'Cargo.toml has been detected in this workspace.\r\n' +
-                'Would you like to generate launch configurations for its targets?', { modal: true }, 'Yes', 'No');
-            if (response == 'Yes') {
-                return debugConfigs;
+        try {
+            let debugConfigs = await cargo.getLaunchConfigs(folder ? folder.uri.fsPath : workspace.rootPath);
+            if (debugConfigs.length > 0) {
+                let response = await window.showInformationMessage(
+                    'Cargo.toml has been detected in this workspace.\r\n' +
+                    'Would you like to generate launch configurations for its targets?', { modal: true }, 'Yes', 'No');
+                if (response == 'Yes') {
+                    return debugConfigs;
+                }
             }
+        } catch (err) {
+            output.appendLine(err.toString());
         }
 
         return [{
@@ -96,19 +99,18 @@ class Extension implements DebugConfigurationProvider {
         launchConfig: DebugConfiguration,
         token?: CancellationToken
     ): Promise<DebugConfiguration> {
-        if (!this.context.globalState.get('lldb_works')) {
-            window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
-            let succeeded = await diagnostics.diagnose(output);
-            this.context.globalState.update('lldb_works', succeeded);
-            if (!succeeded) {
-                return null;
-            }
-        }
-
         output.clear();
 
-        let workspaceConfig = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
-        launchConfig = this.mergeWorkspaceSettings(launchConfig, workspaceConfig);
+        if (launchConfig.type === undefined) {
+            await window.showErrorMessage('Cannot start debugging because no launch configuration has been provided.', { modal: true });
+            return null;
+        }
+
+        if (!await this.checkPrerequisites(folder))
+            return undefined;
+
+        let launchDefaults = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
+        launchConfig = this.mergeWorkspaceSettings(launchDefaults, launchConfig);
 
         let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
         launchConfig = util.expandDbgConfig(launchConfig, dbgconfigConfig);
@@ -139,7 +141,8 @@ class Extension implements DebugConfigurationProvider {
             launchConfig.sourceLanguages.push('rust');
         }
 
-        let adapterParams: any = {};
+        let lldbConfig = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
+        let adapterParams: any = this.getAdapterParameters(lldbConfig);
         if (launchConfig.sourceLanguages) {
             adapterParams.sourceLanguages = launchConfig.sourceLanguages;
             delete launchConfig.sourceLanguages;
@@ -151,19 +154,19 @@ class Extension implements DebugConfigurationProvider {
         try {
             // If configuration does not provide debugServer explicitly, launch new adapter.
             if (!launchConfig.debugServer) {
-                let adapter = await startup.startDebugAdapter(this.context, folder, adapterParams);
-                launchConfig.debugServer = adapter.port;
+                let [adapter, port] = await this.startDebugAdapter(folder, adapterParams);
+                launchConfig.debugServer = port;
             }
             launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
             return launchConfig;
         } catch (err) {
-            diagnostics.analyzeStartupError(err, output);
+            diagnostics.analyzeStartupError(err, this.context, output);
             return null;
         }
     }
 
     // Merge launch configuration with workspace settings
-    mergeWorkspaceSettings(debugConfig: DebugConfiguration, launchConfig: WorkspaceConfiguration): DebugConfiguration {
+    mergeWorkspaceSettings(launchConfig: WorkspaceConfiguration, debugConfig: DebugConfiguration): DebugConfiguration {
         let mergeConfig = (key: string, reverse: boolean = false) => {
             let value1 = util.getConfigNoDefault(launchConfig, key);
             let value2 = debugConfig[key];
@@ -186,13 +189,25 @@ class Extension implements DebugConfigurationProvider {
         return debugConfig;
     }
 
+    getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any> = {}): Dict<any> {
+        util.setIfDefined(params, config, 'reverseDebugging');
+        util.setIfDefined(params, config, 'suppressMissingSourceFiles');
+        util.setIfDefined(params, config, 'evaluationTimeout');
+        return params;
+    }
+
     async getCargoLaunchConfigs() {
-        let debugConfigs = await cargo.getLaunchConfigs(workspace.rootPath);
-        let doc = await workspace.openTextDocument({
-            content: JSON.stringify(debugConfigs, null, 4),
-            language: 'jsonc'
-        });
-        await window.showTextDocument(doc, 1, false);
+        try {
+            let debugConfigs = await cargo.getLaunchConfigs(workspace.rootPath);
+            let doc = await workspace.openTextDocument({
+                content: JSON.stringify(debugConfigs, null, 4),
+                language: 'jsonc'
+            });
+            await window.showTextDocument(doc, 1, false);
+        } catch (err) {
+            output.show();
+            window.showErrorMessage(err.toString());
+        }
     }
 
     async pickProcess(currentUserOnly: boolean): Promise<string> {
@@ -201,10 +216,88 @@ class Extension implements DebugConfigurationProvider {
         if (item) {
             return item.pid.toString();
         } else {
-            throw Error('Cancelled');
+            return undefined;
         }
     }
-};
+
+    async startDebugAdapter(
+        folder: WorkspaceFolder | undefined,
+        params: Dict<string>
+    ): Promise<[ChildProcess, number]> {
+        let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
+        let adapterType = this.getAdapterType(folder);
+        let adapterEnv = config.get('executable_env', {});
+        let verboseLogging = config.get<boolean>('verboseLogging');
+        let adapterProcess;
+        if (adapterType == 'classic') {
+            adapterProcess = await adapter.startClassic(
+                this.context.extensionPath,
+                config.get('executable', 'lldb'),
+                adapterEnv,
+                workspace.rootPath,
+                params,
+                verboseLogging);
+        } else if (adapterType == 'bundled') {
+            adapterProcess = await adapter.startClassic(
+                this.context.extensionPath,
+                path.join(this.context.extensionPath, 'lldb/bin/lldb'),
+                adapterEnv,
+                workspace.rootPath,
+                params,
+                verboseLogging);
+        } else {
+            adapterProcess = await adapter.startNative(
+                this.context.extensionPath,
+                path.join(this.context.extensionPath, 'lldb'),
+                adapterEnv,
+                workspace.rootPath,
+                params,
+                verboseLogging);
+        };
+        util.logProcessOutput(adapterProcess, output);
+        let port = await adapter.getDebugServerPort(adapterProcess);
+        return [adapterProcess, port];
+    }
+
+    async checkPrerequisites(folder: WorkspaceFolder | undefined): Promise<boolean> {
+        if (this.getAdapterType(folder) == 'classic') {
+            if (!this.context.globalState.get('lldb_works')) {
+                window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
+                if (!await diagnostics.diagnoseExternalLLDB(this.context, output))
+                    return false;
+                this.context.globalState.update('lldb_works', true);
+            }
+        } else {
+            if (!await diagnostics.checkPython(output))
+                return false;
+            if (!await install.ensurePlatformPackage(this.context, output))
+                return false;
+        }
+        return true;
+    }
+
+    async runDiagnostics() {
+        let adapterType = this.getAdapterType(undefined);
+        let succeeded;
+        switch (adapterType) {
+            case 'classic':
+                succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
+                break;
+            case 'bundled':
+            case 'native':
+                succeeded = await diagnostics.checkPython(output);
+                break;
+        }
+        if (succeeded) {
+            window.showInformationMessage('LLDB self-test completed successfuly.');
+        }
+    }
+
+    getAdapterType(folder: WorkspaceFolder | undefined): AdapterType {
+        let lldbConfig = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
+        return toAdapterType(lldbConfig.get<string>('adapterType'));
+    }
+}
 
 class DisplaySettings {
     showDisassembly: string = 'auto'; // 'always' | 'auto' | 'never'

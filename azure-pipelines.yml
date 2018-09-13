@@ -1,3 +1,18 @@
+variables:
+  lldbBuildId: 375
+  runTests: true
+
+  setenvLinux: |
+      export PATH=$HOME/.cargo/bin:$PATH
+  setenvOSX: |
+      export PATH=$HOME/.cargo/bin:$PATH
+  setenvWindows: |
+      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+      set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
+      set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
+
+##########################################
+
 jobs:
 - job: Linux
   pool:
@@ -9,19 +24,64 @@ jobs:
       versionSpec: '8.x'
     displayName: 'Install Node.js'
 
-  - script: |
-      sudo apt-get install python-lldb-4.0 -y
-      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      curl https://sh.rustup.rs -sSf | sh -s - -y
-      npm install
-    displayName: 'Setup'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: 'llvm-build'
+      pipeline: 'vadimcn.llvm-build'
+      buildVersionToDownload: specific
+      buildId: $(lldbBuildId)
+      downloadType: single
+      artifactName: 'lldb'
+      itemPattern: 'lldb/lldb-linux.zip'
+      downloadPath: '$(Agent.WorkFolder)/D'
+    displayName: 'Download LLDB'
 
   - script: |
-      export PATH="$HOME/.cargo/bin:$PATH"
-      export LLDB_EXECUTABLE=lldb-4.0
-      export LLDB_LOGFILE=$HOME/lldb.log
-      npm test
+      unzip $(Agent.WorkFolder)/D/lldb/lldb-linux.zip -d $(Agent.WorkFolder)/D/lldb-linux
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-unknown-linux-gnu
+      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+      npm install
+      sudo npm install -g vsce
+    displayName: 'Install'
+
+  - script: |
+      $(setenvLinux)
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+            -DLLDB_ROOT=$(Agent.WorkFolder)/D/lldb-linux\
+            ..
+    displayName: 'Configure'
+
+  - script: |
+      $(setenvLinux)
+      cmake --build build --target vsix_portable
+      cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
+      cmake --build build --target vsix_full
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-linux.vsix
+      cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
+    displayName: 'Build'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'vscode-lldb'
+
+  - script: |
+      $(setenvLinux)
+      cmake --build build --target tests
+      ctest --output-on-failure -R "bundled|native"
     displayName: 'Test'
+    condition: variables.runTests
+
+  - script: |
+      echo - env ------------------
+      env
+      echo - dir -----------------------
+      ls -R $(System.ArtifactsDirectory)
+    displayName: 'On Failure'
+    condition: failed()
 
 ##########################################
 
@@ -35,16 +95,60 @@ jobs:
       versionSpec: '8.x'
     displayName: 'Install Node.js'
 
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s - -y
-      npm install
-    displayName: 'Setup'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: 'llvm-build'
+      pipeline: 'vadimcn.llvm-build'
+      buildVersionToDownload: specific
+      buildId: $(lldbBuildId)
+      downloadType: single
+      artifactName: 'lldb'
+      itemPattern: 'lldb/lldb-osx.zip'
+      downloadPath: '$(Agent.WorkFolder)/D'
+    displayName: 'Download LLDB'
 
   - script: |
-      export PATH="$HOME/.cargo/bin:$PATH"
-      export LLDB_LOGFILE=$HOME/lldb.log
-      npm test
+      unzip $(Agent.WorkFolder)/D/lldb/lldb-osx.zip -d $(Agent.WorkFolder)/D/lldb-osx
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-apple-darwin
+      npm install
+      sudo npm install -g vsce
+    displayName: 'Install'
+
+  - script: |
+      $(setenvOSX)
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+            -DLLDB_ROOT=$(Agent.WorkFolder)/D/lldb-osx\
+            ..
+    displayName: 'Configure'
+
+  - script: |
+      $(setenvOSX)
+      cmake --build build --target vsix_full
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-osx.vsix
+    displayName: 'Build'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'vscode-lldb'
+
+  - script: |
+      $(setenvOSX)
+      cmake --build build --target tests
+      ctest --output-on-failure -R "bundled|native"
     displayName: 'Test'
+    condition: variables.runTests
+
+  - script: |
+      echo - env ------------------
+      env
+      echo - dir -----------------------
+      ls -R $(System.ArtifactsDirectory)
+    displayName: 'On Failure'
+    condition: failed()
 
  ##########################################
 
@@ -64,27 +168,74 @@ jobs:
       addToPath: true
       architecture: 'x64'
 
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable-x86_64-pc-windows-gnu
-      curl -L https://github.com/vadimcn/lldb/releases/download/0.0.0/lldb.zip -o %TEMP%\lldb.zip
-      unzip %TEMP%\lldb.zip -d %AGENT_BUILDDIRECTORY%
-      npm install
-    displayName: 'Setup'
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project: 'llvm-build'
+      pipeline: 'vadimcn.llvm-build'
+      buildVersionToDownload: specific
+      buildId: $(lldbBuildId)
+      downloadType: single
+      artifactName: 'lldb'
+      itemPattern: 'lldb/lldb-windows.zip'
+      downloadPath: '$(Agent.WorkFolder)/D'
+    displayName: 'Download LLDB'
 
   - script: |
-      set PATH=%USERPROFILE%\.cargo\bin;%AGENT_BUILDDIRECTORY%\lldb\bin;%PATH%
-      set LLDB_EXECUTABLE=lldb.exe
-      set LLDB_LOGFILE=%TEMP%\lldb.log
-      set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
-      set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
-      npm test
+      choco install zip
+      unzip $(Agent.WorkFolder)/D/lldb/lldb-windows.zip -d $(Agent.WorkFolder)/D/lldb-windows
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-pc-windows-msvc
+      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+      rustup toolchain add nightly-x86_64-pc-windows-gnu
+      curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.WorkFolder)/D/ninja-win.zip
+      unzip $(Agent.WorkFolder)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
+      call npm install
+      call npm install -g vsce
+    displayName: 'Install'
+
+  - task: BatchScript@1
+    inputs:
+      filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat"
+      arguments: -arch=amd64 -host_arch=amd64
+      modifyEnvironment: true
+    displayName: VsDevCmd
+
+  - script: |
+      $(setenvWindows)
+      mkdir build
+      cd build
+      cmake -GNinja^
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo^
+            -DLLDB_ROOT=$(Agent.WorkFolder)\D\lldb-windows^
+            -DCMAKE_C_COMPILER=cl^
+            -DCMAKE_CXX_COMPILER=cl^
+            ..
+    displayName: 'Configure'
+
+  - script: |
+      $(setenvWindows)
+      cmake --build build --target vsix_full
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-windows.vsix
+    displayName: 'Build'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'vscode-lldb'
+
+  - script: |
+      $(setenvWindows)
+      cmake --build build --target tests
+      ctest --output-on-failure -R "bundled|native"
     displayName: 'Test'
+    condition: variables.runTests
 
   - script: |
-      type %TEMP%\lldb.log
       echo - env ------------------
-      set
+      env
       echo - dir -----------------------
-      dir /s %AGENT_BUILDDIRECTORY%
+      ls -R $(System.ArtifactsDirectory)
+      echo - dir -----------------------
+      ls -R
     displayName: 'On Failure'
     condition: failed()

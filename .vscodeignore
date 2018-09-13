@@ -1,6 +1,0 @@
-**
-!adapter/**/*.py
-!out/*.js
-!syntaxes
-!*.md
-!images

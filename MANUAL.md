@@ -383,10 +383,10 @@ configurations (if there is no `launch.json` in the workspace).
 ## General
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.executable**    |Path to debugger executable. (default="lldb")
-|**lldb.executable_env**|Environment variables to pass to debugger.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
-|**lldb.logLevel**      |Logging level as defined by Python's 'logging' module.
-|**lldb.logFile**       |Name of the file to write log to (instead of sending it to VSCode's output panel).
+|**lldb.adapterType**   |Type of debug adapter to use:<br>**"classic"** a Python-based debug adapter running in externally provided LLDB, <br>**"bundled"** a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<br>**"native"** native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.executable**    |Path to LLDB (default="lldb").  This setting has effect only when **lldb.adapterType**==**"classic"**.
+|**lldb.executable_env**|Environment variables to pass to LLDB.  This setting has effect only when **lldb.adapterType**==**"classic"**.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
+|**lldb.verboseLogging**|Enables verbose logging (replaces old **lldb.logLevel** setting).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
 |**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).

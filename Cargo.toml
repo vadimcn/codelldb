@@ -1,0 +1,3 @@
+[workspace]
+members = ["adapter2"]
+exclude = ["debuggee"]

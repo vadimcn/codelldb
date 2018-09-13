@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <complex>
 #include <thread>
+#include <exception>
 #if !defined(_WIN32)
 #include <unistd.h>
 #include <dlfcn.h>
@@ -129,7 +130,7 @@ void vars()
     {
         int a = 30;
         int b = 40;
-        float pi = 3.14159265;
+        float pi = 3.14159265f;
         static int sss = 555;
         const char c[] = "foobar";
         char buffer[10240] = {0};
@@ -142,14 +143,14 @@ void vars()
         Struct *null_s_ptr = nullptr;
         Struct *invalid_s_ptr = (Struct *)1;
         AnonUnion anon_union = { 4 };
-        DeepStruct ds1 = {13, "foo", 3.14,                   //
+        DeepStruct ds1 = {13, "foo", 3.14f,                  //
                           {i, 'd', 4.0f, {1, 2, 3, i}},      //
                           {{i * 2, 's', 5.0f, {4, 5, 6, i}}, //
                            {i * 3, 'x', 5.5f, {3, 5, 1, i}}}};
         std::vector<Struct> vec_struct(3, {i * 2, 'b', 4.0f});
         std::array<int, 5> stdarr_int;
-        std::map<int, float> ord_map = {{1, 2.34}, {2, 3.56}};
-        std::unordered_map<int, float> unord_map = {{1, 2.34}, {2, 3.56}};
+        std::map<int, float> ord_map = {{1, 2.34f}, {2, 3.56f}};
+        std::unordered_map<int, float> unord_map = {{1, 2.34f}, {2, 3.56f}};
         auto shared_ptr = std::make_shared<std::map<int, float>>(ord_map);
         Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
 
@@ -210,6 +211,7 @@ int main(int argc, char *argv[])
 
     if (args.size() < 2) // #BP1
     {
+        printf("No testcase was specified.\n");
         return -1;
     }
 
@@ -255,13 +257,28 @@ int main(int argc, char *argv[])
         header_fn1(1);
         header_fn2(2);
 #if !defined(_WIN32)
-        void *hlib = dlopen("./libdebuggee.so", RTLD_NOW);
+    #if defined(__APPLE__)
+        void *hlib = dlopen("@executable_path/libdebuggee2.dylib", RTLD_NOW);
+    #else
+        void *hlib = dlopen("./libdebuggee2.so", RTLD_NOW);
+    #endif
+        if (!hlib) throw std::runtime_error(dlerror());
         auto sharedlib_entry = reinterpret_cast<void (*)()>(dlsym(hlib, "sharedlib_entry"));
 #else
-        HMODULE hlib = LoadLibrary("libdebuggee.dll");
+    #if defined(_MSC_VER)
+        HMODULE hlib = LoadLibraryA("debuggee2.dll");
+    #else
+        HMODULE hlib = LoadLibraryA("libdebuggee2.dll");
+    #endif
+        if (!hlib) throw std::runtime_error("Could not load libdebuggee");
         auto sharedlib_entry = reinterpret_cast<void (*)()>(GetProcAddress(hlib, "sharedlib_entry"));
 #endif
         sharedlib_entry();
+    }
+    else if (testcase == "header_nodylib")
+    {
+        header_fn1(1);
+        header_fn2(2);
     }
     else if (testcase == "mandelbrot")
     {
@@ -270,6 +287,10 @@ int main(int argc, char *argv[])
     else if (testcase == "dasm")
     {
         disassembly1();
+    }
+    else
+    {
+        printf("Unknown testcase.\n");
     }
     return 0;
 }

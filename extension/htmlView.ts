@@ -1,7 +1,7 @@
 import {
     window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel
 } from "vscode";
-import { Dict } from './util';
+import { Dict } from './common';
 
 export class DebuggerHtmlView {
     panels: Dict<WebviewPanel> = {};

@@ -1,0 +1,3 @@
+max_width = 120
+fn_args_density = "Compressed"
+use_small_heuristics = "Off"

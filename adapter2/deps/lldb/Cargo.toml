@@ -1,0 +1,14 @@
+[package]
+name = "lldb"
+version = "0.1.0"
+
+[lib]
+path = "src/lldb.rs"
+
+[dependencies]
+cpp = "0.5.1"
+bitflags = "1.0"
+lazy_static = "1.1.0"
+
+[build-dependencies]
+cpp_build = "0.5.1"

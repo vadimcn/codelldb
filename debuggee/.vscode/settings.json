@@ -1,17 +1,13 @@
 {
     "lldb.launch.initCommands": [
-        "platform shell echo 'init'"
+        "set set target.x86-disassembly-flavor intel"
     ],
-    "lldb.launch.env": {
-        "TEST": "folder"
-    },
     "lldb.dbgconfig": {
-        "foo": "FOO",
-        "bar": "${dbgconfig:foo}",
-        "baz": "${dbgconfig:quoox}",
-        "quoox": "${dbgconfig:foo} ${dbgconfig:bleh}",
-        "bleh": [
-            "${dbgconfig:foo}", "${dbgconfig:bar}"
-        ]
-    }
+        "targetDir": "${workspaceFolder}/../build/debuggee"
+        //"targetDir": "${workspaceFolder}/../build/debuggee-gnu"
+        //"targetDir": "${workspaceFolder}/../build/debuggee-msvc"
+    },
+    "lldb.launch.debugServer": 4711,
+    "lldb.adapterType": "classic",
+    "lldb.verboseLogging": true,
 }

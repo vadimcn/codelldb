@@ -1,5 +1,11 @@
 # What's New
 
+## 1.2.0
+- Bug fixes.
+- [Beta] Introduced "bundled" and "native" debug adapter types (in addition to "classic"): if `lldb.adapterType` confguration
+setting is set to either of those values, CodeLLDB will download and use a custom build of LLDB and use it instead of the
+system-provided one.
+
 ## 1.1.0
 - The minimum supported VSCode version is now 1.23.
 - Due to deprecation of VSCode's `previewHtml` command, the signature of `display_html` API had to change: HTML markup

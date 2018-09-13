@@ -8,7 +8,6 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": true,
-		"rootDir": ".",
-		"outDir": "../out"
+		"composite": true
 	}
 }

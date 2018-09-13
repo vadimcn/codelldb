@@ -23,4 +23,10 @@ def display_html(html, title=None, position=None, reveal=False):
     request_body = { 'html': html, 'position': position, 'title': title, 'reveal': reveal }
     debugsession.DebugSession.current.display_html(request_body)
 
-__all__ = ['evaluate', 'stop_if', 'preview_html']
+def register_content_provider(provider):
+    debugsession.DebugSession.current.provide_content = provider
+
+def register_type_callback(callback, language=None, type_class_mask=lldb.eTypeClassAny):
+    expressions.register_type_callback(callback, language, type_class_mask)
+
+__all__ = ['evaluate', 'unwrap', 'wrap', 'stop_if', 'display_html', 'register_type_callback']

@@ -1,65 +1,133 @@
 {
   "version": "2.0.0",
   "problemMatcher": [],
+  "type": "shell",
+  "command": "cmake",
+  "args": [
+    "--build",
+    "build",
+    "--target"
+  ],
   "tasks": [
     {
-      "type": "npm",
-      "script": "build",
-      "problemMatcher": "$tsc",
+      "label": "debugging",
+      "group": "build",
+      "problemMatcher": {
+        "base": "$tsc",
+        "fileLocation": ["relative", "${workspaceFolder}/build/extension"]
+      },
+    },
+    {
+      "label": "tests",
       "group": "build"
     },
     {
-      "type": "npm",
-      "script": "build:debuggee:cpp",
-      "problemMatcher": "$gcc",
+      "label": "lldb",
       "group": "build"
     },
     {
-      "type": "npm",
-      "script": "build:debuggee:rust",
-      "problemMatcher": "$rustc",
+      "label": "adapter",
       "group": "build"
     },
     {
-      "type": "shell",
-      "label": "cargo build",
-      "command": "cargo",
-      "args": [
-        "build"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
+      "label": "codelldb",
       "group": "build"
     },
     {
-      "type": "shell",
+      "label": "debuggee",
+      "group": "build"
+    },
+    {
       "label": "cargo check",
       "command": "cargo",
       "args": [
         "check"
       ],
+      "presentation": {
+        "clear": true
+      },
       "problemMatcher": [
         "$rustc"
       ],
       "group": "build"
     },
     {
-      "type": "shell",
       "label": "cargo test",
       "command": "cargo",
       "args": [
-        "test"
+        "test",
+        "--package=codelldb"
       ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      "group": "test"
+      "options": {
+        "env": {
+          "PATH": "${env:PATH};${workspaceFolder}/build/lldb/bin"
+        }
+      },
+      "group": "build"
     },
     {
       "type": "shell",
-      "label": "start extension host",
-      "command": "code --extensionDevelopmentPath=${workspaceRoot} ${workspaceRoot}/debuggee"
+      "label": "Start extension host",
+      "command": "code --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
+      "group": "build",
+      "dependsOn": "debugging",
+    },
+    {
+      "type": "shell",
+      "label": "Start extension host (dev VSCode)",
+      "command": "${workspaceFolder}/../vscode/scripts/code.sh --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
+      "group": "build",
+      "dependsOn": "debugging",
+    },
+    {
+      "label": "vsix_extracted",
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "type": "shell",
+      "label": "Start extension host on extracted vsix",
+      "command": "code --extensionDevelopmentPath=${workspaceFolder}/build/tmp/extension ${workspaceFolder}/debuggee",
+      "group": "build",
+      "dependsOn": "vsix_extracted",
+    },
+    {
+      "type": "process",
+      "label": "debug launch classic adapter",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/tools/debug_launcher.py",
+        "--launch-adapter", "${workspaceFolder}/adapter",
+        "--lldb", "${config:lldb.executable}",
+        "--wait-port", "3000"
+      ],
+    },
+    {
+      "type": "process",
+      "label": "debug launch bundled adapter",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/tools/debug_launcher.py",
+        "--launch-adapter", "${workspaceFolder}/adapter",
+        "--lldb", "${workspaceFolder}/build/lldb/bin/lldb",
+        "--wait-port", "3000"
+      ],
+    },
+    {
+      "type": "process",
+      "label": "wait for port 3000",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/tools/debug_launcher.py",
+        "--wait-port",
+        "3000"
+      ]
+    },
+    {
+      "type":"process",
+      "label": "rustfmt",
+      "command": "rustfmt",
+      "args": ["${file}"]
     }
   ]
 }

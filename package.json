@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "1.1.2",
+	"version": "1.2.0-alpha",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -9,8 +9,8 @@
 		"name": "vadimcn"
 	},
 	"engines": {
-		"vscode": "^1.23.0",
-		"node": "^7.9.0"
+		"vscode": "^1.25.0",
+		"node": "^8.10"
 	},
 	"icon": "images/lldb.png",
 	"categories": [
@@ -32,36 +32,88 @@
 		"url": "https://github.com/vadimcn/vscode-lldb/issues"
 	},
 	"qna": "https://gitter.im/vscode-lldb/QnA",
-	"dependencies": {},
+	"dependencies": {
+		"yauzl": "^2.10.0"
+	},
 	"devDependencies": {
 		"@types/mocha": "^5.2.0",
-		"@types/node": "^6.0.50",
+		"@types/node": "^8.10",
 		"mocha": "^5.2.0",
-		"typescript": "^2.5.2",
-		"vscode": "^1.1.18",
-		"vscode-debugadapter-testsupport": "^1.29.0",
-		"vscode-debugprotocol": "^1.29.0"
+		"typescript": "^3.1.3",
+		"vscode": "^1.1.21",
+		"vscode-debugadapter-testsupport": "^1.32.0",
+		"vscode-debugprotocol": "^1.32.0",
+		"memory-streams": "^0.1.3",
+		"@types/yauzl": "^2.9.0"
 	},
 	"scripts": {
-		"postinstall": "node ./node_modules/vscode/bin/install",
-		"build": "tsc -p extension",
-		"watch": "tsc -w -p extension",
-		"build:debuggee:cpp": "python tools/build_debuggee.py",
-		"build:debuggee:rust": "rustc debuggee/rust/types.rs -g -o debuggee/out/rusttypes",
-		"test:adapter": "mocha -u tdd --timeout 10000 --exit ./out/tests",
-		"test:internals": "python tools/test_internals.py",
-		"test": "npm run build && npm run test:internals && npm run build:debuggee:cpp && npm run build:debuggee:rust && npm run test:adapter"
+		"postinstall": "node ./node_modules/vscode/bin/install"
 	},
-	"main": "./out/main",
+	"main": "extension/main",
 	"activationEvents": [
 		"onDebug",
 		"onCommand:lldb.diagnose",
 		"onCommand:lldb.getCargoLaunchConfigs"
 	],
 	"contributes": {
+		"commands": [
+			{
+				"category": "LLDB",
+				"title": "Show Disassembly ...",
+				"command": "lldb.showDisassembly"
+			},
+			{
+				"category": "LLDB",
+				"title": "Toggle Disassembly",
+				"command": "lldb.toggleDisassembly"
+			},
+			{
+				"category": "LLDB",
+				"title": "Display Format ...",
+				"command": "lldb.displayFormat"
+			},
+			{
+				"category": "LLDB",
+				"title": "Toggle Numeric Pointer Values",
+				"command": "lldb.toggleDerefPointers"
+			},
+			{
+				"category": "LLDB",
+				"title": "Toggle Container Summaries",
+				"command": "lldb.toggleContainerSummary"
+			},
+			{
+				"category": "LLDB",
+				"title": "Run Diagnostics",
+				"command": "lldb.diagnose"
+			},
+			{
+				"category": "LLDB",
+				"title": "Generate launch configurations from Cargo.toml",
+				"command": "lldb.getCargoLaunchConfigs"
+			}
+		],
+		"languages": [
+			{
+				"id": "lldb.disassembly",
+				"aliases": [
+					"Disassembly"
+				],
+				"extensions": [
+					".disasm"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "lldb.disassembly",
+				"scopeName": "source.disassembly",
+				"path": "./syntaxes/disassembly.json"
+			}
+		],
 		"configuration": {
 			"type": "object",
-			"title": "LLDB configuration",
+			"title": "LLDB",
 			"properties": {
 				"lldb.executable": {
 					"description": "Path to debugger executable.",
@@ -80,26 +132,26 @@
 					"default": {},
 					"scope": "resource"
 				},
-				"lldb.logLevel": {
-					"description": "Global logging level, as defined by Python's 'logging' module (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical).",
-					"type": "integer",
-					"default": 0,
-					"scope": "resource"
-				},
-				"lldb.loggers": {
-					"description": "Logging level for individual loggers as <logger name>:<log level> (0=Verbose, 10=Debug, 20=Info, 30=Warning, 40=Error, 50=Critical)",
-					"type": "object",
-					"patternProperties": {
-						".*": {
-							"type": "integer",
-							"default": 0
-						}
-					},
-					"scope": "resource"
-				},
-				"lldb.logFile": {
-					"description": "Log file path. (default=VSCode 'Output' panel)",
+				"lldb.adapterType": {
+					"description": "Which debug adapter implementtion to use.",
 					"type": "string",
+					"default": "classic",
+					"enum": [
+						"classic",
+						"bundled",
+						"native"
+					],
+					"enumDescriptions": [
+						"Use classic Python-based debug adapter",
+						"[Beta] Use Python-based debug adapter on top of LLDB provided by this extension.  Requires one-time download of platform-specific files.",
+						"[Beta] Use native debug adapter.  Requires one-time download of platform-specific files."
+					],
+					"scope": "resource"
+				},
+				"lldb.verboseLogging": {
+					"description": "Turns on verbose logging.",
+					"type": "boolean",
+					"default": false,
 					"scope": "resource"
 				},
 				"lldb.reverseDebugging": {
@@ -167,6 +219,11 @@
 						"external",
 						"console"
 					],
+					"enumDescriptions": [
+						"Use integrated terminal in VSCode.",
+						"Use external terminal window.",
+						"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
+					],
 					"default": "console",
 					"scope": "resource"
 				},
@@ -218,7 +275,7 @@
 					"default": 4711
 				},
 				"lldb.dbgconfig": {
-					"description": "User settings",
+					"description": "Common used-defined settings that can be inserted into launch configurations using ${dbgconfig:name} syntax.",
 					"type": "object",
 					"patternProperties": {
 						".*": {
@@ -236,61 +293,6 @@
 				}
 			}
 		},
-		"commands": [
-			{
-				"category": "LLDB",
-				"title": "Show Disassembly ...",
-				"command": "lldb.showDisassembly"
-			},
-			{
-				"category": "LLDB",
-				"title": "Toggle Disassembly",
-				"command": "lldb.toggleDisassembly"
-			},
-			{
-				"category": "LLDB",
-				"title": "Display Format ...",
-				"command": "lldb.displayFormat"
-			},
-			{
-				"category": "LLDB",
-				"title": "Toggle Numeric Pointer Values",
-				"command": "lldb.toggleDerefPointers"
-			},
-			{
-				"category": "LLDB",
-				"title": "Toggle Container Summaries",
-				"command": "lldb.toggleContainerSummary"
-			},
-			{
-				"category": "LLDB",
-				"title": "Run Diagnostics",
-				"command": "lldb.diagnose"
-			},
-			{
-				"category": "LLDB",
-				"title": "Generate launch configurations from Cargo.toml",
-				"command": "lldb.getCargoLaunchConfigs"
-			}
-		],
-		"languages": [
-			{
-				"id": "lldb.disassembly",
-				"aliases": [
-					"Disassembly"
-				],
-				"extensions": [
-					".disasm"
-				]
-			}
-		],
-		"grammars": [
-			{
-				"language": "lldb.disassembly",
-				"scopeName": "source.disassembly",
-				"path": "./syntaxes/disassembly.json"
-			}
-		],
 		"debuggers": [
 			{
 				"type": "lldb",
@@ -395,6 +397,11 @@
 									"integrated",
 									"external",
 									"console"
+								],
+								"enumDescriptions": [
+									"Use integrated terminal in VSCode.",
+									"Use external terminal window.",
+									"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
 								],
 								"default": "integrated"
 							},
@@ -677,5 +684,15 @@
 				]
 			}
 		]
+	},
+	"config": {
+		"platformPackages": {
+			"url": "https://github.com/vadimcn/vscode-lldb/releases/download/v${version}/${platformPackage}",
+			"platforms": {
+				"linux": "vscode-lldb-linux.vsix",
+				"darwin": "vscode-lldb-osx.vsix",
+				"win32": "vscode-lldb-windows.vsix"
+			}
+		}
 	}
 }

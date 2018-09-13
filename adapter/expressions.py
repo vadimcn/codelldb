@@ -3,38 +3,40 @@ import keyword
 import re
 import operator
 import lldb
+import os
 
 log = logging.getLogger('expressions')
 
 __all__ = ['init_formatters', 'analyze', 'PyEvalContext', 'Value', 'find_var_in_frame',
            'preprocess_simple_expr', 'preprocess_python_expr', 'escape_variable_name']
 
-debugger_obj = None
-analyzed = {} # A list of type names that we've already analyzed
-rust_analyze = None
+analyzed = {} # A list of type names we've already analyzed
+type_callbacks = { None: [] } # A per-language list of type analyzers
 
-def init_formatters(debugger):
-    global debugger_obj
-    debugger_obj = debugger
+# Register callback that will be invoked once on all matching SBType's before they are displayed by the debugger
+def register_type_callback(callback, language, type_class_mask):
+    type_callbacks.setdefault(language, []).append((type_class_mask, callback))
 
-# Analyze value's type and make sure the appropriate visualizers are attached.
+# Analyze value's type to make sure the appropriate visualizers are attached.
 def analyze(sbvalue):
     global analyzed
-    global rust_analyze
-    qual_type_name = sbvalue.GetType().GetName()
+    global type_callbacks
+    value_type = sbvalue.GetType()
+    qual_type_name = value_type.GetName()
     if qual_type_name in analyzed:
         return
     analyzed[qual_type_name] = True
 
-    #log.info('expressions.analyze for %s %d', sbvalue.GetType().GetName(), sbvalue.GetType().GetTypeClass())
-    if not rust_analyze:
-        if sbvalue.GetFrame().GetCompileUnit().GetLanguage() != lldb.eLanguageTypeRust:
-            return
-        from .formatters import rust
-        rust.initialize(debugger_obj, analyze)
-        rust_analyze = rust.analyze
-    rust_analyze(sbvalue)
+    language = sbvalue.GetFrame().GetCompileUnit().GetLanguage()
+    type_class = value_type.GetTypeClass()
 
+    # Run registered callbacks
+    for type_class_mask, callback in type_callbacks.get(None): # These get called for all languages
+        if type_class & type_class_mask != 0:
+            callback(value_type)
+    for type_class_mask, callback in type_callbacks.get(language, []):
+        if type_class & type_class_mask != 0:
+            callback(value_type)
 
 def find_var_in_frame(sbframe, name):
     val = sbframe.FindVariable(name)

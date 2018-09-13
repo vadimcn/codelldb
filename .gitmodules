@@ -1,0 +1,3 @@
+[submodule "adapter2/deps/cpp"]
+	path = adapter2/deps/cpp
+	url = https://github.com/mystor/rust-cpp.git

@@ -948,8 +948,8 @@ class DebugSession:
         time_limit = time.clock() + self.evaluation_timeout
         for var in vars_iter:
             name = var.GetName()
-            if name is None: # Sometimes LLDB returns junk entries with empty names and values
-                continue
+            if name is None:
+                name = ''
             dtype = var.GetTypeName()
             handle = self.get_var_handle(var, name, container_handle)
             value = self.get_var_value_str(var, self.global_format, handle != 0)

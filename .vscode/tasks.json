@@ -21,18 +21,6 @@
       "group": "build"
     },
     {
-      "label": "delay",
-      "type": "shell",
-      "command": "sleep 1",
-      "problemMatcher": [],
-      "presentation": {
-        "echo": false,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared"
-      }
-    },
-    {
       "type": "shell",
       "label": "cargo build",
       "command": "cargo",

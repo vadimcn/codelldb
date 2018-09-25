@@ -41,29 +41,6 @@ def init_logging(params):
     if loggers:
         for name, level in loggers.items():
             logging.getLogger(name).setLevel(level)
-    # setup Visual Studio debug server
-    ptvsd_setup(params)
-
-def ptvsd_setup(params):
-    ptvsd_params = params.get('ptvsd')
-    if ptvsd_params:
-        try:
-            import ptvsd
-            secret = ptvsd_params.get('secret')
-            address = ptvsd_params.get('address', '127.0.0.1')
-            port = ptvsd_params.get('port', 3000)
-            ptvsd.enable_attach(secret, address = (address, port))
-            wait = ptvsd_params.get('waitForAttach')
-            if wait is not None:
-                def wait_for_attach():
-                    print('Waiting for Python debugger to attach...')
-                    ptvsd.wait_for_attach()
-                if wait == 'startup': # Wait right now
-                    wait_for_attach()
-                elif wait: # Wait before responding to `initialize` request
-                    params['init_hook'] = wait_for_attach
-        except Exception as e:
-            log.error('ptvsd setup failed: %s', e)
 
 def run_session(read, write, params):
     event_loop = EventLoop()

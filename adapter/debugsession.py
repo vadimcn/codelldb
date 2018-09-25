@@ -79,8 +79,9 @@ class DebugSession:
         self.debugger = lldb.debugger if lldb.debugger else lldb.SBDebugger.Create()
         log.info('LLDB version: %s', self.debugger.GetVersionString())
         self.debugger.SetAsync(True)
-
         self.debugger.HandleCommand('script import adapter, debugger')
+        import __main__
+        self.session_dict = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
 
         # The default event handler spams debug console each time we hit a brakpoint.
         # Tell debugger's event listener to ignore process state change events.
@@ -1143,8 +1144,7 @@ class DebugSession:
             if ty == PYTHON:
                 expr = expressions.preprocess_python_expr(expr)
                 self.set_selected_frame(frame)
-                import __main__
-                eval_globals = getattr(__main__, self.debugger.GetInstanceName() + '_dict')
+                eval_globals = self.session_dict
                 eval_globals['__frame_vars'] = expressions.PyEvalContext(frame)
                 eval_locals = {}
             else: # SIMPLE

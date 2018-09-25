@@ -13,4 +13,4 @@ else:
     from_lldb_str = str
     xrange = range
 
-import adapter.main
+from .main import run_pipe_session, run_stdio_session, run_tcp_session, run_tcp_server

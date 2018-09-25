@@ -17,13 +17,11 @@
 			]
 		},
 		{
-			"name": "attach to adapter",
+			"name": "launch adapter",
 			"type": "python",
-			"request": "attach",
-			"preLaunchTask": "delay",
-			"host": "127.0.0.1",
-			"port": 3000,
-			"secret": "CodeLLDB",
+			"request": "launch",
+			"pythonPath": "${workspaceFolder}/tools/debug_launcher.py",
+			"program": "${workspaceFolder}/tools/debug_stub.py",
 		},
 		{
 			"name": "tests",

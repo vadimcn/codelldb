@@ -2,7 +2,6 @@
 {
     "editor.insertSpaces": true,
     "editor.tabSize": 4,
-    "editor.autoClosingBrackets": false,
     "editor.rulers": [120],
     "files.exclude": {
         "**/.git": true,
@@ -11,11 +10,6 @@
     },
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
-    "lldb.ptvsd": {
-        "port": 3000,
-        "secret": "CodeLLDB",
-        //"waitFor": 0
-    },
     "lldb.logLevel": 30,
     "lldb.loggers": {
         "wireprotocol": 0

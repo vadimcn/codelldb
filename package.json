@@ -102,16 +102,6 @@
 					"type": "string",
 					"scope": "resource"
 				},
-				"lldb.ptvsd": {
-					"decription": "Visual Studio debug server parameters",
-					"type": "object",
-					"default": {
-						"port": 3000,
-						"secret": "CodeLLDB",
-						"waitForAttach": false
-					},
-					"scope": "resource"
-				},
 				"lldb.reverseDebugging": {
 					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)",
 					"type": "boolean",

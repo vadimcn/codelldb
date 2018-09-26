@@ -2,6 +2,7 @@
 
 mod tests;
 
+use std::cell;
 use std::collections::HashMap;
 use std::path;
 use std::rc;
@@ -10,18 +11,18 @@ use std::sync;
 enum RegularEnum {
     A,
     B(i32, i32),
-    C{x:f64, y:f64},
+    C { x: f64, y: f64 },
 }
 
 enum CStyleEnum {
     A = 0,
     B = 1,
-    C = 2
+    C = 2,
 }
 
 enum EncodedEnum<T> {
     Some(T),
-    Nothing
+    Nothing,
 }
 
 struct TupleStruct<'a>(i32, &'a str, f32);
@@ -34,8 +35,7 @@ struct RegularStruct<'a> {
     d: Vec<u32>,
 }
 
-impl<'a> Drop for RegularStruct<'a>
-{
+impl<'a> Drop for RegularStruct<'a> {
     fn drop(&mut self) {
         self.b = "invalid";
         self.a = 0;
@@ -68,7 +68,7 @@ fn main() {
 
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
-    let reg_enum3 = RegularEnum::C{x:11.35, y:20.5};
+    let reg_enum3 = RegularEnum::C { x: 11.35, y: 20.5 };
     let reg_enum_ref = &reg_enum3;
     let cstyle_enum1 = CStyleEnum::A;
     let cstyle_enum2 = CStyleEnum::B;
@@ -78,7 +78,12 @@ fn main() {
     let opt_str2: Option<&str> = None;
 
     let tuple_struct = TupleStruct(3, "xxx", -3.0);
-    let reg_struct = RegularStruct { a: 1, b: "b", c: 12.0, d: vec![12, 34, 56] };
+    let reg_struct = RegularStruct {
+        a: 1,
+        b: "b",
+        c: 12.0,
+        d: vec![12, 34, 56],
+    };
     let reg_struct_ref = &reg_struct;
     let opt_reg_struct1 = Some(reg_struct.clone());
     let opt_reg_struct2: Option<RegularStruct> = None;
@@ -86,7 +91,7 @@ fn main() {
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];
     let empty_vec = Vec::<i32>::new();
-    let vec_int = vec![1,2,3,4,5,6,7,8,9,10];
+    let vec_int = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let vec_str = vec!["111", "2222", "3333", "4444", "5555"];
     let large_vec: Vec<i32> = (0..20000).collect();
 
@@ -113,8 +118,19 @@ fn main() {
     let mutex_box = sync::Mutex::new(reg_struct.clone());
 
     let rc_weak_dropped = rc::Rc::downgrade(&rc::Rc::new(reg_struct.clone()));
+    let arc_weak_dropped = sync::Arc::downgrade(&sync::Arc::new(reg_struct.clone()));
 
-    let closure = move |x:i32| { x + int };
+    let cell = cell::Cell::new(10);
+    let ref_cell = cell::RefCell::new(10);
+
+    let ref_cell2 = cell::RefCell::new(11);
+    let ref_cell2_borrow1 = ref_cell2.borrow();
+    let ref_cell2_borrow2 = ref_cell2.borrow();
+
+    let ref_cell3 = cell::RefCell::new(12);
+    let ref_cell3_borrow = ref_cell3.borrow_mut();
+
+    let closure = move |x: i32| (x + int) as f32 * float;
 
     let mut path_buf = path::PathBuf::new();
     path_buf.push("foo");
@@ -129,7 +145,7 @@ fn main() {
         osstring.clone(),
         osstr.clone(),
         path_buf.clone(),
-        path.clone()
+        path.clone(),
     );
 
     let hash = make_hash();

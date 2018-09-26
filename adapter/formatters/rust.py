@@ -50,6 +50,11 @@ def initialize(debugger, analyze):
     attach_synthetic_to_type(StdArcSynthProvider, r'^alloc::sync::Weak<.+>$', True)
     attach_synthetic_to_type(StdMutexSynthProvider, r'^std::sync::mutex::Mutex<.+>$', True)
 
+    attach_synthetic_to_type(StdCellSynthProvider, r'^core::cell::Cell<.+>$', True)
+    attach_synthetic_to_type(StdRefCellSynthProvider, r'^core::cell::RefCell<.+>$', True)
+    attach_synthetic_to_type(StdRefCellBorrowSynthProvider, r'^core::cell::Ref<.+>$', True)
+    attach_synthetic_to_type(StdRefCellBorrowSynthProvider, r'^core::cell::RefMut<.+>$', True)
+
 # Enums and tuples cannot be recognized based on type name.
 # These require deeper runtime analysis to tease them apart.
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
@@ -459,11 +464,20 @@ class DerefSynthProvider(RustSynthProvider):
     def get_summary(self):
         return get_obj_summary(self.deref)
 
-class StdMutexSynthProvider(DerefSynthProvider):
-    def initialize(self):
-        self.deref = gcm(self.valobj, 'data', 'value')
+# Base for Rc and Arc
+class StdRefCountedSynthProvider(DerefSynthProvider):
+    def get_summary(self):
+        if self.weak != 0:
+            s = '(refs:%d,weak:%d) ' % (self.strong, self.weak)
+        else:
+            s = '(refs:%d) ' % self.strong
+        if self.strong > 0:
+            s += get_obj_summary(self.deref)
+        else:
+            s += '<disposed>'
+        return s
 
-class StdRcSynthProvider(DerefSynthProvider):
+class StdRcSynthProvider(StdRefCountedSynthProvider):
     def initialize(self):
         inner = gcm(self.valobj, 'ptr', 'pointer', '__0')
         self.strong = gcm(inner, 'strong', 'value', 'value').GetValueAsUnsigned()
@@ -474,29 +488,38 @@ class StdRcSynthProvider(DerefSynthProvider):
         else:
             self.deref = lldb.SBValue()
 
-    def get_summary(self):
-        s = '(s:%d,w:%d) ' % (self.strong, self.weak)
-        if self.strong > 0:
-            s += get_obj_summary(self.deref)
-        else:
-            s += '<disposed>'
-        return s
-
-class StdArcSynthProvider(DerefSynthProvider):
+class StdArcSynthProvider(StdRefCountedSynthProvider):
     def initialize(self):
         inner = gcm(self.valobj, 'ptr', 'pointer', '__0')
         self.strong = gcm(inner, 'strong', 'v', 'value').GetValueAsUnsigned()
-        self.weak = gcm(inner, 'weak', 'v', 'value').GetValueAsUnsigned() - 1
+        self.weak = gcm(inner, 'weak', 'v', 'value').GetValueAsUnsigned()
         if self.strong > 0:
             self.deref = gcm(inner, 'data')
             self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
         else:
             self.deref = lldb.SBValue()
 
+class StdMutexSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        self.deref = gcm(self.valobj, 'data', 'value')
+
+class StdCellSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        self.deref = gcm(self.valobj, 'value', 'value')
+
+class StdRefCellSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        self.deref = gcm(self.valobj, 'value', 'value')
+
     def get_summary(self):
-        s = '(s:%d,w:%d) ' % (self.strong, self.weak)
-        if self.strong > 0:
-            s += get_obj_summary(self.deref)
-        else:
-            s += '<disposed>'
-        return s
+        borrow = gcm(self.valobj, 'borrow', 'value', 'value').GetValueAsSigned()
+        s = ''
+        if borrow < 0:
+            s = '(borrowed:mut) '
+        elif borrow > 0:
+            s = '(borrowed:%d) ' % borrow
+        return s + get_obj_summary(self.deref)
+
+class StdRefCellBorrowSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        self.deref = gcm(self.valobj, 'value').Dereference()

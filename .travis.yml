@@ -16,7 +16,11 @@ addons:
 before_script:
   - curl https://sh.rustup.rs -sSf | sh -s - -y
   - export PATH="$HOME/.cargo/bin:$PATH"
-  - if [ $TRAVIS_OS_NAME = linux ]; then export LLDB_EXECUTABLE=lldb-3.9; fi
+  - if [ $TRAVIS_OS_NAME = linux ]
+  - then
+  -    export LLDB_EXECUTABLE=lldb-3.9
+  -    echo 0 > /proc/sys/kernel/yama/ptrace_scope
+  - fi
   - export LLDB_LOGFILE=$HOME/lldb.log
 
 after_failure:

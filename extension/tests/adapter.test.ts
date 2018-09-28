@@ -318,13 +318,15 @@ suite('Attach tests', () => {
 
     var debuggeeProc: cp.ChildProcess;
 
+    suiteSetup(() => {
+        debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
+    })
+
     suiteTeardown(() => {
-        if (debuggeeProc)
-            debuggeeProc.kill()
+        debuggeeProc.kill()
     })
 
     test('attach by pid', async () => {
-        debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
         let asyncWaitStopped = waitForStopEvent();
         let attachResp = await attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
         assert(attachResp.success);

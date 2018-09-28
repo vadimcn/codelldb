@@ -188,7 +188,7 @@ class DebugSession:
         if pid is None and program is None:
             raise UserError('Either \'program\' or \'pid\' is required for attach.')
         self.exec_commands(args.get('initCommands'))
-        self.target = self.create_target(args)
+        self.target = self.debugger.CreateTarget('') # A dummy target, will be initialized once we attach
         self.disassembly = disassembly.AddressSpace(self.target)
         self.send_event('initialized', {})
         self.do_launch = self.complete_attach

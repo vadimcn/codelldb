@@ -129,6 +129,8 @@ export function getConfigNoDefault(config: WorkspaceConfiguration, key: string):
 export function isEmpty(obj: any): boolean {
     if (obj === null || obj === undefined)
         return true;
+    if (typeof obj == 'number' || obj instanceof Number)
+        return false;
     if (typeof obj == 'string' || obj instanceof String)
         return obj.length == 0;
     if (obj instanceof Array)

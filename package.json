@@ -212,6 +212,11 @@
 						"native"
 					]
 				},
+				"lldb.launch.debugServer": {
+					"description": "Debug server port.",
+					"type": "number",
+					"default": 4711
+				},
 				"lldb.dbgconfig": {
 					"description": "User settings",
 					"type": "object",

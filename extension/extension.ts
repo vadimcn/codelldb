@@ -192,6 +192,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         mergeConfig('expressions');
         mergeConfig('sourceMap');
         mergeConfig('sourceLanguages');
+        mergeConfig('debugServer');
         return debugConfig;
     }
 

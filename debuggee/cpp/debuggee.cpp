@@ -143,6 +143,9 @@ void vars()
         std::unordered_map<int, float> unord_map = {{1, 2.34}, {2, 3.56}};
         auto shared_ptr = std::make_shared<std::map<int, float>>(ord_map);
         Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
+
+        const char* cstr = "The quick brown fox";
+        const wchar_t* wcstr = L"The quick brown fox";
         std::string str1 = "The quick brown fox";
         char invalid_utf8[] = "ABC\xFF\x01\xFEXYZ";
         std::string empty_str;

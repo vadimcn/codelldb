@@ -14,11 +14,11 @@ var dc: DebugClient;
 
 const projectDir = path.join(__dirname, '..', '..');
 
-const debuggee = path.join(projectDir, 'out', 'debuggee', 'debuggee');
+const debuggee = path.join(projectDir, 'debuggee', 'out', 'debuggee');
 const debuggeeSource = path.normalize(path.join(projectDir, 'debuggee', 'cpp', 'debuggee.cpp'));
 const debuggeeHeader = path.normalize(path.join(projectDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
 
-const rusttypes = path.join(projectDir, 'out', 'debuggee', 'rusttypes');
+const rusttypes = path.join(projectDir, 'debuggee', 'out', 'rusttypes');
 const rusttypesSource = path.normalize(path.join(projectDir, 'debuggee', 'rust', 'types.rs'));
 
 var port: number = null;

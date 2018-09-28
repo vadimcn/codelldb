@@ -55,6 +55,11 @@
         "$rustc"
       ],
       "group": "test"
+    },
+    {
+      "type": "shell",
+      "label": "start extension host",
+      "command": "code --extensionDevelopmentPath=${workspaceRoot} ${workspaceRoot}/debuggee"
     }
   ]
 }

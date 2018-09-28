@@ -959,6 +959,8 @@ class DebugSession:
 
         time_limit = time.clock() + self.evaluation_timeout
         for var in vars_iter:
+            if not var.IsValid():
+                continue
             name = var.GetName()
             if name is None:
                 name = ''
@@ -1185,15 +1187,26 @@ class DebugSession:
         value = None
 
         if self.deref_pointers and format == lldb.eFormatDefault:
-            if var.GetType().GetTypeClass() in [lldb.eTypeClassPointer, lldb.eTypeClassReference]:
-                # try to get summary of the pointee
-                if var.GetValueAsUnsigned() == 0:
-                    value = '<null>'
-                else:
-                    if var.IsSynthetic():
-                        value = var.GetSummary()
-                    if value is None:
-                        var = var.Dereference()
+            ptr_type = var.GetType()
+            if ptr_type.GetTypeClass() in [lldb.eTypeClassPointer, lldb.eTypeClassReference]:
+                # If pointer has associated synthetic, or if it's a pointer to basic type such as `char`,
+                # use summary of the pointer itself,
+                # otherwise prefer to dereference and use summary of the pointee.
+                if var.IsSynthetic() or ptr_type.GetPointeeType().GetBasicType() != 0:
+                    value = var.GetSummary()
+
+                if value is None:
+                    # check whether it's an invalid pointer
+                    addr = var.GetValueAsUnsigned()
+                    if addr == 0:
+                        value = '<null>'
+                    else:
+                        error = lldb.SBError()
+                        self.process.ReadMemory(addr, 1, error)
+                        if error.Fail():
+                            value = '<invalid address>' # invalid address other than NULL
+                        else:
+                            var = var.Dereference()
 
         if value is None:
             value = var.GetValue()

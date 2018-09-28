@@ -155,14 +155,14 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
 
         try {
             // If configuration does not provide debugServer explicitly, launch new adapter.
-            if (!launchConfig.debugServer) {
+            // Also, when debuggee is restarted we get launchConfig with pre-filled `debugServer`,
+            // however, we still need to launch the adapter, because it will have terminated.
+            // TODO: Restart could be speeded-up by keeping debug adapter around.
+            if (!launchConfig.debugServer || launchConfig._adapterrWasLaunched) {
                 let adapter = await startup.startDebugAdapter(this.context, folder, adapterParams);
                 this.launching.push([launchConfig.name, adapter]);
                 launchConfig.debugServer = adapter.port;
-            }
-            // For adapter debugging
-            if (launchConfig._adapterStartDelay) {
-                await new Promise(resolve => setTimeout(resolve, launchConfig._adapterStartDelay));
+                launchConfig._adapterrWasLaunched = true;
             }
             launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
             return launchConfig;

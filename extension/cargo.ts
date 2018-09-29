@@ -1,4 +1,4 @@
-import { workspace, window, QuickPickItem, DebugConfiguration, WorkspaceFolder } from 'vscode';
+import { window, DebugConfiguration } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -93,6 +93,7 @@ async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<C
 
 export async function getLaunchConfigs(folder: string): Promise<DebugConfiguration[]> {
     let configs: DebugConfiguration[] = [];
+
     if (fs.existsSync(path.join(folder, 'Cargo.toml'))) {
         var metadata: any = null;
         let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'], folder,
@@ -102,87 +103,47 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
 
         if (metadata && exitCode == 0) {
             for (var pkg of metadata.packages) {
+
+                function addConfig(name: string, cargo_args: string[], filter_kind: string) {
+                    configs.push({
+                        type: 'lldb',
+                        request: 'launch',
+                        name: name,
+                        cargo: {
+                            args: cargo_args.concat(`--package=${pkg.name}`),
+                            filter: { kind: kind }
+                        },
+                        args: [],
+                        cwd: '${workspaceFolder}'
+                    });
+                };
+
                 for (var target of pkg.targets) {
+                    var libAdded = false;
                     for (var kind of target.kind) {
-                        let name = target.name;
-
-                        let success = false;
-
-                        enum Operation {
-                            Main,
-                            Test
-                        };
-                        let push_config = (operation: Operation) => {
-                            let prefix, params;
-                            if (operation == Operation.Main) {
-                                prefix = '';
-                                params = ['build'];
-                            } else {
-                                prefix = 'tests in ';
-                                params = ['test', '--no-run'];
-                            }
-                            configs.push({
-                                type: 'lldb',
-                                request: 'launch',
-                                name: `Debug ${prefix}${kind} ${name}`,
-                                cargo: {
-                                    args: params.concat([`--package=${pkg.name}`, `--${kind}=${name}`]),
-                                    filter: { kind: kind }
-                                },
-                                args: [],
-                                cwd: '${workspaceFolder}'
-                            });
-                            success = true;
-                        };
-
-                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L141
-                        // See https://github.com/rust-lang/cargo/blob/c0ec76f336dbeaa819e32d21eb0c541ef875cf69/src/cargo/core/manifest.rs#L94
-                        // See https://github.com/rust-lang/rust/blob/6bf6d50a6ff7685b4aa09172d9d09f03f250da9d/src/librustc/session/config.rs#L2252
-                        // If you change anything, see https://github.com/pzmarzly/crates-of-many-artifacts
-                        // TODO: `example` represents both ExampleLib and ExampleBin.
-                        // If it's ExampleLib, `op_build` should be skipped.
-                        // It's rare to see ExampleLib in the wild, though,
-                        // and I have no idea how to even make one (omitting
-                        // `fn main()` is a compiler error).
-                        // TODO: Find out how to make other `kind`s work
-                        // without requiring a workaround (like changing
-                        // `crate-type = ['staticlib']` to
-                        // `crate-type = ['lib`, 'staticlib']`).
-                        // Some kinds compile, and work when running
-                        // `cargo test --lib`, but don't when running
-                        // `cargo test --lib=name`, which we need,
-                        // or have some other issues.
-                        switch (kind) {
-                            case 'bin':
-                            case 'example':
-                                push_config(Operation.Main);
-                        }
                         switch (kind) {
                             case 'lib':
+                            case 'rlib':
+                            case 'staticlib':
+                            case 'dylib':
+                            case 'cstaticlib':
+                                if (!libAdded) {
+                                    addConfig(`Debug unit tests in library '${target.name}'`,
+                                        ['test', '--no-run', '--lib'], 'lib');
+                                    libAdded = true;
+                                }
+                                break;
+
                             case 'bin':
                             case 'test':
-                            case 'bench':
                             case 'example':
-                                push_config(Operation.Test);
-                        }
-                        // We ignore `custom-build` on purpose.
-                        // TODO: find out if you can debug it.
-                        if (kind == 'custom-build') {
-                            success = true;
-                        }
-                        if (!success) {
-                            let tip = '';
-                            // TODO: add `proc-macro` once possible.
-                            // Currently `cargo build` reports
-                            // "error: cannot mix `proc-macro` crate type with others"
-                            switch (kind) {
-                                case 'dylib':
-                                case 'cdylib':
-                                case 'rlib':
-                                case 'staticlib':
-                                    tip += `\n\nIf you want to run tests in ${kind}, compile it also as lib. So crate-type = ['${kind}'] becomes crate-type = ['lib', '${kind}'].`
-                            }
-                            window.showErrorMessage(`Unsupported binary artifact kind: ${kind}. Ignoring...${tip}`, { modal: true });
+                            case 'bench':
+                                let prettyKind = (kind == 'bin') ? 'executable' : (kind == 'bench') ? 'benchmark' : kind;
+                                addConfig(`Debug ${prettyKind} '${target.name}'`,
+                                    ['build', `--${kind}=${target.name}`], 'bin');
+                                addConfig(`Debug unit tests in ${prettyKind} '${target.name}'`,
+                                    ['test', '--no-run', `--${kind}=${target.name}`], 'bin');
+                                break;
                         }
                     }
                 }

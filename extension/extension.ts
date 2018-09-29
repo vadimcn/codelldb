@@ -1,8 +1,8 @@
 import {
-    workspace, languages, window, commands, debug,
-    ExtensionContext, Disposable, QuickPickItem, Uri, Event, EventEmitter,
+    workspace, window, commands, debug,
+    ExtensionContext, Uri, Event, EventEmitter,
     TextDocumentContentProvider, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
-    DebugConfigurationProvider, DebugConfiguration, DebugSession, DebugSessionCustomEvent
+    DebugConfigurationProvider, DebugConfiguration, DebugSession, DebugSessionCustomEvent,
 } from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import * as path from 'path';
@@ -56,6 +56,7 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         subscriptions.push(workspace.registerTextDocumentContentProvider('debugger', this));
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', startup.diagnose));
+        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
         subscriptions.push(commands.registerCommand('lldb.launchDebugServer', () => startup.launchDebugServer(this.context)));
@@ -82,17 +83,23 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
         token?: CancellationToken
     ): Promise<DebugConfiguration[]> {
         let debugConfigs = await cargo.getLaunchConfigs(folder ? folder.uri.fsPath : workspace.rootPath);
-        if (debugConfigs.length == 0) {
-            debugConfigs.push({
-                type: 'lldb',
-                request: 'launch',
-                name: 'Debug',
-                program: '${workspaceFolder}/<your program>',
-                args: [],
-                cwd: '${workspaceFolder}'
-            });
+        if (debugConfigs.length > 0) {
+            let response = await window.showInformationMessage(
+                'Cargo.toml has been detected in this workspace.\r\n' +
+                'Would you like to generate launch configurations for its targets?', { modal: true }, 'Yes', 'No');
+            if (response == 'Yes') {
+                return debugConfigs;
+            }
         }
-        return debugConfigs;
+
+        return [{
+            type: 'lldb',
+            request: 'launch',
+            name: 'Debug',
+            program: '${workspaceFolder}/<your program>',
+            args: [],
+            cwd: '${workspaceFolder}'
+        }];
     }
 
     // Invoked by VSCode to initiate a new debugging session.
@@ -234,6 +241,15 @@ class Extension implements TextDocumentContentProvider, DebugConfigurationProvid
             return null;
         });
         return debugConfig;
+    }
+
+    async getCargoLaunchConfigs() {
+        let debugConfigs = await cargo.getLaunchConfigs(workspace.rootPath);
+        let doc = await workspace.openTextDocument({
+            content: JSON.stringify(debugConfigs, null, 4),
+            language: 'jsonc'
+        });
+        await window.showTextDocument(doc, 1, false);
     }
 
     onStartedDebugSession(session: DebugSession) {

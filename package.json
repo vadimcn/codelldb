@@ -56,7 +56,7 @@
 	"activationEvents": [
 		"onDebug",
 		"onCommand:lldb.diagnose",
-		"onCommand:lldb.launchDebugServer"
+		"onCommand:lldb.getCargoLaunchConfigs"
 	],
 	"contributes": {
 		"configuration": {
@@ -264,13 +264,13 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Launch Debug Server",
-				"command": "lldb.launchDebugServer"
+				"title": "Run Diagnostics",
+				"command": "lldb.diagnose"
 			},
 			{
 				"category": "LLDB",
-				"title": "Run Diagnostics",
-				"command": "lldb.diagnose"
+				"title": "Generate launch configurations from Cargo.toml",
+				"command": "lldb.getCargoLaunchConfigs"
 			}
 		],
 		"languages": [

@@ -25,7 +25,7 @@
 		},
 		{
 			"name": "tests",
-			"preLaunchTask": "build",
+			"preLaunchTask": "npm: build",
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",

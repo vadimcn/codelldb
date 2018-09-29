@@ -205,6 +205,7 @@ class DebugSession:
             self.process = self.target.AttachToProcessWithID(self.event_listener, pid, error)
         else:
             program = to_lldb_str(args['program'])
+            program = self.find_executable(program)
             self.console_msg('Attaching to %s' % program)
             waitFor = args.get('waitFor', False)
             self.process = self.target.AttachToProcessWithName(self.event_listener, program, waitFor, error)
@@ -264,15 +265,8 @@ class DebugSession:
         if program is not None:
             load_dependents = not args.get('noDebug', False)
             error = lldb.SBError()
+            program = self.find_executable(program)
             target = self.debugger.CreateTarget(to_lldb_str(program), None, None, load_dependents, error)
-            if not error.Success() and 'win32' in sys.platform:
-                # On Windows, try appending '.exe' extension, to make launch configs more uniform.
-                program += '.exe'
-                error2 = lldb.SBError()
-                target = self.debugger.CreateTarget(to_lldb_str(program), None, None, load_dependents, error2)
-                if error2.Success():
-                    args['program'] = program
-                    error.Clear()
             if not error.Success():
                 raise UserError('Could not initialize debug target: ' + error.GetCString())
         else:
@@ -281,6 +275,15 @@ class DebugSession:
             target = self.debugger.CreateTarget('') # OK if attaching by pid
         target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
         return target
+
+    def find_executable(self, program):
+        # On Windows, also try program + '.exe'
+        if 'win32' in sys.platform:
+            if not os.path.isfile(program):
+                program_exe = program + '.exe'
+                if os.path.isfile(program_exe):
+                    return program_exe
+        return program
 
     def pre_launch(self):
         expressions.init_formatters(self.debugger)

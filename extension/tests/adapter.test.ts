@@ -27,13 +27,6 @@ if (process.env.DEBUG_SERVER) {
     console.log('Debug server port:', port)
 }
 
-setup(() => {
-    dc = new DebugClient('node', './out/tests/launcher.js', 'lldb');
-    return dc.start(port);
-});
-
-teardown(() => dc.stop());
-
 suite('Versions', () => {
     test('comparisons', async () => {
         assert.ok(ver.lt('1.0.0', '2.0.0'));
@@ -74,6 +67,12 @@ suite('Util', () => {
 })
 
 suite('Basic', () => {
+    setup(() => {
+        dc = new DebugClient('node', './out/tests/launcher.js', 'lldb');
+        return dc.start(port);
+    });
+
+    teardown(() => dc.stop());
 
     test('run program to the end', async () => {
         let terminatedAsync = dc.waitForEvent('terminated');

@@ -1,0 +1,90 @@
+jobs:
+- job: Linux
+  pool:
+    vmImage: 'Ubuntu 16.04'
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '8.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      sudo apt-get install python-lldb-4.0 -y
+      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+      curl https://sh.rustup.rs -sSf | sh -s - -y
+      npm install
+    displayName: 'Setup'
+
+  - script: |
+      export PATH="$HOME/.cargo/bin:$PATH"
+      export LLDB_EXECUTABLE=lldb-4.0
+      export LLDB_LOGFILE=$HOME/lldb.log
+      npm test
+    displayName: 'Test'
+
+##########################################
+
+- job: OSX
+  pool:
+    vmImage: 'macOS 10.13'
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '8.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s - -y
+      npm install
+    displayName: 'Setup'
+
+  - script: |
+      export PATH="$HOME/.cargo/bin:$PATH"
+      export LLDB_LOGFILE=$HOME/lldb.log
+      npm test
+    displayName: 'Test'
+
+ ##########################################
+
+- job: Windows
+  pool:
+    vmImage: 'VS2017-Win2016'
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '8.x'
+    displayName: 'Install Node.js'
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.6'
+      addToPath: true
+      architecture: 'x64'
+
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable-x86_64-pc-windows-gnu
+      curl -L https://github.com/vadimcn/lldb/releases/download/0.0.0/lldb.zip -o %TEMP%\lldb.zip
+      unzip %TEMP%\lldb.zip -d %AGENT_BUILDDIRECTORY%
+      npm install
+    displayName: 'Setup'
+
+  - script: |
+      set PATH=%USERPROFILE%\.cargo\bin;%AGENT_BUILDDIRECTORY%\lldb\bin;%PATH%
+      set LLDB_EXECUTABLE=lldb.exe
+      set LLDB_LOGFILE=%TEMP%\lldb.log
+      set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
+      set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
+      npm test
+    displayName: 'Test'
+
+  - script: |
+      type %TEMP%\lldb.log
+      echo - env ------------------
+      set
+      echo - dir -----------------------
+      dir /s %AGENT_BUILDDIRECTORY%
+    displayName: 'On Failure'
+    condition: failed()

@@ -38,7 +38,8 @@
 				"-u", "tdd",
 				"--timeout", "999999",
 				"--colors",
-				//"-g", "stack",
+				"--exit",
+				//"-g", "variables",
 				"./out/tests"
 			],
 			"env": {

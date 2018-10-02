@@ -6,6 +6,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
+import { format } from 'util';
 
 import * as ver from '../ver';
 import * as util from '../util';
@@ -152,36 +153,33 @@ suite('Adapter tests', () => {
             await verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
             let frameId = await getTopFrameId(stoppedEvent.body.threadId);
             let localsRef = await getFrameLocalsRef(frameId);
-            let locals = await readVariables(localsRef);
-            //console.log('locals = ', locals);
-            assertDictContains(locals, {
-                'a': '30',
-                'b': '40',
-                'array_int': '{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}',
-                's1': "{a:1, b:'a', c:3}",
-                'str1': '"The quick brown fox"',
-                // LLDB string visualizer does not display GCC's std::string* correctly.
-                // 'str_ptr': '"The quick brown fox"',
-                // 'str_ref': '"The quick brown fox"',
-                'empty_str': '""',
-                'wstr1': 'L"Превед йожэг!"',
-                'wstr2': 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+            compareVariables(localsRef, {
+                a: 30,
+                b: 40,
+                array_int: {
+                    '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
+                },
+                s1: { a: 1, b: "'a'", c: 3 },
+                str1: '"The quick brown fox"',
+                empty_str: '""',
+                wstr1: 'L"Превед йожэг!"',
+                wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+                invalid_utf8: process.platform != 'win32' ? '"ABC\uFFFD\\x01\uFFFDXYZ' : '"ABC\uDCFF\\x01\uDCFEXYZ',
+                anon_union: {
+                    '': { x: 4, y: 4 }
+                }
             });
-            if (process.platform != 'win32') {
-                assertDictContains(locals, { 'invalid_utf8': '"ABC\uFFFD\\x01\uFFFDXYZ' });
-            } else {
-                assertDictContains(locals, { 'invalid_utf8': '"ABC\uDCFF\\x01\uDCFEXYZ' });
-            }
 
             let response1 = await dc.evaluateRequest({
                 expression: 'vec_int', context: 'watch', frameId: frameId
             });
-            let v = await readVariables(response1.body.variablesReference);
-            if (process.platform != 'win32') { // std::vector formatter is broken on Windows :(
-                assertDictContains(v, { '[0]': 'size=5', '[9]': 'size=5' });
+            if (process.platform != 'win32') {
+                compareVariables(response1.body.variablesReference, {
+                    '[0]': { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0, '[4]': 0 },
+                    '[9]': { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0, '[4]': 0 },
+                    '[raw]': null
+                });
             }
-            // Check that vector has '[raw]' element.
-            assert.ok(v.hasOwnProperty('[raw]'));
 
             // Read a class-qualified static.
             let response2 = await dc.evaluateRequest({
@@ -191,8 +189,7 @@ suite('Adapter tests', () => {
 
             // Set a variable and check that it has actually changed.
             await dc.send('setVariable', { variablesReference: localsRef, name: 'a', value: '100' });
-            let locals2 = await readVariables(localsRef);
-            assert.equal(locals2['a'], '100');
+            compareVariables(localsRef, { a: 100 });
         });
 
         test('expressions', async () => {
@@ -219,10 +216,8 @@ suite('Adapter tests', () => {
                 let response1 = await dc.evaluateRequest({ expression: "s1.d", frameId: frameId, context: "watch" });
                 let response2 = await dc.evaluateRequest({ expression: "s2.d", frameId: frameId, context: "watch" });
 
-                let locals1 = await readVariables(response1.body.variablesReference);
-                assertDictContains(locals1, { "[0]": i, "[1]": i, "[2]": i, "[3]": i });
-                let locals2 = await readVariables(response2.body.variablesReference);
-                assertDictContains(locals2, { "[0]": i * 10, "[1]": i * 10, "[2]": i * 10, "[3]": i * 10 });
+                compareVariables(response1.body.variablesReference, { '[0]': i, '[1]': i, '[2]': i, '[3]': i });
+                compareVariables(response2.body.variablesReference, { '[0]': i * 10, '[1]': i * 10, '[2]': i * 10, '[3]': i * 10 });
             }
         });
 
@@ -233,8 +228,7 @@ suite('Adapter tests', () => {
             let stoppedEvent = await launchAndWaitForStop({ name: 'conditional breakpoint 1', program: debuggee, args: ['vars'] });
             let frameId = await getTopFrameId(stoppedEvent.body.threadId);
             let localsRef = await getFrameLocalsRef(frameId);
-            let locals = await readVariables(localsRef);
-            assert.equal(locals['i'], "5");
+            compareVariables(localsRef, { i: 5 });
         });
 
         test('conditional breakpoint 2', async () => {
@@ -244,8 +238,7 @@ suite('Adapter tests', () => {
             let stoppedEvent = await launchAndWaitForStop({ name: 'conditional breakpoint 2', program: debuggee, args: ['vars'] });
             let frameId = await getTopFrameId(stoppedEvent.body.threadId);
             let localsRef = await getFrameLocalsRef(frameId);
-            let locals = await readVariables(localsRef);
-            assert.equal(locals['i'], "5");
+            compareVariables(localsRef, { i: 5 });
         });
 
         test('disassembly', async () => {
@@ -333,66 +326,72 @@ suite('Adapter tests', () => {
             await verifyLocation(stoppedEvent.body.threadId, rusttypesSource, bpLine);
             let frames = await dc.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
             let scopes = await dc.scopesRequest({ frameId: frames.body.stackFrames[0].id });
-            let locals = await readVariables(scopes.body.scopes[0].variablesReference);
-            //console.log('locals = ', locals);
 
             let foo_bar = (process.platform != 'win32') ? '"foo/bar"' : '"foo\\bar"';
-            assertDictContains(locals, {
-                'int': '17',
-                'float': '3.14159274',
-                'tuple': '(1, "a", 42)',
-                'tuple_ref': '(1, "a", 42)',
+            compareVariables(scopes.body.scopes[0].variablesReference, {
+                int: 17,
+                float: 3.14159274,
+                tuple: '(1, "a", 42)',
+                tuple_ref: '(1, "a", 42)',
                 // LLDB does not handle Rust enums well for now
                 // 'reg_enum1': 'A',
                 // 'reg_enum2': 'B(100, 200)',
-                'reg_enum3': 'C{x:11.35, y:20.5}',
-                'reg_enum_ref': 'C{x:11.35, y:20.5}',
-                'cstyle_enum1': 'A',
-                'cstyle_enum2': 'B',
-                'enc_enum1': 'Some("string")',
-                'enc_enum2': 'Nothing',
-                'opt_str1': 'Some("string")',
-                'opt_str2': 'None',
-                'tuple_struct': '(3, "xxx", -3)',
-                'reg_struct': '{a:1, c:12}',
-                'reg_struct_ref': '{a:1, c:12}',
-                'opt_reg_struct1': 'Some({...})',
-                'opt_reg_struct2': 'None',
-                'array': '(5) [1, 2, 3, 4, 5]',
-                'slice': '(5) &[1, 2, 3, 4, 5]',
-                'vec_int': '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
-                'vec_str': '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
-                'large_vec': '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
-                'empty_string': '""',
-                'string': '"A String"',
-                'str_slice': '"String slice"',
-                'wstr1': '"Превед йожэг!"',
-                'wstr2': '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
-                'cstring': '"C String"',
-                'cstr': '"C String"',
-                'osstring': '"OS String"',
-                'osstr': '"OS String"',
-                'path_buf': foo_bar,
-                'path': foo_bar,
-                'str_tuple': '("A String", "String slice", "C String", "C String", "OS String", "OS String", ' + foo_bar + ', ' + foo_bar + ')',
-                'class': '{finally:1, import:2, lambda:3, raise:4}'
+                reg_enum3: 'C{x:11.35, y:20.5}',
+                reg_enum_ref: 'C{x:11.35, y:20.5}',
+                cstyle_enum1: 'A',
+                cstyle_enum2: 'B',
+                enc_enum1: 'Some("string")',
+                enc_enum2: 'Nothing',
+                opt_str1: 'Some("string")',
+                opt_str2: 'None',
+                tuple_struct: '(3, "xxx", -3)',
+                reg_struct: '{a:1, c:12}',
+                reg_struct_ref: '{a:1, c:12}',
+                opt_reg_struct1: 'Some({...})',
+                opt_reg_struct2: 'None',
+                array: '(5) [1, 2, 3, 4, 5]',
+                slice: '(5) &[1, 2, 3, 4, 5]',
+                vec_int: {
+                    $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                    '[0]': 1, '[1]': 2, '[9]': 10
+                },
+                vec_str: '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
+                large_vec: '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
+                empty_string: '""',
+                string: '"A String"',
+                str_slice: '"String slice"',
+                wstr1: '"Превед йожэг!"',
+                wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+                cstring: '"C String"',
+                cstr: '"C String"',
+                osstring: '"OS String"',
+                osstr: '"OS String"',
+                path_buf: foo_bar,
+                path: foo_bar,
+                str_tuple: {
+                    __0: '"A String"',
+                    __1: '"String slice"',
+                    __2: '"C String"',
+                    __3: '"C String"',
+                    __4: '"OS String"',
+                    __5: '"OS String"',
+                    __6: foo_bar,
+                    __7: foo_bar,
+                },
+                class: { finally: 1, import: 2, lambda: 3, raise: 4 }
             });
 
             let response1 = await dc.evaluateRequest({
                 expression: 'vec_str', context: 'watch',
                 frameId: frames.body.stackFrames[0].id
             });
-            let vec_str = await readVariables(response1.body.variablesReference);
-            //console.log(vec_str);
-            assertDictContains(vec_str, { '[0]': '"111"', '[4]': '"5555"' });
+            compareVariables(response1.body.variablesReference, { '[0]': '"111"', '[4]': '"5555"' });
 
             let response2 = await dc.evaluateRequest({
                 expression: 'string', context: 'watch',
                 frameId: frames.body.stackFrames[0].id
             });
-            let rstring = await readVariables(response2.body.variablesReference);
-            //console.log(rstring);
-            assertDictContains(rstring, { '[0]': "'A'", '[7]': "'g'" });
+            compareVariables(response2.body.variablesReference, { '[0]': "'A'", '[7]': "'g'" });
         });
     });
 });
@@ -475,6 +474,44 @@ async function readVariables(variablesReference: number): Promise<any> {
 function assertDictContains(dict: any, expected: any) {
     for (var key in expected) {
         assert.equal(dict[key], expected[key], 'The value of "' + key + '" does not match the expected value.');
+    }
+}
+
+async function compareVariables(varRef: number, expected: any, prefix: string = '') {
+    assert.notEqual(varRef, 0, 'Expected non-zero.');
+    let response = await dc.variablesRequest({ variablesReference: varRef });
+    let vars: any = {};
+    for (var v of response.body.variables) {
+        vars[v.name] = v;
+    }
+    for (var key of Object.keys(expected)) {
+        if (key == '$')
+            continue; // Summary is checked by the caller.
+
+        let keyPath = prefix.length > 0 ? prefix + '.' + key : key;
+        let expectedValue = expected[key];
+        let variable = vars[key];
+        assert.notEqual(variable, undefined, 'Did not find the expected value "' + keyPath + '"');
+
+        if (expectedValue == null) {
+            // Just check that the value exists
+        } else if (typeof expectedValue == 'string') {
+            assert.equal(variable.value, expectedValue,
+                format('The value of %s, "%s" does not match the expected value "%s"', keyPath, variable.value, expectedValue));
+        } else if (typeof expectedValue == 'number') {
+            let numValue = parseFloat(variable.value);
+            assert.equal(numValue, expectedValue,
+                format('The value of %s, %d does not match the expected value %d', keyPath, numValue, expectedValue));
+        } else if (typeof expectedValue == 'object') {
+            let summary = expectedValue['$'];
+            if (summary != undefined) {
+                assert.equal(variable.value, summary,
+                    format('The value of %s, %d does not match the expected value %d', keyPath, variable.value, summary));
+            }
+            compareVariables(variable.variablesReference, expectedValue, keyPath);
+        } else {
+            assert.ok(false, 'Unreachable');
+        }
     }
 }
 

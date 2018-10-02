@@ -115,6 +115,14 @@ void vars()
         Struct e[5];
     };
 
+    struct AnonUnion
+    {
+        union {
+            int x;
+            int y;
+        };
+    };
+
     int a = 10;
     int b = 20;
     for (int i = 0; i < 10; i++)
@@ -133,6 +141,7 @@ void vars()
         Struct *s_ptr = &s1;
         Struct *null_s_ptr = nullptr;
         Struct *invalid_s_ptr = (Struct *)1;
+        AnonUnion anon_union = { 4 };
         DeepStruct ds1 = {13, "foo", 3.14,                   //
                           {i, 'd', 4.0f, {1, 2, 3, i}},      //
                           {{i * 2, 's', 5.0f, {4, 5, 6, i}}, //
@@ -144,8 +153,8 @@ void vars()
         auto shared_ptr = std::make_shared<std::map<int, float>>(ord_map);
         Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
 
-        const char* cstr = "The quick brown fox";
-        const wchar_t* wcstr = L"The quick brown fox";
+        const char *cstr = "The quick brown fox";
+        const wchar_t *wcstr = L"The quick brown fox";
         std::string str1 = "The quick brown fox";
         char invalid_utf8[] = "ABC\xFF\x01\xFEXYZ";
         std::string empty_str;

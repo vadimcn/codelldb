@@ -382,7 +382,20 @@ suite('Adapter tests', () => {
                     __6: foo_bar,
                     __7: foo_bar,
                 },
-                class: { finally: 1, import: 2, lambda: 3, raise: 4 }
+                class: { finally: 1, import: 2, lambda: 3, raise: 4 },
+                boxed: { a: 1, b: '"b"', c: 12 },
+                rc_box: { $: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
+                rc_box2: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                rc_box2c: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                rc_box3: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                rc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                arc_box: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                arc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                ref_cell: 10,
+                ref_cell2: '(borrowed:2) 11',
+                ref_cell2_borrow1: 11,
+                ref_cell3: '(borrowed:mut) 12',
+                ref_cell3_borrow: 12,
             });
 
             let response1 = await dc.evaluateRequest({
@@ -495,22 +508,22 @@ async function compareVariables(varRef: number, expected: any, prefix: string = 
         let keyPath = prefix.length > 0 ? prefix + '.' + key : key;
         let expectedValue = expected[key];
         let variable = vars[key];
-        assert.notEqual(variable, undefined, 'Did not find the expected value "' + keyPath + '"');
+        assert.notEqual(variable, undefined, 'Did not find variable "' + keyPath + '"');
 
         if (expectedValue == null) {
             // Just check that the value exists
         } else if (typeof expectedValue == 'string') {
             assert.equal(variable.value, expectedValue,
-                format('The value of %s, "%s" does not match the expected value "%s"', keyPath, variable.value, expectedValue));
+                format('"%s": expected: "%s", actual: "%s"', keyPath, expectedValue, variable.value));
         } else if (typeof expectedValue == 'number') {
             let numValue = parseFloat(variable.value);
             assert.equal(numValue, expectedValue,
-                format('The value of %s, %d does not match the expected value %d', keyPath, numValue, expectedValue));
+                format('"%s": expected: %d, actual: %d', keyPath, numValue, expectedValue));
         } else if (typeof expectedValue == 'object') {
             let summary = expectedValue['$'];
             if (summary != undefined) {
                 assert.equal(variable.value, summary,
-                    format('The value of %s, %d does not match the expected value %d', keyPath, variable.value, summary));
+                    format('Summary of "%s", expected: "%s", actual: "%s"', keyPath, summary, variable.value));
             }
             compareVariables(variable.variablesReference, expectedValue, keyPath);
         } else {

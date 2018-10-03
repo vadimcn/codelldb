@@ -1,5 +1,10 @@
 # What's New
 
+## 1.0.0
+- The pace of changes has been slowing down as of late, I think this is about time to declare a v1.0!
+- Added Rust visualizers for Box, Rc, Arc, Mutex, Cell, RefCell.
+- Bug fixes.
+
 ## 0.8.9
 - Bug fixes.
 

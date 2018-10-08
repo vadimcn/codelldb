@@ -150,10 +150,6 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
             }
         }
     }
-    if (configs.length == 0) {
-        window.showErrorMessage(`No supported binary artifact kinds in the project. Aborting...`, { modal: true });
-        throw new Error('Cannot generate launch.json.');
-    }
     return configs;
 }
 

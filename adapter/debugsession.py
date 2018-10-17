@@ -273,7 +273,8 @@ class DebugSession:
             if args['request'] == 'launch':
                 raise UserError('\'program\' property is required for launch.')
             target = self.debugger.CreateTarget('') # OK if attaching by pid
-        target.GetBroadcaster().AddListener(self.event_listener, lldb.SBTarget.eBroadcastBitBreakpointChanged)
+        target.GetBroadcaster().AddListener(self.event_listener,
+            lldb.SBTarget.eBroadcastBitBreakpointChanged | lldb.SBTarget.eBroadcastBitModulesLoaded)
         return target
 
     def find_executable(self, program):
@@ -1437,6 +1438,8 @@ class DebugSession:
             self.notify_process(event)
         elif lldb.SBBreakpoint.EventIsBreakpointEvent(event):
             self.notify_breakpoint(event)
+        elif lldb.SBTarget.EventIsTargetEvent(event):
+            self.notify_target(event)
 
     # Handles process state change notifications
     def notify_process(self, event):
@@ -1575,6 +1578,12 @@ class DebugSession:
                 return # Don't notify if still not resolved
         breakpoint = self.make_bp_resp(bp, bp_info)
         self.send_event('breakpoint', { 'reason': 'changed', 'breakpoint': breakpoint })
+
+    def notify_target(self, event):
+        if event.GetType() & lldb.SBTarget.eBroadcastBitModulesLoaded != 0:
+            for i in xrange(lldb.SBTarget.GetNumModulesFromEvent(event)):
+                mod = lldb.SBTarget.GetModuleAtIndexFromEvent(i, event)
+                self.console_msg('Module loaded: %s' % mod.GetFileSpec().fullpath)
 
     def handle_debugger_output(self, output):
         self.send_event('output', { 'category': 'stdout', 'output': output })

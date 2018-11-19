@@ -1583,7 +1583,10 @@ class DebugSession:
         if event.GetType() & lldb.SBTarget.eBroadcastBitModulesLoaded != 0:
             for i in xrange(lldb.SBTarget.GetNumModulesFromEvent(event)):
                 mod = lldb.SBTarget.GetModuleAtIndexFromEvent(i, event)
-                self.console_msg('Module loaded: %s' % mod.GetFileSpec().fullpath)
+                message = 'Module loaded: %s.' % mod.GetFileSpec().fullpath
+                if mod.GetSymbolFileSpec().IsValid():
+                    message += ' Symbols loaded.'
+                self.console_msg(message)
 
     def handle_debugger_output(self, output):
         self.send_event('output', { 'category': 'stdout', 'output': output })

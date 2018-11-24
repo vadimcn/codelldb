@@ -1,8 +1,11 @@
-import { DebugConfiguration } from 'vscode';
+import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChannel } from 'vscode';
 import * as cp from 'child_process';
 import { format } from 'util';
-import { QuickPickItem, WorkspaceConfiguration } from 'vscode';
-import { Dict } from './extension';
+import * as stream from 'stream';
+
+export interface Dict<T> {
+    [key: string]: T;
+}
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
@@ -24,18 +27,18 @@ export function expandVariablesInObject(obj: any, expander: (type: string, key: 
     if (obj instanceof Array)
         return obj.map(v => expandVariablesInObject(v, expander));
 
-    for (var prop of Object.keys(obj))
+    for (let prop of Object.keys(obj))
         obj[prop] = expandVariablesInObject(obj[prop], expander)
     return obj;
 }
 
 // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
-export function expandDbgConfig(launchConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
+export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
     let dbgconfig: Dict<any> = Object.assign({}, dbgconfigConfig);
 
     // Compute fixed-point of expansion of dbgconfig properties.
-    var expanding = '';
-    var converged = true;
+    let expanding = '';
+    let converged = true;
     let expander = (type: string, key: string) => {
         if (type == 'dbgconfig') {
             if (key == expanding)
@@ -50,14 +53,14 @@ export function expandDbgConfig(launchConfig: DebugConfiguration, dbgconfigConfi
     };
     do {
         converged = true;
-        for (var prop of Object.keys(dbgconfig)) {
+        for (let prop of Object.keys(dbgconfig)) {
             expanding = prop;
             dbgconfig[prop] = expandVariablesInObject(dbgconfig[prop], expander);
         }
     } while (!converged);
 
     // Now expand dbgconfigs in the launch configuration.
-    launchConfig = expandVariablesInObject(launchConfig, (type, key) => {
+    debugConfig = expandVariablesInObject(debugConfig, (type, key) => {
         if (type == 'dbgconfig') {
             let value = dbgconfig[key];
             if (value == undefined)
@@ -66,14 +69,14 @@ export function expandDbgConfig(launchConfig: DebugConfiguration, dbgconfigConfi
         }
         return null;
     });
-    return launchConfig;
+    return debugConfig;
 }
 
 export async function getProcessList(currentUserOnly: boolean):
     Promise<(QuickPickItem & { pid: number })[]> {
 
     let is_windows = process.platform == 'win32';
-    var command: string;
+    let command: string;
     if (!is_windows) {
         if (currentUserOnly)
             command = 'ps x';
@@ -94,7 +97,7 @@ export async function getProcessList(currentUserOnly: boolean):
     let lines = stdout.split('\n');
     let items = [];
 
-    var re: RegExp, idx: number[];
+    let re: RegExp, idx: number[];
     if (!is_windows) {
         re = /^\s*(\d+)\s+.*?\s+.*?\s+.*?\s+(.*)()$/;
         idx = [1, 2, 3];
@@ -103,7 +106,7 @@ export async function getProcessList(currentUserOnly: boolean):
         re = /^"([^"]*)","([^"]*)",(?:"[^"]*",){6}"([^"]*)"/;
         idx = [2, 1, 3];
     }
-    for (var i = 1; i < lines.length; ++i) {
+    for (let i = 1; i < lines.length; ++i) {
         let groups = re.exec(lines[i]);
         if (groups) {
             let pid = parseInt(groups[idx[0]]);
@@ -118,7 +121,7 @@ export async function getProcessList(currentUserOnly: boolean):
 
 export function getConfigNoDefault(config: WorkspaceConfiguration, key: string): any {
     let x = config.inspect(key);
-    var value = x.workspaceFolderValue;
+    let value = x.workspaceFolderValue;
     if (value === undefined)
         value = x.workspaceValue;
     if (value === undefined)
@@ -151,9 +154,70 @@ export function mergeValues(value1: any, value2: any): any {
     return Object.assign({}, value1, value2);
 }
 
-function isScalarValue(value: any) {
+function isScalarValue(value: any): boolean {
     return value === null || value === undefined ||
         typeof value == 'boolean' || value instanceof Boolean ||
         typeof value == 'number' || value instanceof Number ||
         typeof value == 'string' || value instanceof String;
+}
+
+export function waitForPattern(
+    process: cp.ChildProcess,
+    channel: stream.Readable,
+    pattern: RegExp,
+    timeoutMillis = 5000
+): Promise<RegExpExecArray> {
+    return new Promise<RegExpExecArray>((resolve, reject) => {
+        let promisePending = true;
+        let prcoessOutput = '';
+        // Wait for expected pattern in channel.
+        channel.on('data', (chunk) => {
+            let chunkStr = chunk.toString();
+            if (promisePending) {
+                prcoessOutput += chunkStr;
+                let match = pattern.exec(prcoessOutput);
+                if (match) {
+                    clearTimeout(timer);
+                    prcoessOutput = null;
+                    promisePending = false;
+                    resolve(match);
+                }
+            }
+        });
+        // On spawn error.
+        process.on('error', (err) => {
+            promisePending = false;
+            reject(err);
+        });
+        // Bail if LLDB does not start within the specified timeout.
+        let timer = setTimeout(() => {
+            if (promisePending) {
+                process.kill();
+                let err = Error('The debugger did not start within the allotted time.');
+                (<any>err).code = 'Timeout';
+                (<any>err).stdout = prcoessOutput;
+                promisePending = false;
+                reject(err);
+            }
+        }, timeoutMillis);
+        // Premature exit.
+        process.on('exit', (code, signal) => {
+            if (promisePending) {
+                let err = Error('The debugger exited without completing startup handshake.');
+                (<any>err).code = 'Handshake';
+                (<any>err).stdout = prcoessOutput;
+                promisePending = false;
+                reject(err);
+            }
+        });
+    });
+}
+
+export function logProcessOutput(process: cp.ChildProcess, output: OutputChannel) {
+    process.stdout.on('data', (chunk) => {
+        output.append(chunk.toString());
+    });
+    process.stderr.on('data', (chunk) => {
+        output.append(chunk.toString());
+    });
 }

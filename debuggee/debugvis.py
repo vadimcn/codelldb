@@ -11,14 +11,7 @@ def show():
     image_bytes = io.BytesIO()
     plt.savefig(image_bytes, format='png', bbox_inches='tight')
     document = '<html><img src="data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue()).decode('utf-8')
-    debugger.display_html('/plot', title='Pretty Plot', position=2, content={'/plot': document})
-
-def show2():
-    image_bytes = io.BytesIO()
-    plt.savefig(image_bytes, format='png', bbox_inches='tight')
-    document = '<html><img src="data:data:image/png;base64,%s"></html>' % base64.b64encode(image_bytes.getvalue())
-    debugger.register_content_provider(lambda uri: document)
-    debugger.display_html('debugger:/plot', title='Pretty Plot', position=2)
+    debugger.display_html(document, position=2)
 
 def plot_image(image, xdim, ydim, cmap='nipy_spectral_r'):
     image = debugger.unwrap(image)

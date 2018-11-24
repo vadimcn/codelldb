@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -9,7 +9,7 @@
 		"name": "vadimcn"
 	},
 	"engines": {
-		"vscode": "^1.17.0",
+		"vscode": "^1.23.0",
 		"node": "^7.9.0"
 	},
 	"icon": "images/lldb.png",
@@ -52,7 +52,7 @@
 		"test:internals": "python tools/test_internals.py",
 		"test": "npm run build && npm run test:internals && npm run build:debuggee:cpp && npm run build:debuggee:rust && npm run test:adapter"
 	},
-	"main": "./out/extension",
+	"main": "./out/main",
 	"activationEvents": [
 		"onDebug",
 		"onCommand:lldb.diagnose",

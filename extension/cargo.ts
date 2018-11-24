@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { inspect } from 'util';
 import * as util from './util';
-import { output, Dict } from './extension';
+import { Dict } from './util';
+import { output } from './main';
 
 export interface CargoConfig {
     args: string[];
@@ -47,7 +48,7 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string)
     }
 
     output.appendLine('Matching compilation artifacts: ');
-    for (var artifact of artifacts) {
+    for (let artifact of artifacts) {
         output.appendLine(inspect(artifact));
     }
     if (artifacts.length > 1) {
@@ -60,14 +61,14 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string)
 
 // Runs cargo, returns a list of compilation artifacts.
 async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<CompilationArtifact[]> {
-    var artifacts: CompilationArtifact[] = [];
+    let artifacts: CompilationArtifact[] = [];
     let exitCode = await runCargo(cargoArgs, folder,
         message => {
             if (message.reason == 'compiler-artifact') {
                 let isBinary = message.target.crate_types.includes('bin');
                 let isBuildScript = message.target.kind.includes('custom-build');
                 if ((isBinary && !isBuildScript) || message.profile.test) {
-                    for (var i = 0; i < message.filenames.length; ++i) {
+                    for (let i = 0; i < message.filenames.length; ++i) {
                         if (message.filenames[i].endsWith('.dSYM'))
                             continue;
                         artifacts.push({
@@ -95,14 +96,14 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
     let configs: DebugConfiguration[] = [];
 
     if (fs.existsSync(path.join(folder, 'Cargo.toml'))) {
-        var metadata: any = null;
+        let metadata: any = null;
         let exitCode = await runCargo(['metadata', '--no-deps', '--format-version=1'], folder,
             m => { metadata = m },
             stderr => { output.append(stderr); }
         );
 
         if (metadata && exitCode == 0) {
-            for (var pkg of metadata.packages) {
+            for (let pkg of metadata.packages) {
 
                 function addConfig(name: string, cargo_args: string[], filter_kind: string) {
                     configs.push({
@@ -111,16 +112,16 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                         name: name,
                         cargo: {
                             args: cargo_args.concat(`--package=${pkg.name}`),
-                            filter: { kind: kind }
+                            filter: { kind: filter_kind }
                         },
                         args: [],
                         cwd: '${workspaceFolder}'
                     });
                 };
 
-                for (var target of pkg.targets) {
-                    var libAdded = false;
-                    for (var kind of target.kind) {
+                for (let target of pkg.targets) {
+                    let libAdded = false;
+                    for (let kind of target.kind) {
                         switch (kind) {
                             case 'lib':
                             case 'rlib':
@@ -171,12 +172,12 @@ async function runCargo(
             onStderrString(chunk.toString());
         });
 
-        var stdout = '';
+        let stdout = '';
         cargo.stdout.on('data', chunk => {
             stdout += chunk
             let lines = stdout.split('\n');
             stdout = lines.pop();
-            for (var line of lines) {
+            for (let line of lines) {
                 let message = JSON.parse(line);
                 onStdoutJson(message);
             }

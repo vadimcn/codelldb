@@ -321,13 +321,12 @@ This function is handy when creating conditional breakpoints with side effects.
 For example, this breakpoint condition: `/py debugger.stop_if($x % 50 == 0, lambda: print($y))` will
 cause a stop when variable `x` becomes a multiple of 50 and will print the value of variable `y`.
 
-### debugger.display_html(uri: str, title: str=None, position: int=None, content: Dict[string, string]={})
+### debugger.display_html(html:str, title:str=None, position:int=None, reveal:bool=False)
 Displays HTML content in VSCode UI.
-- `url`: URL of the main content.  Most likely you'll want to use a `debugger:` URL.
-- `title`: Title of the HTML view tab.
-- `position`: Position of the tab.  The allowed range is 1 through 3.
-- `content`: A dictionary of static content indexed by URLs.  All keys must use the `debugger:` URL
-  scheme.  All values must be strings (binary content such as images is not supported).
+- `html`: HTML markup to display.
+- `title`: Title of the panel.  Defaults to name of the current launch configuration.
+- `position`: Position of the panel.  The allowed range is 1 through 3.
+- `reveal`: Whether to reveal the panel if it already exists.
 
 ### debugger.register_content_provider(provider: Callable[[string],string])
 Allows generation of dynamic content for HTML display.  Any `debugger:` content not found in the `content`

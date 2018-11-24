@@ -19,11 +19,8 @@ def stop_if(cond, handler):
     else:
         return False
 
-def display_html(uri, title=None, position=None, content={}):
-    request_body = { 'uri': uri, 'position': position, 'title': title, 'content': content }
+def display_html(html, title=None, position=None, reveal=False):
+    request_body = { 'html': html, 'position': position, 'title': title, 'reveal': reveal }
     debugsession.DebugSession.current.display_html(request_body)
 
-def register_content_provider(provider):
-    debugsession.DebugSession.current.provide_content = provider
-
-__all__ = ['evaluate', 'stop_if', 'preview_html', 'register_content_provider']
+__all__ = ['evaluate', 'stop_if', 'preview_html']

@@ -1,5 +1,11 @@
 # What's New
 
+## 1.1.0
+- The minimum supported VSCode version is now 1.23.
+- Due to deprecation of VSCode's `previewHtml` command, the signature of `display_html` API had to change: HTML markup
+must now be provided in the first parameter; lazy content generation via `register_content_provider` is no longer supported.
+- Bug fixes.
+
 ## 1.0.0
 - The pace of changes has been slowing down as of late, I think this is about time to declare a v1.0!
 - Added Rust visualizers for Box, Rc, Arc, Mutex, Cell, RefCell.
@@ -69,7 +75,7 @@ This behavior may be altered via `lldb.suppressMissingSourceFiles` configuration
 - Bug fixes.
 
 ## 0.7.0
-- The minumum VSCode version is now 1.17.
+- The minimum supported VSCode version is now 1.17.
 - Source maps may now contain glob wildcards.
 - Source maps may now be used to suppress source location info (by setting "target" prefix to null).
 - Complex variable names (e.g. statics in templated classes) may now be escaped in expressions as `${...}`.
@@ -82,7 +88,7 @@ This behavior may be altered via `lldb.suppressMissingSourceFiles` configuration
 - Bug fixes.
 
 ## 0.6.0
-- The minumum VSCode version is now 1.15.
+- The minimum supported VSCode version is now 1.15.
 - Process state will now be updated after custom launch.
 - Fixed threads display regression.
 - Fixed "Add to Watch" regression.
@@ -109,7 +115,7 @@ mode.  The address may still be seen when a display format override is specified
 - Bug fixes.
 
 ## 0.5.0
-- The minumum VSCode version is now 1.11.
+- The minimum supported VSCode version is now 1.11.
 - Rust visualizers are now activated automatically (no need for `sourceLanguages: ["rust"]`).
 - Added [data visualization](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization) tutorial.
 - Bug fixes.
@@ -118,7 +124,7 @@ mode.  The address may still be seen when a display format override is specified
 - Bug fixes.
 
 ## 0.4.0
-- The minumum VSCode version is now 1.9.
+- The minimum supported VSCode version is now 1.9.
 - Added debugger API for HTML display.
 - @keyword is no longer allowed in "simple" expressions, the '/py ...' syntax replaces that.
 - Changed prefix for invoking native evaluator: `?<expr>` -> `/nat <expr>`

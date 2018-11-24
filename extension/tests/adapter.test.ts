@@ -96,7 +96,7 @@ suite('Adapter tests', () => {
 
         test('stop on entry', async () => {
             let stopAsync = waitForStopEvent();
-            launch({ program: debuggee, stopOnEntry: true });
+            await launch({ program: debuggee, stopOnEntry: true });
             let stopEvent = await stopAsync;
             if (process.platform.startsWith('win'))
                 assert.equal(stopEvent.body.reason, 'exception');

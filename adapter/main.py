@@ -59,6 +59,9 @@ def run_session(read, write, params):
     # Run event loop until DebugSession breaks it.
     event_loop.run()
 
+    # Return whether debug session ended with a restart request.
+    return debug_session.restart
+
 from os import read as os_read, write as os_write
 def os_write_all(ofd, data):
     while True:
@@ -112,12 +115,15 @@ def run_tcp_session(port, params=None):
         ls_port = ls.getsockname()[1]
         print('Listening on port', ls_port) # Let the parent process know which port we are listening on.
         sys.stdout.flush()
-        conn, addr = ls.accept()
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        log.info('New connection from %s', addr)
-        run_session(conn.recv, conn.sendall, params)
-        log.info('Debug session has ended. Exiting.')
-        conn.close()
+        keep_running = True
+        while keep_running:
+            conn, addr = ls.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            log.info('New connection from %s', addr)
+            keep_running = run_session(conn.recv, conn.sendall, params)
+            log.info('Debug session has ended.')
+            conn.close()
+        log.info('Exiting.')
         ls.close()
     except Exception as e:
         log.critical('%s', traceback.format_exc())

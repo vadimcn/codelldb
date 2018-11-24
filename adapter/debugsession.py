@@ -1302,10 +1302,12 @@ class DebugSession:
         if self.launch_args is not None:
             self.exec_commands(self.launch_args.get('exitCommands'))
         if self.process:
+            self.process.GetBroadcaster().RemoveListener(self.event_listener)
             if args.get('terminateDebuggee', self.process_launched):
                 self.process.Kill()
             else:
                 self.process.Detach()
+        self.restart = args.get('restart', False)
         self.process = None
         self.target = None
         self.terminal = None

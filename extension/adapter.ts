@@ -50,8 +50,7 @@ export async function startDebugAdapter(
         '-O', format('command script import \'%s\'', path.join(context.extensionPath, 'adapter')),
         '-O', format('script adapter.run_tcp_session(0, \'%s\')', paramsBase64)
     ];
-    adapterExe = util.getConfigNoDefault(config, 'executable') ||
-        path.join(context.extensionPath, 'lldb/bin/lldb');
+    adapterExe = config.get('executable', 'lldb');
     let adapter = spawnDebugger(adapterArgs, adapterExe, adapterEnv);
     let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
     util.logProcessOutput(adapter, output);

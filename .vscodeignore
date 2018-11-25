@@ -1,5 +1,5 @@
 **
-!adapter/*.py
+!adapter/**/*.py
 !out/*.js
 !syntaxes
 !*.md

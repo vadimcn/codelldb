@@ -84,7 +84,7 @@ function getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any>)
 export function spawnDebugger(args: string[], adapterPath: string, adapterEnv: Dict<string>): cp.ChildProcess {
     let env = Object.assign({}, process.env);
     
-    // Create object mapping from lowercased existing environment variable to their original names.
+    // Create object mapping from lowercased existing environment variable names to their original names.
     const envVariables = Object.keys(env).reduce((acc, key) => {
         acc[key.toLowerCase()] = key;
         return acc;

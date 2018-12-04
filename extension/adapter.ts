@@ -83,9 +83,23 @@ function getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any>)
 // regex pattern, or until the timeout expires.
 export function spawnDebugger(args: string[], adapterPath: string, adapterEnv: Dict<string>): cp.ChildProcess {
     let env = Object.assign({}, process.env);
+    
+    // Create object mapping from lowercased existing environment variable to their original names.
+    const envVariables = Object.keys(env).reduce((acc, key) => {
+        acc[key.toLowerCase()] = key;
+        return acc;
+    }, {});
+    
     for (let key in adapterEnv) {
-        env[key] = util.expandVariables(adapterEnv[key], (type, key) => {
-            if (type == 'env') return process.env[key];
+        // If there is an existing environment variable, potentially with a different case, use it.
+        // For example, users might write "PATH" in their settings while the system has a "Path" environment variable.
+        const envVariable = envVariables[key.toLowerCase()] || key;
+        
+        env[envVariable] = util.expandVariables(adapterEnv[key], (type, key) => {
+            if (type == 'env') {
+                const envVariable = envVariables[key.toLowerCase()] || key;
+                return process.env[envVariable];
+            }
             throw new Error('Unknown variable type ' + type);
         });
     }

@@ -64,9 +64,13 @@ export async function startNative(
     return spawnDebugAdapter(executable, args, env, workDir);
 }
 
-export const getPythonPathAsync = process.platform == 'win32' ?
-    util.readRegistry('HKLM\\Software\\Python\\PythonCore\\3.6\\InstallPath', null) :
-    null;
+export const getPythonPathAsync =
+    process.platform == 'win32' ? (
+        util.readRegistry('HKEY_LOCAL_MACHINE\\Software\\Python\\PythonCore\\3.6\\InstallPath', null) ||
+        util.readRegistry('HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\Python\\PythonCore\\3.6\\InstallPath', null) ||
+        util.readRegistry('HKEY_CURRENT_USER\\Software\\Python\\PythonCore\\3.6\\InstallPath', null) ||
+        util.readRegistry('HKEY_CURRENT_USER\\Software\\Wow6432Node\\Python\\PythonCore\\3.6\\InstallPath', null)
+    ) : null;
 
 export async function spawnDebugAdapter(
     executable: string,

@@ -486,8 +486,6 @@ suite('Adapter tests', () => {
                     reg_enum2: '{0:100, 1:200}',
                     reg_enum3: '{x:11.35, y:20.5}',
                     reg_enum_ref: '{x:11.35, y:20.5}',
-                    cstyle_enum1: 'types::CStyleEnum::A',
-                    cstyle_enum2: 'types::CStyleEnum::B',
                     cstr: '"C String"',
                     osstr: '"OS String"',
                     path: foo_bar,
@@ -502,6 +500,13 @@ suite('Adapter tests', () => {
                         '7': foo_bar,
                     },
                 });
+
+                if (!triple.endsWith('apple-darwin')) {
+                    await ds.compareVariables(scopes.body.scopes[0].variablesReference, {
+                        cstyle_enum1: 'types::CStyleEnum::A',
+                        cstyle_enum2: 'types::CStyleEnum::B',
+                    });
+                }
             }
 
             // LLDB does not handle Rust enums well for now

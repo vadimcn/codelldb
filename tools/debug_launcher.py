@@ -17,10 +17,14 @@ if args.launch_adapter:
     lldb = args.lldb or 'lldb'
     cmd = [lldb, '-b',
         '-O', 'command script import %s' % args.launch_adapter,
-        '-O', 'script import ptvsd; ptvsd.enable_attach(address=("0.0.0.0", 3000)); ptvsd.wait_for_attach(); adapter.run_tcp_session(4711)',
+        '-O', 'script sys.argv=["lldb"]; import ptvsd; ptvsd.enable_attach(address=("0.0.0.0", 3000)); ptvsd.wait_for_attach()',
+        '-O', 'script adapter.run_tcp_session(4711)',
     ]
     print('Launching', cmd)
-    subprocess.Popen(cmd, preexec_fn=lambda: os.setsid())
+    if sys.platform != 'win32':
+        subprocess.Popen(cmd, preexec_fn=lambda: os.setsid())
+    else:
+        subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 if args.wait_port:
     port = int(args.wait_port)

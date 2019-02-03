@@ -1232,6 +1232,7 @@ impl DebugSession {
                     ..Default::default()
                 });
             }
+            // TODO: origin, presentaion_hint
             stack_frames.push(stack_frame);
         }
 
@@ -2028,20 +2029,18 @@ impl DebugSession {
                     StopReason::Breakpoint => ("breakpoint", None),
                     StopReason::Trace | //.
                     StopReason::PlanComplete => ("step", None),
-                    _ => {
-                        // Print stop details for these types
-                        let description = Some(stopped_thread.stop_description());
-                        match stop_reason {
-                            StopReason::Watchpoint => ("watchpoint", description),
-                            StopReason::Signal => ("signal", description),
-                            StopReason::Exception => ("exception", description),
-                            _ => ("unknown", description),
-                        }
-                    }
+                    StopReason::Watchpoint => ("watchpoint", None),
+                    StopReason::Signal => ("signal", Some(stopped_thread.stop_description())),
+                    StopReason::Exception => ("exception", Some(stopped_thread.stop_description())),
+                    _ => ("unknown", Some(stopped_thread.stop_description())),
                 }
             }
             None => ("unknown", None),
         };
+
+        if let Some(description) = &description {
+            self.console_error(format!("Stop reason: {}", description));
+        }
 
         self.send_event(EventBody::stopped(StoppedEventBody {
             all_threads_stopped: Some(true),

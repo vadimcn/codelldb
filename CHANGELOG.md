@@ -1,5 +1,12 @@
 # What's New
 
+## 1.2.1
+- The minimum supported VSCode version is now 1.30.
+- Fixed: Source maps.
+- Fixed: Python detection on Windows.
+- Fixed: Debug adapter process is sometimes left running after the end of a debug session.
+- Adjusted Rust visualizer for libstd changes in v1.33.
+
 ## 1.2.0
 - Bug fixes.
 - [Beta] Introduced "bundled" and "native" debug adapter types (in addition to "classic"): if `lldb.adapterType` confguration

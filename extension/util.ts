@@ -188,6 +188,7 @@ export async function readRegistry(path: string, value?: string): Promise<string
             args.push('/v', value);
         else
             args.push('/ve');
+        args.push('/reg:64');
 
         let reg = cp.spawn('reg.exe', args, {
             stdio: ['ignore', 'pipe', 'ignore'],

@@ -140,13 +140,14 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
 
 export async function checkPython(output: OutputChannel, quiet = false): Promise<boolean> {
     if (process.platform == 'win32') {
-        let path = await adapter.getPythonPathAsync;
+        let path = await adapter.getWindowsPythonPath();
         if (path == null) {
             let action = await window.showErrorMessage(
-                'CodeLLDB requires Python 3.6 (64-bit), but looks like it is not installed on this machine.', { modal: true },
+                `CodeLLDB requires Python ${adapter.pythonVersion} (64-bit), but looks like it is not installed on this machine.`,
+                { modal: true },
                 'Take me to Python website');
             if (action != null)
-                commands.executeCommand('vscode.open', 'https://www.python.org/downloads/windows/');
+                commands.executeCommand('vscode.open', Uri.parse('https://www.python.org/downloads/windows/'));
             return false;
         } else {
             return true;

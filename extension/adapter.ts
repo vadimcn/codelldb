@@ -64,10 +64,6 @@ export async function startNative(
     return spawnDebugAdapter(executable, args, env, workDir);
 }
 
-export const getPythonPathAsync = process.platform == 'win32' ?
-    util.readRegistry('HKLM\\Software\\Python\\PythonCore\\3.6\\InstallPath', null) :
-    null;
-
 export async function spawnDebugAdapter(
     executable: string,
     args: string[],
@@ -80,7 +76,7 @@ export async function spawnDebugAdapter(
         env['PATH'] = '/usr/bin:' + env['PATH'];
     } else if (process.platform == 'win32') {
         // Try to locate Python installation and add it to the PATH.
-        let pythonPath = await getPythonPathAsync;
+        let pythonPath = await getWindowsPythonPath();
         if (pythonPath) {
             env['PATH'] = env['PATH'] + ';' + pythonPath;
         }
@@ -103,7 +99,7 @@ export function waitForPattern(
     process: cp.ChildProcess,
     channel: Readable,
     pattern: RegExp,
-    timeoutMillis = 5000
+    timeoutMillis = 10000
 ): Promise<RegExpExecArray> {
     return new Promise<RegExpExecArray>((resolve, reject) => {
         let promisePending = true;
@@ -171,4 +167,32 @@ async function findLiblldb(lldbRoot: string): Promise<string | null> {
     } else {
         return null;
     }
+}
+
+export const pythonVersion = '3.6';
+
+export async function getWindowsPythonPath(): Promise<string> {
+    if (process.platform != 'win32')
+        throw new Error('Windows only!');
+
+    let path = await getPythonPathAsync;
+    if (path == null) { // Don't cache negative result - in case they install Python without restarting VSCode.
+        getPythonPathAsync = getWindowsPythonPathImpl();
+        path = await getPythonPathAsync
+    }
+    return path;
+}
+
+// Kick off this query as soon as the module gets loaded.
+let getPythonPathAsync = getWindowsPythonPathImpl();
+
+async function getWindowsPythonPathImpl(): Promise<string> {
+    if (process.platform != 'win32')
+        return undefined;
+
+    let path = await util.readRegistry(`HKCU\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
+    if (!path) {
+        path = await util.readRegistry(`HKLM\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
+    }
+    return path;
 }

@@ -58,6 +58,9 @@ export async function startNative(
         // if we preload it explicitly.
         args = ['--preload', 'python36.dll'].concat(args);
     }
+    if (adapterParameters) {
+        args = args.concat(['--params', JSON.stringify(adapterParameters)]);
+    }
     if (verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
     }

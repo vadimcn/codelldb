@@ -15,6 +15,21 @@ impl SBTarget {
             return self->GetDebugger();
         })
     }
+    pub fn launch_info(&self) -> SBLaunchInfo {
+        cpp!(unsafe [self as "SBTarget*"] -> SBLaunchInfo as "SBLaunchInfo" {
+            return self->GetLaunchInfo();
+        })
+    }
+    pub fn set_launch_info(&self, launch_info: &SBLaunchInfo) {
+        cpp!(unsafe [self as "SBTarget*", launch_info as "const SBLaunchInfo*"]  {
+            return self->SetLaunchInfo(*launch_info);
+        })
+    }
+    pub fn executable(&self) -> SBFileSpec {
+        cpp!(unsafe [self as "SBTarget*"] -> SBFileSpec as "SBFileSpec"  {
+            return self->GetExecutable();
+        })
+    }
     pub fn launch(&self, launch_info: &SBLaunchInfo) -> Result<SBProcess, SBError> {
         let mut error = SBError::new();
         let process = cpp!(unsafe [self as "SBTarget*", launch_info as "SBLaunchInfo*", mut error as "SBError"] -> SBProcess as "SBProcess" {

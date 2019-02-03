@@ -860,24 +860,25 @@ impl DebugSession {
         if let Some(source_map) = &args.source_map {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
-        if let Some(commands) = &args.init_commands {
-            self.exec_commands(&commands);
+        if let Some(true) = &args.custom {
+            self.handle_custom_launch(args)
+        } else {
+            if let Some(commands) = &args.init_commands {
+                self.exec_commands(&commands);
+            }
+            let program = match &args.program {
+                Some(program) => program,
+                None => return Err(Error::UserError("\"program\" property is required for launch".into())),
+            };
+            self.target = Initialized(self.create_target_from_program(program)?);
+            self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
+            self.send_event(EventBody::initialized);
+            Ok(Box::new(move |s: &mut DebugSession| s.complete_launch(args)))
         }
-        let program = match &args.program {
-            Some(program) => program,
-            None => return Err(Error::UserError("\"program\" property is required for launch".into())),
-        };
-        self.target = Initialized(self.create_target_from_program(program)?);
-        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
-        self.send_event(EventBody::initialized);
-        Ok(Box::new(move |s: &mut DebugSession| s.complete_launch(args)))
     }
 
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(ref commands) = args.pre_run_commands {
-            self.exec_commands(commands);
-        }
-        let mut launch_info = SBLaunchInfo::new();
+        let mut launch_info = self.target.launch_info();
         launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::DisableASLR);
 
         // Merge environment
@@ -908,7 +909,23 @@ impl DebugSession {
             }
         }
         self.configure_stdio(&args, &mut launch_info);
+        self.target.set_launch_info(&launch_info);
+
+        // Run user commands (which may modify launch info)
+        if let Some(ref commands) = args.pre_run_commands {
+            self.exec_commands(commands);
+        }
+
+        let mut launch_info = self.target.launch_info();
         launch_info.set_listener(&self.event_listener);
+
+        let executable = self.target.executable().path().to_string_lossy().into_owned();
+        let command_line = launch_info.arguments().fold(executable, |mut args, a| {
+            args.push(' ');
+            args.push_str(a);
+            args
+        });
+        self.console_message(format!("Launching: {}", command_line));
 
         let process = match self.target.launch(&launch_info) {
             Ok(process) => process,
@@ -1113,7 +1130,10 @@ impl DebugSession {
             result.clear();
             interpreter.handle_command(&command, &mut result, false);
             debug!("{:?}", result);
-            self.console_message(result.output().to_string_lossy().into_owned());
+            let output = result.output().to_string_lossy().into_owned();
+            if !output.is_empty() {
+                self.console_message(output);
+            }
             if !result.succeeded() {
                 self.console_error(result.error().to_string_lossy().into_owned());
             }

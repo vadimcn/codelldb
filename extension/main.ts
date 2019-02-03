@@ -1,7 +1,8 @@
 import {
     workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
-    DebugConfigurationProvider, DebugConfiguration,
+    DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
+    DebugAdapterDescriptor, DebugAdapterServer,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -21,7 +22,7 @@ export function activate(context: ExtensionContext) {
     new Extension(context);
 }
 
-class Extension implements DebugConfigurationProvider {
+class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
     context: ExtensionContext;
     htmlViewer: htmlView.DebuggerHtmlView;
 
@@ -30,7 +31,9 @@ class Extension implements DebugConfigurationProvider {
         this.htmlViewer = new htmlView.DebuggerHtmlView(context);
 
         let subscriptions = context.subscriptions;
+
         subscriptions.push(debug.registerDebugConfigurationProvider('lldb', this));
+        subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
@@ -141,24 +144,25 @@ class Extension implements DebugConfigurationProvider {
             launchConfig.sourceLanguages.push('rust');
         }
 
-        let lldbConfig = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
-        let adapterParams: any = this.getAdapterParameters(lldbConfig);
-        if (launchConfig.sourceLanguages) {
-            adapterParams.sourceLanguages = launchConfig.sourceLanguages;
-            delete launchConfig.sourceLanguages;
-        }
-
         output.appendLine('Starting new session with:');
         output.appendLine(inspect(launchConfig));
 
+        launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+        return launchConfig;
+    }
+
+    async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {
+        let lldbConfig = workspace.getConfiguration('lldb', session.workspaceFolder ? session.workspaceFolder.uri : undefined);
+        let adapterParams: any = this.getAdapterParameters(lldbConfig);
+        if (session.configuration.sourceLanguages) {
+            adapterParams.sourceLanguages = session.configuration.sourceLanguages;
+            delete session.configuration.sourceLanguages;
+        }
+
         try {
-            // If configuration does not provide debugServer explicitly, launch new adapter.
-            if (!launchConfig.debugServer) {
-                let [adapter, port] = await this.startDebugAdapter(folder, adapterParams);
-                launchConfig.debugServer = port;
-            }
-            launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
-            return launchConfig;
+            let [adapter, port] = await this.startDebugAdapter(session.workspaceFolder, adapterParams);
+            let descriptor = new DebugAdapterServer(port);
+            return descriptor;
         } catch (err) {
             diagnostics.analyzeStartupError(err, this.context, output);
             return null;

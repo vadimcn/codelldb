@@ -9,7 +9,7 @@
 		"name": "vadimcn"
 	},
 	"engines": {
-		"vscode": "^1.25.0",
+		"vscode": "^1.30.0",
 		"node": "^8.10"
 	},
 	"icon": "images/lldb.png",

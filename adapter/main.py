@@ -115,14 +115,14 @@ def run_tcp_session(port, params=None):
         ls_port = ls.getsockname()[1]
         print('Listening on port', ls_port) # Let the parent process know which port we are listening on.
         sys.stdout.flush()
-        keep_running = True
-        while keep_running:
-            conn, addr = ls.accept()
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            log.info('New connection from %s', addr)
-            keep_running = run_session(conn.recv, conn.sendall, params)
-            log.info('Debug session has ended.')
-            conn.close()
+
+        conn, addr = ls.accept()
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        log.info('New connection from %s', addr)
+        run_session(conn.recv, conn.sendall, params)
+        log.info('Debug session has ended.')
+        conn.close()
+
         log.info('Exiting.')
         ls.close()
     except Exception as e:

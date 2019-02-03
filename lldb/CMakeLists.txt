@@ -22,7 +22,7 @@ elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
     )
     add_copy_files(lldb
         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/lib
-        FILES ${LLDB_ROOT}/lib/liblldb.8.0.0.dylib
+        FILES ${LLDB_ROOT}/lib/liblldb.8.0.0-custom.dylib
     )
     add_copy_directory(lldb
         ${LLDB_ROOT}/lib/python2.7/site-packages

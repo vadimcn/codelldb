@@ -8,28 +8,28 @@ set(CMAKE_BUILD_TYPE Debug)
 add_library(debuggee2 SHARED
     cpp/libdebuggee/libmain.cpp
 )
-
-# without debug info, for testing disassembly
-add_library(debuggee_nodebinfo STATIC
-    cpp/no_line_info.cpp
-)
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    target_compile_options(debuggee_nodebinfo PRIVATE /DEBUG:None)
-else()
-    target_compile_options(debuggee_nodebinfo PRIVATE -g0)
-endif()
-
 # debuggee
 add_executable(debuggee
     cpp/debuggee.cpp
+    cpp/no_line_info.cpp # without debug info, for testing disassembly
+    cpp/denorm_path.cpp  # test debugger's path normalization
+    cpp/remote1/remote_path.cpp  # test source map
+    cpp/remote2/remote_path.cpp  # test source map
 )
 
-if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
-    target_link_libraries(debuggee debuggee_nodebinfo)
+if (NOT ${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+    target_link_libraries(debuggee dl pthread)
 else()
-    # Use unnormalized path on purpose - to test debugger's path normalization
-    target_compile_options(debuggee PRIVATE -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp=../../debuggee/cpp/../cpp/.)
-    target_link_libraries(debuggee debuggee_nodebinfo dl pthread)
+    set(Drive "C:")
+endif()
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    set_source_files_properties(cpp/no_line_info.cpp PROPERTIES COMPILE_FLAGS /DEBUG:None)
+else()
+    set_source_files_properties(cpp/no_line_info.cpp PROPERTIES COMPILE_FLAGS -g0)
+    set_source_files_properties(cpp/denorm_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp=../../debuggee/cpp/../cpp/.)
+    set_source_files_properties(cpp/remote1/remote_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp/remote1=${Drive}/remote1)
+    set_source_files_properties(cpp/remote2/remote_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp/remote2=${Drive}/remote2)
 endif()
 
 # rusttypes

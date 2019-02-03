@@ -31,6 +31,9 @@ const extensionRoot = path.join(sourceDir, 'build');
 const debuggee = path.join(debuggeeDir, 'debuggee');
 const debuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'debuggee.cpp'));
 const debuggeeHeader = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
+const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'denorm_path.cpp'));
+const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
+const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
 
 const rusttypes = path.join(debuggeeDir, 'rusttypes');
 const rusttypesSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
@@ -141,6 +144,61 @@ suite('Adapter tests', () => {
             await ds.verifyLocation(stopEvent.body.threadId, debuggeeHeader, bpLineHeader);
 
             log('Continue 2');
+            await ds.continueRequest({ threadId: 0 });
+            log('Wait for exit');
+            await waitForExitAsync;
+            await ds.terminate();
+        });
+
+        test('stop on a breakpoint 3', async function () {
+            if (triple.endsWith('pc-windows-msvc')) this.skip();
+
+            let ds = await DebugTestSession.start(adapterLog);
+            let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
+            let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
+            let bpLineRemote2 = findMarker(debuggeeRemote2, '#BP1')
+            let setBreakpointAsyncDenorm = ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
+            let setBreakpointAsyncRemote1 = ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
+            let setBreakpointAsyncRemote2 = ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
+
+            let waitForExitAsync = ds.waitForEvent('exited');
+            let waitForStopAsync = ds.waitForStopEvent();
+
+            // On Windows LLDB will add current drive letter to drive-less paths.
+            let drive = process.platform == 'win32' ? 'C:' : '';
+            await ds.launch({
+                name: 'stop on a breakpoint 2', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                sourceMap:  {
+                    [`${drive}/remote1`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
+                    [`${drive}/remote2`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote2')
+                }
+            });
+            log('Set breakpoint 1');
+            await setBreakpointAsyncDenorm;
+            log('Set breakpoint 2');
+            await setBreakpointAsyncRemote1;
+            log('Set breakpoint 3');
+            await setBreakpointAsyncRemote2;
+
+            log('Wait for stop 1');
+            let stopEvent = await waitForStopAsync;
+            await ds.verifyLocation(stopEvent.body.threadId, debuggeeDenorm, bpLineDenorm);
+
+            let waitForStopAsync2 = ds.waitForStopEvent();
+            log('Continue 1');
+            await ds.continueRequest({ threadId: 0 });
+            log('Wait for stop 2');
+            let stopEvent2 = await waitForStopAsync2;
+            await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote1, bpLineRemote1);
+
+            let waitForStopAsync3 = ds.waitForStopEvent();
+            log('Continue 2');
+            await ds.continueRequest({ threadId: 0 });
+            log('Wait for stop 3');
+            let stopEvent3 = await waitForStopAsync3;
+            await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote2, bpLineRemote2);
+
+            log('Continue 3');
             await ds.continueRequest({ threadId: 0 });
             log('Wait for exit');
             await waitForExitAsync;

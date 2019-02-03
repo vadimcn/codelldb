@@ -82,8 +82,29 @@ impl SBDebugger {
         })
     }
     pub fn command_interpreter(&self) -> SBCommandInterpreter {
-        cpp!(unsafe [self as "SBDebugger*"] ->  SBCommandInterpreter as "SBCommandInterpreter" {
+        cpp!(unsafe [self as "SBDebugger*"] -> SBCommandInterpreter as "SBCommandInterpreter" {
             return self->GetCommandInterpreter();
+        })
+    }
+    pub fn instance_name(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBDebugger*"] ->  *const c_char as "const char*" {
+            return self->GetInstanceName();
+        });
+        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+    pub fn set_variable(&mut self, var_name: &str, value: &str) -> SBError {
+        SBDebugger::set_variable_for(self.instance_name(), var_name, value)
+    }
+    pub fn set_variable_for(debugger_instance_name: &str, var_name: &str, value: &str) -> SBError {
+        with_cstr(debugger_instance_name, |debugger_instance_name| {
+            with_cstr(var_name, |var_name| {
+                with_cstr(value, |value| {
+                    cpp!(unsafe [var_name as "const char*", value as "const char*",
+                                 debugger_instance_name as "const char*"] -> SBError as "SBError" {
+                        return SBDebugger::SetInternalVariable(var_name, value, debugger_instance_name);
+                    })
+                })
+            })
         })
     }
 }

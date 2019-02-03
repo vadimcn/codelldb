@@ -117,6 +117,17 @@
 			]
 		},
 		{
+			"name": "debuggee launch weird_path",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["weird_path"],
+			"sourceMap": {
+				"/remote1": "${workspaceFolder}/cpp/remote1",
+				"/remote2": "${workspaceFolder}/cpp/remote2",
+			}
+		},
+		{
 			"name": "rusttypes",
 			"type": "lldb",
 			"request": "launch",

@@ -21,9 +21,11 @@ void sleep(unsigned secs) { Sleep(secs * 1000); }
 #include "dir1/debuggee.h"
 #include "dir2/debuggee.h"
 
-extern "C" void disassembly1();
-
 extern "C" void sharedlib_entry();
+extern "C" void disassembly1();
+extern "C" void denorm_path();
+extern "C" void remote_path1();
+extern "C" void remote_path2();
 
 void deepstack(int levelsToGo)
 {
@@ -287,6 +289,12 @@ int main(int argc, char *argv[])
     else if (testcase == "dasm")
     {
         disassembly1();
+    }
+    else if (testcase == "weird_path")
+    {
+        denorm_path();
+        remote_path1();
+        remote_path2();
     }
     else
     {

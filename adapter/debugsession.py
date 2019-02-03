@@ -59,8 +59,6 @@ class DebugSession:
         self.request_seq = 1
         self.pending_requests = {} # { seq : on_complete }
         self.known_threads = set()
-        self.source_map = None
-        self.filespec_cache = {} # { (dir, filename) : local_file_path }
         self.global_format = lldb.eFormatDefault
         self.show_disassembly = 'auto' # never | auto | always
         self.deref_pointers = True
@@ -126,6 +124,7 @@ class DebugSession:
 
     def DEBUG_launch(self, args):
         self.update_display_settings(args.get('_displaySettings'))
+        self.init_source_map(args)
         if args.get('request') == 'custom' or args.get('custom', False):
             return self.custom_launch(args)
         self.exec_commands(args.get('initCommands'))
@@ -182,6 +181,7 @@ class DebugSession:
 
     def DEBUG_attach(self, args):
         self.update_display_settings(args.get('_displaySettings'))
+        self.init_source_map(args)
         pid = args.get('pid', None)
         program = args.get('program', None)
         if pid is None and program is None:
@@ -292,6 +292,17 @@ class DebugSession:
             if name.endswith('.py') or os.path.isdir(file_path):
                 self.exec_commands(['command script import \'%s\'' % file_path])
 
+    def init_source_map(self, args):
+        source_map = args.get('sourceMap')
+        if source_map is None:
+            return
+        value = []
+        for remote_prefix, local_prefix in source_map.items():
+            value.append(remote_prefix)
+            value.append(local_prefix)
+        value = '"' + '" "'.join([v.replace('\\', '\\\\').replace('"', '\\"') for v in value]) + '"'
+        lldb.SBDebugger.SetInternalVariable('target.source-map', to_lldb_str(value), self.debugger.GetInstanceName())
+
     def exec_commands(self, commands):
         if commands is not None:
             interp = self.debugger.GetCommandInterpreter()
@@ -390,7 +401,7 @@ class DebugSession:
                                             'lines': line_addresses }
             if not dasm:
                 adapter_data = source.get('adapterData')
-                file_id = os.path.normcase(from_lldb_str(source.get('path')))
+                file_id = from_lldb_str(source.get('path'))
 
             assert file_id is not None
 
@@ -1594,43 +1605,10 @@ class DebugSession:
     def map_filespec_to_local(self, filespec):
         if not filespec.IsValid():
             return None
-        key = (filespec.GetDirectory(), filespec.GetFilename())
-        local_path = self.filespec_cache.get(key, MISSING)
-        if local_path is MISSING:
-            local_path = self.map_filespec_to_local_uncached(filespec)
-            log.info('Mapped "%s" to "%s"', filespec, local_path)
-            if self.suppress_missing_sources and not os.path.isfile(local_path):
-                local_path = None
-            self.filespec_cache[key] = local_path
+        local_path = os.path.normpath(filespec.fullpath)
+        if self.suppress_missing_sources and not os.path.isfile(local_path):
+            local_path = None
         return local_path
-
-    def map_filespec_to_local_uncached(self, filespec):
-        if self.source_map is None:
-            self.make_source_map()
-        path = filespec.fullpath
-        if path is None:
-            return None
-        path = os.path.normpath(path)
-        path_normcased = os.path.normcase(path)
-        for remote_prefix_regex, local_prefix in self.source_map:
-            m = remote_prefix_regex.match(path_normcased)
-            if m:
-                if local_prefix is None: # User directed us to suppress source info.
-                    return None
-                # We want to preserve original path casing, however this assumes
-                # that os.path.normcase will not change the string length...
-                return os.path.normpath(local_prefix + path[len(m.group(1)):])
-        return path
-
-    def make_source_map(self):
-        source_map = []
-        for remote_prefix, local_prefix in self.launch_args.get("sourceMap", {}).items():
-            regex = fnmatch.translate(remote_prefix)
-            assert regex.endswith('\\Z(?ms)')
-            regex = regex[:-7] # strip the above suffix
-            regex = re.compile('(' + regex + ').*', re.M | re.S)
-            source_map.append((regex, local_prefix))
-        self.source_map = source_map
 
     # Ask VSCode extension to display HTML content.
     def display_html(self, body):
@@ -1698,9 +1676,6 @@ def SBValueChildrenIter(val):
 def opt_lldb_str(s):
     return to_lldb_str(s) if s != None else None
 
-def same_path(path1, path2):
-    return os.path.normcase(os.path.normpath(path1)) == os.path.normcase(os.path.normpath(path2))
-
 def compose_eval_name(container, var_name):
     if container is None:
         return expressions.escape_variable_name(var_name)
@@ -1708,3 +1683,4 @@ def compose_eval_name(container, var_name):
         return container + var_name
     else:
         return container + '.' + expressions.escape_variable_name(var_name)
+

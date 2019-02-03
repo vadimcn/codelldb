@@ -98,7 +98,6 @@ pub struct DebugSession {
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
     known_threads: HashSet<ThreadID>,
-    source_map: source_map::SourceMap,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     loaded_modules: Vec<SBModule>,
     exit_commands: Option<Vec<String>>,
@@ -172,7 +171,6 @@ impl DebugSession {
             var_refs: HandleTree::new(),
             disassembly: NotInitialized,
             known_threads: HashSet::new(),
-            source_map: source_map::SourceMap::empty(),
             source_map_cache: RefCell::new(HashMap::new()),
             loaded_modules: Vec::new(),
             exit_commands: None,
@@ -859,8 +857,8 @@ impl DebugSession {
         if let Some(expressions) = args.expressions {
             self.default_expr_type = expressions;
         }
-        if let Some(true) = &args.custom {
-            return self.handle_custom_launch(args);
+        if let Some(source_map) = &args.source_map {
+            self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
         if let Some(commands) = &args.init_commands {
             self.exec_commands(&commands);
@@ -909,10 +907,6 @@ impl DebugSession {
                 launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
             }
         }
-        if let Some(ref source_map) = args.source_map {
-            let iter = source_map.iter().map(|(k, v)| (k, v.as_ref()));
-            self.source_map = source_map::SourceMap::new(iter)?;
-        }
         self.configure_stdio(&args, &mut launch_info);
         launch_info.set_listener(&self.event_listener);
 
@@ -944,10 +938,6 @@ impl DebugSession {
         if let Some(commands) = args.process_create_commands.as_ref().or(args.pre_run_commands.as_ref()) {
             self.exec_commands(&commands);
         }
-        if let Some(ref source_map) = args.source_map {
-            let iter = source_map.iter().map(|(k, v)| (k, v.as_ref()));
-            self.source_map = source_map::SourceMap::new(iter)?;
-        }
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
         self.process_launched = false;
@@ -957,6 +947,9 @@ impl DebugSession {
     fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<Box<AsyncResponder>, Error> {
         if let Some(expressions) = args.expressions {
             self.default_expr_type = expressions;
+        }
+        if let Some(source_map) = &args.source_map {
+            self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
         if args.program.is_none() && args.pid.is_none() {
             return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
@@ -1125,6 +1118,29 @@ impl DebugSession {
                 self.console_error(result.error().to_string_lossy().into_owned());
             }
         }
+    }
+
+    fn init_source_map<S>(&mut self, source_map: impl IntoIterator<Item = (S, Option<S>)>)
+    where
+        S: AsRef<str>,
+    {
+        fn escape(s: &str) -> String {
+            s.replace("\\", "\\\\").replace("\"", "\\\"")
+        }
+        let mut args = String::new();
+        for (remote, local) in source_map.into_iter() {
+            let remote_escaped = escape(remote.as_ref());
+            let local_escaped = match local {
+                None => String::new(),
+                Some(s) => escape(s.as_ref()),
+            };
+            args.push_str("\"");
+            args.push_str(&remote_escaped);
+            args.push_str("\" \"");
+            args.push_str(&local_escaped);
+            args.push_str("\" ");
+        }
+        self.debugger.set_variable("target.source-map", &args);
     }
 
     fn handle_configuration_done(&mut self) -> Result<(), Error> {
@@ -2164,18 +2180,16 @@ impl DebugSession {
             let source_path = filespec.path();
             let mut source_map_cache = self.source_map_cache.borrow_mut();
             match source_map_cache.get(&source_path) {
-                Some(localized) => localized.clone(),
+                Some(mapped_path) => mapped_path.clone(),
                 None => {
-                    let mut localized = self.source_map.to_local(filespec.path());
-                    debug!("Mapped filespec {:?} to {:?}", filespec, localized);
-                    if let Some(ref path) = localized {
-                        if self.suppress_missing_files && !path.is_file() {
-                            localized = None;
-                        }
-                    }
-                    let localized = localized.map(|path| Rc::new(path));
-                    source_map_cache.insert(source_path, localized.clone());
-                    localized
+                    let path = filespec.path();
+                    let mapped_path = if self.suppress_missing_files && !path.is_file() {
+                        None
+                    } else {
+                        Some(Rc::new(path))
+                    };
+                    source_map_cache.insert(source_path, mapped_path.clone());
+                    mapped_path
                 }
             }
         }

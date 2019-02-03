@@ -3,7 +3,7 @@
 	"configurations": [
 		{
 			"name": "extension",
-			"preLaunchTask": "debugging",
+			"preLaunchTask": "dev_debugging",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",

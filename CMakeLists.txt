@@ -53,7 +53,7 @@ add_copy_files(package_files
 
 # For extension debugging
 
-add_custom_target(debugging DEPENDS adapter codelldb debuggee extension package_files)
+add_custom_target(dev_debugging DEPENDS adapter codelldb debuggee extension package_files)
 
 # Strip native binaries
 
@@ -184,33 +184,41 @@ set(MochaCommand "${CMAKE_SOURCE_DIR}/node_modules/.bin/mocha${NodeProgExt}"
     --timeout 30000
     --exit
     --require source-map-support/register
-    #-g "to the end"
+    #-g "stop on a breakpoint 3"
     ${CMAKE_BINARY_DIR}/tests/tests
 )
+
+# Build everything for testing
+add_dependencies(tests adapter codelldb debuggee)
+
+# Tests and test targets
+add_custom_target(check)
 
 if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
     set(TestAdapters bundled native)
     set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
+elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
+    set(TestAdapters classic bundled native)
+    set(TestTriples x86_64-apple-darwin)
 else()
     set(TestAdapters classic bundled native)
     set(TestTriples x86_64-unknown-linux-gnu)
 endif()
 
-foreach(TestTriple ${TestTriples})
-    foreach(AdapterType ${TestAdapters})
+foreach(AdapterType ${TestAdapters})
+    foreach(TestTriple ${TestTriples})
         add_test(NAME ${AdapterType}:${TestTriple}
             COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} ${MochaCommand}
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    endforeach(AdapterType)
-endforeach(TestTriple)
+    endforeach(TestTriple)
 
-# Build everything for testing
-add_dependencies(tests adapter codelldb debuggee)
-
-# Run tests
-add_custom_target(check DEPENDS tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-)
+    add_custom_target(check_${AdapterType} DEPENDS tests
+        COMMAND ${CMAKE_CTEST_COMMAND} -R ${AdapterType} --output-on-failure
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        USES_TERMINAL
+    )
+    add_dependencies(check check_${AdapterType})
+endforeach(AdapterType)
 
 # Install
 

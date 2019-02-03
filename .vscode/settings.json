@@ -11,9 +11,5 @@
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
     "python.linting.enabled": false,
-    "lldb.logLevel": 30,
-    "lldb.loggers": {
-        "wireprotocol": 0
-    },
     "rust.build_lib": true
 }

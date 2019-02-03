@@ -16,8 +16,7 @@ fn create_regexes() -> [Regex; 3] {
         r#"(?:'(?:\\'|\\\\|[^'])*')"#,
         r#"(?:r"[^"]*")"#,
         r#"(?:r'[^']*')"#,
-    ]
-        .join("|");
+    ].join("|");
 
     let kwlist = [
         "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except", "exec", "finally", "for",

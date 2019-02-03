@@ -10,7 +10,7 @@
   ],
   "tasks": [
     {
-      "label": "debugging",
+      "label": "dev_debugging",
       "group": "build",
       "problemMatcher": {
         "base": "$tsc",
@@ -70,14 +70,14 @@
       "label": "Start extension host",
       "command": "code --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
       "group": "build",
-      "dependsOn": "debugging",
+      "dependsOn": "dev_debugging",
     },
     {
       "type": "shell",
       "label": "Start extension host (dev VSCode)",
       "command": "${workspaceFolder}/../vscode/scripts/code.sh --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
       "group": "build",
-      "dependsOn": "debugging",
+      "dependsOn": "dev_debugging",
     },
     {
       "label": "vsix_extracted",

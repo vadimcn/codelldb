@@ -31,26 +31,36 @@ impl SBCommandInterpreter {
         })
     }
     pub fn handle_completions(
-        &self, current_line: &str, cursor_pos: u32, match_start_point: u32, max_return_elements: Option<u32>,
-    ) -> Vec<String> {
+        &self, current_line: &str, cursor_pos: u32, range: Option<(u32, u32)>,
+    ) -> Option<(String, Vec<String>)> {
+        use std::ptr;
         unsafe {
-            let line_start = current_line.as_ptr();
+            let line_start = if current_line.is_empty() {
+                ptr::null() // "".as_ptr() returns 0x00000001, which doesn't sit well with HandleCompletion()
+            } else {
+                current_line.as_ptr()
+            };
             let line_end = line_start.offset(current_line.len() as isize);
             let cursor = line_start.offset(cursor_pos as isize);
-            let match_start_point = match_start_point as c_int;
-            let max_return_elements = match max_return_elements {
-                Some(n) => n as c_int,
-                None => -1
+            let (first_match, max_matches) = match range {
+                None => (0, -1),
+                Some((first_match, max_matches)) => (first_match as c_int, max_matches as c_int),
             };
             let mut matches = SBStringList::new();
-            cpp!(unsafe [self as "SBCommandInterpreter*",
-                     line_start as "const char*", line_end as "const char*",
-                     cursor as "const char*", match_start_point as "int",
-                     max_return_elements as "int", mut matches as "SBStringList"] -> i32 as "int" {
-                return self->HandleCompletion(line_start, cursor, line_end, match_start_point, max_return_elements, matches);
+            let rc = cpp!(unsafe [self as "SBCommandInterpreter*",
+                     line_start as "const char*", line_end as "const char*", cursor as "const char*",
+                     first_match as "int", max_matches as "int",
+                     mut matches as "SBStringList"] -> i32 as "int" {
+                return self->HandleCompletion(line_start, cursor, line_end, first_match, max_matches, matches);
             });
-            let result = matches.iter().map(|s| s.to_owned()).collect::<Vec<String>>();
-            result
+            if rc <= 0 || matches.len() == 0 {
+                None
+            } else {
+                let mut iter = matches.iter();
+                let common_continuation = iter.next().unwrap().to_owned();
+                let completions = iter.map(|s| s.to_owned()).collect::<Vec<String>>();
+                Some((common_continuation, completions))
+            }
         }
     }
 }

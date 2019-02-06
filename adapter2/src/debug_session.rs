@@ -1862,14 +1862,49 @@ impl DebugSession {
 
     fn handle_completions(&mut self, args: CompletionsArguments) -> Result<CompletionsResponseBody, Error> {
         let interpreter = self.debugger.command_interpreter();
-        let mut matches = interpreter.handle_completions(&args.text, (args.column - 1) as u32, 0, None);
-        let targets = matches
-            .drain(..)
-            .map(|m| CompletionItem {
-                label: m,
-                ..Default::default()
-            })
-            .collect::<Vec<_>>();
+        let targets = match interpreter.handle_completions(&args.text, (args.column - 1) as u32, None) {
+            None => vec![],
+            Some((common_continuation, completions)) => {
+                // LLDB completions usually include some tail of the string being completed, without telling us what that prefix is.
+                // For example, completing "set show tar" might return ["target.arg0", "target.auto-apply-fixits", ...].
+
+                // Compute cursor position inside args.text in as byte offset.
+                let cursor_index = args
+                    .text
+                    .char_indices()
+                    .skip((args.column - 1) as usize)
+                    .next()
+                    .map(|p| p.0)
+                    .unwrap_or(args.text.len());
+                // Take a slice up to the cursor, split it on whitespaces, then get the last part.
+                // This is the (likely) prefix of completions returned by LLDB.
+                let prefix = &args.text[..cursor_index].split_whitespace().next_back().unwrap_or_default();
+                let prefix_len = prefix.chars().count();
+                let extended_prefix = format!("{}{}", prefix, common_continuation);
+
+                let mut targets = vec![];
+                for completion in completions {
+                    // Check if we guessed the prefix correctly
+                    let item = if completion.starts_with(&extended_prefix) {
+                        CompletionItem {
+                            label: completion,
+                            start: Some(args.column - prefix_len as i64),
+                            length: Some(prefix_len as i64),
+                            ..Default::default()
+                        }
+                    } else {
+                        // Let VSCode apply its own heuristics to figure out the prefix.
+                        CompletionItem {
+                            label: completion,
+                            ..Default::default()
+                        }
+                    };
+                    targets.push(item);
+                }
+                targets
+            }
+        };
+
         Ok(CompletionsResponseBody {
             targets,
         })

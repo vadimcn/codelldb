@@ -24,3 +24,7 @@ path = "rust/types.rs"
 [[example]]
 name = "example1"
 path = "rust/types.rs"
+
+[[bench]]
+name = "bench1"
+path = "rust/types.rs"

@@ -31,10 +31,9 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string)
     output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
     let artifacts = await getCargoArtifacts(cargoArgs, cwd);
 
-    if (artifacts.length == 0) {
-        output.show();
-        window.showErrorMessage('Cargo has produced no binary artifacts.', { modal: true });
-        throw new Error('Cannot start debugging.');
+    output.appendLine('Raw artifacts:');
+    for (let artifact of artifacts) {
+        output.appendLine(inspect(artifact));
     }
 
     if (cargoConfig.filter != undefined) {
@@ -46,17 +45,23 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string)
                 return false;
             return true;
         });
+
+        output.appendLine('Filtered artifacts: ');
+        for (let artifact of artifacts) {
+            output.appendLine(inspect(artifact));
+        }
     }
 
-    output.appendLine('Matching compilation artifacts: ');
-    for (let artifact of artifacts) {
-        output.appendLine(inspect(artifact));
-    }
-    if (artifacts.length > 1) {
+    if (artifacts.length == 0) {
         output.show();
-        window.showErrorMessage('Cargo has produced more than one binary artifact.', { modal: true });
+        window.showErrorMessage('Cargo has produced no matching compiler artifacts.', { modal: true });
+        throw new Error('Cannot start debugging.');
+    } else if (artifacts.length > 1) {
+        output.show();
+        window.showErrorMessage('Cargo has produced more than one matching compiler artifact.', { modal: true });
         throw new Error('Cannot start debugging.');
     }
+
     return artifacts[0].fileName;
 }
 
@@ -70,14 +75,24 @@ async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<C
                     let isBinary = message.target.crate_types.includes('bin');
                     let isBuildScript = message.target.kind.includes('custom-build');
                     if ((isBinary && !isBuildScript) || message.profile.test) {
-                        for (let i = 0; i < message.filenames.length; ++i) {
-                            if (message.filenames[i].endsWith('.dSYM'))
-                                continue;
-                            artifacts.push({
-                                fileName: message.filenames[i],
-                                name: message.target.name,
-                                kind: message.target.kind[i]
-                            });
+                        if (message.executable !== undefined) {
+                            if (message.executable !== null) {
+                                artifacts.push({
+                                    fileName: message.executable,
+                                    name: message.target.name,
+                                    kind: message.target.kind[0]
+                                });
+                            }
+                        } else { // Older cargo
+                            for (let i = 0; i < message.filenames.length; ++i) {
+                                if (message.filenames[i].endsWith('.dSYM'))
+                                    continue;
+                                artifacts.push({
+                                    fileName: message.filenames[i],
+                                    name: message.target.name,
+                                    kind: message.target.kind[i]
+                                });
+                            }
                         }
                     }
                 } else if (message.reason == 'compiler-message') {
@@ -109,14 +124,14 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
 
     let configs: DebugConfiguration[] = [];
     for (let pkg of metadata.packages) {
-        function addConfig(name: string, cargo_args: string[], filter_kind: string) {
+        function addConfig(name: string, cargo_args: string[], filter: any) {
             configs.push({
                 type: 'lldb',
                 request: 'launch',
                 name: name,
                 cargo: {
                     args: cargo_args.concat(`--package=${pkg.name}`),
-                    filter: { kind: filter_kind }
+                    filter: filter
                 },
                 args: [],
                 cwd: '${workspaceFolder}'
@@ -134,20 +149,33 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                     case 'cstaticlib':
                         if (!libAdded) {
                             addConfig(`Debug unit tests in library '${target.name}'`,
-                                ['test', '--no-run', '--lib'], 'lib');
+                                ['test', '--no-run', '--lib'],
+                                { name: target.name, kind: 'lib' });
                             libAdded = true;
                         }
                         break;
 
                     case 'bin':
-                    case 'test':
                     case 'example':
+                        {
+                            let prettyKind = (kind == 'bin') ? 'executable' : kind;
+                            addConfig(`Debug ${prettyKind} '${target.name}'`,
+                                ['build', `--${kind}=${target.name}`],
+                                { name: target.name, kind: kind });
+                            addConfig(`Debug unit tests in ${prettyKind} '${target.name}'`,
+                                ['test', '--no-run', `--${kind}=${target.name}`],
+                                { name: target.name, kind: kind });
+                        }
+                        break;
+
                     case 'bench':
-                        let prettyKind = (kind == 'bin') ? 'executable' : (kind == 'bench') ? 'benchmark' : kind;
-                        addConfig(`Debug ${prettyKind} '${target.name}'`,
-                            ['build', `--${kind}=${target.name}`], 'bin');
-                        addConfig(`Debug unit tests in ${prettyKind} '${target.name}'`,
-                            ['test', '--no-run', `--${kind}=${target.name}`], 'bin');
+                    case 'test':
+                        {
+                            let prettyKind = (kind == 'bench') ? 'benchmark' : (kind == 'test') ? 'integration test' : kind;
+                            addConfig(`Debug ${prettyKind} '${target.name}'`,
+                                ['test', '--no-run', `--${kind}=${target.name}`],
+                                { name: target.name, kind: kind });
+                        }
                         break;
                 }
             }

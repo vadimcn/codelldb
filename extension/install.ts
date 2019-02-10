@@ -4,9 +4,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { IncomingMessage } from 'http';
-import { ExtensionContext, workspace, window, OutputChannel, Uri, commands, WorkspaceFolder } from 'vscode';
+import { ExtensionContext, window, OutputChannel, Uri, commands, extensions } from 'vscode';
 import { Writable } from 'stream';
-import {readFileAsync, existsAsync } from './async';
+import { existsAsync } from './async';
 
 const MaxRedirects = 10;
 
@@ -26,7 +26,7 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
     }
 
     try {
-        let packageUrl = await getPlatformPackageUrl(context);
+        let packageUrl = await getPlatformPackageUrl();
         output.appendLine('Platform package is located at ' + packageUrl);
         if (choice.id == 'manual') {
             commands.executeCommand('vscode.open', Uri.parse(packageUrl));
@@ -72,16 +72,14 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
     }
 }
 
-async function getPlatformPackageUrl(context: ExtensionContext): Promise<string> {
-    let content = await readFileAsync(path.join(context.extensionPath, 'package.json'));
-    let pkg = JSON.parse(content.toString());
-    let version = pkg.version;
+async function getPlatformPackageUrl(): Promise<string> {
+    let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
     let pp = pkg.config.platformPackages;
     let platformPackage = pp.platforms[process.platform];
     if (platformPackage == undefined) {
         throw new Error('Current platform is not suported.');
     }
-    return pp.url.replace('${version}', version).replace('${platformPackage}', platformPackage);
+    return pp.url.replace('${version}', pkg.version).replace('${platformPackage}', platformPackage);
 }
 
 async function download(srcUrl: string, destPath: string,

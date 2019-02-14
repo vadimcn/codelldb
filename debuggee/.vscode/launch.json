@@ -37,7 +37,7 @@
 			"program": "${dbgconfig:targetDir}/debuggee",
 			"args": ["mandelbrot"],
 			"initCommands": [
-				"command script import '${workspaceRoot}/debugvis.py"
+				"command script import '${workspaceRoot}/debugvis.py'"
 			]
 		},
 		{

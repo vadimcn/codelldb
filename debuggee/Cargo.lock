@@ -1,0 +1,4 @@
+[[package]]
+name = "rust-debuggee"
+version = "0.1.0"
+

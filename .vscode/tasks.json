@@ -3,11 +3,7 @@
   "problemMatcher": [],
   "type": "shell",
   "command": "cmake",
-  "args": [
-    "--build",
-    "build",
-    "--target"
-  ],
+  "args": ["--build", "build", "--target"],
   "tasks": [
     {
       "label": "dev_debugging",
@@ -38,11 +34,7 @@
       "group": "build"
     },
     {
-      "label": "cargo check",
-      "command": "cargo",
-      "args": [
-        "check"
-      ],
+      "label": "check_codelldb",
       "presentation": {
         "clear": true
       },
@@ -52,18 +44,18 @@
       "group": "build"
     },
     {
-      "label": "cargo test",
-      "command": "cargo",
-      "args": [
-        "test",
-        "--package=codelldb"
-      ],
+      "label": "test_codelldb",
       "options": {
         "env": {
           "PATH": "${env:PATH};${workspaceFolder}/build/lldb/bin"
         }
       },
       "group": "build"
+    },
+    {
+      "label": "cargo expand",
+      "command": "cargo",
+      "args": [ "expand", "--package=codelldb",  "--lib"]
     },
     {
       "type": "shell",
@@ -117,17 +109,28 @@
       "type": "process",
       "label": "wait for port 3000",
       "command": "python",
-      "args": [
-        "${workspaceFolder}/tools/debug_launcher.py",
-        "--wait-port",
-        "3000"
-      ]
+      "args": [ "${workspaceFolder}/tools/debug_launcher.py", "--wait-port", "3000" ]
     },
     {
       "type":"process",
       "label": "rustfmt",
       "command": "rustfmt",
       "args": ["${file}"]
-    }
+    },
+    {
+      "label": "cargo build example pyo3",
+      "command": "cargo",
+      "args": [
+        "build", "--example", "pyo3"
+      ],
+      "presentation": {
+        "clear": true
+      },
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "build"
+    },
+
   ]
 }

@@ -41,9 +41,9 @@ impl SBInstruction {
             return self->GetByteSize();
         })
     }
-    pub fn data(&self, target: &SBTarget) -> SBData {
+    pub fn data(&self, target: &SBTarget) -> SBDataOwned {
         let target = target.clone();
-        cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> SBData as "SBData" {
+        cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> SBDataOwned as "SBData" {
             return self->GetData(target);
         })
     }

@@ -130,6 +130,8 @@ pub enum EventBody {
     continued(ContinuedEventBody),
     exited(ExitedEventBody),
     terminated(TerminatedEventBody),
+    // Custom
+    displayHtml(DisplayHtmlEventBody),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -197,6 +199,15 @@ pub struct ExceptionBreakpointsFilter {
     pub filter: String,
     pub label: String,
     pub default: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayHtmlEventBody {
+    pub html: String,
+    pub title: Option<String>,
+    pub position: Option<i32>,
+    pub reveal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

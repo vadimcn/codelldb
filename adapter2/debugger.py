@@ -4,7 +4,8 @@ import codelldb
 from value import Value
 
 def evaluate(expr):
-    raise NotImplementedError()
+    exec_context = lldb.SBExecutionContext(lldb.frame)
+    codelldb.evaluate_in_frame(expr, True, exec_context)
 
 def wrap(obj):
     return obj if type(obj) is Value else Value(obj)
@@ -13,7 +14,7 @@ def unwrap(obj):
     return Value.unwrap(obj)
 
 def display_html(html, title=None, position=None, reveal=False):
-    raise NotImplementedError()
+    codelldb.display_html(html, title, position, reveal)
 
 def register_type_callback(callback, language=None, type_class_mask=lldb.eTypeClassAny):
     codelldb.register_type_callback(callback, language, type_class_mask)

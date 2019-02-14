@@ -10,6 +10,11 @@ impl SBType {
             return self->IsValid();
         })
     }
+    pub fn byte_size(&self) -> u64 {
+        cpp!(unsafe [self as "SBType*"] -> u64 as "uint64_t" {
+            return self->GetByteSize();
+        })
+    }
     pub fn type_class(&self) -> TypeClass {
         cpp!(unsafe [self as "SBType*"] -> TypeClass as "TypeClass" {
             return self->GetTypeClass();

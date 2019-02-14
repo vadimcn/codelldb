@@ -1,5 +1,44 @@
+use crate::debug_protocol::Expressions;
+use lldb::SBValue;
 use regex::{Captures, Regex, RegexBuilder};
 use std::borrow::Cow;
+
+#[derive(Debug)]
+pub enum PreparedExpression {
+    Native(String),
+    Simple(String),
+    Python(String),
+}
+
+#[derive(Debug)]
+pub enum ExpressionValue {
+    SBValue(SBValue),
+    Int(i64),
+    Bool(bool),
+    String(String),
+    Object(String),
+}
+
+pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpression {
+    let (expr, ty) = get_expression_type(expression, default_type);
+    match ty {
+        Expressions::Native => PreparedExpression::Native(expr.to_owned()),
+        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)),
+        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)),
+    }
+}
+
+fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {
+    if expr.starts_with("/nat ") {
+        (&expr[5..], Expressions::Native)
+    } else if expr.starts_with("/py ") {
+        (&expr[4..], Expressions::Python)
+    } else if expr.starts_with("/se ") {
+        (&expr[4..], Expressions::Simple)
+    } else {
+        (expr, default_type)
+    }
+}
 
 fn create_regexes() -> [Regex; 3] {
     fn compile_regex(pattern: &str) -> Regex {

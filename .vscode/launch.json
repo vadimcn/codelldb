@@ -175,12 +175,6 @@
 			"request": "launch",
 			"program": "${file}",
 			"console": "integratedTerminal"
-		},
-	],
-	"compounds": [
-		{
-			"name": "codelldb + python",
-			"configurations": ["codelldb", "codelldb python"]
 		}
 	]
 }

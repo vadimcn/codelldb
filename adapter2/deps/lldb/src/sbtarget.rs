@@ -10,6 +10,26 @@ impl SBTarget {
             return self->IsValid();
         })
     }
+    pub fn byte_order(&self) -> ByteOrder {
+        cpp!(unsafe [self as "SBTarget*"] -> ByteOrder as "ByteOrder" {
+            return self->GetByteOrder();
+        })
+    }
+    pub fn address_byte_size(&self) -> usize {
+        cpp!(unsafe [self as "SBTarget*"] -> usize as "size_t" {
+            return (size_t)self->GetAddressByteSize();
+        })
+    }
+    pub fn date_byte_size(&self) -> usize {
+        cpp!(unsafe [self as "SBTarget*"] -> usize as "size_t" {
+            return (size_t)self->GetDataByteSize();
+        })
+    }
+    pub fn code_byte_size(&self) -> usize {
+        cpp!(unsafe [self as "SBTarget*"] -> usize as "size_t" {
+            return (size_t)self->GetCodeByteSize();
+        })
+    }
     pub fn debugger(&self) -> SBDebugger {
         cpp!(unsafe [self as "SBTarget*"] -> SBDebugger as "SBDebugger" {
             return self->GetDebugger();
@@ -128,6 +148,34 @@ impl SBTarget {
     pub fn breakpoint_delete(&self, id: BreakpointID) -> bool {
         cpp!(unsafe [self as "SBTarget*", id as "break_id_t"] -> bool as "bool" {
             return self->BreakpointDelete(id);
+        })
+    }
+    pub fn get_basic_type(&self, basic_type: BasicType) -> SBType {
+        cpp!(unsafe [self as "SBTarget*", basic_type as "BasicType"] -> SBType as "SBType" {
+            return self->GetBasicType(basic_type);
+        })
+    }
+    pub fn create_value_from_data(&self, name: &str, data: &SBData, type_: &SBType) -> SBValue {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBTarget*", name as "const char*", data as "SBData*", type_ as "SBType*"] -> SBValue as "SBValue" {
+                return self->CreateValueFromData(name, *data, *type_);
+            })
+        })
+    }
+    pub fn create_value_from_address(&self, name: &str, addr: &SBAddress, type_: &SBType) -> SBValue {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBTarget*", name as "const char*", addr as "SBAddress*", type_ as "SBType*"] -> SBValue as "SBValue" {
+                return self->CreateValueFromAddress(name, *addr, *type_);
+            })
+        })
+    }
+    pub fn create_value_from_expression(&self, name: &str, expr: &str) -> SBValue {
+        with_cstr(name, |name| {
+            with_cstr(expr, |expr| {
+                cpp!(unsafe [self as "SBTarget*", name as "const char*", expr as "const char*"] -> SBValue as "SBValue" {
+                    return self->CreateValueFromExpression(name, expr);
+                })
+            })
         })
     }
     pub fn read_instructions(&self, base_addr: &SBAddress, count: u32) -> SBInstructionList {

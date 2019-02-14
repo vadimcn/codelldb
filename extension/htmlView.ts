@@ -1,5 +1,5 @@
 import {
-    window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel
+    window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel, ViewColumn
 } from "vscode";
 import { Dict } from './common';
 
@@ -32,7 +32,8 @@ export class DebuggerHtmlView {
         let title = body.title || session.name;
         let panel = this.panels[session.name];
         if (!panel) {
-            panel = window.createWebviewPanel('lldb', title, body.position, {
+            let position = body.position !== null ? body.position : ViewColumn.Active;
+            panel = window.createWebviewPanel('lldb', title, position, {
                 enableScripts: true
             });
             panel.onDidDispose(() => delete this.panels[session.name]);

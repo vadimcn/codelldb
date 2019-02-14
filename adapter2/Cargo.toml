@@ -22,6 +22,12 @@ globset = "0.4.0"
 superslice = "0.1.0"
 lazy_static = "1.2.0"
 clap = "2.32.0"
+cpython = { version = "0.2.1", default-features = false }
+
+[features]
+default = ["python2"]
+python2 = ["cpython/python27-sys"]
+python3 = ["cpython/python3-sys"]
 
 [lib]
 crate-type = ["cdylib"]

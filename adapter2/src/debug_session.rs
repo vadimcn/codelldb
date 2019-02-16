@@ -1344,8 +1344,15 @@ impl DebugSession {
                         statics: false,
                         in_scope_only: true,
                     });
-                    let mut vars_iter = ret_val.into_iter().chain(variables.iter());
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    let mut vars_iter = variables.iter();
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle));
+                    // Prepend last function return value, if any.
+                    if let Some(ret_val) = ret_val {
+                        let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
+                        variable.name = "[return value]".to_owned();
+                        variables.insert(0, variable);
+                    }
+                    variables
                 }
                 Container::Statics(frame) => {
                     let variables = frame.variables(&VariableOptions {
@@ -1427,29 +1434,7 @@ impl DebugSession {
 
         let start = time::SystemTime::now();
         for var in vars_iter {
-            let name = var.name().unwrap_or_default();
-            let dtype = var.type_name();
-            let value = self.get_var_value_str(&var, self.global_format, container_handle.is_some());
-            let handle = self.get_var_handle(container_handle, name, &var);
-
-            let eval_name = if var.prefer_synthetic_value() {
-                Some(compose_eval_name(container_eval_name, name))
-            } else {
-                var.expression_path().map(|p| {
-                    let mut p = p;
-                    p.insert_str(0, "/nat ");
-                    p
-                })
-            };
-
-            let variable = Variable {
-                name: name.to_owned(),
-                value: value,
-                type_: dtype.map(|v| v.to_owned()),
-                variables_reference: handles::to_i64(handle),
-                evaluate_name: eval_name,
-                ..Default::default()
-            };
+            let variable = self.var_to_variable(&var, container_eval_name, container_handle);
 
             // Ensure proper shadowing
             if let Some(idx) = variables_idx.get(&variable.name) {
@@ -1471,6 +1456,35 @@ impl DebugSession {
             }
         }
         variables
+    }
+
+    // SBValue to VSCode Variable
+    fn var_to_variable(
+        &mut self, var: &SBValue, container_eval_name: &str, container_handle: Option<Handle>,
+    ) -> Variable {
+        let name = var.name().unwrap_or_default();
+        let dtype = var.type_name();
+        let value = self.get_var_value_str(&var, self.global_format, container_handle.is_some());
+        let handle = self.get_var_handle(container_handle, name, &var);
+
+        let eval_name = if var.prefer_synthetic_value() {
+            Some(compose_eval_name(container_eval_name, name))
+        } else {
+            var.expression_path().map(|p| {
+                let mut p = p;
+                p.insert_str(0, "/nat ");
+                p
+            })
+        };
+
+        Variable {
+            name: name.to_owned(),
+            value: value,
+            type_: dtype.map(|v| v.to_owned()),
+            variables_reference: handles::to_i64(handle),
+            evaluate_name: eval_name,
+            ..Default::default()
+        }
     }
 
     // Generate a handle for a variable.

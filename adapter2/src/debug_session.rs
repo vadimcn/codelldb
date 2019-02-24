@@ -24,7 +24,7 @@ use crate::cancellation::{CancellationSource, CancellationToken};
 use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::error::Error;
-use crate::expressions::{self, PreparedExpression};
+use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::python::{self, PythonInterface, PythonValue};
@@ -57,7 +57,8 @@ struct BreakpointInfo {
     kind: BreakpointKind,
     condition: Option<String>,
     log_message: Option<String>,
-    ignore_count: u32,
+    hit_condition: Option<HitCondition>,
+    hit_count: u32,
 }
 
 enum Container {
@@ -457,7 +458,8 @@ impl DebugSession {
                 kind: BreakpointKind::Location,
                 condition: req.condition.clone(),
                 log_message: req.log_message.clone(),
-                ignore_count: 0,
+                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_count: 0,
             };
 
             self.init_bp_actions(&bp_info);
@@ -501,7 +503,8 @@ impl DebugSession {
                 kind: BreakpointKind::Address,
                 condition: req.condition.clone(),
                 log_message: req.log_message.clone(),
-                ignore_count: 0,
+                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
             result.push(self.make_bp_response(&bp_info));
@@ -532,7 +535,8 @@ impl DebugSession {
                 kind: BreakpointKind::Address,
                 condition: req.condition.clone(),
                 log_message: req.log_message.clone(),
-                ignore_count: 0,
+                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
             result.push(Breakpoint {
@@ -618,6 +622,25 @@ impl DebugSession {
         }
     }
 
+    fn parse_hit_condition(&self, expr: Option<&String>) -> Option<HitCondition> {
+        if let Some(expr) = expr {
+            let expr = expr.trim();
+            if !expr.is_empty() {
+                match expressions::parse_hit_condition(&expr) {
+                    Ok(cond) => Some(cond),
+                    Err(_) => {
+                        self.console_error(format!("Invalid hit condition: {}", expr));
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn handle_set_function_breakpoints(
         &mut self, args: SetFunctionBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
@@ -647,7 +670,8 @@ impl DebugSession {
                 kind: BreakpointKind::Function,
                 condition: req.condition,
                 log_message: None,
-                ignore_count: 0,
+                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
             result.push(self.make_bp_response(&bp_info));
@@ -685,7 +709,8 @@ impl DebugSession {
                 kind: BreakpointKind::Exception,
                 condition: None,
                 log_message: None,
-                ignore_count: 0,
+                hit_condition: None,
+                hit_count: 0,
             };
             self.breakpoints.borrow_mut().breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -733,26 +758,33 @@ impl DebugSession {
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
         // Determine conditional expression type:
         let py_condition = if let Some(ref condition) = bp_info.condition {
-            let pp_expr = expressions::prepare(condition, self.default_expr_type);
-            match pp_expr {
-                // if native, use that directly,
-                PreparedExpression::Native(expr) => {
-                    bp_info.breakpoint.set_condition(&expr);
-                    None
+            let condition = condition.trim();
+            if !condition.is_empty() {
+                let pp_expr = expressions::prepare(condition, self.default_expr_type);
+                match pp_expr {
+                    // if native, use that directly,
+                    PreparedExpression::Native(expr) => {
+                        bp_info.breakpoint.set_condition(&expr);
+                        None
+                    }
+                    // otherwise, we'll need to evaluate it ourselves in the breakpoint callback.
+                    _ => Some(pp_expr),
                 }
-                // otherwise, we'll need to evaluate it ourselves in the breakpoint callback.
-                _ => Some(pp_expr),
+            } else {
+                None
             }
         } else {
             None
         };
+
+        let hit_condition = bp_info.hit_condition.clone();
 
         let self_ref = self.self_ref.clone();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
             if let Some(self_ref) = self_ref.upgrade() {
                 let mut session = self_ref.lock().unwrap();
-                session.on_breakpoint_hit(process, thread, location, &py_condition)
+                session.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition)
             } else {
                 false // Can't upgrade weak ref to strong - the session must already be gone.  Don't stop.
             }
@@ -761,10 +793,10 @@ impl DebugSession {
 
     fn on_breakpoint_hit(
         &self, _process: &SBProcess, thread: &SBThread, location: &SBBreakpointLocation,
-        py_condition: &Option<PreparedExpression>,
+        py_condition: &Option<PreparedExpression>, hit_condition: &Option<HitCondition>,
     ) -> bool {
-        let breakpoints = self.breakpoints.borrow();
-        let bp_info = breakpoints.breakpoint_infos.get(&location.breakpoint().id()).unwrap();
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
 
         if let Some(pp_expr) = py_condition {
             let (pycode, is_simple_expr) = match pp_expr {
@@ -774,7 +806,7 @@ impl DebugSession {
             };
             let frame = thread.frame_at_index(0);
             let context = self.context_from_frame(Some(&frame));
-            // TODO: pass bpno and hit_count
+            // TODO: pass bpno
             let should_stop = match self.python.evaluate_as_bool(&pycode, is_simple_expr, &context) {
                 Ok(val) => val,
                 Err(err) => {
@@ -782,7 +814,26 @@ impl DebugSession {
                     return true; // Stop on evluation errors, even if there's a log message.
                 }
             };
+            if !should_stop {
+                return false;
+            }
+        }
 
+        // We maintain our own hit count for consistency between native and python conditions:
+        // LLDB doesn't count breakpoint hits for which native condition evaluated to false,
+        // however it does count ones where the callback was invoked, even if it returned false.
+        bp_info.hit_count += 1;
+
+        if let Some(hit_condition) = hit_condition {
+            let hit_count = bp_info.hit_count;
+            let should_stop = match hit_condition {
+                HitCondition::LT(n) => hit_count < *n,
+                HitCondition::LE(n) => hit_count <= *n,
+                HitCondition::EQ(n) => hit_count == *n,
+                HitCondition::GE(n) => hit_count >= *n,
+                HitCondition::GT(n) => hit_count > *n,
+                HitCondition::MOD(n) => hit_count % *n == 0,
+            };
             if !should_stop {
                 return false;
             }
@@ -796,7 +847,6 @@ impl DebugSession {
             return false;
         }
 
-        // TODO: hit count
         true
     }
 
@@ -2181,7 +2231,8 @@ impl DebugSession {
                     kind: BreakpointKind::Location,
                     condition: None,
                     log_message: None,
-                    ignore_count: 0,
+                    hit_condition: None,
+                    hit_count: 0,
                 };
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "new".into(),

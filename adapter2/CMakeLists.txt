@@ -28,5 +28,5 @@ add_custom_target(check_codelldb
 )
 
 add_custom_target(test_codelldb
-    COMMAND cargo test ${Features} --package=codelldb
+    COMMAND ${CMAKE_COMMAND} -E env RUST_BACKTRACE=1 cargo test ${Features} --package=codelldb
 )

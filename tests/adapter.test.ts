@@ -168,7 +168,7 @@ suite('Adapter tests', () => {
             let drive = process.platform == 'win32' ? 'C:' : '';
             await ds.launch({
                 name: 'stop on a breakpoint 2', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
-                sourceMap:  {
+                sourceMap: {
                     [`${drive}/remote1`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
                     [`${drive}/remote2`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote2')
                 }
@@ -324,24 +324,45 @@ suite('Adapter tests', () => {
             await ds.terminate();
         });
 
-        test('conditional breakpoint 1', async function () {
+        test('conditional breakpoint /se', async function () {
             let ds = await DebugTestSession.start(adapterLog);
             let bpLine = findMarker(debuggeeSource, '#BP3');
-            let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, "i == 5");
+            let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/se i == 5');
 
-            let stoppedEvent = await ds.launchAndWaitForStop({ name: 'conditional breakpoint 1', program: debuggee, args: ['vars'] });
+            let stoppedEvent = await ds.launchAndWaitForStop({
+                name: 'conditional breakpoint /se',
+                program: debuggee, args: ['vars']
+            });
             let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
             let localsRef = await ds.getFrameLocalsRef(frameId);
             await ds.compareVariables(localsRef, { i: 5 });
             await ds.terminate();
         });
 
-        test('conditional breakpoint 2', async function () {
+        test('conditional breakpoint /py', async function () {
             let ds = await DebugTestSession.start(adapterLog);
             let bpLine = findMarker(debuggeeSource, '#BP3');
-            let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, "/py $i == 5");
+            let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py $i == 5');
 
-            let stoppedEvent = await ds.launchAndWaitForStop({ name: 'conditional breakpoint 2', program: debuggee, args: ['vars'] });
+            let stoppedEvent = await ds.launchAndWaitForStop({
+                name: 'conditional breakpoint /py',
+                program: debuggee, args: ['vars']
+            });
+            let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
+            let localsRef = await ds.getFrameLocalsRef(frameId);
+            await ds.compareVariables(localsRef, { i: 5 });
+            await ds.terminate();
+        });
+
+        test('conditional breakpoint /nat', async function () {
+            let ds = await DebugTestSession.start(adapterLog);
+            let bpLine = findMarker(debuggeeSource, '#BP3');
+            let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/nat i == 5');
+
+            let stoppedEvent = await ds.launchAndWaitForStop({
+                name: 'conditional breakpoint /nat',
+                program: debuggee, args: ['vars']
+            });
             let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
             let localsRef = await ds.getFrameLocalsRef(frameId);
             await ds.compareVariables(localsRef, { i: 5 });

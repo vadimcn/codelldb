@@ -1,4 +1,5 @@
 use crate::debug_protocol::Expressions;
+use crate::error::Error;
 use lldb::SBValue;
 use regex::{Captures, Regex, RegexBuilder};
 use std::borrow::Cow;
@@ -10,13 +11,14 @@ pub enum PreparedExpression {
     Python(String),
 }
 
-#[derive(Debug)]
-pub enum ExpressionValue {
-    SBValue(SBValue),
-    Int(i64),
-    Bool(bool),
-    String(String),
-    Object(String),
+#[derive(Debug, Clone)]
+pub enum HitCondition {
+    LT(u32),
+    LE(u32),
+    EQ(u32),
+    GE(u32),
+    GT(u32),
+    MOD(u32),
 }
 
 pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpression {
@@ -28,7 +30,33 @@ pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpressio
     }
 }
 
-fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {
+pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
+    if let Some(captures) = HIT_COUNT.captures(expr) {
+        let number = match captures.get(2).unwrap().as_str().parse::<u32>() {
+            Ok(n) => n,
+            Err(_) => return Err(()),
+        };
+
+        let hit_cond = if let Some(op) = captures.get(1) {
+            match op.as_str() {
+                "<" => HitCondition::LT(number),
+                "<=" => HitCondition::LE(number),
+                "=" | "==" => HitCondition::EQ(number),
+                ">=" => HitCondition::GE(number),
+                ">" => HitCondition::GT(number),
+                "%" => HitCondition::MOD(number),
+                _ => unreachable!(),
+            }
+        } else {
+            HitCondition::GE(number) // `10` is the same as `>= 10`
+        };
+        Ok(hit_cond)
+    } else {
+        Err(())
+    }
+}
+
+pub fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {
     if expr.starts_with("/nat ") {
         (&expr[5..], Expressions::Native)
     } else if expr.starts_with("/py ") {
@@ -40,22 +68,14 @@ fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str
     }
 }
 
-fn create_regexes() -> [Regex; 3] {
-    fn compile_regex(pattern: &str) -> Regex {
-        RegexBuilder::new(pattern)
-            .ignore_whitespace(true)
-            .multi_line(true)
-            .build()
-            .unwrap()
-    }
+fn compile_regex(pattern: &str) -> Regex {
+    RegexBuilder::new(pattern).ignore_whitespace(true).multi_line(true).build().unwrap()
+}
 
+fn create_regexes() -> [Regex; 3] {
     // Matches Python strings
-    let pystring = [
-        r#"(?:"(?:\\"|\\\\|[^"])*")"#,
-        r#"(?:'(?:\\'|\\\\|[^'])*')"#,
-        r#"(?:r"[^"]*")"#,
-        r#"(?:r'[^']*')"#,
-    ].join("|");
+    let pystring =
+        [r#"(?:"(?:\\"|\\\\|[^"])*")"#, r#"(?:'(?:\\'|\\\\|[^'])*')"#, r#"(?:r"[^"]*")"#, r#"(?:r'[^']*')"#].join("|");
 
     let kwlist = [
         "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except", "exec", "finally", "for",
@@ -92,10 +112,8 @@ fn create_regexes() -> [Regex; 3] {
     }
 
     // # Matches `$xxx`, `$xxx::yyy::zzz` or `${...}`, captures the escaped text.
-    let escaped_ident = format!(
-        r#"\$ ({maybe_qualified_ident}) | \$ \{{ ([^}}]*) \}}"#,
-        maybe_qualified_ident = maybe_qualified_ident
-    );
+    let escaped_ident =
+        format!(r#"\$ ({maybe_qualified_ident}) | \$ \{{ ([^}}]*) \}}"#, maybe_qualified_ident = maybe_qualified_ident);
     #[cfg(test)]
     {
         let regex = compile_regex(&escaped_ident);
@@ -105,10 +123,8 @@ fn create_regexes() -> [Regex; 3] {
         assert!(regex.is_match("${23ro0c1934!#$%0wf87145798145}"));
     }
 
-    let maybe_qualified_ident_only = format!(
-        r#"^ {maybe_qualified_ident} $"#,
-        maybe_qualified_ident = maybe_qualified_ident
-    );
+    let maybe_qualified_ident_only =
+        format!(r#"^ {maybe_qualified_ident} $"#, maybe_qualified_ident = maybe_qualified_ident);
 
     let preprocess_simple = format!(
         r#"(\.)? (?: {pystring} | \b ({keywords}) \b | ({qualified_ident}) | {escaped_ident} )"#,
@@ -118,17 +134,10 @@ fn create_regexes() -> [Regex; 3] {
         escaped_ident = escaped_ident
     );
 
-    let preprocess_python = format!(
-        r#"(\.)? (?: {pystring} | {escaped_ident} )"#,
-        pystring = pystring,
-        escaped_ident = escaped_ident
-    );
+    let preprocess_python =
+        format!(r#"(\.)? (?: {pystring} | {escaped_ident} )"#, pystring = pystring, escaped_ident = escaped_ident);
 
-    [
-        compile_regex(&maybe_qualified_ident_only),
-        compile_regex(&preprocess_simple),
-        compile_regex(&preprocess_python),
-    ]
+    [compile_regex(&maybe_qualified_ident_only), compile_regex(&preprocess_simple), compile_regex(&preprocess_python)]
 }
 
 lazy_static::lazy_static! {
@@ -136,6 +145,7 @@ lazy_static::lazy_static! {
     static ref MAYBE_QUALIFIED_IDENT: &'static Regex = &EXPRESSIONS[0];
     static ref PREPROCESS_SIMPLE: &'static Regex = &EXPRESSIONS[1];
     static ref PREPROCESS_PYTHON: &'static Regex = &EXPRESSIONS[2];
+    static ref HIT_COUNT: Regex = compile_regex(r"\A\s*(>|>=|=|==|<|<=|%)?\s*([0-9]+)\s*\z");
 }
 
 pub fn escape_variable_name<'a>(name: &'a str) -> Cow<'a, str> {
@@ -248,4 +258,24 @@ fn test_escape_variable_name() {
     assert_eq!(escape_variable_name("foo::bar"), "foo::bar");
     assert_eq!(escape_variable_name("foo::bar<34>"), "${foo::bar<34>}");
     assert_eq!(escape_variable_name("foo::bar<34>::value"), "${foo::bar<34>::value}");
+}
+
+macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
+
+#[test]
+fn test_parse_hit_condition() {
+    assert_match!(parse_hit_condition(" 13   "), Ok(HitCondition::EQ(13)));
+    assert_match!(parse_hit_condition(" < 42"), Ok(HitCondition::LT(42)));
+    assert_match!(parse_hit_condition(" <=53 "), Ok(HitCondition::LE(53)));
+    assert_match!(parse_hit_condition("=  61"), Ok(HitCondition::EQ(61)));
+    assert_match!(parse_hit_condition("==62 "), Ok(HitCondition::EQ(62)));
+    assert_match!(parse_hit_condition(">=76 "), Ok(HitCondition::GE(76)));
+    assert_match!(parse_hit_condition(">85"), Ok(HitCondition::GT(85)));
+    assert_match!(parse_hit_condition(""), Err(_));
+    assert_match!(parse_hit_condition("      "), Err(_));
+    assert_match!(parse_hit_condition("!90"), Err(_));
+    assert_match!(parse_hit_condition("=>92"), Err(_));
+    assert_match!(parse_hit_condition("<"), Err(_));
+    assert_match!(parse_hit_condition("=AA"), Err(_));
+    assert_match!(parse_hit_condition("XYZ"), Err(_));
 }

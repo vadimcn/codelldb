@@ -1183,7 +1183,7 @@ impl DebugSession {
                     self.update_threads();
                     self.send_event(EventBody::stopped(StoppedEventBody {
                         all_threads_stopped: Some(true),
-                        thread_id: Some(*self.known_threads.iter().next().unwrap() as i64),
+                        thread_id: self.known_threads.iter().next().map(|tid| *tid as i64),
                         reason: "initial".to_owned(),
                         description: None,
                         text: None,
@@ -1272,8 +1272,8 @@ impl DebugSession {
                     source_reference: Some(handles::to_i64(Some(dasm.handle()))),
                     ..Default::default()
                 });
+                stack_frame.presentation_hint = Some("subtle".to_owned());
             }
-            // TODO: origin, presentaion_hint
             stack_frames.push(stack_frame);
         }
 
@@ -1769,7 +1769,8 @@ impl DebugSession {
         if error.is_success() {
             Ok(())
         } else {
-            if self.process.state().is_stopped() {
+            let state = self.process.state();
+            if !state.is_running() {
                 // Did we lose a 'stopped' event?
                 self.notify_process_stopped();
                 Ok(())

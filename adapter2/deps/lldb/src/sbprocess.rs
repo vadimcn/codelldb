@@ -161,7 +161,7 @@ impl ProcessState {
     pub fn is_running(&self) -> bool {
         use ProcessState::*;
         match self {
-            Running | Stepping => true,
+            Attaching | Launching | Running | Stepping => true,
             _ => false,
         }
     }
@@ -169,7 +169,7 @@ impl ProcessState {
     pub fn is_stopped(&self) -> bool {
         use ProcessState::*;
         match self {
-            Stopped | Crashed | Suspended => true,
+            Stopped | Crashed | Suspended | Unloaded | Exited => true,
             _ => false,
         }
     }

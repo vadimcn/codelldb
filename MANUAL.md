@@ -27,6 +27,18 @@
 To start a debug session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program:
 
 ## Launching
+
+Flow during the launch sequence:
+1. Debug session is created.
+2. The `initCommands` sequence is executed.
+3. Debug target is created using launch configurtion prameters (`program`, `args`, `env`, `cwd`, `stdio`).
+4. Breakpoints are set.
+5. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
+6. Debuggee is launched.
+7. The `postRunCommands` sequence is executed.
+
+At the end of the debug session `exitCommands` sequence is executed.
+
 |parameter          |type|req |         |
 |-------------------|----|:--:|---------|
 |**name**           |string|Y| Launch configuration name.
@@ -63,6 +75,18 @@ as described above.<br>
 <sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.
 
 ## Attaching
+
+Flow during the launch sequence attach sequence:
+1. Debug session is created.
+2. The `initCommands` sequence is executed.
+3. Debug target is created using launch configurtion prameters  (`program`).
+4. Breakpoints are set.
+5. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
+6. The debugger attaches to the specified debuggee process.
+7. The `postRunCommands` sequence is executed.
+
+At the end of the debug session `exitCommands` sequence is executed.
+
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
 
@@ -86,19 +110,20 @@ on some systems.  You may need to adjust system configuration to enable it.
 ## Custom Launch
 
 The custom launch method puts you in complete control of how debuggee process is created.  This
-happens in three steps:
+happens in these steps:
 
-1. `initCommands` sequence is executed.  It is responsible for creation of the debug target.
-2. Debugger configures breakpoints using target created in step 1.
-3. `preRunCommands` sequence is executed.  It is responsible for creation of (or attaching to) the debuggee process.
+1. The `targetCreateCommands` sequence is executed.  After this step a valid debug target is expected to exist.
+2. The debugger inserts breakpoints.
+3. The `processCreateCommands` sequence is executed.  After this step a valid debuggee process is expected to exist.
+4. The debugger reports current state of the debuggee to VSCode.
 
 |parameter          |type    |req |         |
 |-------------------|--------|:--:|---------|
 |**name**           |string  |Y| Launch configuration name.
 |**type**           |string  |Y| Set to `lldb`.
 |**request**        |string  |Y| Set to `custom`.
-|**targetCreateCommands**  |[string]| | Commands that will create debug target.
-|**processCreateCommands** |[string]| | Commands that will create debuggee process.
+|**targetCreateCommands**  |[string]| | Commands that create the debug target.
+|**processCreateCommands** |[string]| | Commands that create the debuggee process.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
@@ -125,14 +150,17 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
 ```
 See `platform list` for a list of available remote platform plugins.
 
-- Start debugging as usual.  The executable identified in the `program` property will
+- Start debugging as usual.  The executable identified by the `program` property will
 be automatically copied to `lldb-server`'s current directory on the remote machine.
-If you require additional configuration of the remote system, you may use `preRunCommands` script
+If you require additional configuration of the remote system, you may use `preRunCommands` sequence
 to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
 (See `help platform` for a list of available platform commands).
 
-### Connecting to gdbserver agent
-- Run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
+### Connecting to gdbserver-style agent
+(This includes not just gdbserver itself, but also environments that implement gdbserver protocol,
+ such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others)
+
+- Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
 - Create a custom launch configuration:
 ```javascript
 {
@@ -145,8 +173,15 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 ```
 - Start debugging.
 
+Please note that depending on protocol features implemented by the remote stub, there may be more setup needed.
+For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may not be aware of the memory locations
+of debuggee modules; you may need to specify this manually:
+```
+target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>
+```
+
 ## Loading a Core Dump
-Use custom launch with `target crate -c <core path>` init command:
+Use custom launch with `target crate -c <core path>` command:
 ```javascript
 {
     "name": "Core dump",
@@ -164,11 +199,8 @@ A source map consists of pairs of "from" and "to" path prefixes.  When the debug
 file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
 instead.  Example:
 ```javascript
-    "sourceMap": { "/old/path/*/to/source/" : "/the/new/source/path/" }
+    "sourceMap": { "/build/time/source/path" : "/current/source/path" }
 ```
-- "from" prefixes may contain shell globs (`?`, `*`, `[abc]`, `[!abc]`).  If you need to
-use one of the meta-characters verbatim, enclose it in brackets (`[?]` matches `?`).
-- "to" prefixes may be null, which will cause CodeLLDB to ignore matching source files.
 
 ## Parameterized Launch Configurations
 Sometimes you'll find yourself adding the same parameters (e.g. a path of a dataset directory)
@@ -179,7 +211,7 @@ in your launch configurations:
 
 ```javascript
 // settings.json
-...
+    ...
     "lldb.dbgconfig":
     {
         "dateset": "dataset1",
@@ -188,7 +220,7 @@ in your launch configurations:
     }
 
 // launch.json
-...
+    ...
     {
         "name": "Debug program",
         "type": "lldb",
@@ -209,6 +241,7 @@ in your launch configurations:
 |**Toggle Numeric Pointer Values**|Choose whether to display the pointee's value rather than numeric value of the pointer itself. See [Pointers](#pointers).
 |**Toggle Container Summaries**   |Choose whether CodeLLDB should generate summaries of compound objects, for which there is no built-in support.<br> Note that having this on may slow down line stepping, because more data needs to be examined to generate the variables view.
 |**Run Diagnostics**              |Run diagnostic on LLDB, to make sure it can be used with this extension.  The command is executed automatically the first time when CodeLLDB is used.
+|**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste the desired sections into `launch.json`.|
 
 ## Regex Breakpoints
 Function breakpoints prefixed with '`/re `', are interpreted as regular expressions.
@@ -219,6 +252,18 @@ The list of created breakpoint locations may be examined using `break list` comm
 You may use any of the supported expression [syntaxes](#expressions) to create breakpoint conditions.
 When a breakpoint condition evaluates to False, the breakpoint will not be stopped at.
 Any other value (or expression evaluation error) will cause the debugger to stop.
+
+## Hit conditions (native adapter only)
+Syntax:
+```
+    operator :: = '<' | '<=' | '=' | '>=' | '>' | '%'
+    hit_condition ::= operator number
+```
+
+The `'%'` operator causes a stop after every `number` of breakpoint hits.
+
+## Logpoints
+Expressions embedded in log messages via curly brackets may use any of the supported expression [syntaxes](#expressions).
 
 ## Disassembly View
 When execution steps into code for which debug info is not available, CodeLLDB will automatically

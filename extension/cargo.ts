@@ -48,6 +48,12 @@ export async function getProgramFromCargo(cargoConfig: CargoConfig, cwd: string)
         });
     }
 
+    if (artifacts.length == 0) {
+        output.show();
+        window.showErrorMessage('Cargo has produced no artifacts passing the filter.', { modal: true });
+        throw new Error('Cannot start debugging.');
+    }
+
     output.appendLine('Matching compilation artifacts: ');
     for (let artifact of artifacts) {
         output.appendLine(inspect(artifact));
@@ -139,9 +145,15 @@ export async function getLaunchConfigs(folder: string): Promise<DebugConfigurati
                         }
                         break;
 
+                    case 'example':
+                        addConfig(`Debug example '${target.name}'`,
+                            ['build', `--${kind}=${target.name}`], 'example');
+                        addConfig(`Debug unit tests in example '${target.name}'`,
+                            ['test', '--no-run', `--${kind}=${target.name}`], 'example');
+                        break;
+
                     case 'bin':
                     case 'test':
-                    case 'example':
                     case 'bench':
                         let prettyKind = (kind == 'bin') ? 'executable' : (kind == 'bench') ? 'benchmark' : kind;
                         addConfig(`Debug ${prettyKind} '${target.name}'`,

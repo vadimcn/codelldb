@@ -8,11 +8,6 @@ impl SBStringList {
     pub fn new() -> SBStringList {
         cpp!(unsafe [] -> SBStringList as "SBStringList" { return SBStringList(); })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBStringList*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn len(&self) -> usize {
         cpp!(unsafe [self as "SBStringList*"] -> usize as "size_t" {
             return self->GetSize();
@@ -35,5 +30,13 @@ impl SBStringList {
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
         SBIterator::new(self.len() as u32, move |index| self.string_at_index(index).unwrap())
+    }
+}
+
+impl IsValid for SBStringList {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBStringList*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }

@@ -6,11 +6,6 @@ cpp_class!(pub unsafe struct SBFileSpec as "SBFileSpec");
 unsafe impl Send for SBFileSpec {}
 
 impl SBFileSpec {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBFileSpec*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn filename(&self) -> &Path {
         let ptr = cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
             return self->GetFilename();
@@ -32,6 +27,14 @@ impl SBFileSpec {
         .into_string()
         .unwrap()
         .into()
+    }
+}
+
+impl IsValid for SBFileSpec {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBFileSpec*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

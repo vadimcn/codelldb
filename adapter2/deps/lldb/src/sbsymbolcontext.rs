@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBSymbolContext as "SBSymbolContext");
 unsafe impl Send for SBSymbolContext {}
 
 impl SBSymbolContext {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBSymbolContext*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn module(&self) -> SBModule {
         cpp!(unsafe [self as "SBSymbolContext*"] -> SBModule as "SBModule" {
             return self->GetModule();
@@ -28,6 +23,14 @@ impl SBSymbolContext {
     pub fn get_description(&self, description: &mut SBStream) -> bool {
         cpp!(unsafe [self as "SBSymbolContext*", description as "SBStream*"] -> bool as "bool" {
             return self->GetDescription(*description);
+        })
+    }
+}
+
+impl IsValid for SBSymbolContext {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBSymbolContext*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

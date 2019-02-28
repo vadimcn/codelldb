@@ -10,11 +10,6 @@ impl SBAddress {
             return SBAddress(addr, *target);
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBAddress*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn file_address(&self) -> usize {
         cpp!(unsafe [self as "SBAddress*"] -> usize as "size_t" {
             return self->GetFileAddress();
@@ -31,28 +26,28 @@ impl SBAddress {
         })
     }
     pub fn line_entry(&self) -> Option<SBLineEntry> {
-        let line_entry = cpp!(unsafe [self as "SBAddress*"] -> SBLineEntry as "SBLineEntry" {
+        cpp!(unsafe [self as "SBAddress*"] -> SBLineEntry as "SBLineEntry" {
             return self->GetLineEntry();
-        });
-        if line_entry.is_valid() {
-            Some(line_entry)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn symbol(&self) -> Option<SBSymbol> {
-        let symbol = cpp!(unsafe [self as "SBAddress*"] -> SBSymbol as "SBSymbol" {
+        cpp!(unsafe [self as "SBAddress*"] -> SBSymbol as "SBSymbol" {
             return self->GetSymbol();
-        });
-        if symbol.is_valid() {
-            Some(symbol)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn get_description(&self, description: &mut SBStream) -> bool {
         cpp!(unsafe [self as "SBAddress*", description as "SBStream*"] -> bool as "bool" {
             return self->GetDescription(*description);
+        })
+    }
+}
+
+impl IsValid for SBAddress {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBAddress*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

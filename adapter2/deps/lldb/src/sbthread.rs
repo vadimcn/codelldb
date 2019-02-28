@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBThread as "SBThread");
 unsafe impl Send for SBThread {}
 
 impl SBThread {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBThread*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn thread_id(&self) -> ThreadID {
         cpp!(unsafe [self as "SBThread*"] -> ThreadID as "tid_t" {
             return self->GetThreadID();
@@ -50,14 +45,10 @@ impl SBThread {
         .unwrap()
     }
     pub fn stop_return_value(&self) -> Option<SBValue> {
-        let value = cpp!(unsafe [self as "SBThread*"] -> SBValue as "SBValue" {
+        cpp!(unsafe [self as "SBThread*"] -> SBValue as "SBValue" {
             return self->GetStopReturnValue();
-        });
-        if value.is_valid() {
-            Some(value)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn num_frames(&self) -> u32 {
         cpp!(unsafe [self as "SBThread*"] -> u32 as "uint32_t" {
@@ -107,6 +98,14 @@ impl SBThread {
             return SBThread::GetBroadcasterClassName();
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+}
+
+impl IsValid for SBThread {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBThread*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBType as "SBType");
 unsafe impl Send for SBType {}
 
 impl SBType {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn byte_size(&self) -> u64 {
         cpp!(unsafe [self as "SBType*"] -> u64 as "uint64_t" {
             return self->GetByteSize();
@@ -86,6 +81,14 @@ impl SBType {
             return self->GetDisplayTypeName();
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+}
+
+impl IsValid for SBType {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

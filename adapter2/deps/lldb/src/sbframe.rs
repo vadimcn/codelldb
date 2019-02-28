@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBFrame as "SBFrame");
 unsafe impl Send for SBFrame {}
 
 impl SBFrame {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn function_name(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBFrame*"] -> *const c_char as "const char*" {
             return self->GetFunctionName();
@@ -31,14 +26,10 @@ impl SBFrame {
         }
     }
     pub fn line_entry(&self) -> Option<SBLineEntry> {
-        let line_entry = cpp!(unsafe [self as "SBFrame*"] -> SBLineEntry as "SBLineEntry" {
+        cpp!(unsafe [self as "SBFrame*"] -> SBLineEntry as "SBLineEntry" {
             return self->GetLineEntry();
-        });
-        if line_entry.is_valid() {
-            Some(line_entry)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn pc_address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBFrame*"] -> SBAddress as "SBAddress" {
@@ -63,16 +54,12 @@ impl SBFrame {
         })
     }
     pub fn find_variable(&self, name: &str) -> Option<SBValue> {
-        let var = with_cstr(name, |name| {
+        with_cstr(name, |name| {
             cpp!(unsafe [self as "SBFrame*", name as "const char*"] -> SBValue as "SBValue" {
                 return self->FindVariable(name);
             })
-        });
-        if var.is_valid() {
-            Some(var)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {
@@ -99,6 +86,14 @@ impl SBFrame {
     pub fn fp(&self) -> Address {
         cpp!(unsafe [self as "SBFrame*"] -> Address as "addr_t" {
             return self->GetFP();
+        })
+    }
+}
+
+impl IsValid for SBFrame {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

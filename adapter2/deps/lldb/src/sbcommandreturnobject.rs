@@ -10,11 +10,6 @@ impl SBCommandReturnObject {
             return SBCommandReturnObject();
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBCommandReturnObject*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn clear(&self) {
         cpp!(unsafe [self as "SBCommandReturnObject*"] {
             return self->Clear();
@@ -64,6 +59,14 @@ impl SBCommandReturnObject {
         } else {
             unsafe { CStr::from_ptr(ptr) }
         }
+    }
+}
+
+impl IsValid for SBCommandReturnObject {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBCommandReturnObject*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

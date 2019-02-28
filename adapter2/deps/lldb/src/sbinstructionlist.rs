@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBInstructionList as "SBInstructionList");
 unsafe impl Send for SBInstructionList {}
 
 impl SBInstructionList {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBInstructionList*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn len(&self) -> usize {
         cpp!(unsafe [self as "SBInstructionList*"] -> usize as "size_t" {
             return self->GetSize();
@@ -22,6 +17,14 @@ impl SBInstructionList {
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = SBInstruction> + 'a {
         SBIterator::new(self.len() as u32, move |index| self.instruction_at_index(index))
+    }
+}
+
+impl IsValid for SBInstructionList {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBInstructionList*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

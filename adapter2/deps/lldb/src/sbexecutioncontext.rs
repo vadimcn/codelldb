@@ -31,43 +31,27 @@ impl SBExecutionContext {
         })
     }
     pub fn frame(&self) -> Option<SBFrame> {
-        let frame = cpp!(unsafe [self as "SBExecutionContext*"] -> SBFrame as "SBFrame" {
+        cpp!(unsafe [self as "SBExecutionContext*"] -> SBFrame as "SBFrame" {
             return self->GetFrame();
-        });
-        if frame.is_valid() {
-            Some(frame)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn thread(&self) -> Option<SBThread> {
-        let thread = cpp!(unsafe [self as "SBExecutionContext*"] -> SBThread as "SBThread" {
+        cpp!(unsafe [self as "SBExecutionContext*"] -> SBThread as "SBThread" {
             return self->GetThread();
-        });
-        if thread.is_valid() {
-            Some(thread)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn process(&self) -> Option<SBProcess> {
-        let process = cpp!(unsafe [self as "SBExecutionContext*"] -> SBProcess as "SBProcess" {
+        cpp!(unsafe [self as "SBExecutionContext*"] -> SBProcess as "SBProcess" {
             return self->GetProcess();
-        });
-        if process.is_valid() {
-            Some(process)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn target(&self) -> Option<SBTarget> {
-        let target = cpp!(unsafe [self as "SBExecutionContext*"] -> SBTarget as "SBTarget" {
+        cpp!(unsafe [self as "SBExecutionContext*"] -> SBTarget as "SBTarget" {
             return self->GetTarget();
-        });
-        if target.is_valid() {
-            Some(target)
-        } else {
-            None
-        }
+        })
+        .check()
     }
 }

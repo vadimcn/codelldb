@@ -8,11 +8,6 @@ impl SBSymbolContextList {
     pub fn new() -> SBSymbolContextList {
         cpp!(unsafe [] -> SBSymbolContextList as "SBSymbolContextList" { return SBSymbolContextList(); })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBSymbolContextList*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn len(&self) -> usize {
         cpp!(unsafe [self as "SBSymbolContextList*"] -> usize as "size_t" {
             return self->GetSize();
@@ -30,6 +25,14 @@ impl SBSymbolContextList {
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = SBSymbolContext> + 'a {
         SBIterator::new(self.len() as u32, move |index| self.context_at_index(index))
+    }
+}
+
+impl IsValid for SBSymbolContextList {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBSymbolContextList*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

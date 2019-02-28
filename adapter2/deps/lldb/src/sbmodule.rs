@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBModule as "SBModule");
 unsafe impl Send for SBModule {}
 
 impl SBModule {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBModule*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetFileSpec();
@@ -28,6 +23,14 @@ impl SBModule {
     pub fn symbol_filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetSymbolFileSpec();
+        })
+    }
+}
+
+impl IsValid for SBModule {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBModule*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

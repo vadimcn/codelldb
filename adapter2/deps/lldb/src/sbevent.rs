@@ -10,11 +10,6 @@ impl SBEvent {
             return SBEvent();
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBEvent*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn get_cstring_from_event(event: &SBEvent) -> Option<&CStr> {
         unsafe {
             let ptr = cpp!([event as "SBEvent*"] -> *const c_char as "const char*" {
@@ -67,6 +62,14 @@ impl SBEvent {
         } else {
             None
         }
+    }
+}
+
+impl IsValid for SBEvent {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBEvent*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

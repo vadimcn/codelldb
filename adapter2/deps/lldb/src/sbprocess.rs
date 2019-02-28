@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBProcess as "SBProcess");
 unsafe impl Send for SBProcess {}
 
 impl SBProcess {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBProcess*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn target(&self) -> SBTarget {
         cpp!(unsafe [self as "SBProcess*"] -> SBTarget as "SBTarget" {
                 return self->GetTarget();
@@ -49,24 +44,16 @@ impl SBProcess {
         })
     }
     pub fn thread_by_id(&self, tid: ThreadID) -> Option<SBThread> {
-        let thread = cpp!(unsafe [self as "SBProcess*", tid as "tid_t"] -> SBThread as "SBThread" {
+        cpp!(unsafe [self as "SBProcess*", tid as "tid_t"] -> SBThread as "SBThread" {
             return self->GetThreadByID(tid);
-        });
-        if thread.is_valid() {
-            Some(thread)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn thread_by_index_id(&self, index_id: u32) -> Option<SBThread> {
-        let thread = cpp!(unsafe [self as "SBProcess*", index_id as "uint32_t"] -> SBThread as "SBThread" {
+        cpp!(unsafe [self as "SBProcess*", index_id as "uint32_t"] -> SBThread as "SBThread" {
             return self->GetThreadByIndexID(index_id);
-        });
-        if thread.is_valid() {
-            Some(thread)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn resume(&self) -> SBError {
         cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
@@ -118,6 +105,14 @@ impl SBProcess {
         let len = buffer.len();
         cpp!(unsafe [self as "SBProcess*", ptr as "uint8_t*", len as "size_t"] -> usize as "size_t" {
             return self->GetSTDERR((char*)ptr, len);
+        })
+    }
+}
+
+impl IsValid for SBProcess {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBProcess*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

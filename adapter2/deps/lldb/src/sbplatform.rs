@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBPlatform as "SBPlatform");
 unsafe impl Send for SBPlatform {}
 
 impl SBPlatform {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBPlatform*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn clear(&self) {
         cpp!(unsafe [self as "SBPlatform*"] {
             return self->Clear();
@@ -43,5 +38,13 @@ impl SBPlatform {
             return self->GetOSDescription();
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+}
+
+impl IsValid for SBPlatform {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBPlatform*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }

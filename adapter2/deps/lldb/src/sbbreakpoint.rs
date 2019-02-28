@@ -13,11 +13,6 @@ lazy_static! {
 }
 
 impl SBBreakpoint {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBBreakpoint*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn id(&self) -> BreakpointID {
         cpp!(unsafe [self as "SBBreakpoint*"] -> BreakpointID as "break_id_t" {
             return self->GetID();
@@ -104,6 +99,14 @@ impl SBBreakpoint {
     pub fn clear_all_callbacks() {
         let mut callbacks = CALLBACKS.lock().unwrap();
         callbacks.clear();
+    }
+}
+
+impl IsValid for SBBreakpoint {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBBreakpoint*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

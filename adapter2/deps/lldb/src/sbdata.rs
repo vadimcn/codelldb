@@ -39,11 +39,6 @@ impl<'b> SBData<'b> {
             return SBData::CreateDataFromCString(endian, addr_size, ptr);
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBData*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn clear(&mut self) {
         cpp!(unsafe [self as "SBData*"] {
             return self->Clear();
@@ -165,6 +160,14 @@ impl<'b> SBData<'b> {
         } else {
             Err(error)
         }
+    }
+}
+
+impl<'a> IsValid for SBData<'a> {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBData*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

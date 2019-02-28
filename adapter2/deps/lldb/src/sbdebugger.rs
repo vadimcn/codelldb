@@ -20,11 +20,6 @@ impl SBDebugger {
             return SBDebugger::Create(source_init_files);
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBDebugger*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn clear(&self) {
         cpp!(unsafe [self as "SBDebugger*"] {
             return self->Clear();
@@ -105,6 +100,14 @@ impl SBDebugger {
                     })
                 })
             })
+        })
+    }
+}
+
+impl IsValid for SBDebugger {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBDebugger*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

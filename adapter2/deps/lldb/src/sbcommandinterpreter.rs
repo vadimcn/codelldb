@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBCommandInterpreter as "SBCommandInterpreter");
 unsafe impl Send for SBCommandInterpreter {}
 
 impl SBCommandInterpreter {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBCommandInterpreter*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn handle_command(
         &self, command: &str, result: &mut SBCommandReturnObject, add_to_history: bool,
     ) -> ReturnStatus {
@@ -62,6 +57,14 @@ impl SBCommandInterpreter {
                 Some((common_continuation, completions))
             }
         }
+    }
+}
+
+impl IsValid for SBCommandInterpreter {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBCommandInterpreter*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

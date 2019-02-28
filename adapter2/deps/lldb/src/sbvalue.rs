@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBValue as "SBValue");
 unsafe impl Send for SBValue {}
 
 impl SBValue {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn id(&self) -> UserID {
         cpp!(unsafe [self as "SBValue*"] -> UserID as "user_id_t" {
             return self->GetID();
@@ -61,14 +56,10 @@ impl SBValue {
         }
     }
     pub fn address(&self) -> Option<SBAddress> {
-        let addr = cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
+        cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
             return self->GetAddress();
-        });
-        if addr.is_valid() {
-            Some(addr)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     pub fn load_address(&self) -> Address {
         cpp!(unsafe [self as "SBValue*"] -> Address as "addr_t" {
@@ -191,16 +182,12 @@ impl SBValue {
     }
     // Matches child members of this object and child members of any base classes.
     pub fn child_member_with_name(&self, name: &str) -> Option<SBValue> {
-        let child = with_cstr(name, |name| {
+        with_cstr(name, |name| {
             cpp!(unsafe [self as "SBValue*", name as "const char*"] ->  SBValue as "SBValue"  {
                 return self->GetChildMemberWithName(name);
             })
-        });
-        if child.is_valid() {
-            Some(child)
-        } else {
-            None
-        }
+        })
+        .check()
     }
     // Matches children of this object only and will match base classes and
     // member names if this is a clang typed object.
@@ -239,6 +226,14 @@ impl SBValue {
     pub fn set_format(&self, format: Format) {
         cpp!(unsafe [self as "SBValue*", format as "Format"] {
             return self->SetFormat(format);
+        })
+    }
+}
+
+impl IsValid for SBValue {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

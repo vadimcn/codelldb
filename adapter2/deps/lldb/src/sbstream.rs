@@ -10,11 +10,6 @@ impl SBStream {
             return SBStream();
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBStream*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn data(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.as_ptr(), self.len()) }
     }
@@ -31,6 +26,14 @@ impl SBStream {
     pub fn clear(&mut self) {
         cpp!(unsafe [self as "SBStream*"]  {
             self->Clear();
+        })
+    }
+}
+
+impl IsValid for SBStream {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBStream*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

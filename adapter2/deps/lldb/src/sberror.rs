@@ -8,11 +8,6 @@ impl SBError {
     pub fn new() -> SBError {
         cpp!(unsafe [] -> SBError as "SBError" { return SBError(); })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBError*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn is_success(&self) -> bool {
         cpp!(unsafe [self as "SBError*"] -> bool as "bool" {
             return self->Success();
@@ -38,6 +33,14 @@ impl SBError {
                 self->SetErrorString(string);
             })
         );
+    }
+}
+
+impl IsValid for SBError {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBError*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

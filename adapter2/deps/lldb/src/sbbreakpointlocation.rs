@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBBreakpointLocation as "SBBreakpointLocation");
 unsafe impl Send for SBBreakpointLocation {}
 
 impl SBBreakpointLocation {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBBreakpointLocation*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn id(&self) -> BreakpointID {
         cpp!(unsafe [self as "SBBreakpointLocation*"] -> BreakpointID as "break_id_t" {
             return self->GetID();
@@ -38,6 +33,14 @@ impl SBBreakpointLocation {
     pub fn is_resolved(&self) -> bool {
         cpp!(unsafe [self as "SBBreakpointLocation*"] -> bool as "bool" {
             return self->IsResolved();
+        })
+    }
+}
+
+impl IsValid for SBBreakpointLocation {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBBreakpointLocation*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

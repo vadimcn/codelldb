@@ -17,11 +17,6 @@ impl SBListener {
             })
         })
     }
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBListener*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn wait_for_event(&self, num_seconds: u32, event: &mut SBEvent) -> bool {
         cpp!(unsafe [self as "SBListener*", num_seconds as "uint32_t", event as "SBEvent*"] -> bool as "bool" {
             return self->WaitForEvent(num_seconds, *event);
@@ -47,6 +42,14 @@ impl SBListener {
                          broadcaster_class as "const char*", event_mask as "uint32_t"] -> bool as "bool" {
                 return self->StopListeningForEventClass(*debugger, broadcaster_class, event_mask);
             })
+        })
+    }
+}
+
+impl IsValid for SBListener {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBListener*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBTarget as "SBTarget");
 unsafe impl Send for SBTarget {}
 
 impl SBTarget {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBTarget*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn byte_order(&self) -> ByteOrder {
         cpp!(unsafe [self as "SBTarget*"] -> ByteOrder as "ByteOrder" {
             return self->GetByteOrder();
@@ -98,14 +93,9 @@ impl SBTarget {
         })
     }
     pub fn find_breakpoint_by_id(&self, id: BreakpointID) -> Option<SBBreakpoint> {
-        let bp = cpp!(unsafe [self as "SBTarget*", id as "break_id_t"] -> SBBreakpoint as "SBBreakpoint" {
+        cpp!(unsafe [self as "SBTarget*", id as "break_id_t"] -> SBBreakpoint as "SBBreakpoint" {
             return self->FindBreakpointByID(id);
-        });
-        if bp.is_valid() {
-            Some(bp)
-        } else {
-            None
-        }
+        }).check()
     }
     pub fn breakpoint_create_by_location(&self, file: &str, line: u32) -> SBBreakpoint {
         with_cstr(file, |file| {
@@ -223,6 +213,14 @@ impl SBTarget {
             return SBTarget::GetBroadcasterClassName();
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+}
+
+impl IsValid for SBTarget {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBTarget*"] -> bool as "bool" {
+            return self->IsValid();
+        })
     }
 }
 

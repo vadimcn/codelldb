@@ -5,11 +5,6 @@ cpp_class!(pub unsafe struct SBInstruction as "SBInstruction");
 unsafe impl Send for SBInstruction {}
 
 impl SBInstruction {
-    pub fn is_valid(&self) -> bool {
-        cpp!(unsafe [self as "SBInstruction*"] -> bool as "bool" {
-            return self->IsValid();
-        })
-    }
     pub fn address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBInstruction*"] -> SBAddress as "SBAddress" {
             return self->GetAddress();
@@ -45,6 +40,14 @@ impl SBInstruction {
         let target = target.clone();
         cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> SBDataOwned as "SBData" {
             return self->GetData(target);
+        })
+    }
+}
+
+impl IsValid for SBInstruction {
+    fn is_valid(&self) -> bool {
+        cpp!(unsafe [self as "SBInstruction*"] -> bool as "bool" {
+            return self->IsValid();
         })
     }
 }

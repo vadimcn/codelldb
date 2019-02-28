@@ -1551,60 +1551,59 @@ impl DebugSession {
         }
     }
 
-    // Get a displayable string from a SBValue
+    // Get displayable string from an SBValue
     fn get_var_value_str(&self, var: &SBValue, format: Format, is_container: bool) -> String {
-        // TODO: let mut var: Cow<&SBValue> = var.into(); ???
-        let mut value_opt: Option<String> = None;
-        let mut var2: Option<SBValue>;
-        let mut var = var;
+        if var.error().is_failure() {
+            return "<not available>".to_string();
+        }
+
+        let mut var = Cow::Borrowed(var);
         var.set_format(format);
 
         if self.deref_pointers && format == Format::Default {
             let ptr_type = var.type_();
             let type_class = ptr_type.type_class();
             if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
-                // If pointer has associated synthetic, or if it's a pointer to basic type such as `char`,
-                // use summary of the pointer itself,
+                // If the pointer has an associated synthetic, or if it's a pointer to a basic
+                // type such as `char`, use summary of the pointer itself;
                 // otherwise prefer to dereference and use summary of the pointee.
                 if var.is_synthetic() || ptr_type.pointee_type().basic_type() != BasicType::Invalid {
-                    value_opt = var.summary().map(|s| into_string_lossy(s));
+                    if let Some(value_str) = var.summary().map(|s| into_string_lossy(s)) {
+                        return value_str;
+                    }
                 }
 
-                if value_opt.is_none() {
+                // try dereferencing
+                let pointee = var.dereference();
+                if !pointee.is_valid() || pointee.data().byte_size() == 0 {
                     if var.value_as_unsigned(0) == 0 {
-                        value_opt = Some("<null>".to_owned());
+                        return "<null>".to_owned();
                     } else {
-                        var2 = Some(var.dereference());
-                        var = var2.as_ref().unwrap();
+                        return "<invalid address>".to_owned();
                     }
                 }
+                var = Cow::Owned(pointee);
             }
         }
 
-        // Try value, then summary
-        if value_opt.is_none() {
-            value_opt = var.value().map(|s| into_string_lossy(s));
-            if value_opt.is_none() {
-                value_opt = var.summary().map(|s| into_string_lossy(s));
-            }
+        // Try value,
+        if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
+            return value_str;
+        }
+        // ...then try summary
+        if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
+            return summary_str;
         }
 
-        let value_str = match value_opt {
-            Some(s) => s,
-            None => {
-                if is_container {
-                    if self.container_summary {
-                        self.get_container_summary(var)
-                    } else {
-                        "{...}".to_owned()
-                    }
-                } else {
-                    "<not available>".to_owned()
-                }
+        if is_container {
+            if self.container_summary {
+                self.get_container_summary(var.as_ref())
+            } else {
+                "{...}".to_owned()
             }
-        };
-
-        value_str
+        } else {
+            "<not available>".to_owned()
+        }
     }
 
     fn get_container_summary(&self, var: &SBValue) -> String {

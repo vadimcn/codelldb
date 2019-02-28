@@ -20,10 +20,15 @@ cpp! {{
 }}
 
 pub type Address = u64;
+pub type ProcessID = u64;
 pub type ThreadID = u64;
 pub type BreakpointID = u32;
 pub type UserID = u64;
-pub type ProcessID = u64;
+
+pub const INVALID_ADDRESS: Address = Address::max_value();
+pub const INVALID_THREAD_ID: ThreadID = 0;
+pub const INVALID_PROCESS_ID: ProcessID = 0;
+pub const INVALID_BREAK_ID: BreakpointID = 0;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -82,6 +87,23 @@ where
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         return (0, Some(self.size as usize));
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub trait IsValid {
+    fn is_valid(&self) -> bool;
+
+    fn check(self) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if self.is_valid() {
+            Some(self)
+        } else {
+            None
+        }
     }
 }
 

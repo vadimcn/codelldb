@@ -60,6 +60,21 @@ impl SBValue {
             unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
         }
     }
+    pub fn address(&self) -> Option<SBAddress> {
+        let addr = cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
+            return self->GetAddress();
+        });
+        if addr.is_valid() {
+            Some(addr)
+        } else {
+            None
+        }
+    }
+    pub fn load_address(&self) -> Address {
+        cpp!(unsafe [self as "SBValue*"] -> Address as "addr_t" {
+            return self->GetLoadAddress();
+        })
+    }
     pub fn is_synthetic(&self) -> bool {
         cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
             return self->IsSynthetic();
@@ -128,6 +143,11 @@ impl SBValue {
     pub fn dereference(&self) -> SBValue {
         cpp!(unsafe [self as "SBValue*"] -> SBValue as "SBValue" {
             return self->Dereference();
+        })
+    }
+    pub fn data(&self) -> SBDataOwned {
+        cpp!(unsafe [self as "SBValue*"] -> SBDataOwned as "SBData" {
+            return self->GetData();
         })
     }
     pub fn summary(&self) -> Option<&CStr> {

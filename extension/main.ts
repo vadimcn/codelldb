@@ -2,7 +2,7 @@ import {
     workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer,
+    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -19,7 +19,8 @@ export let output = window.createOutputChannel('LLDB');
 
 // Main entry point
 export function activate(context: ExtensionContext) {
-    new Extension(context);
+    let extension = new Extension(context);
+    extension.onActivate();
 }
 
 class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
@@ -66,6 +67,21 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 await debug.activeDebugSession.customRequest('displaySettings', settings);
             }
         }));
+    }
+
+    async onActivate() {
+        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
+        let currVersion = pkg.version;
+        let lastVersion = this.context.globalState.get('lastLaunchedVersion');
+        if (currVersion != lastVersion) {
+            this.context.globalState.update('lastLaunchedVersion', currVersion);
+            let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
+            if (choice != null) {
+                let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
+                let uri = Uri.parse(`file://${changelog}`);
+                await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
+            }
+        }
     }
 
     async provideDebugConfigurations(

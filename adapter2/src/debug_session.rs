@@ -919,7 +919,7 @@ impl DebugSession {
             self.handle_custom_launch(args)
         } else {
             if let Some(commands) = &args.init_commands {
-                self.exec_commands(&commands);
+                self.exec_commands("initCommands", &commands)?;
             }
             let program = match &args.program {
                 Some(program) => program,
@@ -968,7 +968,7 @@ impl DebugSession {
 
         // Run user commands (which may modify launch info)
         if let Some(ref commands) = args.pre_run_commands {
-            self.exec_commands(commands);
+            self.exec_commands("preRunCommands", commands)?;
         }
 
         let mut launch_info = self.target.launch_info();
@@ -990,7 +990,7 @@ impl DebugSession {
         self.process_launched = true;
 
         if let Some(commands) = args.post_run_commands {
-            self.exec_commands(&commands);
+            self.exec_commands("postRunCommands", &commands)?;
         }
         self.exit_commands = args.exit_commands;
         Ok(ResponseBody::launch)
@@ -998,7 +998,7 @@ impl DebugSession {
 
     fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
         if let Some(commands) = &args.target_create_commands.as_ref().or(args.init_commands.as_ref()) {
-            self.exec_commands(&commands);
+            self.exec_commands("targetCreateCommands", &commands)?;
         }
         self.target = Initialized(self.debugger.selected_target());
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
@@ -1008,7 +1008,7 @@ impl DebugSession {
 
     fn complete_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         if let Some(commands) = args.process_create_commands.as_ref().or(args.pre_run_commands.as_ref()) {
-            self.exec_commands(&commands);
+            self.exec_commands("processCreateCommands", &commands)?;
         }
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
@@ -1027,7 +1027,7 @@ impl DebugSession {
             return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
         }
         if let Some(commands) = &args.init_commands {
-            self.exec_commands(&commands);
+            self.exec_commands("initCommands", &commands)?;
         }
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
@@ -1037,7 +1037,7 @@ impl DebugSession {
 
     fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
         if let Some(ref commands) = args.pre_run_commands {
-            self.exec_commands(commands);
+            self.exec_commands("preRunCommands", commands)?;
         }
 
         let attach_info = SBAttachInfo::new();
@@ -1069,7 +1069,7 @@ impl DebugSession {
             self.process.resume();
         }
         if let Some(commands) = args.post_run_commands {
-            self.exec_commands(&commands);
+            self.exec_commands("postRunCommands", &commands)?;
         }
         self.exit_commands = args.exit_commands;
         Ok(ResponseBody::attach)
@@ -1178,21 +1178,25 @@ impl DebugSession {
         self.send_request(RequestArguments::runInTerminal(req_args));
     }
 
-    fn exec_commands(&self, commands: &[String]) {
+    fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
+        self.console_message(format!("Executing script: {}", script_name));
         let interpreter = self.debugger.command_interpreter();
         let mut result = SBCommandReturnObject::new();
         for command in commands {
             result.clear();
-            interpreter.handle_command(&command, &mut result, false);
-            debug!("{:?}", result);
+            let ok = interpreter.handle_command(&command, &mut result, false);
+            debug!("{} -> {:?}, {:?}", command, ok, result);
             let output = result.output().to_string_lossy().into_owned();
             if !output.is_empty() {
                 self.console_message(output);
             }
             if !result.succeeded() {
-                self.console_error(result.error().to_string_lossy().into_owned());
+                let err = result.error().to_string_lossy().into_owned();
+                self.console_error(err.clone());
+                return Err(Error::UserError(err));
             }
         }
+        Ok(())
     }
 
     fn init_source_map<S>(&mut self, source_map: impl IntoIterator<Item = (S, Option<S>)>)
@@ -1956,7 +1960,7 @@ impl DebugSession {
 
     fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
         if let Some(commands) = &self.exit_commands {
-            self.exec_commands(&commands);
+            self.exec_commands("exitCommands", &commands)?;
         }
         let terminate = match args {
             None => self.process_launched,

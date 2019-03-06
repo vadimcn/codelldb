@@ -1553,8 +1553,9 @@ impl DebugSession {
 
     // Get displayable string from an SBValue
     fn get_var_value_str(&self, var: &SBValue, format: Format, is_container: bool) -> String {
-        if var.error().is_failure() {
-            return "<not available>".to_string();
+        let err = var.error();
+        if err.is_failure() {
+            return format!("<{}>", err);
         }
 
         let mut var = Cow::Borrowed(var);

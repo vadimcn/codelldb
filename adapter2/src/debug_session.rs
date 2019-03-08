@@ -1619,6 +1619,11 @@ impl DebugSession {
         let mut summary = String::from("{");
         let mut empty = true;
         for child in var.children() {
+            if summary.len() > MAX_LENGTH {
+                summary.push_str(", ...");
+                break;
+            }
+
             if let Some(name) = child.name() {
                 if let Some(Ok(value)) = child.value().map(|s| s.to_str()) {
                     if empty {
@@ -1634,12 +1639,8 @@ impl DebugSession {
                     }
                 }
             }
-
-            if summary.len() > MAX_LENGTH {
-                summary.push_str(", ...");
-                break;
-            }
         }
+
         if empty {
             summary.push_str("...");
         }
@@ -1772,7 +1773,8 @@ impl DebugSession {
         let context = self.context_from_frame(frame);
         let mut result = SBCommandReturnObject::new();
         let interp = self.debugger.command_interpreter();
-        interp.handle_command_with_context(command, &context, &mut result, false);
+        let ok = interp.handle_command_with_context(command, &context, &mut result, false);
+        debug!("{} -> {:?}, {:?}", command, ok, result);
         // TODO: multiline
         result
     }

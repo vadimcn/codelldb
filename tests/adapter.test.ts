@@ -314,12 +314,24 @@ suite('Adapter tests', () => {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 log(`${i}: evaluate`);
-                let response1 = await ds.evaluateRequest({ expression: "s1.d", frameId: frameId, context: "watch" });
-                let response2 = await ds.evaluateRequest({ expression: "s2.d", frameId: frameId, context: "watch" });
+                let response1 = await ds.evaluateRequest({ expression: 's1.d', frameId: frameId, context: 'watch' });
+                let response2 = await ds.evaluateRequest({ expression: 's2.d', frameId: frameId, context: 'watch' });
 
                 log(`${i}: compareVariables`);
                 await ds.compareVariables(response1.body.variablesReference, { '[0]': i, '[1]': i, '[2]': i, '[3]': i });
                 await ds.compareVariables(response2.body.variablesReference, { '[0]': i * 10, '[1]': i * 10, '[2]': i * 10, '[3]': i * 10 });
+
+                if (adapterType == 'native') {
+                    log(`${i}: evaluate as array`);
+                    let response3 = await ds.evaluateRequest({ expression: 'array_struct_p,[5]', frameId: frameId, context: 'watch' });
+
+                    log(`${i}: compareVariables`);
+                    await ds.compareVariables(response3.body.variablesReference, {
+                        '[0]': { a: i * 2, b: "'a'", c: 0 },
+                        '[2]': { a: i * 2 + 2, b: "'c'", c: 2 },
+                        '[4]': { a: i * 2 + 4, b: "'e'", c: 4 }
+                    });
+                }
             }
             await ds.terminate();
         });

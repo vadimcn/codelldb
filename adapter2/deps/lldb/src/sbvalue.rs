@@ -25,6 +25,9 @@ impl SBValue {
             return self->GetType();
         })
     }
+    pub fn r#type(&self) -> SBType {
+        self.type_()
+    }
     pub fn name(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBValue*"] -> *const c_char as "const char*" {
             return self->GetName();
@@ -64,6 +67,26 @@ impl SBValue {
     pub fn load_address(&self) -> Address {
         cpp!(unsafe [self as "SBValue*"] -> Address as "addr_t" {
             return self->GetLoadAddress();
+        })
+    }
+    pub fn target(&self) -> SBTarget {
+        cpp!(unsafe [self as "SBValue*"] -> SBTarget as "SBTarget" {
+            return self->GetTarget();
+        })
+    }
+    pub fn process(&self) -> SBProcess {
+        cpp!(unsafe [self as "SBValue*"] -> SBProcess as "SBProcess" {
+            return self->GetProcess();
+        })
+    }
+    pub fn thread(&self) -> SBThread {
+        cpp!(unsafe [self as "SBValue*"] -> SBThread as "SBThread" {
+            return self->GetThread();
+        })
+    }
+    pub fn frame(&self) -> SBFrame {
+        cpp!(unsafe [self as "SBValue*"] -> SBFrame as "SBFrame" {
+            return self->GetFrame();
         })
     }
     pub fn is_synthetic(&self) -> bool {
@@ -134,6 +157,19 @@ impl SBValue {
     pub fn dereference(&self) -> SBValue {
         cpp!(unsafe [self as "SBValue*"] -> SBValue as "SBValue" {
             return self->Dereference();
+        })
+    }
+    pub fn cast(&self, ty: &SBType) -> SBValue {
+        cpp!(unsafe [self as "SBValue*", ty as "SBType*"] -> SBValue as "SBValue" {
+            return self->Cast(*ty);
+        })
+    }
+    pub fn create_child_at_offset(&self, name: &str, offset: u32, ty: &SBType) -> SBValue {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBValue*", name as "const char*",
+                         offset as "uint32_t", ty as "SBType*"] ->  SBValue as "SBValue"  {
+                return self->CreateChildAtOffset(name, offset, *ty);
+            })
         })
     }
     pub fn data(&self) -> SBDataOwned {

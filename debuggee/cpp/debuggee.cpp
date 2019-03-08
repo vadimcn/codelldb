@@ -155,7 +155,11 @@ void vars()
         std::map<int, float> ord_map = {{1, 2.34f}, {2, 3.56f}};
         std::unordered_map<int, float> unord_map = {{1, 2.34f}, {2, 3.56f}};
         auto shared_ptr = std::make_shared<std::map<int, float>>(ord_map);
-        Struct array_struct[5] = {{i * 2, 'b', 4.0f}};
+
+        Struct array_struct[5];
+        for (int j = 0; j < 5; ++j)
+            array_struct[j] = { i*2 + j, (char)('a'+ j), (float)j};
+        Struct* array_struct_p = array_struct;
 
         const char *cstr = "The quick brown fox";
         const wchar_t *wcstr = L"The quick brown fox";

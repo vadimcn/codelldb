@@ -145,17 +145,17 @@ impl SBTarget {
             return self->GetBasicType(basic_type);
         })
     }
-    pub fn create_value_from_data(&self, name: &str, data: &SBData, type_: &SBType) -> SBValue {
+    pub fn create_value_from_data(&self, name: &str, data: &SBData, ty: &SBType) -> SBValue {
         with_cstr(name, |name| {
-            cpp!(unsafe [self as "SBTarget*", name as "const char*", data as "SBData*", type_ as "SBType*"] -> SBValue as "SBValue" {
-                return self->CreateValueFromData(name, *data, *type_);
+            cpp!(unsafe [self as "SBTarget*", name as "const char*", data as "SBData*", ty as "SBType*"] -> SBValue as "SBValue" {
+                return self->CreateValueFromData(name, *data, *ty);
             })
         })
     }
-    pub fn create_value_from_address(&self, name: &str, addr: &SBAddress, type_: &SBType) -> SBValue {
+    pub fn create_value_from_address(&self, name: &str, addr: &SBAddress, ty: &SBType) -> SBValue {
         with_cstr(name, |name| {
-            cpp!(unsafe [self as "SBTarget*", name as "const char*", addr as "SBAddress*", type_ as "SBType*"] -> SBValue as "SBValue" {
-                return self->CreateValueFromAddress(name, *addr, *type_);
+            cpp!(unsafe [self as "SBTarget*", name as "const char*", addr as "SBAddress*", ty as "SBType*"] -> SBValue as "SBValue" {
+                return self->CreateValueFromAddress(name, *addr, *ty);
             })
         })
     }

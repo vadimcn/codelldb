@@ -1,5 +1,4 @@
 use crate::debug_protocol::Expressions;
-use crate::error::Error;
 use lldb::SBValue;
 use regex::{Captures, Regex, RegexBuilder};
 use std::borrow::Cow;
@@ -21,6 +20,13 @@ pub enum HitCondition {
     MOD(u32),
 }
 
+#[derive(Debug, Clone)]
+pub enum FormatSpec {
+    Format(lldb::Format),
+    Array(u32),
+}
+
+// Parse expression type and preprocess it.
 pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpression {
     let (expr, ty) = get_expression_type(expression, default_type);
     match ty {
@@ -28,6 +34,21 @@ pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpressio
         Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)),
         Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)),
     }
+}
+
+// Same as prepare(), but also parses formatting options at the end of expression,
+// for example, `value,x` to format value as hex or `ptr,[50]` to interpret `ptr` as an array of 50 elements.
+pub fn prepare_with_format(
+    expression: &str, default_type: Expressions,
+) -> Result<(PreparedExpression, Option<FormatSpec>), String> {
+    let (expr, ty) = get_expression_type(expression, default_type);
+    let (expr, format) = get_expression_format(expr)?;
+    let pp_expr = match ty {
+        Expressions::Native => PreparedExpression::Native(expr.to_owned()),
+        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)),
+        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)),
+    };
+    Ok((pp_expr, format))
 }
 
 pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
@@ -56,7 +77,7 @@ pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
     }
 }
 
-pub fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {
+fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {
     if expr.starts_with("/nat ") {
         (&expr[5..], Expressions::Native)
     } else if expr.starts_with("/py ") {
@@ -65,6 +86,40 @@ pub fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a
         (&expr[4..], Expressions::Simple)
     } else {
         (expr, default_type)
+    }
+}
+
+fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, Option<FormatSpec>), String> {
+    if let Some(captures) = EXPRESSION_FORMAT.captures(expr) {
+        let expr = &expr[..captures.get(0).unwrap().start()];
+
+        if let Some(m) = captures.get(1) {
+            let format = match m.as_str() {
+                "h" => lldb::Format::Hex,
+                "x" => lldb::Format::Hex,
+                "o" => lldb::Format::Octal,
+                "d" => lldb::Format::Decimal,
+                "b" => lldb::Format::Binary,
+                "f" => lldb::Format::Float,
+                "p" => lldb::Format::Pointer,
+                "u" => lldb::Format::Unsigned,
+                "s" => lldb::Format::CString,
+                "y" => lldb::Format::Bytes,
+                "Y" => lldb::Format::BytesWithASCII,
+                _ => return Err(format!("Invalid format specifier: {}", m.as_str())),
+            };
+            Ok((expr, Some(FormatSpec::Format(format))))
+        } else if let Some(m) = captures.get(2) {
+            let size = match m.as_str().parse::<u32>() {
+                Err(err) => return Err(err.to_string()),
+                Ok(size) => size,
+            };
+            Ok((expr, Some(FormatSpec::Array(size))))
+        } else {
+            unreachable!()
+        }
+    } else {
+        Ok((expr, None))
     }
 }
 
@@ -146,6 +201,7 @@ lazy_static::lazy_static! {
     static ref PREPROCESS_SIMPLE: &'static Regex = &EXPRESSIONS[1];
     static ref PREPROCESS_PYTHON: &'static Regex = &EXPRESSIONS[2];
     static ref HIT_COUNT: Regex = compile_regex(r"\A\s*(>|>=|=|==|<|<=|%)?\s*([0-9]+)\s*\z");
+    static ref EXPRESSION_FORMAT: Regex = compile_regex(r", (?: ([A-Za-z]) | (?: \[ (\d+) \] ) )\z");
 }
 
 pub fn escape_variable_name<'a>(name: &'a str) -> Cow<'a, str> {
@@ -191,6 +247,10 @@ pub fn preprocess_simple_expr(expr: &str) -> String {
 pub fn preprocess_python_expr(expr: &str) -> String {
     PREPROCESS_PYTHON.replace_all(expr, replacer).into_owned()
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
 
 #[test]
 fn test_simple() {
@@ -260,11 +320,24 @@ fn test_escape_variable_name() {
     assert_eq!(escape_variable_name("foo::bar<34>::value"), "${foo::bar<34>::value}");
 }
 
-macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
+#[test]
+fn test_expression_format() {
+    assert_match!(get_expression_format("foo"), Ok(("foo", None)));
+    assert_match!(get_expression_format("foo,bar"), Ok(("foo,bar", None)));
+
+    assert_match!(get_expression_format("foo,h"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
+    assert_match!(get_expression_format("foo,x"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
+    assert_match!(get_expression_format("foo,y"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Bytes)))));
+    assert_match!(get_expression_format("foo,Y"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::BytesWithASCII)))));
+
+    assert_match!(get_expression_format("foo,[42]"), Ok(("foo", Some(FormatSpec::Array(42)))));
+
+    assert_match!(get_expression_format("foo,Z"), Err(_));
+}
 
 #[test]
 fn test_parse_hit_condition() {
-    assert_match!(parse_hit_condition(" 13   "), Ok(HitCondition::EQ(13)));
+    assert_match!(parse_hit_condition(" 13   "), Ok(HitCondition::GE(13)));
     assert_match!(parse_hit_condition(" < 42"), Ok(HitCondition::LT(42)));
     assert_match!(parse_hit_condition(" <=53 "), Ok(HitCondition::LE(53)));
     assert_match!(parse_hit_condition("=  61"), Ok(HitCondition::EQ(61)));

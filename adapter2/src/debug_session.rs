@@ -24,7 +24,7 @@ use crate::cancellation::{CancellationSource, CancellationToken};
 use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::error::Error;
-use crate::expressions::{self, HitCondition, PreparedExpression};
+use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::python::{self, PythonInterface, PythonValue};
@@ -855,7 +855,7 @@ impl DebugSession {
         // Finds expressions ({...}) in message and invokes the callback on them.
         fn replace_logpoint_expressions<F>(message: &str, f: F) -> String
         where
-            F: Fn(&str) -> String,
+            F: Fn(&str) -> Result<String, String>,
         {
             let mut start = 0;
             let mut nesting = 0;
@@ -870,7 +870,11 @@ impl DebugSession {
                 } else if ch == '}' && nesting > 0 {
                     nesting -= 1;
                     if nesting == 0 {
-                        result.push_str(&f(&message[start..idx]));
+                        let str_val = match f(&message[start..idx]) {
+                            Ok(ok) => ok,
+                            Err(err) => format!("{{Error: {}}}", err),
+                        };
+                        result.push_str(&str_val);
                         start = idx + 1;
                     }
                 }
@@ -880,16 +884,14 @@ impl DebugSession {
         }
 
         replace_logpoint_expressions(&log_message, |expr| {
-            let (expr, expr_format) = self.get_expr_format(expr);
-            let expr_format = expr_format.unwrap_or(self.global_format);
-            let pp_expr = expressions::prepare(expr, self.default_expr_type);
-            match self.evaluate_expr_in_frame(&pp_expr, Some(frame)) {
-                Ok(sbval) => self.get_var_value_str(&sbval, expr_format, sbval.num_children() > 0),
-                Err(err) => {
-                    self.console_error(err.to_string());
-                    "{Error}".to_string()
-                }
-            }
+            let (pp_expr, expr_format) = expressions::prepare_with_format(expr, self.default_expr_type)?;
+            let format = match expr_format {
+                None | Some(FormatSpec::Array(_)) => self.global_format,
+                Some(FormatSpec::Format(format)) => format,
+            };
+            let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame)).map_err(|err| err.to_string())?;
+            let str_val = self.get_var_value_str(&sbval, format, sbval.num_children() > 0);
+            Ok(str_val)
         })
     }
 
@@ -1645,30 +1647,6 @@ impl DebugSession {
         summary
     }
 
-    fn get_expr_format<'a>(&self, expr: &'a str) -> (&'a str, Option<Format>) {
-        let mut chars = expr.chars();
-        if let Some(ch) = chars.next_back() {
-            if let Some(',') = chars.next_back() {
-                let format = match ch {
-                    'h' => Format::Hex,
-                    'x' => Format::Hex,
-                    'o' => Format::Octal,
-                    'd' => Format::Decimal,
-                    'b' => Format::Binary,
-                    'f' => Format::Float,
-                    'p' => Format::Pointer,
-                    'u' => Format::Unsigned,
-                    's' => Format::CString,
-                    'y' => Format::Bytes,
-                    'Y' => Format::BytesWithASCII,
-                    _ => return (expr, None),
-                };
-                return (chars.as_str(), Some(format));
-            }
-        }
-        (expr, None)
-    }
-
     fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<EvaluateResponseBody, Error> {
         let frame = if let Some(frame_id) = args.frame_id {
             let handle = handles::from_i64(frame_id)?;
@@ -1711,15 +1689,42 @@ impl DebugSession {
         }
 
         // Expression
-        let (expression, expr_format) = self.get_expr_format(expression);
-        let expr_format = expr_format.unwrap_or(self.global_format);
-        let pp_expr = expressions::prepare(expression, self.default_expr_type);
+        let (pp_expr, expr_format) = expressions::prepare_with_format(expression, self.default_expr_type)
+            .map_err(|err| Error::UserError(err))?;
+
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
-            Ok(sbval) => {
-                let handle = self.get_var_handle(None, expression, &sbval);
+            Ok(mut sbval) => {
+                let (var, format) = match expr_format {
+                    None => (sbval, self.global_format),
+                    Some(FormatSpec::Format(format)) => (sbval, format),
+                    // Interpret as array of `size` elements:
+                    Some(FormatSpec::Array(size)) => {
+                        let var_type = sbval.type_();
+                        let type_class = var_type.type_class();
+                        let var = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
+                            // For pointers and references we re-interpret the pointee.
+                            let array_type = var_type.pointee_type().array_type(size as u64);
+                            let addr = sbval.dereference().address().unwrap();
+                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+                        } else if type_class.intersects(TypeClass::Array) {
+                            // For arrays, re-interpret the array length.
+                            let array_type = var_type.array_element_type().array_type(size as u64);
+                            let addr = sbval.address().unwrap();
+                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+                        } else {
+                            // For other types re-interpret the value itself.
+                            let array_type = var_type.array_type(size as u64);
+                            let addr = sbval.address().unwrap();
+                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+                        };
+                        (var, self.global_format)
+                    }
+                };
+
+                let handle = self.get_var_handle(None, expression, &var);
                 Ok(EvaluateResponseBody {
-                    result: self.get_var_value_str(&sbval, expr_format, handle.is_some()),
-                    type_: sbval.type_name().map(|s| s.to_owned()),
+                    result: self.get_var_value_str(&var, format, handle.is_some()),
+                    type_: var.type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
                     ..Default::default()
                 })

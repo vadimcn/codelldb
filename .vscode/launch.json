@@ -115,7 +115,7 @@
 		},
 		{
 			"name": "test codelldb",
-			"preLaunchTask": "cargo build",
+			"preLaunchTask": "check_codelldb",
 			"type": "lldb",
 			"request": "launch",
 			"cargo": {

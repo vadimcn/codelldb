@@ -11,5 +11,6 @@
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
     "python.linting.enabled": false,
-    "rust.build_lib": true
+    "rust.build_lib": true,
+    "lldb.verboseLogging": true
 }

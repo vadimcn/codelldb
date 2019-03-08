@@ -61,15 +61,19 @@
       "type": "shell",
       "label": "Start extension host",
       "command": "code --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
-      "group": "build",
-      "dependsOn": "dev_debugging",
+      "group": "build"
+    },
+    {
+      "type": "shell",
+      "label": "Start extension host (Insiders)",
+      "command": "code-insiders --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
+      "group": "build"
     },
     {
       "type": "shell",
       "label": "Start extension host (dev VSCode)",
       "command": "${workspaceFolder}/../vscode/scripts/code.sh --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
-      "group": "build",
-      "dependsOn": "dev_debugging",
+      "group": "build"
     },
     {
       "label": "vsix_extracted",

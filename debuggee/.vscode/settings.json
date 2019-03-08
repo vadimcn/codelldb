@@ -7,7 +7,7 @@
         //"targetDir": "${workspaceFolder}/../build/debuggee-gnu"
         //"targetDir": "${workspaceFolder}/../build/debuggee-msvc"
     },
-    //"lldb.launch.debugServer": 4711,
-    "lldb.adapterType": "classic",
+    "lldb.launch.debugServer": 4711,
+    "lldb.adapterType": "native",
     "lldb.verboseLogging": true,
 }

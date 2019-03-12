@@ -17,6 +17,13 @@
 			"args": ["threads"]
 		},
 		{
+			"name": "debuggee launch threads_long",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["threads_long"]
+		},
+		{
 			"name": "debuggee launch crash",
 			"type": "lldb",
 			"request": "launch",

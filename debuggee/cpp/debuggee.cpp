@@ -47,7 +47,7 @@ void inf_loop()
     }
 }
 
-void threads(int num_threads)
+void threads(int num_threads, int linger_time = 1)
 {
 #if !defined(__MINGW32__) || defined(_GLIBCXX_HAS_GTHREADS)
     std::vector<int> alive(num_threads);
@@ -55,14 +55,13 @@ void threads(int num_threads)
     for (int i = 0; i < num_threads; ++i)
     {
         int *am_alive = &alive[i];
-        std::thread thread([am_alive](int id) {
+        std::thread thread([am_alive, linger_time](int id) {
             *am_alive = 1;
             printf("I'm thread %d\n", id);
-            sleep(id % 4 + 1);
+            sleep(id % 4 + linger_time);
             printf("Thread %d exiting\n", id);
             *am_alive = 0;
-        },
-                           i);
+        }, i);
         threads.push_back(std::move(thread));
     }
     sleep(1);
@@ -238,6 +237,10 @@ int main(int argc, char *argv[])
     else if (testcase == "threads")
     {
         threads(15);
+    }
+    else if (testcase == "threads_long")
+    {
+        threads(15, 10000);
     }
     else if (testcase == "check_env")
     {

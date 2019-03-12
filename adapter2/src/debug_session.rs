@@ -85,7 +85,7 @@ enum InputEvent {
 
 pub struct DebugSession {
     send_message: RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>,
-    request_seq: Cell<u32>,
+    message_seq: Cell<u32>,
     incoming_send: std::sync::mpsc::SyncSender<InputEvent>,
     shutdown: CancellationSource,
     event_listener: SBListener,
@@ -155,7 +155,7 @@ impl DebugSession {
         let debug_session = DebugSession {
             send_message: RefCell::new(outgoing_send),
             incoming_send: incoming_send.clone(),
-            request_seq: Cell::new(1),
+            message_seq: Cell::new(1),
             shutdown: shutdown,
             self_ref: NotInitialized,
             debugger: NotInitialized,
@@ -341,18 +341,19 @@ impl DebugSession {
 
     fn send_event(&self, event_body: EventBody) {
         let event = ProtocolMessage::Event(Event {
-            seq: 0,
+            seq: self.message_seq.get(),
             body: event_body,
         });
+        self.message_seq.set(self.message_seq.get() + 1);
         self.send_message.borrow_mut().try_send(event).map_err(|err| panic!("Could not send event: {}", err));
     }
 
     fn send_request(&self, args: RequestArguments) {
         let request = ProtocolMessage::Request(Request {
-            seq: self.request_seq.get(),
+            seq: self.message_seq.get(),
             arguments: Some(args),
         });
-        self.request_seq.set(self.request_seq.get() + 1);
+        self.message_seq.set(self.message_seq.get() + 1);
         self.send_message.borrow_mut().try_send(request).map_err(|err| panic!("Could not send request: {}", err));
     }
 

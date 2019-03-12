@@ -8,6 +8,7 @@ variables:
       export PATH=$HOME/.cargo/bin:$PATH
   setenvOSX: |
       export PATH=$HOME/.cargo/bin:$PATH
+      export PYTHON_SYS_EXECUTABLE=/usr/bin/python2.7
   setenvWindows: |
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%

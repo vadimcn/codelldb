@@ -23,7 +23,7 @@ mod expressions;
 mod handles;
 mod must_initialize;
 mod python;
-mod source_map;
+mod fsutil;
 mod stdio_channel;
 mod terminal;
 mod wire_protocol;

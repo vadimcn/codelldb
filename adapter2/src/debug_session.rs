@@ -25,10 +25,10 @@ use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::error::Error;
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
+use crate::fsutil::{is_same_path, normalize_path};
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::python::{self, PythonInterface, PythonValue};
-use crate::source_map::{self, is_same_path, normalize_path};
 use crate::terminal::Terminal;
 use lldb::*;
 

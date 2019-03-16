@@ -99,7 +99,6 @@ pub struct DebugSession {
     breakpoints: RefCell<BreakpointsState>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
-    known_threads: HashSet<ThreadID>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     loaded_modules: Vec<SBModule>,
     exit_commands: Option<Vec<String>>,
@@ -173,7 +172,6 @@ impl DebugSession {
             }),
             var_refs: HandleTree::new(),
             disassembly: NotInitialized,
-            known_threads: HashSet::new(),
             source_map_cache: RefCell::new(HashMap::new()),
             loaded_modules: Vec::new(),
             exit_commands: None,
@@ -1237,7 +1235,6 @@ impl DebugSession {
 
             if self.process.is_initialized() {
                 if self.process.state().is_stopped() {
-                    self.update_threads();
                     self.send_event(EventBody::stopped(StoppedEventBody {
                         all_threads_stopped: Some(true),
                         thread_id: self.known_threads.iter().next().map(|tid| *tid as i64),
@@ -2124,7 +2121,6 @@ impl DebugSession {
     }
 
     fn notify_process_stopped(&mut self) {
-        self.update_threads();
         // Find thread that has caused this stop
         let mut stopped_thread;
         // Check the currently selected thread first
@@ -2182,25 +2178,6 @@ impl DebugSession {
         self.loaded_modules.clear();
     }
 
-    // Notify VSCode about target threads that started or exited since the last stop.
-    fn update_threads(&mut self) {
-        let threads = self.process.threads().map(|t| t.thread_id()).collect::<HashSet<_>>();
-        let started = threads.difference(&self.known_threads).cloned().collect::<Vec<_>>();
-        let exited = self.known_threads.difference(&threads).cloned().collect::<Vec<_>>();
-        for tid in exited {
-            self.send_event(EventBody::thread(ThreadEventBody {
-                thread_id: tid as i64,
-                reason: "exited".to_owned(),
-            }));
-        }
-        for tid in started {
-            self.send_event(EventBody::thread(ThreadEventBody {
-                thread_id: tid as i64,
-                reason: "started".to_owned(),
-            }));
-        }
-        self.known_threads = threads;
-    }
 
     fn handle_target_event(&mut self, event: &SBTargetEvent) {
         let flags = event.as_event().flags();

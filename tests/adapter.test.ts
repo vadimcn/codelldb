@@ -448,6 +448,19 @@ suite('Adapter tests', () => {
             await ds.terminate();
         });
 
+        test('attach by pid / nostop', async function () {
+            if (ptraceLocked) this.skip();
+
+            let ds = await DebugTestSession.start(adapterLog);
+            let stopCount = 0;
+            ds.addListener('stopped', () => stopCount += 1);
+            ds.addListener('continued', () => stopCount -= 1);
+            let attachResp = await ds.attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
+            assert(attachResp.success);
+            assert(stopCount <= 0);
+            await ds.terminate();
+        });
+
         test('attach by name', async function () {
             if (ptraceLocked) this.skip();
 

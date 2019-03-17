@@ -959,10 +959,8 @@ impl DebugSession {
         if let Some(ref cwd) = args.cwd {
             launch_info.set_working_directory(&cwd);
         }
-        if let Some(stop_on_entry) = args.stop_on_entry {
-            if stop_on_entry {
-                launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
-            }
+        if let Some(true) = args.stop_on_entry {
+            launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
         }
         self.configure_stdio(&args, &mut launch_info);
         self.target.set_launch_info(&launch_info);
@@ -990,6 +988,11 @@ impl DebugSession {
         self.process = Initialized(process);
         self.process_launched = true;
 
+        // LLDB sometimes loses the initial stop event.
+        if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+            self.notify_process_stopped();
+        }
+
         if let Some(commands) = args.post_run_commands {
             self.exec_commands("postRunCommands", &commands)?;
         }
@@ -1014,6 +1017,12 @@ impl DebugSession {
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
         self.process_launched = false;
+
+        // This is succeptible to race conditions, but probably the best we can do.
+        if self.process.state().is_stopped() {
+            self.notify_process_stopped();
+        }
+
         Ok(ResponseBody::launch)
     }
 
@@ -1055,7 +1064,7 @@ impl DebugSession {
         } else {
             unreachable!()
         }
-        attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), true);
+        attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
         attach_info.set_ignore_existing(false);
         attach_info.set_listener(&self.event_listener);
 
@@ -1066,9 +1075,12 @@ impl DebugSession {
         self.process = Initialized(process);
         self.process_launched = false;
 
-        if !args.stop_on_entry.unwrap_or(false) {
+        if args.stop_on_entry.unwrap_or(false) {
+            self.notify_process_stopped();
+        } else {
             self.process.resume();
         }
+
         if let Some(commands) = args.post_run_commands {
             self.exec_commands("postRunCommands", &commands)?;
         }
@@ -1230,21 +1242,7 @@ impl DebugSession {
         );
         if let Some((request_seq, responder)) = self.on_configuration_done.take() {
             let result = responder.call_box((self,));
-
             self.send_response(request_seq, result);
-
-            if self.process.is_initialized() {
-                if self.process.state().is_stopped() {
-                    self.send_event(EventBody::stopped(StoppedEventBody {
-                        all_threads_stopped: Some(true),
-                        thread_id: self.known_threads.iter().next().map(|tid| *tid as i64),
-                        reason: "initial".to_owned(),
-                        description: None,
-                        text: None,
-                        preserve_focus_hint: None,
-                    }));
-                }
-            }
         }
         Ok(())
     }
@@ -2117,7 +2115,7 @@ impl DebugSession {
         self.send_event(EventBody::continued(ContinuedEventBody {
             all_threads_continued: Some(true),
             thread_id: 0,
-        }))
+        }));
     }
 
     fn notify_process_stopped(&mut self) {
@@ -2177,7 +2175,6 @@ impl DebugSession {
         self.python.modules_loaded(&mut self.loaded_modules.iter());
         self.loaded_modules.clear();
     }
-
 
     fn handle_target_event(&mut self, event: &SBTargetEvent) {
         let flags = event.as_event().flags();

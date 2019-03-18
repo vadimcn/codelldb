@@ -95,6 +95,7 @@ where
 pub trait IsValid {
     fn is_valid(&self) -> bool;
 
+    /// If `self.is_valid()` is `true`, returns `Some(self)`, otherwise `None`.
     fn check(self) -> Option<Self>
     where
         Self: Sized,

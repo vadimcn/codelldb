@@ -128,6 +128,16 @@ impl SBLaunchInfo {
             return self->GetExecutableFile();
         })
     }
+    pub fn set_resume_count(&self, count: u32) {
+        cpp!(unsafe [self as "SBLaunchInfo*", count as "uint32_t"] {
+            self->SetResumeCount(count);
+        });
+    }
+    pub fn resume_count(&self) -> u32 {
+        cpp!(unsafe [self as "SBLaunchInfo*"] -> u32 as "uint32_t" {
+            return self->GetResumeCount();
+        })
+    }
 }
 
 bitflags! {

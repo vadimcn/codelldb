@@ -32,6 +32,26 @@ impl SBAttachInfo {
             })
         );
     }
+    /// Set attach by process name settings.
+    ///
+    /// Designed to be used after a call to `SBAttachInfo::set_executable()`.
+    /// Future calls to `SBTarget::attach(...)` will be synchronous or
+    /// asynchronous depending on the \a async argument.
+    ///
+    /// `wait_for`:
+    ///     If `false`, attach to an existing process whose name matches.
+    ///     If `true`, then wait for the next process whose name matches.
+    ///
+    /// `async`:
+    ///     If `false`, then the `SBTarget::attach(...)` call will be a
+    ///     synchronous call with no way to cancel the attach in
+    ///     progress.
+    ///     If `true`, then the `SBTarget::attach(...)` function will
+    ///     return immediately and clients are expected to wait for a
+    ///     process `ProcessState::Stopped` event if a suitable process is
+    ///     eventually found. If the client wants to cancel the event,
+    ///     SBProcess::stop() can be called and an `ProcessState::Exited` process
+    ///     event will be delivered.
     pub fn set_wait_for_launch(&self, wait_for: bool, async: bool) {
         cpp!(unsafe [self as "SBAttachInfo*", wait_for as "bool", async as "bool"] {
             self->SetWaitForLaunch(wait_for, async);
@@ -42,6 +62,7 @@ impl SBAttachInfo {
             return self->GetWaitForLaunch();
         })
     }
+    /// Ignore existing process(es).
     pub fn set_ignore_existing(&self, ignore: bool) {
         cpp!(unsafe [self as "SBAttachInfo*", ignore as "bool"] {
             self->SetIgnoreExisting(ignore);

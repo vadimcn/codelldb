@@ -44,6 +44,16 @@
       "group": "build"
     },
     {
+      "label": "doc_lldb",
+      "presentation": {
+        "clear": true
+      },
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "build"
+    },
+    {
       "label": "test_codelldb",
       "options": {
         "env": {

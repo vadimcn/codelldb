@@ -957,7 +957,7 @@ impl DebugSession {
             launch_info.set_arguments(args.iter().map(|a| a.as_ref()), false);
         }
         if let Some(ref cwd) = args.cwd {
-            launch_info.set_working_directory(&cwd);
+            launch_info.set_working_directory(Path::new(&cwd));
         }
         if let Some(true) = args.stop_on_entry {
             launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
@@ -983,7 +983,18 @@ impl DebugSession {
 
         let process = match self.target.launch(&launch_info) {
             Ok(process) => process,
-            Err(err) => return Err(Error::UserError(err.error_string().into())),
+            Err(err) => {
+                let mut msg: String = err.error_string().into();
+                let work_dir = launch_info.working_directory();
+                if self.target.platform().get_file_permissions(work_dir) == 0 {
+                    msg = format!(
+                        "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                        msg,
+                        work_dir.display()
+                    );
+                }
+                return Err(Error::UserError(msg));
+            }
         };
         self.process = Initialized(process);
         self.process_launched = true;

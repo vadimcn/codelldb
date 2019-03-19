@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 cpp_class!(pub unsafe struct SBPlatform as "SBPlatform");
 
@@ -38,6 +39,13 @@ impl SBPlatform {
             return self->GetOSDescription();
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+    pub fn get_file_permissions(&self, path: &Path) -> u32 {
+        with_cstr(path.to_str().unwrap(), |path| {
+            cpp!(unsafe [self as "SBPlatform*", path as "const char*"] -> u32 as "uint32_t" {
+                return self->GetFilePermissions(path);
+            })
+        })
     }
 }
 

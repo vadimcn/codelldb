@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 cpp_class!(pub unsafe struct SBLaunchInfo as "SBLaunchInfo");
 
@@ -71,18 +72,18 @@ impl SBLaunchInfo {
     pub fn environment_entries<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
         SBIterator::new(self.num_environment_entries(), move |index| self.environment_entry_at_index(index))
     }
-    pub fn set_working_directory(&mut self, cwd: &str) {
-        with_cstr(cwd, |cwd| {
+    pub fn set_working_directory(&mut self, cwd: &Path) {
+        with_cstr(cwd.to_str().unwrap(), |cwd| {
             cpp!(unsafe [self as "SBLaunchInfo*", cwd as "const char*"] {
                 self->SetWorkingDirectory(cwd);
             });
         })
     }
-    pub fn working_directory(&self) -> &str {
+    pub fn working_directory(&self) -> &Path {
         let ptr = cpp!(unsafe [self as "SBLaunchInfo*"] -> *const c_char as "const char*" {
             return self->GetWorkingDirectory();
         });
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { Path::new(CStr::from_ptr(ptr).to_str().unwrap()) }
     }
     pub fn add_open_file_action(&self, fd: i32, path: &str, read: bool, write: bool) -> bool {
         with_cstr(path, |path| {

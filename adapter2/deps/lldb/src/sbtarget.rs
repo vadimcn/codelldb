@@ -214,6 +214,11 @@ impl SBTarget {
         });
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
+    pub fn platform(&self) -> SBPlatform {
+        cpp!(unsafe [self as "SBTarget*"] -> SBPlatform as "SBPlatform" {
+            return self->GetPlatform();
+        })
+    }
 }
 
 impl IsValid for SBTarget {

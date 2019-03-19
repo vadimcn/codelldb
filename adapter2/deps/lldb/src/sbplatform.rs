@@ -47,6 +47,11 @@ impl SBPlatform {
             })
         })
     }
+    pub fn launch(&self, launch_info: &SBLaunchInfo) -> SBError {
+        cpp!(unsafe [self as "SBPlatform*", launch_info as "SBLaunchInfo*"] -> SBError as "SBError" {
+            return self->Launch(*launch_info);
+        })
+    }
 }
 
 impl IsValid for SBPlatform {

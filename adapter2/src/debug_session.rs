@@ -969,10 +969,10 @@ impl DebugSession {
         if let Some(ref commands) = args.pre_run_commands {
             self.exec_commands("preRunCommands", commands)?;
         }
-
+        // Grab updated launch info.
         let mut launch_info = self.target.launch_info();
-        launch_info.set_listener(&self.event_listener);
 
+        // Announch the final launch command line
         let executable = self.target.executable().path().to_string_lossy().into_owned();
         let command_line = launch_info.arguments().fold(executable, |mut args, a| {
             args.push(' ');
@@ -981,6 +981,22 @@ impl DebugSession {
         });
         self.console_message(format!("Launching: {}", command_line));
 
+        // If noDebug flag is set, we launch debuggee directly, then terminate debug session.
+        if args.no_debug.unwrap_or(false) {
+            launch_info.set_executable_file(&self.target.executable(), true);
+            let status = self.target.platform().launch(&launch_info);
+            if status.is_failure() {
+                return Err(Error::UserError(status.error_string().into()));
+            } else {
+                self.send_event(EventBody::terminated(TerminatedEventBody {
+                    restart: None,
+                }));
+                return Ok(ResponseBody::launch);
+            }
+        }
+
+        // Launch!
+        launch_info.set_listener(&self.event_listener);
         let process = match self.target.launch(&launch_info) {
             Ok(process) => process,
             Err(err) => {

@@ -2,16 +2,41 @@
 
 # 1.2.2
 
-As been briefly mentioned previously, CodeLLDB will be transitioning to the model where it bundles pre-compiled native
-binaries for each of the supported platforms.  There has been quite a few problems involving old/buggy installed versions
-of LLDB and I hope that providing pre-compiled binaries will help with that.
+### Fixed
+- Debug configuration generation from Cargo.toml when using recent Cargo versions.
 
-In addition to that, the debug adapter (that is, the glue code that translates VSCode debug protocol into LLDB API calls)
-has been ported from Python to a compiled language.
+### Fixed (native adapter only)
+- LLDB command completions inserting duplicate tokens in some cases.
+- Remote debugging when using QEMU debug stub.
+- Spurious stop events at the beginning of a debug session.
 
-Soon, the "native" adapter will become the default, and eventually Python-based adapter code will be completely phased out.
+### New (native adapter only)
+- Implemented hit conditions on breakpoints.
+- More informative error messages when displaying optimized-out variables, invalid pointers, etc.
+- Announce executed scripts (e.g. initCommands, preRunCommands), for easier attribution of script errors.
+- Support ",[\<number\>]" format specifier, which reinterprets the displayed value as an array of \<number\> elements.
 
+### Heads up: CodeLLDB is moving to native code.
 
+Up until now, CodeLLDB's debug adapter has been based on whatever version of the LLDB was installed on the local machine,
+with Python scripts providing the glue between LLDB API and VS Code. This arrangement has its benefits:
+the extension can be very compact and platform-independent. The flip side of using an externally-provided LLDB, is that it may
+happen to be quite old and buggy.  There had been quite a few problems reported because of that.  I've also been somewhat
+dissatisfied with CodeLLDB's performance and stability, which I attribute to the use of Python in a project that has
+long grown past being "just a simple script".<br>
+
+As a consequence, I've decided to try a new approach:
+- Pre-built LLDB binaries will be provided with the extension. This will ensure that it is used with the same
+version of LLDB engine as it was tested with. (In order to reduce the download size, native binaries will not be included
+in the initial installation package published on VS Code Marketplace.  Instead, a smaller, platform-targeted package will
+be downloaded on first use.)
+- Most of Python code had been ported to a statically-typed compiled language (Rust).
+
+For now, both implementations of the debug adapter will exist in parallel.
+You can choose which one is used by setting `lldb.adapterType` to either `classic` or `native` in your workspace settings.
+In a few versions, I plan to make `native` the default, and then, eventually, the only option.
+
+Please give the `native` adapter a try and let me know how that worked for you, and, especially, if it didn't.  Thanks!
 
 # 1.2.1
 

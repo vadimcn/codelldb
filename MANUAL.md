@@ -156,8 +156,8 @@ If you require additional configuration of the remote system, you may use `preRu
 to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
 (See `help platform` for a list of available platform commands).
 
-### Connecting to gdbserver-style agent
-(This includes not just gdbserver itself, but also environments that implement gdbserver protocol,
+### Connecting to a gdbserver-style agent
+(This includes not just gdbserver itself, but also environments that implement the gdbserver protocol,
  such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others)
 
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
@@ -174,8 +174,8 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 - Start debugging.
 
 Please note that depending on protocol features implemented by the remote stub, there may be more setup needed.
-For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may not be aware of the memory locations
-of debuggee modules; you may need to specify this manually:
+For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may not be aware of memory locations
+of the debuggee modules; you may need to specify this manually:
 ```
 target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>
 ```
@@ -295,6 +295,7 @@ will display the value of `var` formatted as hex.
 |**s**  | C string
 |**y**  | Bytes
 |**Y**  | Bytes with ASCII
+|**[\<num\>]**| Reinterpret as an array of \<num\> elements
 
 ### Pointers
 

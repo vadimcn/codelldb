@@ -435,8 +435,6 @@ configurations (if there is no `launch.json` in the workspace).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
 |**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
-|**lldb.reverseDebugging** |Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)
-
 
 ## Default launch configuration settings
 |                       |                                                         |

@@ -143,8 +143,8 @@
 					],
 					"enumDescriptions": [
 						"Use classic Python-based debug adapter",
-						"[Beta] Use Python-based debug adapter on top of LLDB provided by this extension.  Requires one-time download of platform-specific files.",
-						"[Beta] Use native debug adapter.  Requires one-time download of platform-specific files."
+						"Use LLDB engine provided by this extension.  Requires one-time download of platform-specific files.",
+						"Use native debug adapter.  Requires one-time download of platform-specific files."
 					],
 					"scope": "resource"
 				},
@@ -152,11 +152,6 @@
 					"description": "Turns on verbose logging.",
 					"type": "boolean",
 					"default": false,
-					"scope": "resource"
-				},
-				"lldb.reverseDebugging": {
-					"description": "Enable reverse debuggee execution. (Experimental! Works with gdb-server and rr backends only!)",
-					"type": "boolean",
 					"scope": "resource"
 				},
 				"lldb.suppressMissingSourceFiles": {

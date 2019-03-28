@@ -102,7 +102,7 @@ async function download(srcUrl: string, destPath: string,
             reject(new Error('HTTP response does not contain an octet stream'));
         } else {
             let stm = fs.createWriteStream(destPath);
-            response.pipe(stm);
+            let pipeStm = response.pipe(stm);
             if (progress) {
                 let contentLength = response.headers['content-length'] ? Number.parseInt(response.headers['content-length']) : null;
                 let downloaded = 0;
@@ -111,7 +111,8 @@ async function download(srcUrl: string, destPath: string,
                     progress(downloaded, contentLength);
                 })
             }
-            response.on('end', resolve);
+            pipeStm.on('finish', resolve);
+            pipeStm.on('error', reject);
             response.on('error', reject);
         }
     });

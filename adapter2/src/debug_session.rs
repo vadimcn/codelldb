@@ -334,7 +334,7 @@ impl DebugSession {
                 })
             }
         };
-        self.send_message.borrow_mut().try_send(response).map_err(|err| panic!("Could not send response: {}", err));
+        self.send_message.borrow_mut().try_send(response).map_err(|err| error!("Could not send response: {}", err));
     }
 
     fn send_event(&self, event_body: EventBody) {
@@ -343,7 +343,7 @@ impl DebugSession {
             body: event_body,
         });
         self.message_seq.set(self.message_seq.get() + 1);
-        self.send_message.borrow_mut().try_send(event).map_err(|err| panic!("Could not send event: {}", err));
+        self.send_message.borrow_mut().try_send(event).map_err(|err| error!("Could not send event: {}", err));
     }
 
     fn send_request(&self, args: RequestArguments) {
@@ -352,7 +352,7 @@ impl DebugSession {
             arguments: Some(args),
         });
         self.message_seq.set(self.message_seq.get() + 1);
-        self.send_message.borrow_mut().try_send(request).map_err(|err| panic!("Could not send request: {}", err));
+        self.send_message.borrow_mut().try_send(request).map_err(|err| error!("Could not send request: {}", err));
     }
 
     fn console_message(&self, output: impl Into<String>) {

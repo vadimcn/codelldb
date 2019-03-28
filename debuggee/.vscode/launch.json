@@ -135,6 +135,14 @@
 			}
 		},
 		{
+			"name": "debuggee launch spam",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["spam"],
+			"terminal": "console"
+		},
+		{
 			"name": "rusttypes",
 			"type": "lldb",
 			"request": "launch",

@@ -304,6 +304,11 @@ int main(int argc, char *argv[])
         remote_path1();
         remote_path2();
     }
+    else if (testcase == "spam")
+    {
+        for (int i = 0; i < 1000; ++i)
+            printf("SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM\n");
+    }
     else
     {
         printf("Unknown testcase.\n");

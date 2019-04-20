@@ -10,7 +10,7 @@
 	},
 	"engines": {
 		"vscode": "^1.30.0",
-		"node": "^8.10"
+		"node": "^10.0"
 	},
 	"icon": "images/lldb.png",
 	"categories": [
@@ -37,7 +37,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "^5.2.0",
-		"@types/node": "^8.10",
+		"@types/node": "^10.2",
 		"mocha": "^5.2.0",
 		"typescript": "^3.1.3",
 		"vscode": "^1.1.21",

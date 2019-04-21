@@ -121,7 +121,7 @@ impl PythonInterface {
         let result = self.pyfn_evaluate_in_frame.call(py, (expr, is_simple_expr, pysb_exec_context), None);
         let result = match result {
             Ok(value) => Ok(value.is_true(py).unwrap()),
-            Err(pyerr) => Err(self.format_exception(py, &pyerr)),
+            Err(pyerr) => Err(self.format_exception(py, pyerr)),
         };
         debug!("evaluate_as_bool {} -> {:?}", expr, result);
         result
@@ -162,22 +162,24 @@ impl PythonInterface {
                     Ok(sbvalue_from_str(&value, target))
                 }
             }
-            Err(pyerr) => Err(self.format_exception(py, &pyerr)),
+            Err(pyerr) => Err(self.format_exception(py, pyerr)),
         }
     }
 
-    fn format_exception(&self, py: Python, err: &PyErr) -> String {
-        let tb = self
-            .pymod_traceback
-            .call(py, "format_exception", (&err.ptype, &err.pvalue, &err.ptraceback), None)
-            .unwrap();
-        let lines = Vec::<String>::extract(py, &tb).unwrap();
-        lines.concat()
+    fn format_exception(&self, py: Python, mut err: PyErr) -> String {
+        err.normalize(py);
+        match self.pymod_traceback.call(py, "format_exception", (&err.ptype, &err.pvalue, &err.ptraceback), None) {
+            Ok(tb) => {
+                let lines = Vec::<String>::extract(py, &tb).unwrap();
+                lines.concat()
+            }
+            Err(_) => format!("Could not format exception: {:?}", err),
+        }
     }
 }
 
-// Creates SWIG wrapper containing native SB object.
-// `pytype` is Python type object of the wrapper.
+// Creates a SWIG wrapper containing native SB object.
+// `pytype` is the Python type object of the wrapper.
 // Obviously, `SBT` and `pytype` must match, hence `unsafe`.
 unsafe fn into_swig_wrapper<SBT>(py: Python, obj: SBT, pytype: &PyType) -> PyObject {
     // SWIG does not provide an API for creating Python wrapper from a native object, so we have to employ a bit of trickery:
@@ -190,7 +192,7 @@ unsafe fn into_swig_wrapper<SBT>(py: Python, obj: SBT, pytype: &PyType) -> PyObj
     pysb
 }
 
-// Extracts native SB object from SWIG wrapper.
+// Extracts native SB object from a SWIG wrapper.
 unsafe fn from_swig_wrapper<SBT>(py: Python, pyobj: &PyObject) -> SBT
 where
     SBT: Clone,

@@ -999,7 +999,7 @@ impl DebugSession {
             Ok(process) => process,
             Err(err) => {
                 let mut msg: String = err.error_string().into();
-                let work_dir = launch_info.working_directory();
+                let work_dir = launch_info.working_directory().unwrap_or(Path::new(""));
                 if self.target.platform().get_file_permissions(work_dir) == 0 {
                     msg = format!(
                         "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",

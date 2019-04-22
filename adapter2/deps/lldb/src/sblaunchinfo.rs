@@ -79,11 +79,15 @@ impl SBLaunchInfo {
             });
         })
     }
-    pub fn working_directory(&self) -> &Path {
+    pub fn working_directory(&self) -> Option<&Path> {
         let ptr = cpp!(unsafe [self as "SBLaunchInfo*"] -> *const c_char as "const char*" {
             return self->GetWorkingDirectory();
         });
-        unsafe { Path::new(CStr::from_ptr(ptr).to_str().unwrap()) }
+        if ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(Path::new(CStr::from_ptr(ptr).to_str().unwrap())) }
+        }
     }
     pub fn add_open_file_action(&self, fd: i32, path: &str, read: bool, write: bool) -> bool {
         with_cstr(path, |path| {

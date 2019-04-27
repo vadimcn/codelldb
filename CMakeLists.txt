@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(VERSION 1.2.3-dev)
+set(VERSION 1.2.3)
 
 include(cmake/CopyFiles.cmake)
 include(cmake/Typescript.cmake)

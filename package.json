@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "1.2.2",
+	"version": "1.2.3-dev",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -51,12 +51,15 @@
 	},
 	"main": "extension/main",
 	"activationEvents": [
-		"onDebug",
-		"onCommand:lldb.diagnose",
-		"onCommand:lldb.getCargoLaunchConfigs"
+		"*"
 	],
 	"contributes": {
 		"commands": [
+			{
+				"category": "LLDB",
+				"title": "Display Format ...",
+				"command": "lldb.displayFormat"
+			},
 			{
 				"category": "LLDB",
 				"title": "Show Disassembly ...",
@@ -69,23 +72,23 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Display Format ...",
-				"command": "lldb.displayFormat"
-			},
-			{
-				"category": "LLDB",
-				"title": "Toggle Numeric Pointer Values",
+				"title": "Toggle Pointee Summaries",
 				"command": "lldb.toggleDerefPointers"
-			},
-			{
-				"category": "LLDB",
-				"title": "Toggle Container Summaries",
-				"command": "lldb.toggleContainerSummary"
 			},
 			{
 				"category": "LLDB",
 				"title": "Run Diagnostics",
 				"command": "lldb.diagnose"
+			},
+			{
+				"category": "LLDB",
+				"title": "Generate launch configurations from Cargo.toml",
+				"command": "lldb.getCargoLaunchConfigs"
+			},
+			{
+				"category": "LLDB",
+				"title": "Display Options...",
+				"command": "lldb.changeDisplaySettings"
 			},
 			{
 				"category": "LLDB",
@@ -163,6 +166,40 @@
 					"description": "Timeout for expression evaluation, in seconds.",
 					"type": "number",
 					"default": 5,
+					"scope": "resource"
+				},
+				"lldb.displayFormat": {
+					"description": "Default format for displayed variable values.",
+					"type": "string",
+					"enum": [
+						"auto",
+						"hex",
+						"decimal",
+						"binary"
+					],
+					"default": "auto",
+					"scope": "resource"
+				},
+				"lldb.showDisassembly": {
+					"description": "When to show disassembly.",
+					"type": "string",
+					"enum": [
+						"auto",
+						"never",
+						"always"
+					],
+					"default": "auto",
+					"enumDescriptions": [
+						"Only when source is not available.",
+						"Never show.",
+						"Always show, even if source is available."
+					],
+					"scope": "resource"
+				},
+				"lldb.dereferencePointers": {
+					"description": "Whether to show a summary of the pointee, or a numeriric value for pointers.",
+					"type": "boolean",
+					"default": true,
 					"scope": "resource"
 				},
 				"lldb.launch.initCommands": {

@@ -2,6 +2,7 @@ import {
     window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel, ViewColumn
 } from "vscode";
 import { Dict } from './common';
+import { DisplayHtmlRequest } from "./adapterMessages";
 
 export class DebuggerHtmlView {
     panels: Dict<WebviewPanel> = {};
@@ -26,7 +27,7 @@ export class DebuggerHtmlView {
         }
     }
 
-    onDisplayHtml(session: DebugSession, body: any) {
+    onDisplayHtml(session: DebugSession, body: DisplayHtmlRequest) {
         if (!body.html)
             return;
         let title = body.title || session.name;

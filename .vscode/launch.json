@@ -55,6 +55,28 @@
 			"terminal": "integrated"
 		},
 		{
+			"name": "codelldb on OSX",
+			"preLaunchTask": "codelldb",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/adapter2/codelldb",
+			"args": [
+				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.8.0.0-custom.dylib",
+				"--multi-session",
+				"--port=4711"
+			],
+			"env": {
+				"RUST_LOG": "error,codelldb=debug",
+				"RUST_LOG_STYLE": "always",
+				"RUST_BACKTRACE": "full",
+			},
+			"sourceLanguages": [
+				"cpp",
+				"rust"
+			],
+			"terminal": "integrated"
+		},
+		{
 			"name": "codelldb on Windows",
 			"preLaunchTask": "codelldb",
 			"type": "lldb",

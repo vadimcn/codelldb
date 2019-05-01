@@ -46,6 +46,7 @@ endif()
 
 add_custom_target(rusttypes
     COMMAND ${Rustc} ${CMAKE_CURRENT_SOURCE_DIR}/rust/types.rs -g -o ${Rusttypes}
+    USES_TERMINAL
 )
 
 add_dependencies(debuggee debuggee2 rusttypes)

@@ -1,6 +1,6 @@
 import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChannel } from 'vscode';
 import * as cp from 'child_process';
-import { readdirAsync } from './async';
+import { readdirAsync, execFileAsync } from './async';
 import { Dict } from './common';
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
@@ -167,10 +167,15 @@ export function logProcessOutput(process: cp.ChildProcess, output: OutputChannel
 }
 
 export async function findFileByPattern(path: string, pattern: RegExp): Promise<string | null> {
-    let files = await readdirAsync(path);
-    for (let file of files) {
-        if (pattern.test(file))
-            return file;
+    try {
+        let files = await readdirAsync(path);
+        for (let file of files) {
+            if (pattern.test(file))
+                return file;
+        }
+    }
+    catch (err) {
+        // Ignore missing diractories and such...
     }
     return null;
 }
@@ -182,33 +187,49 @@ export function setIfDefined(target: Dict<any>, config: WorkspaceConfiguration, 
 }
 
 export async function readRegistry(path: string, value?: string): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-        let args = ['query', path];
-        if (value != null)
-            args.push('/v', value);
-        else
-            args.push('/ve');
-        args.push('/reg:64');
+    let args = ['query', path];
+    if (value != null)
+        args.push('/v', value);
+    else
+        args.push('/ve');
+    args.push('/reg:64');
 
-        let reg = cp.spawn('reg.exe', args, {
-            stdio: ['ignore', 'pipe', 'ignore'],
-        });
-        reg.on('error', (err) => reject(err));
-        let stdout = '';
-        reg.stdout.on('data', chunk => stdout += chunk.toString());
-        reg.on('exit', code => {
-            if (code != 0) {
-                resolve(null);
-            } else {
-                let m = /REG_SZ\s+(.*)/.exec(stdout);
-                if (m) {
-                    resolve(m[1]);
-                } else {
-                    resolve(null);
-                }
-            }
-        });
-    });
+    try {
+        let { stdout } = await execFileAsync('reg.exe', args);
+        let m = (/REG_SZ\s+(.*)/).exec(stdout);
+        if (m) {
+            return m[1];
+        } else {
+            return null;
+        }
+    } catch (err) {
+        return null;
+    }
+}
+
+export interface LLDBDirectories {
+    shlibDir: string;
+    supportExeDir: string;
+    pythonDir: string
+}
+
+export async function getLLDBDirectories(executable: string): Promise<LLDBDirectories> {
+    let statements = [];
+    for (let type of ['ePathTypeLLDBShlibDir', 'ePathTypeSupportExecutableDir', 'ePathTypePythonDir']) {
+        statements.push(`print('<!' + lldb.SBHostOS.GetLLDBPath(lldb.${type}).fullpath + '!>')`);
+    }
+    let args = ['-b', '-O', `script ${statements.join(';')}`];
+    let { stdout, stderr } = await execFileAsync(executable, args);
+    let m = (/^<!([^!]*)!>$[^.]*^<!([^!]*)!>[^.]*^<!([^!]*)!>/m).exec(stdout);
+    if (m) {
+        return {
+            shlibDir: m[1],
+            supportExeDir: m[2],
+            pythonDir: m[3]
+        };
+    } else {
+        throw new Error(stderr);
+    }
 }
 
 class IgnoreCaseProxy {

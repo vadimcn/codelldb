@@ -19,6 +19,7 @@
         - [Pointers](#pointers)
     - [Expressions](#expressions)
     - [Debugger API](#debugger-api)
+- [Alternate LLDB backends](#alternate-lldb-backends)
 - [Rust Language Support](#rust-language-support)
 - [Workspace Configuration](#workspace-configuration)
 
@@ -379,6 +380,13 @@ Allows generation of dynamic content for HTML display.  Any `debugger:` content 
 dictionary, will be directed to `provider` callback, which takes a URL parameter and returns content
 as a string.
 
+# Alternate LLDB backends*
+*<i>native adapter only</i><br><br>
+CodeLLDB can use alternate LLDB backends instead of the one bundled with this extension.  For example, when debugging
+Swift programs, one might want to use a custom LLDB instance that has Swift language extensions built in.
+In order to use this feature, you will need to specify the location of the corresponding liblldb&#46;so/.dylib/.dll
+dynamic library via the **lldb.library** configuration setting.<br>
+
 # Rust Language Support
 
 CodeLLDB supports visualization of most common Rust data types:
@@ -429,13 +437,27 @@ configurations (if there is no `launch.json` in the workspace).
 ## General
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<br>**"classic"** a Python-based debug adapter running in externally provided LLDB, <br>**"bundled"** a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<br>**"native"** native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
-|**lldb.executable**    |Path to LLDB (default="lldb").  This setting has effect only when **lldb.adapterType**==**"classic"**.
-|**lldb.executable_env**|Environment variables to pass to LLDB.  This setting has effect only when **lldb.adapterType**==**"classic"**.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
+|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<li>native - native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.executable**    |Which LLDB executable to use (classic adapter only). default="lldb"
+|**lldb.library**       |Which LLDB library to use (native adapter only).<br>This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.<br>If you know path of the LLDB's executable, but unsure about location of the corresponding dynamic library, you can find it out by executing this command:<br>`lldb -b -O "script lldb.SBHostOS.GetLLDBPath(lldb.ePathTypeLLDBShlibDir).fullpath"`
+|**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging (replaces old **lldb.logLevel** setting).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
-|**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.suppressMissingSourceFiles**|Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.displayFormat**|Default format for displayed variable values.
+|**lldb.showDisassembly**|When to show disassembly:<li>auto - only when source is not available.,<li>never - never show.,<li>always - always show, even if source is available.
+|**lldb.dereferencePointers**|Whether to show a summary of the pointee, or a numeriric value for pointers.
+|**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
+
+## Advanced
+|                       |                                                         |
+|-----------------------|---------------------------------------------------------|
+|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<li>native - native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.executable**    |Which LLDB executable to use. default="lldb"
+|**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.<br>  See also: ["Configure for custom LLDB..." command](#commands).
+|**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
+|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in the "LLDB" output panel.
 
 ## Default launch configuration settings
 |                       |                                                         |

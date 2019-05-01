@@ -29,7 +29,7 @@ export async function startClassic(
 
 export async function startNative(
     extensionRoot: string,
-    lldbLocation: string,
+    liblldb: string,
     extraEnv: Dict<string>, // extra environment to be set for adapter
     workDir: string,
     adapterParameters: Dict<any>, // feature parameters that should be passed on to the adapter
@@ -38,19 +38,7 @@ export async function startNative(
 
     let env = util.mergeEnv(extraEnv);
     let executable = path.join(extensionRoot, 'adapter2/codelldb');
-
-    let liblldb;
-    let stats = await statAsync(lldbLocation);
-    if (stats.isFile()) {
-        liblldb = lldbLocation; // Assume it's liblldb
-    } else {
-        liblldb = await findLiblldb(lldbLocation);
-        if (!liblldb) {
-            throw new Error(`Could not locate liblldb given "${lldbLocation}"`);
-        }
-    }
     let args = ['--preload', liblldb];
-
     if (process.platform == 'win32') {
         // Add liblldb's directory to PATH so it can find msdia dll later.
         env['PATH'] = env['PATH'] + ';' + path.dirname(liblldb);
@@ -94,7 +82,7 @@ export async function spawnDebugAdapter(
 }
 
 export async function getDebugServerPort(adapter: cp.ChildProcess): Promise<number> {
-    let regex = new RegExp('^Listening on port (\\d+)\\s', 'm');
+    let regex = /^Listening on port (\d+)\s/m;
     let match = await waitForPattern(adapter, adapter.stdout, regex);
     return parseInt(match[1]);
 }
@@ -151,26 +139,31 @@ export function waitForPattern(
     });
 }
 
-async function findLiblldb(lldbRoot: string): Promise<string | null> {
-    let dir;
+export async function findLibLLDB(pathHint: string): Promise<string | null> {
+    let stat = await statAsync(pathHint);
+    if (stat.isFile())
+        return pathHint;
+
+    let libDir;
     let pattern;
     if (process.platform == 'linux') {
-        dir = path.join(lldbRoot, 'lib');
-        pattern = /liblldb\.so.*/;
+        libDir = path.join(pathHint, 'lib');
+        pattern = /liblldb.*\.so.*/;
     } else if (process.platform == 'darwin') {
-        dir = path.join(lldbRoot, 'lib');
-        pattern = /liblldb\..*dylib/;
+        libDir = path.join(pathHint, 'lib');
+        pattern = /liblldb\..*dylib|LLDB/;
     } else if (process.platform == 'win32') {
-        dir = path.join(lldbRoot, 'bin');
-        pattern = /liblldb\..*dll/;
+        libDir = path.join(pathHint, 'bin');
+        pattern = /liblldb\.dll/;
     }
 
-    let file = await util.findFileByPattern(dir, pattern);
-    if (file) {
-        return path.join(dir, file);
-    } else {
-        return null;
+    for (let dir of [pathHint, libDir]) {
+        let file = await util.findFileByPattern(dir, pattern);
+        if (file) {
+            return path.join(dir, file);
+        }
     }
+    return null;
 }
 
 export const pythonVersion = '3.6';

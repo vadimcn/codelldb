@@ -89,11 +89,6 @@
 				"category": "LLDB",
 				"title": "Display Options...",
 				"command": "lldb.changeDisplaySettings"
-			},
-			{
-				"category": "LLDB",
-				"title": "Generate launch configurations from Cargo.toml",
-				"command": "lldb.getCargoLaunchConfigs"
 			}
 		],
 		"languages": [
@@ -119,20 +114,14 @@
 			"title": "LLDB",
 			"properties": {
 				"lldb.executable": {
-					"description": "Path to debugger executable.",
-					"type": "string",
+					"description": "Which LLDB to use.",
 					"default": "lldb",
+					"type": "string",
 					"scope": "resource"
 				},
-				"lldb.executable_env": {
-					"description": "Environment variables to pass to debugger.",
-					"type": "object",
-					"patternProperties": {
-						".*": {
-							"type": "string"
-						}
-					},
-					"default": {},
+				"lldb.library": {
+					"markdownDescription": "Which LLDB library to use (native adapter only).\n\n This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
+					"type": "string",
 					"scope": "resource"
 				},
 				"lldb.adapterType": {
@@ -149,6 +138,17 @@
 						"Use LLDB engine provided by this extension.  Requires one-time download of platform-specific files.",
 						"Use native debug adapter.  Requires one-time download of platform-specific files."
 					],
+					"scope": "resource"
+				},
+				"lldb.adapterEnv": {
+					"description": "Extra environment variables for the debug adapter.",
+					"type": "object",
+					"patternProperties": {
+						".*": {
+							"type": "string"
+						}
+					},
+					"default": {},
 					"scope": "resource"
 				},
 				"lldb.verboseLogging": {

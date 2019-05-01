@@ -15,6 +15,7 @@ import * as adapter from './adapter';
 import * as install from './install';
 import { Dict, AdapterType, toAdapterType } from './common';
 import { DisplaySettings } from './adapterMessages';
+import { execFileAsync } from './async';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -241,11 +242,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 launchConfig.sourceLanguages = [];
             launchConfig.sourceLanguages.push('rust');
         }
-
-        output.appendLine('Starting new session with:');
-        output.appendLine(inspect(launchConfig));
-
-        launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+        output.appendLine(`configuration: ${inspect(launchConfig)}`);
+        launchConfig._displaySettings = this.getDisplaySettings();
         return launchConfig;
     }
 
@@ -263,7 +261,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             return descriptor;
         } catch (err) {
             diagnostics.analyzeStartupError(err, this.context, output);
-            return null;
+            throw err;
         }
     }
 
@@ -328,7 +326,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     ): Promise<[ChildProcess, number]> {
         let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
         let adapterType = this.getAdapterType(folder);
-        let adapterEnv = config.get('executable_env', {});
+        let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
         let adapterProcess;
         if (adapterType == 'classic') {
@@ -348,14 +346,42 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 params,
                 verboseLogging);
         } else {
+            let executablePath = util.getConfigNoDefault(config, 'executable');
+            let libraryPath = util.getConfigNoDefault(config, 'library');
+
+            if (!executablePath && !libraryPath) { // Use bundled
+                libraryPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+            } else if (libraryPath) {
+                libraryPath = await adapter.findLibLLDB(libraryPath)
+            } else { // Infer from executablePath
+                let dirs;
+                let cachedDirs = this.context.workspaceState.get<any>('lldb_directories');
+                if (!cachedDirs || cachedDirs.key != executablePath) {
+                    dirs = await util.getLLDBDirectories(executablePath);
+                    this.context.workspaceState.update('lldb_directories', { key: executablePath, value: dirs });
+                } else {
+                    dirs = cachedDirs.value;
+                }
+                libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
+            }
+
+            if (!libraryPath)
+                throw new Error('Could not locate liblldb');
+
+            if (verboseLogging) {
+                output.appendLine(`library: ${libraryPath}`);
+                output.appendLine(`environment: ${inspect(adapterEnv)}`);
+                output.appendLine(`params: ${inspect(params)}`);
+            }
+
             adapterProcess = await adapter.startNative(
                 this.context.extensionPath,
-                path.join(this.context.extensionPath, 'lldb'),
+                libraryPath,
                 adapterEnv,
                 workspace.rootPath,
                 params,
                 verboseLogging);
-        };
+        }
         util.logProcessOutput(adapterProcess, output);
         let port = await adapter.getDebugServerPort(adapterProcess);
         return [adapterProcess, port];

@@ -619,9 +619,10 @@ class DebugTestSession extends DebugClient {
                     {},
                     true);
             } else if (adapterType == 'native') {
+                let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
                 session.adapter = await adapter.startNative(
                     extensionRoot,
-                    path.join(extensionRoot, 'lldb'),
+                    liblldb,
                     { RUST_LOG: 'error,codelldb=debug' },
                     extensionRoot,
                     {},

@@ -11,9 +11,9 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 - LLDB commands and expression evaluation in Debug Console.
 - Configurable result formatting.
 - Display of HTML content.
-- Rust language support (excluding LLDB 3.8).
+- Rust language support.
 
-For full details please see the [Manual](MANUAL.md).
+For full details please see the [Manual](https://github.com/vadimcn/vscode-lldb/blob/v@VERSION@/MANUAL.md).
 
 ---
 
@@ -39,10 +39,10 @@ Here's a minimal debug configuration to get you started:
 }
 ```
 
-See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging), [the Manual](MANUAL.md).
+See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging).
 
 # Links
 - [Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB)
-- [The Fine Manual](MANUAL.md)
+- [The Fine Manual](https://github.com/vadimcn/vscode-lldb/blob/v@VERSION@/MANUAL.md)
 - [Wiki](https://github.com/vadimcn/vscode-lldb/wiki)
 - [Chat](https://gitter.im/vscode-lldb/QnA)

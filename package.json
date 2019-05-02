@@ -1,7 +1,7 @@
 {
 	"name": "vscode-lldb",
 	"displayName": "CodeLLDB",
-	"version": "1.2.3-dev",
+	"version": "@VERSION@",
 	"publisher": "vadimcn",
 	"description": "Debug your native code with LLDB.",
 	"license": "MIT",
@@ -38,11 +38,11 @@
 	"devDependencies": {
 		"@types/mocha": "^5.2.0",
 		"@types/node": "^10.2",
-		"mocha": "^5.2.0",
-		"typescript": "^3.1.3",
-		"vscode": "^1.1.21",
-		"vscode-debugadapter-testsupport": "^1.32.0",
-		"vscode-debugprotocol": "^1.32.0",
+		"mocha": "^6.1.0",
+		"typescript": "^3.4",
+		"vscode": "^1.1.30",
+		"vscode-debugadapter-testsupport": "^1.34.0",
+		"vscode-debugprotocol": "^1.34.0",
 		"memory-streams": "^0.1.3",
 		"@types/yauzl": "^2.9.0"
 	},
@@ -125,7 +125,7 @@
 					"scope": "resource"
 				},
 				"lldb.adapterType": {
-					"description": "Which debug adapter implementtion to use.",
+					"description": "Which debug adapter implementation to use.",
 					"type": "string",
 					"default": "classic",
 					"enum": [

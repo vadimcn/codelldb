@@ -1,3 +1,4 @@
+import {suite, test} from 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
@@ -9,8 +10,8 @@ import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import { WritableStream } from 'memory-streams';
 
-import { AdapterType, toAdapterType } from '../extension/common';
-import * as adapter from '../extension/adapter';
+import { toAdapterType } from 'extension/common';
+import * as adapter from 'extension/adapter';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const adapterType = toAdapterType(process.env.ADAPTER_TYPE);

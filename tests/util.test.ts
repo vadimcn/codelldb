@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import * as ver from '../extension/ver';
-import * as util from '../extension/util';
+import * as ver from 'extension/ver';
+import * as util from 'extension/util';
 
 suite('Versions', () => {
     test('comparisons', async () => {

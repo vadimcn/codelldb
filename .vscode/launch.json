@@ -97,7 +97,7 @@
 				"cpp",
 				"rust"
 			],
-			"terminal": "integrated"
+			"terminal": "external"
 		},
 		{
 			"name": "codelldb on Windows+cppvsdbg",
@@ -170,20 +170,21 @@
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceRoot}/build/node_modules/mocha/bin/_mocha",
 			"args": [
 				"-u", "tdd",
 				"--timeout", "999999",
 				"--colors",
 				"--exit",
 				"-g", "Environment",
-				"build/tests/tests"
+				"build/tests"
 			],
 			"env": {
 				//"ADAPTER_TYPE": "native",
 				//"TARGET_TRIPLE": "x86_64-pc-windows-gnu",
 				"RUST_LOG": "error,codelldb=debug",
-				"RUST_BACKTRACE": "full"
+				"RUST_BACKTRACE": "full",
+				"NODE_PATH": "${workspaceRoot}/build"
 			},
 			"sourceMaps": true,
 			"outFiles": [

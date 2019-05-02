@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
+set(VERSION 1.2.3-dev)
+
 include(cmake/CopyFiles.cmake)
 include(cmake/Typescript.cmake)
 
@@ -13,8 +15,6 @@ set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "I
 
 if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
     set(NodeProgExt .cmd)
-else()
-    set(ZipSymlinks -y)
 endif()
 
 add_subdirectory(adapter2)
@@ -22,38 +22,47 @@ add_subdirectory(lldb)
 add_subdirectory(extension)
 add_subdirectory(tests)
 
+# Extension package content
+
+configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
+configure_file(README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md @ONLY)
+configure_file(MANUAL.md ${CMAKE_CURRENT_BINARY_DIR}/MANUAL.md @ONLY)
+configure_file(CHANGELOG.md ${CMAKE_CURRENT_BINARY_DIR}/CHANGELOG.md @ONLY)
+configure_file(images/lldb.png ${CMAKE_CURRENT_BINARY_DIR}/images/lldb.png COPYONLY)
+configure_file(images/disasm.png ${CMAKE_CURRENT_BINARY_DIR}/images/disasm.png COPYONLY)
+configure_file(images/plotting.png ${CMAKE_CURRENT_BINARY_DIR}/images/plotting.png COPYONLY)
+configure_file(images/source.png ${CMAKE_CURRENT_BINARY_DIR}/images/source.png COPYONLY)
+configure_file(syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json COPYONLY)
+
+execute_process(
+    COMMAND npm${NodeProgExt} install
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    RESULT_VARIABLE Result
+)
+if (NOT ${Result} EQUAL 0)
+    message(FATAL_ERROR "npm intall failed: ${Result}")
+endif()
+
 # Classic adapter
 
 add_custom_target(adapter ALL
     DEPENDS lldb
 )
-add_copy_files(adapter
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/adapter
-    GLOB ${CMAKE_SOURCE_DIR}/adapter/*.py
+file(GLOB_RECURSE AdapterFiles
+    LIST_DIRECTORIES false
+    ${CMAKE_SOURCE_DIR}/adapter/*.py
 )
-add_copy_files(adapter
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/formatters
-    GLOB ${CMAKE_SOURCE_DIR}/formatters/*.py
+add_copy_files_to(adapter ${CMAKE_BINARY_DIR}/adapter ${AdapterFiles})
+file(GLOB_RECURSE AdapterFiles
+    LIST_DIRECTORIES false
+    ${CMAKE_SOURCE_DIR}/formatters/*.py
 )
+add_copy_files_to(adapter ${CMAKE_BINARY_DIR}/formatters ${AdapterFiles})
 
-# Misc files for extension package
-
-add_copy_files(package_files
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
-    FILES package.json README.md MANUAL.md CHANGELOG.md
-)
-add_copy_files(package_files
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/images
-    GLOB ${CMAKE_SOURCE_DIR}/images/*
-)
-add_copy_files(package_files
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/syntaxes
-    GLOB ${CMAKE_SOURCE_DIR}/syntaxes/*
-)
 
 # For extension debugging
 
-add_custom_target(dev_debugging DEPENDS adapter codelldb debuggee extension package_files)
+add_custom_target(dev_debugging DEPENDS adapter codelldb debuggee extension)
 
 # Strip native binaries
 
@@ -70,22 +79,6 @@ endif()
 
 # VSIX packages
 
-add_copy_directory(node_modules
-    ${CMAKE_SOURCE_DIR}/node_modules/yauzl
-    DESTINATION  ${CMAKE_BINARY_DIR}/node_modules/yauzl
-)
-add_copy_directory(node_modules
-    ${CMAKE_SOURCE_DIR}/node_modules/buffer-crc32
-    DESTINATION  ${CMAKE_BINARY_DIR}/node_modules/buffer-crc32
-)
-add_copy_directory(node_modules
-    ${CMAKE_SOURCE_DIR}/node_modules/fd-slicer
-    DESTINATION  ${CMAKE_BINARY_DIR}/node_modules/fd-slicer
-)
-add_copy_directory(node_modules
-    ${CMAKE_SOURCE_DIR}/node_modules/pend
-    DESTINATION  ${CMAKE_BINARY_DIR}/node_modules/pend
-)
 
 set(PackagedFilesPortable
     README.md
@@ -124,14 +117,14 @@ endforeach()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${Content})
 
 add_custom_target(vsix_portable
-    DEPENDS adapter extension node_modules package_files
+    DEPENDS adapter extension
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND vsce package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_custom_target(vsix_full
-    DEPENDS adapter extension node_modules package_files lldb codelldb
+    DEPENDS adapter extension lldb codelldb
     COMMAND ${StripBinaries}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND vsce package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
@@ -179,13 +172,13 @@ endif()
 
 enable_testing()
 
-set(MochaCommand "${CMAKE_SOURCE_DIR}/node_modules/.bin/mocha${NodeProgExt}"
+set(MochaCommand "${CMAKE_BINARY_DIR}/node_modules/.bin/mocha${NodeProgExt}"
     -u tdd
     --timeout 30000
     --exit
     --require source-map-support/register
     #-g "stop on a breakpoint 3"
-    ${CMAKE_BINARY_DIR}/tests/tests
+    ${CMAKE_BINARY_DIR}/tests
 )
 
 # Build everything for testing
@@ -208,7 +201,7 @@ endif()
 foreach(AdapterType ${TestAdapters})
     foreach(TestTriple ${TestTriples})
         add_test(NAME ${AdapterType}:${TestTriple}
-            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} ${MochaCommand}
+            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} ${MochaCommand}
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     endforeach(TestTriple)
 

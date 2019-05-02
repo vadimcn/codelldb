@@ -24,7 +24,7 @@ jobs:
   steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '8.x'
+      versionSpec: '10.x'
     displayName: 'Install Node.js'
 
   - task: DownloadBuildArtifacts@0
@@ -44,8 +44,8 @@ jobs:
       unzip $(Agent.WorkFolder)/D/lldb/lldb-linux.zip -d $(Agent.WorkFolder)/D/lldb-linux
       curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-unknown-linux-gnu
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      npm install
       sudo npm install -g vsce
+      sudo chown -R $USER:$GROUP ~/.npm
     displayName: 'Install'
 
   - script: |
@@ -83,7 +83,7 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R $(System.ArtifactsDirectory)
+      ls -R build
     displayName: 'On Failure'
     condition: failed()
 
@@ -96,7 +96,7 @@ jobs:
   steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '8.x'
+      versionSpec: '10.x'
     displayName: 'Install Node.js'
 
   - task: DownloadBuildArtifacts@0
@@ -115,7 +115,6 @@ jobs:
   - script: |
       unzip $(Agent.WorkFolder)/D/lldb/lldb-osx.zip -d $(Agent.WorkFolder)/D/lldb-osx
       curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-apple-darwin
-      npm install
       sudo npm install -g vsce
     displayName: 'Install'
 
@@ -151,7 +150,7 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R $(System.ArtifactsDirectory)
+      ls -R build
     displayName: 'On Failure'
     condition: failed()
 
@@ -164,7 +163,7 @@ jobs:
   steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '8.x'
+      versionSpec: '10.x'
     displayName: 'Install Node.js'
 
   - task: UsePythonVersion@0
@@ -194,7 +193,6 @@ jobs:
       rustup toolchain add nightly-x86_64-pc-windows-gnu
       curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.WorkFolder)/D/ninja-win.zip
       unzip $(Agent.WorkFolder)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
-      call npm install
       call npm install -g vsce
     displayName: 'Install'
 
@@ -240,8 +238,6 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R $(System.ArtifactsDirectory)
-      echo - dir -----------------------
-      ls -R
+      ls -R build
     displayName: 'On Failure'
     condition: failed()

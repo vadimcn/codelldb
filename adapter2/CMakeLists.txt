@@ -33,9 +33,7 @@ add_custom_target(codelldb ALL
     USES_TERMINAL
 )
 
-add_copy_files(codelldb
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
-    FILES
+add_copy_files_to(codelldb ${CMAKE_CURRENT_BINARY_DIR}
         ${CargoOutDir}/codelldb${ExeSuffix}
         ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix}
         ${CMAKE_SOURCE_DIR}/adapter2/codelldb.py

@@ -108,6 +108,7 @@ class DebugSession:
         exc_filters = [{ 'filter':filter, 'label':label, 'default':default }
                        for filter, label, default in self.get_exception_filters(src_langs)]
         return {
+            'supportsGotoTargetsRequest' : True,
             'supportsConfigurationDoneRequest': True,
             'supportsEvaluateForHovers': True,
             'supportsFunctionBreakpoints': True,

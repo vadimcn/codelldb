@@ -291,6 +291,9 @@ impl DebugSession {
                 RequestArguments::stepOut(args) =>
                     self.handle_step_out(args)
                         .map(|r| ResponseBody::stepOut),
+                RequestArguments::gotoTargets(args) =>
+                    self.handle_goto_targets(args)
+                        .map(|r| ResponseBody::stepOut),
                 RequestArguments::source(args) =>
                     self.handle_source(args)
                         .map(|r| ResponseBody::source(r)),
@@ -390,6 +393,7 @@ impl DebugSession {
         self.python = Initialized(python);
 
         let caps = Capabilities {
+            supports_goto_targets_request: true,
             supports_configuration_done_request: true,
             supports_evaluate_for_hovers: true,
             supports_function_breakpoints: true,
@@ -1927,6 +1931,20 @@ impl DebugSession {
         let thread = self.process.thread_by_id(args.thread_id as ThreadID)?;
         thread.step_out();
         Ok(())
+    }
+
+    fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
+        self.before_resume();
+        let thread = self.process.thread_by_id(args.thread_id as ThreadID)?;
+        thread.goto_targets(args.source.path, args.line);
+        Ok(GotoTargetsResponseBody {
+            targets: vec![{
+					id : 1,
+					label : args.source.name,
+					column: args.column,
+					line : args.line
+			}]
+        })
     }
 
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {

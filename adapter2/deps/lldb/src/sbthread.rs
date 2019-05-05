@@ -88,6 +88,11 @@ impl SBThread {
             return self->StepOut();
         })
     }
+    pub fn goto_targets(&self, path: &str, line: u32) {
+        cpp!(unsafe [self as "SBThread*"] {
+            return self->JumpToLine(path, line);
+        })
+    }
     pub fn step_instruction(&self, step_over: bool) {
         cpp!(unsafe [self as "SBThread*", step_over as "bool"] {
             return self->StepInstruction(step_over);

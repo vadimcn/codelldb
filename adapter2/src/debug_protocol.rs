@@ -10,6 +10,7 @@ pub use raw_debug_protocol::{
     ExitedEventBody, InitializeRequestArguments, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments,
     RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
     SetBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
+    GotoTargetsArguments, GotoTargetsResponseBody,
     SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
     StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
     StoppedEventBody, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
@@ -74,6 +75,7 @@ pub enum RequestArguments {
     threads,
     stackTrace(StackTraceArguments),
     scopes(ScopesArguments),
+    gotoTargets(GotoTargetsArguments)
     source(SourceArguments),
     variables(VariablesArguments),
     completions(CompletionsArguments),
@@ -108,6 +110,7 @@ pub enum ResponseBody {
     threads(ThreadsResponseBody),
     stackTrace(StackTraceResponseBody),
     scopes(ScopesResponseBody),
+    gotoTargets(GotoTargetsResponseBody),
     source(SourceResponseBody),
     variables(VariablesResponseBody),
     completions(CompletionsResponseBody),
@@ -180,6 +183,7 @@ pub struct AttachRequestArguments {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
+    pub supports_goto_targets_request: bool,
     pub supports_configuration_done_request: bool,
     pub supports_function_breakpoints: bool,
     pub supports_conditional_breakpoints: bool,

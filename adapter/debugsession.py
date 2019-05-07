@@ -778,6 +778,31 @@ class DebugSession:
             'process plugin packet send bs', # reverse-step - so we can forward step
             'stepi']) # forward-step - to refresh LLDB's cached debuggee state
 
+    def DEBUG_gotoTargets(self, args):
+        self.before_resume()
+
+        source = args['source']
+        line = args['line']
+        column = args['column']
+
+        filespec = lldb.SBFileSpec()
+        filespec.SetDirectory(os.path.dirname(source['path'].replace("\\",'/')))
+        filespec.SetFilename(os.path.basename(source['path'].replace("\\",'/')))
+
+        thread = self.process.GetSelectedThread()
+        thread.JumpToLine(filespec, line)
+        thread.StepInstruction(False)
+
+        return { 'targets': [{
+					'id' : 1,
+					'label' : source['path'],
+					'column': column,
+					'line' : line
+				}]}
+
+    def DEBUG_goto(self, args):
+        return
+
     def DEBUG_reverseContinue(self, args):
         self.reverse_exec([
             'process plugin packet send bc', # reverse-continue

@@ -293,7 +293,10 @@ impl DebugSession {
                         .map(|r| ResponseBody::stepOut),
                 RequestArguments::gotoTargets(args) =>
                     self.handle_goto_targets(args)
-                        .map(|r| ResponseBody::stepOut),
+                        .map(|r| ResponseBody::gotoTargets(r)),
+                RequestArguments::goto(args) =>
+                    self.handle_goto(args)
+                        .map(|r| ResponseBody::goto),
                 RequestArguments::source(args) =>
                     self.handle_source(args)
                         .map(|r| ResponseBody::source(r)),
@@ -1935,16 +1938,30 @@ impl DebugSession {
 
     fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
         self.before_resume();
-        let thread = self.process.thread_by_id(args.thread_id as ThreadID)?;
-        thread.goto_targets(args.source.path, args.line);
+
+        let thread = self.process.selected_thread();
+
+        use lldb::SBFileSpec;
+
+        let source_file = SBFileSpec::from(Path::new(&args.source.path.unwrap()));
+
+        thread.jump_to_line(&source_file, args.line as u32);
+
+        use raw_debug_protocol::GotoTarget;
         Ok(GotoTargetsResponseBody {
-            targets: vec![{
-					id : 1,
-					label : args.source.name,
-					column: args.column,
-					line : args.line
-			}]
+            targets: vec![GotoTarget {
+                id : 1,
+                label : args.source.name.unwrap(),
+                column: args.column,
+                line : args.line,
+                end_column : None,
+                end_line : None
+            }]
         })
+    }
+
+    fn handle_goto(&mut self, args: GotoArguments) -> Result<(), Error> {
+        Ok(())
     }
 
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {

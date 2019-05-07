@@ -13,5 +13,6 @@
     "python.linting.enabled": false,
     "rust.build_lib": true,
     "lldb.verboseLogging": true,
-    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
+    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
+    "cmake.configureArgs": [ "-DLLDB_ROOT=G:/App/LLVM"]
 }

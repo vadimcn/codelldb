@@ -29,7 +29,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
 
         let adapterPathOrginal = config.get('executable', 'lldb');
         let adapterPath = adapterPathOrginal;
-        let adapterEnv = config.get('executable_env', {});
+        let adapterEnv = config.get('adapterEnv', {});
 
         // Try to locate LLDB and get its version.
         let version: string = null;

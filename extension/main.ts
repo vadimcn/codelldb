@@ -2,7 +2,7 @@ import {
     workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri,
+    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, ConfigurationChangeEvent,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -14,6 +14,8 @@ import * as util from './util';
 import * as adapter from './adapter';
 import * as install from './install';
 import { Dict, AdapterType, toAdapterType } from './common';
+import { DisplaySettings } from './adapterMessages';
+import { execFileAsync } from './async';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -26,6 +28,7 @@ export function activate(context: ExtensionContext) {
 class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
     context: ExtensionContext;
     htmlViewer: htmlView.DebuggerHtmlView;
+    status: StatusBarItem;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -40,33 +43,111 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
+        subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
+
+        subscriptions.push(workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('lldb.displayFormat') ||
+                event.affectsConfiguration('lldb.showDisassembly') ||
+                event.affectsConfiguration('lldb.dereferencePointers')) {
+                this.propagateDisplaySettings();
+            }
+        }));
 
         this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
-            settings.showDisassembly = await window.showQuickPick(['always', 'auto', 'never']);
+            settings.showDisassembly = <DisplaySettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
         });
         this.registerDisplaySettingCommand('lldb.toggleDisassembly', async (settings) => {
             settings.showDisassembly = (settings.showDisassembly == 'auto') ? 'always' : 'auto';
         });
         this.registerDisplaySettingCommand('lldb.displayFormat', async (settings) => {
-            settings.displayFormat = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
+            settings.displayFormat = <DisplaySettings['displayFormat']>await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
         });
         this.registerDisplaySettingCommand('lldb.toggleDerefPointers', async (settings) => {
             settings.dereferencePointers = !settings.dereferencePointers;
         });
-        this.registerDisplaySettingCommand('lldb.toggleContainerSummary', async (settings) => {
-            settings.containerSummary = !settings.containerSummary;
-        });
+
+        this.status = window.createStatusBarItem(StatusBarAlignment.Left, 0);
+        this.status.command = 'lldb.changeDisplaySettings';
+        this.status.tooltip = 'Change debugger display settings';
+        this.status.hide();
+
+        subscriptions.push(debug.onDidChangeActiveDebugSession(session => {
+            if (session && session.type == 'lldb')
+                this.status.show();
+            else
+                this.status.hide();
+        }));
+
     }
 
     registerDisplaySettingCommand(command: string, updater: (settings: DisplaySettings) => Promise<void>) {
         this.context.subscriptions.push(commands.registerCommand(command, async () => {
-            if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-                let settings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
-                await updater(settings);
-                this.context.globalState.update('display_settings', settings);
-                await debug.activeDebugSession.customRequest('displaySettings', settings);
-            }
+            let settings = this.getDisplaySettings();
+            await updater(settings);
+            this.setDisplaySettings(settings);
         }));
+    }
+
+    getDisplaySettings(): DisplaySettings {
+        let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
+        let config = workspace.getConfiguration('lldb', folder);
+        let settings: DisplaySettings = {
+            displayFormat: config.get('displayFormat'),
+            showDisassembly: config.get('showDisassembly'),
+            dereferencePointers: config.get('dereferencePointers'),
+            containerSummary: true,
+        };
+        return settings;
+    }
+
+    async setDisplaySettings(settings: DisplaySettings) {
+        let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
+        let config = workspace.getConfiguration('lldb', folder);
+        await config.update('displayFormat', settings.displayFormat);
+        await config.update('showDisassembly', settings.showDisassembly);
+        await config.update('dereferencePointers', settings.dereferencePointers);
+    }
+
+    async propagateDisplaySettings() {
+        let settings = this.getDisplaySettings();
+
+        this.status.text =
+            `Format: ${settings.displayFormat}  ` +
+            `Disasm: ${settings.showDisassembly}  ` +
+            `Deref: ${settings.dereferencePointers ? 'on' : 'off'}`;
+
+        if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
+            await debug.activeDebugSession.customRequest('displaySettings', settings);
+        }
+    }
+
+    async changeDisplaySettings() {
+        let settings = this.getDisplaySettings();
+        let qpick = window.createQuickPick<QuickPickItem & { command: string }>();
+        qpick.items = [
+            {
+                label: `Value formatting: ${settings.displayFormat}`,
+                detail: 'Default format for displaying variable values and evaluation results.',
+                command: 'lldb.displayFormat'
+            },
+            {
+                label: `Show disassembly: ${settings.showDisassembly}`,
+                detail: 'When to display disassembly.',
+                command: 'lldb.showDisassembly'
+            },
+            {
+                label: `Dereference pointers: ${settings.dereferencePointers ? 'on' : 'off'}`,
+                detail: 'Whether to show a summary of the pointee or a numeric pointer value.',
+                command: 'lldb.toggleDerefPointers'
+            }
+        ];
+        qpick.title = 'Debugger display settings';
+        qpick.onDidAccept(() => {
+            let item = qpick.selectedItems[0];
+            qpick.hide();
+            commands.executeCommand(item.command);
+        });
+        qpick.show();
     }
 
     async onActivate() {
@@ -82,6 +163,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
             }
         }
+
+        this.propagateDisplaySettings();
     }
 
     async provideDebugConfigurations(
@@ -159,11 +242,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 launchConfig.sourceLanguages = [];
             launchConfig.sourceLanguages.push('rust');
         }
-
-        output.appendLine('Starting new session with:');
-        output.appendLine(inspect(launchConfig));
-
-        launchConfig._displaySettings = this.context.globalState.get<DisplaySettings>('display_settings') || new DisplaySettings();
+        output.appendLine(`configuration: ${inspect(launchConfig)}`);
+        launchConfig._displaySettings = this.getDisplaySettings();
         return launchConfig;
     }
 
@@ -181,7 +261,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             return descriptor;
         } catch (err) {
             diagnostics.analyzeStartupError(err, this.context, output);
-            return null;
+            throw err;
         }
     }
 
@@ -246,7 +326,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     ): Promise<[ChildProcess, number]> {
         let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
         let adapterType = this.getAdapterType(folder);
-        let adapterEnv = config.get('executable_env', {});
+        let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
         let adapterProcess;
         if (adapterType == 'classic') {
@@ -266,14 +346,42 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 params,
                 verboseLogging);
         } else {
+            let executablePath = util.getConfigNoDefault(config, 'executable');
+            let libraryPath = util.getConfigNoDefault(config, 'library');
+
+            if (!executablePath && !libraryPath) { // Use bundled
+                libraryPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+            } else if (libraryPath) {
+                libraryPath = await adapter.findLibLLDB(libraryPath)
+            } else { // Infer from executablePath
+                let dirs;
+                let cachedDirs = this.context.workspaceState.get<any>('lldb_directories');
+                if (!cachedDirs || cachedDirs.key != executablePath) {
+                    dirs = await util.getLLDBDirectories(executablePath);
+                    this.context.workspaceState.update('lldb_directories', { key: executablePath, value: dirs });
+                } else {
+                    dirs = cachedDirs.value;
+                }
+                libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
+            }
+
+            if (!libraryPath)
+                throw new Error('Could not locate liblldb');
+
+            if (verboseLogging) {
+                output.appendLine(`library: ${libraryPath}`);
+                output.appendLine(`environment: ${inspect(adapterEnv)}`);
+                output.appendLine(`params: ${inspect(params)}`);
+            }
+
             adapterProcess = await adapter.startNative(
                 this.context.extensionPath,
-                path.join(this.context.extensionPath, 'lldb'),
+                libraryPath,
                 adapterEnv,
                 workspace.rootPath,
                 params,
                 verboseLogging);
-        };
+        }
         util.logProcessOutput(adapterProcess, output);
         let port = await adapter.getDebugServerPort(adapterProcess);
         return [adapterProcess, port];
@@ -319,9 +427,4 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 }
 
-class DisplaySettings {
-    showDisassembly: string = 'auto'; // 'always' | 'auto' | 'never'
-    displayFormat: string = 'auto'; // 'auto' | 'hex' | 'decimal' | 'binary'
-    dereferencePointers: boolean = true;
-    containerSummary: boolean = true;
-};
+

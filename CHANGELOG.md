@@ -1,5 +1,18 @@
 # Release Notes
 
+# 1.2.3
+
+## New
+- New UI for display settings (status bar and "Display Options..." command).
+- Added support for configurable external LLDB backends (native adapter only).
+
+## Changed
+- Updated bundled LLDB to v8.0 final.
+
+## Fixed
+- Bug #173 - Debugger module is not auto-imported when native adapter is used.
+- Native adapter panics in rare cases when formatting Python tracebacks.
+
 # 1.2.2
 
 ### Fixed

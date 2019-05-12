@@ -19,6 +19,7 @@
         - [Pointers](#pointers)
     - [Expressions](#expressions)
     - [Debugger API](#debugger-api)
+- [Alternate LLDB backends](#alternate-lldb-backends)
 - [Rust Language Support](#rust-language-support)
 - [Workspace Configuration](#workspace-configuration)
 
@@ -206,8 +207,8 @@ instead.  Example:
 Sometimes you'll find yourself adding the same parameters (e.g. a path of a dataset directory)
 to multiple launch configurations over and over again.  CodeLLDB provides a feature to help with
 configuration management in such cases: you may put common configuration values in `lldb.dbgconfig`
-section of your workspace configuration, and then reference them using `${dbgconfig:variable}` syntax
-in your launch configurations:
+section of the workspace configuration, then reference them using `${dbgconfig:variable}` syntax
+in debug launch configurations:
 
 ```javascript
 // settings.json
@@ -235,13 +236,14 @@ in your launch configurations:
 
 |                                 |                                                         |
 |---------------------------------|---------------------------------------------------------|
-|**Show Disassembly ...**         |Choose when the disassembly view is shown. See [Disassembly View](#disassembly-view).
+|**Show Disassembly...**         |Choose when the disassembly view is shown. See [Disassembly View](#disassembly-view).
 |**Toggle Disassembly**           |Choose when the disassembly view is shown. See [Disassembly View](#disassembly-view).
-|**Display Format ...**           |Choose default variable display format. See [Formatting](#formatting).
+|**Display Format...**           |Choose default variable display format. See [Formatting](#formatting).
 |**Toggle Numeric Pointer Values**|Choose whether to display the pointee's value rather than numeric value of the pointer itself. See [Pointers](#pointers).
-|**Toggle Container Summaries**   |Choose whether CodeLLDB should generate summaries of compound objects, for which there is no built-in support.<br> Note that having this on may slow down line stepping, because more data needs to be examined to generate the variables view.
+|**Display Options...**           |Interactive configuration of the above display options.
 |**Run Diagnostics**              |Run diagnostic on LLDB, to make sure it can be used with this extension.  The command is executed automatically the first time when CodeLLDB is used.
 |**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste the desired sections into `launch.json`.|
+
 
 ## Regex Breakpoints
 Function breakpoints prefixed with '`/re `', are interpreted as regular expressions.
@@ -326,15 +328,14 @@ operator keywords `and`, `or`, `not`.  No other Python keywords are allowed.
 The values of debuggee variables are obtained through [LLDB data formatters](https://lldb.llvm.org/varformats.html),
 thus if you have formatters installed for specific library types, they will work as expected.
 For example, things like indexing an `std::vector` with an integer, or comparing `std::string` to
-a string literal should just work.<br>
-Variables, whose names are not valid Python identifiers may be accessed by escaping them with `${`...`}`.
+a string literal should just work. Variables, whose names are not valid Python identifiers may be accessed by escaping them with `${`...`}`.
 
 ### Python expressions
 Prefix: `/py `<br>
 Python expressions use normal Python syntax.  In addition to that, any identifier prefixed with `$`
 (or enclosed in `${`...`}`), will be replaced with the value of the corresponding debuggee
-variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $a]`
-will evaluate to a list containing square roots of  values contained in debuggee's array `a`.
+variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $arr]`
+will evaluate to a list containing square roots of  values contained in debuggee's array `arr`.
 
 ### Native expressions
 Prefix: `/nat `<br>
@@ -351,37 +352,24 @@ thus they are often not as convenient as "simple" or "python" expressions.
 CodeLLDB provides a Python API via the `debugger` module (which is auto-imported into
 debugger's main script context).
 
-### debugger.evaluate(expression: str) -> Value
-Allows dynamic evaluation of [simple expressions](#simple-expressions).
+|Function                           |Description|
+|-----------------------------------|------------
+|**evaluate(expression: `str`) -> `Value`**| Allows dynamic evaluation of [simple expressions](#simple-expressions). The returned `Value` type is a proxy wrapper around `lldb.SBValue`,<br> which overloads most of Python's operators, so that arithmetic expressions work as one would expect.
+|**unwrap(obj: `Value`) -> `lldb.SBValue`**| Extracts [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from `Value`.
+|**wrap(obj: `lldb.SBValue`) -> `Value`**| Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
+|**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
 
-### debugger.unwrap(obj: Value) -> lldb.SBValue
-Extract [lldb.SBValue](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from result of evaluation of a simple expression.
 
-### debugger.wrap(obj: lldb.SBValue) -> Value
-Converts lldb.SBValue to an object the may be used in [simple expressions](#simple-expressions).
-
-### debugger.stop_if(condition: bool, handler: Callable[]) -> bool
-If `condition` evaluates to True, executes the `handler` function and returns True.  Otherwise,
-returns False.<br>
-This function is handy when creating conditional breakpoints with side effects.
-For example, this breakpoint condition: `/py debugger.stop_if($x % 50 == 0, lambda: print($y))` will
-cause a stop when variable `x` becomes a multiple of 50 and will print the value of variable `y`.
-
-### debugger.display_html(html:str, title:str=None, position:int=None, reveal:bool=False)
-Displays HTML content in VSCode UI.
-- `html`: HTML markup to display.
-- `title`: Title of the panel.  Defaults to name of the current launch configuration.
-- `position`: Position of the panel.  The allowed range is 1 through 3.
-- `reveal`: Whether to reveal the panel if it already exists.
-
-### debugger.register_content_provider(provider: Callable[[string],string])
-Allows generation of dynamic content for HTML display.  Any `debugger:` content not found in the `content`
-dictionary, will be directed to `provider` callback, which takes a URL parameter and returns content
-as a string.
+# Alternate LLDB backends
+*(native adapter only)*<br>
+CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging
+Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
+In order to use alternate backend, you will need to provide location of the corresponding liblldb&#46;so/.dylib/.dll
+dynamic library via the **lldb.library** configuration setting. Alternatively, it is also possible to provide name of the main LLDB executable (via **lldb.executable**), in which case CodeLLDB will attempt to locate the library automatically.
 
 # Rust Language Support
 
-CodeLLDB supports visualization of most common Rust data types:
+CodeLLDB natively supports visualization of most common Rust data types:
 - Built-in types: tuples, enums, arrays, array and string slices.
 - Standard library types: Vec, String, CString, OSString.
 
@@ -429,13 +417,21 @@ configurations (if there is no `launch.json` in the workspace).
 ## General
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<br>**"classic"** a Python-based debug adapter running in externally provided LLDB, <br>**"bundled"** a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<br>**"native"** native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
-|**lldb.executable**    |Path to LLDB (default="lldb").  This setting has effect only when **lldb.adapterType**==**"classic"**.
-|**lldb.executable_env**|Environment variables to pass to LLDB.  This setting has effect only when **lldb.adapterType**==**"classic"**.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
-|**lldb.verboseLogging**|Enables verbose logging (replaces old **lldb.logLevel** setting).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
-|**lldb.suppressMissingSourceFiles** |Suppress VSCode's missing source file messages (requires probing for existence of the source file).
+|**lldb.displayFormat**|The default format for variable and expression values.
+|**lldb.showDisassembly**|When to show disassembly:<li>auto - only when source is not available.,<li>never - never show.,<li>always - always show, even if source is available.
+|**lldb.dereferencePointers**|Whether to show a summary of the pointee, or a numeriric value for pointers.
+|**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
+
+## Advanced
+|                       |                                                         |
+|-----------------------|---------------------------------------------------------|
+|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<li>native - native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.executable**    |Which LLDB executable to use. (default="lldb")
+|**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
+|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in the "LLDB" output panel.
 
 ## Default launch configuration settings
 |                       |                                                         |

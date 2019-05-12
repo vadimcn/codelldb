@@ -108,7 +108,6 @@ pub struct DebugSession {
     global_format: Format,
     show_disassembly: Option<bool>,
     deref_pointers: bool,
-    container_summary: bool,
 
     default_expr_type: Expressions,
     source_languages: Vec<String>,
@@ -181,7 +180,6 @@ impl DebugSession {
             global_format: Format::Default,
             show_disassembly: None,
             deref_pointers: true,
-            container_summary: true,
 
             default_expr_type: Expressions::Simple,
             source_languages: parameters.source_languages.unwrap_or(vec!["cpp".into()]),
@@ -1008,7 +1006,7 @@ impl DebugSession {
             Ok(process) => process,
             Err(err) => {
                 let mut msg: String = err.error_string().into();
-                let work_dir = launch_info.working_directory();
+                let work_dir = launch_info.working_directory().unwrap_or(Path::new(""));
                 if self.target.platform().get_file_permissions(work_dir) == 0 {
                     msg = format!(
                         "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
@@ -1633,11 +1631,7 @@ impl DebugSession {
         }
 
         if is_container {
-            if self.container_summary {
-                self.get_container_summary(var.as_ref())
-            } else {
-                "{...}".to_owned()
-            }
+            self.get_container_summary(var.as_ref())
         } else {
             "<not available>".to_owned()
         }
@@ -2069,23 +2063,6 @@ impl DebugSession {
             None => self.deref_pointers,
             Some(v) => v,
         };
-        self.container_summary = match args.container_summary {
-            None => self.container_summary,
-            Some(v) => v,
-        };
-        // Show current settings
-        let show_disasm = match self.show_disassembly {
-            None => "auto",
-            Some(true) => "always",
-            Some(false) => "never",
-        };
-        let msg = format!("Display settings: variable format={}, show disassembly={}, numeric pointer values={}, container summaries={}.",
-            format!("{:?}", self.global_format).to_lowercase(),
-            show_disasm,
-            if self.deref_pointers { "on" } else { "off" },
-            if self.container_summary { "on" } else { "off" }
-        );
-        self.console_message(msg);
     }
 
     // Fake target start/stop to force VSCode to refresh UI state.

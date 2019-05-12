@@ -55,6 +55,28 @@
 			"terminal": "integrated"
 		},
 		{
+			"name": "codelldb on OSX",
+			"preLaunchTask": "codelldb",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/adapter2/codelldb",
+			"args": [
+				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.8.0.0-custom.dylib",
+				"--multi-session",
+				"--port=4711"
+			],
+			"env": {
+				"RUST_LOG": "error,codelldb=debug",
+				"RUST_LOG_STYLE": "always",
+				"RUST_BACKTRACE": "full",
+			},
+			"sourceLanguages": [
+				"cpp",
+				"rust"
+			],
+			"terminal": "integrated"
+		},
+		{
 			"name": "codelldb on Windows",
 			"preLaunchTask": "codelldb",
 			"type": "lldb",
@@ -75,7 +97,7 @@
 				"cpp",
 				"rust"
 			],
-			"terminal": "integrated"
+			"terminal": "external"
 		},
 		{
 			"name": "codelldb on Windows+cppvsdbg",
@@ -148,20 +170,21 @@
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceRoot}/build/node_modules/mocha/bin/_mocha",
 			"args": [
 				"-u", "tdd",
 				"--timeout", "999999",
 				"--colors",
 				"--exit",
 				"-g", "Environment",
-				"build/tests/tests"
+				"build/tests"
 			],
 			"env": {
 				//"ADAPTER_TYPE": "native",
 				//"TARGET_TRIPLE": "x86_64-pc-windows-gnu",
 				"RUST_LOG": "error,codelldb=debug",
-				"RUST_BACKTRACE": "full"
+				"RUST_BACKTRACE": "full",
+				"NODE_PATH": "${workspaceRoot}/build"
 			},
 			"sourceMaps": true,
 			"outFiles": [

@@ -39,18 +39,17 @@ impl PythonInterface {
     pub fn new(
         interpreter: SBCommandInterpreter, send_event: Box<Fn(EventBody) + Send>,
     ) -> Result<Box<PythonInterface>, Error> {
-        let mut init_script = env::current_exe()?;
-        init_script.set_file_name("codelldb.py");
-
-        // Import codelldb.py
+        let current_exe = env::current_exe()?;
         let mut command_result = SBCommandReturnObject::new();
+
+        // Import debugger.py into script interpreter's namespace.
+        // This also adds our bin directory to sys.path, so we can import the rest of our modules below.
+        let init_script = current_exe.with_file_name("debugger.py");
         let command = format!("command script import '{}'", init_script.to_str()?);
         interpreter.handle_command(&command, &mut command_result, false);
         info!("{:?}", command_result);
 
-        // Import rust.py
-        let mut rust_formatters = init_script.clone();
-        rust_formatters.set_file_name("rust.py");
+        let rust_formatters = current_exe.with_file_name("rust.py");
         let command = format!("command script import '{}'", rust_formatters.to_str()?);
         interpreter.handle_command(&command, &mut command_result, false);
         info!("{:?}", command_result);
@@ -121,7 +120,7 @@ impl PythonInterface {
         let result = self.pyfn_evaluate_in_frame.call(py, (expr, is_simple_expr, pysb_exec_context), None);
         let result = match result {
             Ok(value) => Ok(value.is_true(py).unwrap()),
-            Err(pyerr) => Err(self.format_exception(py, &pyerr)),
+            Err(pyerr) => Err(self.format_exception(py, pyerr)),
         };
         debug!("evaluate_as_bool {} -> {:?}", expr, result);
         result
@@ -162,22 +161,24 @@ impl PythonInterface {
                     Ok(sbvalue_from_str(&value, target))
                 }
             }
-            Err(pyerr) => Err(self.format_exception(py, &pyerr)),
+            Err(pyerr) => Err(self.format_exception(py, pyerr)),
         }
     }
 
-    fn format_exception(&self, py: Python, err: &PyErr) -> String {
-        let tb = self
-            .pymod_traceback
-            .call(py, "format_exception", (&err.ptype, &err.pvalue, &err.ptraceback), None)
-            .unwrap();
-        let lines = Vec::<String>::extract(py, &tb).unwrap();
-        lines.concat()
+    fn format_exception(&self, py: Python, mut err: PyErr) -> String {
+        err.normalize(py);
+        match self.pymod_traceback.call(py, "format_exception", (&err.ptype, &err.pvalue, &err.ptraceback), None) {
+            Ok(tb) => {
+                let lines = Vec::<String>::extract(py, &tb).unwrap();
+                lines.concat()
+            }
+            Err(_) => format!("Could not format exception: {:?}", err),
+        }
     }
 }
 
-// Creates SWIG wrapper containing native SB object.
-// `pytype` is Python type object of the wrapper.
+// Creates a SWIG wrapper containing native SB object.
+// `pytype` is the Python type object of the wrapper.
 // Obviously, `SBT` and `pytype` must match, hence `unsafe`.
 unsafe fn into_swig_wrapper<SBT>(py: Python, obj: SBT, pytype: &PyType) -> PyObject {
     // SWIG does not provide an API for creating Python wrapper from a native object, so we have to employ a bit of trickery:
@@ -190,7 +191,7 @@ unsafe fn into_swig_wrapper<SBT>(py: Python, obj: SBT, pytype: &PyType) -> PyObj
     pysb
 }
 
-// Extracts native SB object from SWIG wrapper.
+// Extracts native SB object from a SWIG wrapper.
 unsafe fn from_swig_wrapper<SBT>(py: Python, pyobj: &PyObject) -> SBT
 where
     SBT: Clone,

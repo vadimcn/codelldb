@@ -289,12 +289,12 @@ impl DebugSession {
                 RequestArguments::stepOut(args) =>
                     self.handle_step_out(args)
                         .map(|r| ResponseBody::stepOut),
+                RequestArguments::goto(args) =>
+                    self.handle_goto(args)
+                        .map(|_| ResponseBody::goto),
                 RequestArguments::gotoTargets(args) =>
                     self.handle_goto_targets(args)
                         .map(|r| ResponseBody::gotoTargets(r)),
-                RequestArguments::goto(args) =>
-                    self.handle_goto(args)
-                        .map(|r| ResponseBody::goto),
                 RequestArguments::source(args) =>
                     self.handle_source(args)
                         .map(|r| ResponseBody::source(r)),
@@ -1937,7 +1937,8 @@ impl DebugSession {
 
         use lldb::SBFileSpec;
 
-        let source_file = SBFileSpec::from(Path::new(&args.source.path.unwrap()));
+        let source_path = args.source.path.unwrap();
+        let source_file = SBFileSpec::from(Path::new(&source_path));
 
         thread.jump_to_line(&source_file, args.line as u32);
 
@@ -1945,7 +1946,7 @@ impl DebugSession {
         Ok(GotoTargetsResponseBody {
             targets: vec![GotoTarget {
                 id : 1,
-                label : args.source.name.unwrap(),
+                label : source_path,
                 column: args.column,
                 line : args.line,
                 end_column : None,

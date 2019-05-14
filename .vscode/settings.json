@@ -12,10 +12,5 @@
     "files.trimTrailingWhitespace": true,
     "python.linting.enabled": false,
     "rust.build_lib": true,
-    "lldb.verboseLogging": true,
-    "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
-    "cmake.generator": "Visual Studio 15 2017 Win64",
-    "cmake.configureArgs": [
-        "-DLLDB_ROOT=G:/App/LLVM"
-    ]
+    "lldb.verboseLogging": true
 }

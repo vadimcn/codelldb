@@ -786,8 +786,8 @@ class DebugSession:
         column = args['column']
 
         filespec = lldb.SBFileSpec()
-        filespec.SetDirectory(os.path.dirname(source['path'].replace("\\",'/')))
-        filespec.SetFilename(os.path.basename(source['path'].replace("\\",'/')))
+        filespec.SetDirectory(str(os.path.dirname(source['path'].replace("\\",'/'))))
+        filespec.SetFilename(str(os.path.basename(source['path'].replace("\\",'/'))))
 
         thread = self.process.GetSelectedThread()
         thread.JumpToLine(filespec, line)

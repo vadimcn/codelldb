@@ -10,6 +10,7 @@ pub use raw_debug_protocol::{
     ExitedEventBody, InitializeRequestArguments, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments,
     RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
     SetBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
+    GotoTarget,
     GotoArguments,
     GotoTargetsArguments, GotoTargetsResponseBody,
     SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,

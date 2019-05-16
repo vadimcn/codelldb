@@ -1,9 +1,10 @@
 import {
-    workspace, window, commands, debug,
+    workspace, window, commands, debug, QuickPickOptions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, ConfigurationChangeEvent,
 } from 'vscode';
+import { DebugProtocol } from 'vscode-debugprotocol';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
@@ -25,6 +26,60 @@ export function activate(context: ExtensionContext) {
     extension.onActivate();
 }
 
+class SetNextStatementHelpers
+{
+    public static makeLabelsUnique(targets: DebugProtocol.GotoTarget[]) : { [key: string]: DebugProtocol.GotoTarget } {
+
+        // first try: use the original label names
+        let labelDict : { [key: string]: DebugProtocol.GotoTarget } | undefined = SetNextStatementHelpers.makeLabelDictorary(targets);
+        if (!labelDict) {
+            // next try to add on the source position
+            labelDict = SetNextStatementHelpers.tryMakeLabelsUnique(targets, (target: DebugProtocol.GotoTarget) => `${target.label} : source position (${target.line},${target.column})-(${target.endLine},${target.endColumn})`);
+            if (!labelDict) {
+                // nothing worked, so just add on the array index as a prefix
+                labelDict = SetNextStatementHelpers.tryMakeLabelsUnique(targets, (target: DebugProtocol.GotoTarget, index: number) => `${index+1}: ${target.label}`);
+            }
+        }
+
+        return labelDict;
+    }
+
+    static tryMakeLabelsUnique(targets: DebugProtocol.GotoTarget[], getLabel: (target: DebugProtocol.GotoTarget, index?:number) => string) : { [key: string]: DebugProtocol.GotoTarget } | undefined {
+        const labelDict = SetNextStatementHelpers.makeLabelDictorary(targets, getLabel);
+        if (!labelDict) {
+            // The specified 'getLabel' function wasn't able to make the label names unique
+            return undefined;
+        }
+
+        // The specified 'getLabel' fenction worked. Update the 'label' names in the 'targets' array.
+        targets.forEach((target, index) => {
+            target.label = getLabel(target, index);
+        });
+        return labelDict;
+    }
+
+    static makeLabelDictorary(targets: DebugProtocol.GotoTarget[], getLabel?: (target: DebugProtocol.GotoTarget, index?:number) => string) : { [key: string]: DebugProtocol.GotoTarget } | undefined {
+        if (!getLabel) {
+            getLabel = (target) => target.label;
+        }
+
+        const labelNameDict : { [key: string]: DebugProtocol.GotoTarget } = {};
+        let index:number = 0;
+        for (const target of targets) {
+            const key:string = getLabel(target, index);
+            let existingItem = labelNameDict[key];
+            if (existingItem !== undefined) {
+                // multiple values with the same label found
+                return undefined;
+            }
+            labelNameDict[key] = target;
+            index++;
+        }
+
+        return labelNameDict;
+    }
+}
+
 class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
     context: ExtensionContext;
     htmlViewer: htmlView.DebuggerHtmlView;
@@ -44,6 +99,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
+        subscriptions.push(commands.registerCommand('lldb.setNextStatement', () => this.setNextStatement()));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
@@ -118,6 +174,78 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
             await debug.activeDebugSession.customRequest('displaySettings', settings);
+        }
+    }
+
+    async setNextStatement() {
+        try {
+            const debugSession = debug.activeDebugSession;
+            if (!debugSession) {
+                throw new Error("There isn't an active CodeLLDB debug session.");
+            }
+
+            const debugType: string = debugSession.type;
+            if (debugType !== "lldb") {
+                throw new Error("There isn't an active CodeLLDB debug session.");
+            }
+
+            const currentEditor = window.activeTextEditor;
+            if (!currentEditor) {
+                throw new Error("There isn't an active source file.");
+            }
+
+            const position = currentEditor.selection.active;
+            if (!position) {
+                throw new Error("There isn't a current source position.");
+            }
+
+            const currentDocument = currentEditor.document;
+            if (currentDocument.isDirty) {
+                throw new Error("The current document has unsaved edits.");
+            }
+
+            const gotoTargetsArg : DebugProtocol.GotoTargetsArguments = {
+                source: {
+                    path: currentDocument.uri.fsPath
+                },
+                line: position.line + 1,
+                column: position.character + 1
+            };
+
+            const gotoTargetsResponseBody = await debugSession.customRequest('gotoTargets', gotoTargetsArg);
+            const targets: DebugProtocol.GotoTarget[] = gotoTargetsResponseBody.targets;
+            if (targets.length === 0) {
+                throw new Error(`No executable code is associated with line ${gotoTargetsArg.line}.`);
+            }
+
+            let selectedTarget = targets[0];
+
+            if (targets.length > 1) {
+
+                // If we have multiple possible targets, then let the user pick.
+                const labelDict: { [key: string]: DebugProtocol.GotoTarget } = SetNextStatementHelpers.makeLabelsUnique(targets);
+                const labels : string[] = targets.map((target) => target.label);
+
+                const options: QuickPickOptions = {
+                    matchOnDescription: true,
+                    placeHolder: "Choose the specific location"
+                };
+
+                const selectedLabelName : string = await window.showQuickPick(labels, options);
+                if (!selectedLabelName) {
+                    return; // operation was cancelled
+                }
+                selectedTarget = labelDict[selectedLabelName];
+            }
+
+            const gotoArg : DebugProtocol.GotoArguments = {
+                targetId : selectedTarget.id,
+                threadId : 0
+                };
+                await debugSession.customRequest('goto', gotoArg);
+        }
+        catch (err) {
+            window.showErrorMessage(`Unable to set the next statement. ${err}`);
         }
     }
 

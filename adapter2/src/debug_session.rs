@@ -97,6 +97,7 @@ pub struct DebugSession {
     on_configuration_done: Option<(u32, Box<AsyncResponder>)>,
     python: MustInitialize<Box<PythonInterface>>,
     breakpoints: RefCell<BreakpointsState>,
+    goto_targets : HashMap<i64, GotoTarget>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
@@ -169,6 +170,7 @@ impl DebugSession {
                 function: HashMap::new(),
                 breakpoint_infos: HashMap::new(),
             }),
+            goto_targets: HashMap::new(),
             var_refs: HandleTree::new(),
             disassembly: NotInitialized,
             source_map_cache: RefCell::new(HashMap::new()),
@@ -1930,33 +1932,60 @@ impl DebugSession {
         Ok(())
     }
 
+    fn get_next_goto_target_id(&mut self) -> i64 {
+        unsafe {
+            static mut NEW_ID : i64 = 0;
+            NEW_ID += 1;
+            return NEW_ID;
+        }
+    }
+
     fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
-        self.before_resume();
 
-        let thread = self.process.selected_thread();
+        if args.source.path.is_none() {
+            return Err(Error::UserError("Invalid argument".into()));
+        }
 
-        use lldb::SBFileSpec;
+        let goto_target = GotoTarget {
+            id : self.get_next_goto_target_id(),
+            label : args.source.path?,
+            column: args.column,
+            line : args.line,
+            end_column : None,
+            end_line : None
+        };
 
-        let source_path = args.source.path.unwrap();
-        let source_file = SBFileSpec::from(Path::new(&source_path));
+        self.goto_targets.insert(goto_target.id, goto_target.clone());
 
-        thread.jump_to_line(&source_file, args.line as u32);
+        let mut targets = vec![];
+        targets.push(goto_target);
 
-        use raw_debug_protocol::GotoTarget;
         Ok(GotoTargetsResponseBody {
-            targets: vec![GotoTarget {
-                id : 1,
-                label : source_path,
-                column: args.column,
-                line : args.line,
-                end_column : None,
-                end_line : None
-            }]
+            targets: targets
         })
     }
 
     fn handle_goto(&mut self, args: GotoArguments) -> Result<(), Error> {
-        Ok(())
+        self.before_resume();
+
+        let thread = if args.thread_id == 0 {
+            self.process.selected_thread()
+        } else {
+            self.process.thread_by_id(args.thread_id as ThreadID)?
+        };
+
+        let goto_target = self.goto_targets.get(&args.target_id).unwrap();
+
+        let source_path = &goto_target.label;
+        let source_file = lldb::SBFileSpec::from(Path::new(&source_path));
+
+        let mut error: lldb::SBError = thread.jump_to_line(&source_file, goto_target.line as u32);
+
+        if error.is_success() {
+            Ok(())
+        } else {
+            Err(Error::from(error))
+        }
     }
 
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {

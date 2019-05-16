@@ -89,8 +89,28 @@
 				"category": "LLDB",
 				"title": "Display Options...",
 				"command": "lldb.changeDisplaySettings"
+			},
+			{
+				"category": "LLDB",
+				"title": "Set Next Statement",
+				"command": "lldb.setNextStatement"
 			}
 		],
+		"keybindings": [
+			{
+				"command": "lldb.setNextStatement",
+				"key": "Ctrl+Shift+F10",
+				"when": "inDebugMode && debugType == 'lldb'"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "lldb.setNextStatement",
+					"when": "inDebugMode && debugType == 'lldb'"
+				}
+			]
+		},
 		"languages": [
 			{
 				"id": "lldb.disassembly",

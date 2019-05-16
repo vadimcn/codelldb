@@ -1940,28 +1940,42 @@ impl DebugSession {
         }
     }
 
+    fn get_goto_targets(&mut self, args : GotoTargetsArguments) -> Vec<GotoTarget> {
+
+        let label = args.source.path.unwrap();
+        let mut targets : Vec<GotoTarget> = vec![];
+
+        for (key, value) in self.goto_targets.iter() {
+            if value.label == label && value.line == args.line {
+                targets.push(value.clone());
+            }
+        }
+
+        if targets.is_empty() {
+            let goto_target = GotoTarget {
+                id : self.get_next_goto_target_id(),
+                label : label,
+                line : args.line,
+                column: None,
+                end_line : None,
+                end_column : None
+            };
+
+            self.goto_targets.insert(goto_target.id, goto_target.clone());
+            targets.push(goto_target);
+        }
+
+        return targets;
+    }
+
     fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
 
         if args.source.path.is_none() {
             return Err(Error::UserError("Invalid argument".into()));
         }
 
-        let goto_target = GotoTarget {
-            id : self.get_next_goto_target_id(),
-            label : args.source.path?,
-            column: args.column,
-            line : args.line,
-            end_column : None,
-            end_line : None
-        };
-
-        self.goto_targets.insert(goto_target.id, goto_target.clone());
-
-        let mut targets = vec![];
-        targets.push(goto_target);
-
         Ok(GotoTargetsResponseBody {
-            targets: targets
+            targets: self.get_goto_targets(args)
         })
     }
 
@@ -1976,10 +1990,10 @@ impl DebugSession {
 
         let goto_target = self.goto_targets.get(&args.target_id).unwrap();
 
-        let source_path = &goto_target.label;
-        let source_file = lldb::SBFileSpec::from(Path::new(&source_path));
-
-        let mut error: lldb::SBError = thread.jump_to_line(&source_file, goto_target.line as u32);
+        let error: lldb::SBError =
+            thread.jump_to_line(
+                &lldb::SBFileSpec::from(Path::new(&goto_target.label)),
+                goto_target.line as u32);
 
         if error.is_success() {
             Ok(())

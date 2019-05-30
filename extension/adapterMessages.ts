@@ -1,10 +1,13 @@
 import { ViewColumn } from "vscode";
 
-export class DisplaySettings {
+export class AdapterSettings {
     showDisassembly: 'always' | 'auto' | 'never' = 'auto';
     displayFormat: 'auto' | 'hex' | 'decimal' | 'binary' = 'auto';
     dereferencePointers: boolean = true;
-    containerSummary: boolean = true;
+    evaluationTimeout: number;
+    suppressMissingSourceFiles: boolean;
+    consoleMode: 'commands' | 'expressions';
+    sourceLanguages: string[];
 };
 
 export interface DisplayHtmlRequest {

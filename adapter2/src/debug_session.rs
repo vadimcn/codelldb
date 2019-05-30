@@ -35,8 +35,6 @@ use lldb::*;
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AdapterParameters {
-    evaluation_timeout: Option<u32>,
-    suppress_missing_source_files: Option<bool>,
     source_languages: Option<Vec<String>>,
 }
 
@@ -104,15 +102,15 @@ pub struct DebugSession {
     exit_commands: Option<Vec<String>>,
     terminal: Option<Terminal>,
     selected_frame_changed: bool,
+    default_expr_type: Expressions,
 
     global_format: Format,
-    show_disassembly: Option<bool>,
+    show_disassembly: ShowDisassembly,
     deref_pointers: bool,
-
-    default_expr_type: Expressions,
-    source_languages: Vec<String>,
+    console_mode: ConsoleMode,
     suppress_missing_files: bool,
     evaluation_timeout: time::Duration,
+    source_languages: Vec<String>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -121,7 +119,7 @@ unsafe impl Send for DebugSession {}
 
 impl DebugSession {
     pub fn new(
-        parameters: AdapterParameters,
+        settings: AdapterSettings,
     ) -> impl Stream<Item = ProtocolMessage, Error = ()> + Sink<SinkItem = ProtocolMessage, SinkError = ()> {
         let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(100);
         let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(100);
@@ -150,7 +148,7 @@ impl DebugSession {
             });
         }
 
-        let debug_session = DebugSession {
+        let mut debug_session = DebugSession {
             send_message: RefCell::new(outgoing_send),
             incoming_send: incoming_send.clone(),
             message_seq: Cell::new(1),
@@ -176,16 +174,17 @@ impl DebugSession {
             exit_commands: None,
             terminal: None,
             selected_frame_changed: false,
+            default_expr_type: Expressions::Simple,
 
             global_format: Format::Default,
-            show_disassembly: None,
+            show_disassembly: ShowDisassembly::Auto,
             deref_pointers: true,
-
-            default_expr_type: Expressions::Simple,
-            source_languages: parameters.source_languages.unwrap_or(vec!["cpp".into()]),
-            suppress_missing_files: parameters.suppress_missing_source_files.unwrap_or(true),
-            evaluation_timeout: time::Duration::from_millis(parameters.evaluation_timeout.unwrap_or(5000).into()),
+            console_mode: ConsoleMode::Commands,
+            source_languages: vec!["cpp".into()],
+            suppress_missing_files: true,
+            evaluation_timeout: time::Duration::from_secs(5),
         };
+        debug_session.update_adapter_settings(&settings);
 
         let debug_session = Arc::new(Mutex::new(debug_session));
         let weak = Arc::downgrade(&debug_session);
@@ -298,9 +297,9 @@ impl DebugSession {
                 RequestArguments::disconnect(args) =>
                     self.handle_disconnect(Some(args))
                         .map(|_| ResponseBody::disconnect),
-                RequestArguments::displaySettings(args) =>
-                    self.handle_display_settings(args)
-                        .map(|_| ResponseBody::displaySettings),
+                RequestArguments::adapterSettings(args) =>
+                    self.handle_adapter_settings(args)
+                        .map(|_| ResponseBody::adapterSettings),
                 _ => {
                     //error!("No handler for request message: {:?}", request);
                     Err(Error::Internal("Not implemented.".into()))
@@ -948,8 +947,8 @@ impl DebugSession {
         let launch_env = launch_env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>();
         launch_info.set_environment_entries(launch_env.iter().map(|s| s.as_ref()), false);
 
-        if let Some(ref ds) = args.display_settings {
-            self.update_display_settings(ds);
+        if let Some(ref settings) = args.adapter_settings {
+            self.update_adapter_settings(settings);
         }
         if let Some(ref args) = args.args {
             launch_info.set_arguments(args.iter().map(|a| a.as_ref()), false);
@@ -1362,8 +1361,9 @@ impl DebugSession {
 
     fn in_disassembly(&mut self, frame: &SBFrame) -> bool {
         match self.show_disassembly {
-            Some(v) => v,
-            None => {
+            ShowDisassembly::Always => true,
+            ShowDisassembly::Never => false,
+            ShowDisassembly::Auto => {
                 if let Some(le) = frame.line_entry() {
                     self.map_filespec_to_local(&le.file_spec()).is_none()
                 } else {
@@ -1673,7 +1673,7 @@ impl DebugSession {
                 _ => return Err(Error::Internal("Invalid frameId".into())),
             };
             // If they used `frame select` command in after the last stop, use currently selected frame
-            // from frame's thread, instead of the  frame itself.
+            // from frame's thread, instead of the frame itself.
             if self.selected_frame_changed {
                 let thread = frame.thread();
                 Some(thread.selected_frame())
@@ -1685,27 +1685,50 @@ impl DebugSession {
         };
 
         let context = args.context.as_ref().map(|s| s.as_ref());
-        let mut expression: &str = &args.expression;
-
         if let Some("repl") = context {
-            if !expression.starts_with("?") {
-                // LLDB command
-                let result = self.execute_command_in_frame(expression, frame.as_ref());
-                let text = if result.succeeded() {
-                    result.output()
-                } else {
-                    result.error()
-                };
-                let response = EvaluateResponseBody {
-                    result: into_string_lossy(text),
-                    ..Default::default()
-                };
-                return Ok(response);
-            } else {
-                expression = &expression[1..]; // drop leading '?'
+            match self.console_mode {
+                ConsoleMode::Commands => {
+                    if args.expression.starts_with("?") {
+                        self.handle_evaluate_expression(&args.expression[1..], frame)
+                    } else {
+                        self.handle_execute_command(&args.expression, frame)
+                    }
+                }
+                ConsoleMode::Evaluate => {
+                    if args.expression.starts_with('`') {
+                        self.handle_execute_command(&args.expression[1..], frame)
+                    } else {
+                        self.handle_evaluate_expression(&args.expression, frame)
+                    }
+                }
             }
+        } else {
+            self.handle_evaluate_expression(&args.expression, frame)
         }
+    }
 
+    fn handle_execute_command(&mut self, command: &str, frame: Option<SBFrame>) -> Result<EvaluateResponseBody, Error> {
+        let context = self.context_from_frame(frame.as_ref());
+        let mut result = SBCommandReturnObject::new();
+        let interp = self.debugger.command_interpreter();
+        let ok = interp.handle_command_with_context(command, &context, &mut result, false);
+        debug!("{} -> {:?}, {:?}", command, ok, result);
+        // TODO: multiline
+        let text = if result.succeeded() {
+            result.output()
+        } else {
+            result.error()
+        };
+        let response = EvaluateResponseBody {
+            result: into_string_lossy(text),
+            ..Default::default()
+        };
+        return Ok(response);
+    }
+
+    fn handle_evaluate_expression(
+        &mut self, expression: &str, frame: Option<SBFrame>,
+    ) -> Result<EvaluateResponseBody, Error> {
         // Expression
         let (pp_expr, expr_format) = expressions::prepare_with_format(expression, self.default_expr_type)
             .map_err(|err| Error::UserError(err))?;
@@ -1784,16 +1807,6 @@ impl DebugSession {
                 }
             }
         }
-    }
-
-    fn execute_command_in_frame(&self, command: &str, frame: Option<&SBFrame>) -> SBCommandReturnObject {
-        let context = self.context_from_frame(frame);
-        let mut result = SBCommandReturnObject::new();
-        let interp = self.debugger.command_interpreter();
-        let ok = interp.handle_command_with_context(command, &context, &mut result, false);
-        debug!("{} -> {:?}, {:?}", command, ok, result);
-        // TODO: multiline
-        result
     }
 
     fn context_from_frame(&self, frame: Option<&SBFrame>) -> SBExecutionContext {
@@ -1933,30 +1946,48 @@ impl DebugSession {
     }
 
     fn handle_completions(&mut self, args: CompletionsArguments) -> Result<CompletionsResponseBody, Error> {
+        let (text, cursor_column) = match self.console_mode {
+            ConsoleMode::Commands => (&args.text[..], args.column - 1),
+            ConsoleMode::Evaluate => {
+                if args.text.starts_with('`') {
+                    (&args.text[1..], args.column - 2)
+                } else {
+                    // TODO: expression completions
+                    return Ok(CompletionsResponseBody {
+                        targets: vec![],
+                    });
+                }
+            }
+        };
+
+        // Work around LLDB crash when text starts with non-alphabetic character.
+        if let Some(c) = text.chars().next() {
+            if !c.is_alphabetic() {
+                return Ok(CompletionsResponseBody {
+                    targets: vec![],
+                });
+            }
+        }
+
+        // Compute cursor position inside text in as byte offset.
+        let cursor_index = text.char_indices().skip(cursor_column as usize).next().map(|p| p.0).unwrap_or(text.len());
+
         let interpreter = self.debugger.command_interpreter();
-        let targets = match interpreter.handle_completions(&args.text, (args.column - 1) as u32, None) {
+        let targets = match interpreter.handle_completions(text, cursor_index as u32, None) {
             None => vec![],
             Some((common_continuation, completions)) => {
-                // LLDB completions usually include some tail of the string being completed, without telling us what that prefix is.
+                // LLDB completions usually include some prefix of the string being completed, without telling us what that prefix is.
                 // For example, completing "set show tar" might return ["target.arg0", "target.auto-apply-fixits", ...].
 
-                // Compute cursor position inside args.text in as byte offset.
-                let cursor_index = args
-                    .text
-                    .char_indices()
-                    .skip((args.column - 1) as usize)
-                    .next()
-                    .map(|p| p.0)
-                    .unwrap_or(args.text.len());
                 // Take a slice up to the cursor, split it on whitespaces, then get the last part.
                 // This is the (likely) prefix of completions returned by LLDB.
-                let prefix = &args.text[..cursor_index].split_whitespace().next_back().unwrap_or_default();
+                let prefix = &text[..cursor_index].split_whitespace().next_back().unwrap_or_default();
                 let prefix_len = prefix.chars().count();
                 let extended_prefix = format!("{}{}", prefix, common_continuation);
 
                 let mut targets = vec![];
                 for completion in completions {
-                    // Check if we guessed the prefix correctly
+                    // Check if we guessed prefix correctly
                     let item = if completion.starts_with(&extended_prefix) {
                         CompletionItem {
                             label: completion,
@@ -2004,13 +2035,13 @@ impl DebugSession {
         Ok(())
     }
 
-    fn handle_display_settings(&mut self, args: DisplaySettingsArguments) -> Result<(), Error> {
-        self.update_display_settings(&args);
+    fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
+        self.update_adapter_settings(&args);
         self.refresh_client_display();
         Ok(())
     }
 
-    fn update_display_settings(&mut self, args: &DisplaySettingsArguments) {
+    fn update_adapter_settings(&mut self, args: &AdapterSettings) {
         self.global_format = match args.display_format {
             None => self.global_format,
             Some(DisplayFormat::Auto) => Format::Default,
@@ -2018,16 +2049,16 @@ impl DebugSession {
             Some(DisplayFormat::Hex) => Format::Hex,
             Some(DisplayFormat::Binary) => Format::Binary,
         };
-        self.show_disassembly = match args.show_disassembly {
-            None => self.show_disassembly,
-            Some(ShowDisassembly::Auto) => None,
-            Some(ShowDisassembly::Always) => Some(true),
-            Some(ShowDisassembly::Never) => Some(false),
-        };
-        self.deref_pointers = match args.dereference_pointers {
-            None => self.deref_pointers,
-            Some(v) => v,
-        };
+        self.show_disassembly = args.show_disassembly.unwrap_or(self.show_disassembly);
+        self.deref_pointers = args.dereference_pointers.unwrap_or(self.deref_pointers);
+        self.suppress_missing_files = args.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
+        self.console_mode = args.console_mode.unwrap_or(self.console_mode);
+        if let Some(timeout) = args.evaluation_timeout {
+            self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
+        }
+        if let Some(ref source_languages) = args.source_languages {
+            self.source_languages = source_languages.clone()
+        }
     }
 
     // Fake target start/stop to force VSCode to refresh UI state.

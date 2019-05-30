@@ -14,7 +14,7 @@ import * as util from './util';
 import * as adapter from './adapter';
 import * as install from './install';
 import { Dict, AdapterType, toAdapterType } from './common';
-import { DisplaySettings } from './adapterMessages';
+import { AdapterSettings } from './adapterMessages';
 import { execFileAsync } from './async';
 
 export let output = window.createOutputChannel('LLDB');
@@ -48,19 +48,22 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
                 event.affectsConfiguration('lldb.showDisassembly') ||
-                event.affectsConfiguration('lldb.dereferencePointers')) {
+                event.affectsConfiguration('lldb.dereferencePointers') ||
+                event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
+                event.affectsConfiguration('lldb.evaluationTimeout') ||
+                event.affectsConfiguration('lldb.consoleMode')) {
                 this.propagateDisplaySettings();
             }
         }));
 
         this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
-            settings.showDisassembly = <DisplaySettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
+            settings.showDisassembly = <AdapterSettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
         });
         this.registerDisplaySettingCommand('lldb.toggleDisassembly', async (settings) => {
             settings.showDisassembly = (settings.showDisassembly == 'auto') ? 'always' : 'auto';
         });
         this.registerDisplaySettingCommand('lldb.displayFormat', async (settings) => {
-            settings.displayFormat = <DisplaySettings['displayFormat']>await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
+            settings.displayFormat = <AdapterSettings['displayFormat']>await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
         });
         this.registerDisplaySettingCommand('lldb.toggleDerefPointers', async (settings) => {
             settings.dereferencePointers = !settings.dereferencePointers;
@@ -80,27 +83,32 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     }
 
-    registerDisplaySettingCommand(command: string, updater: (settings: DisplaySettings) => Promise<void>) {
+    registerDisplaySettingCommand(command: string, updater: (settings: AdapterSettings) => Promise<void>) {
         this.context.subscriptions.push(commands.registerCommand(command, async () => {
-            let settings = this.getDisplaySettings();
+            let settings = this.getAdapterSettings();
             await updater(settings);
-            this.setDisplaySettings(settings);
+            this.setAdapterSettings(settings);
         }));
     }
 
-    getDisplaySettings(): DisplaySettings {
+    // Read current adapter settings values from workspace configuration.
+    getAdapterSettings(): AdapterSettings {
         let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
         let config = workspace.getConfiguration('lldb', folder);
-        let settings: DisplaySettings = {
+        let settings: AdapterSettings = {
             displayFormat: config.get('displayFormat'),
             showDisassembly: config.get('showDisassembly'),
             dereferencePointers: config.get('dereferencePointers'),
-            containerSummary: true,
+            suppressMissingSourceFiles: config.get('suppressMissingSourceFiles'),
+            evaluationTimeout: config.get('evaluationTimeout'),
+            consoleMode: config.get('consoleMode'),
+            sourceLanguages: null
         };
         return settings;
     }
 
-    async setDisplaySettings(settings: DisplaySettings) {
+    // Update workspace configuration.
+    async setAdapterSettings(settings: AdapterSettings) {
         let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
         let config = workspace.getConfiguration('lldb', folder);
         await config.update('displayFormat', settings.displayFormat);
@@ -108,8 +116,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         await config.update('dereferencePointers', settings.dereferencePointers);
     }
 
+    // This is called When configuration change is detected. Updates UI, and if a debug session
+    // is active, pushes updated settings to the adapter as well.
     async propagateDisplaySettings() {
-        let settings = this.getDisplaySettings();
+        let settings = this.getAdapterSettings();
 
         this.status.text =
             `Format: ${settings.displayFormat}  ` +
@@ -117,12 +127,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             `Deref: ${settings.dereferencePointers ? 'on' : 'off'}`;
 
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            await debug.activeDebugSession.customRequest('displaySettings', settings);
+            await debug.activeDebugSession.customRequest('adapterSettings', settings);
         }
     }
 
+    // UI for changing display settings.
     async changeDisplaySettings() {
-        let settings = this.getDisplaySettings();
+        let settings = this.getAdapterSettings();
         let qpick = window.createQuickPick<QuickPickItem & { command: string }>();
         qpick.items = [
             {
@@ -243,7 +254,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             launchConfig.sourceLanguages.push('rust');
         }
         output.appendLine(`configuration: ${inspect(launchConfig)}`);
-        launchConfig._displaySettings = this.getDisplaySettings();
+        launchConfig._adapterSettings = this.getAdapterSettings();
         return launchConfig;
     }
 
@@ -293,6 +304,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         util.setIfDefined(params, config, 'reverseDebugging');
         util.setIfDefined(params, config, 'suppressMissingSourceFiles');
         util.setIfDefined(params, config, 'evaluationTimeout');
+        util.setIfDefined(params, config, 'consoleMode');
         return params;
     }
 

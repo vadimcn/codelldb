@@ -33,7 +33,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     env_logger::Builder::from_default_env().init();
     SBDebugger::initialize();
 
-    let adapter_params: debug_session::AdapterParameters = match adapter_params {
+    let adapter_settings: debug_protocol::AdapterSettings = match adapter_params {
         Some(s) => serde_json::from_str(s).unwrap(),
         None => Default::default(),
     };
@@ -58,7 +58,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     let server = server
         .for_each(move |conn| {
             conn.set_nodelay(true).unwrap();
-            run_debug_session(conn, adapter_params.clone())
+            run_debug_session(conn, adapter_settings.clone())
         })
         .then(|r| {
             info!("### server resolved: {:?}", r);
@@ -72,13 +72,13 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
 }
 
 fn run_debug_session(
-    stream: impl AsyncRead + AsyncWrite + Send + 'static, adapter_params: debug_session::AdapterParameters,
+    stream: impl AsyncRead + AsyncWrite + Send + 'static, adapter_settings: debug_protocol::AdapterSettings,
 ) -> impl Future<Item = (), Error = io::Error> {
     future::lazy(|| {
         debug!("New debug session");
 
         let (to_client, from_client) = wire_protocol::Codec::new().framed(stream).split();
-        let (to_session, from_session) = debug_session::DebugSession::new(adapter_params).split();
+        let (to_session, from_session) = debug_session::DebugSession::new(adapter_settings).split();
 
         let client_to_session = from_client
             .map_err(|_| ()) //.

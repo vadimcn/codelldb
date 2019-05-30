@@ -202,6 +202,20 @@
 					"default": true,
 					"scope": "resource"
 				},
+				"lldb.consoleMode": {
+					"description": "Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate.",
+					"type": "string",
+					"enum": [
+						"commands",
+						"evaluate"
+					],
+					"default": "commands",
+					"enumDescriptions": [
+						"Treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",
+						"Treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick)."
+					],
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

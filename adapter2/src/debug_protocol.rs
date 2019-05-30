@@ -81,7 +81,7 @@ pub enum RequestArguments {
     setVariable(SetVariableArguments),
     disconnect(DisconnectArguments),
     // Custom
-    displaySettings(DisplaySettingsArguments),
+    adapterSettings(AdapterSettings),
     // Reverse
     runInTerminal(RunInTerminalRequestArguments),
 }
@@ -115,7 +115,7 @@ pub enum ResponseBody {
     setVariable(SetVariableResponseBody),
     disconnect,
     // Custom
-    displaySettings,
+    adapterSettings,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -154,8 +154,8 @@ pub struct LaunchRequestArguments {
     pub expressions: Option<Expressions>,
     pub source_map: Option<Map<String, Option<String>>>,
     pub source_languages: Option<Vec<String>>,
-    #[serde(rename = "_displaySettings")]
-    pub display_settings: Option<DisplaySettingsArguments>,
+    #[serde(rename = "_adapterSettings")]
+    pub adapter_settings: Option<AdapterSettings>,
     pub custom: Option<bool>,
 }
 
@@ -173,8 +173,8 @@ pub struct AttachRequestArguments {
     pub expressions: Option<Expressions>,
     pub source_map: Option<Map<String, Option<String>>>,
     pub source_languages: Option<Vec<String>>,
-    #[serde(rename = "_displaySettings")]
-    pub display_settings: Option<DisplaySettingsArguments>,
+    #[serde(rename = "_adapterSettings")]
+    pub adapter_settings: Option<AdapterSettings>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -212,11 +212,22 @@ pub struct DisplayHtmlEventBody {
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct DisplaySettingsArguments {
+pub enum ConsoleMode {
+    Commands,
+    Evaluate,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AdapterSettings {
     pub display_format: Option<DisplayFormat>,
     pub show_disassembly: Option<ShowDisassembly>,
     pub dereference_pointers: Option<bool>,
     pub container_summary: Option<bool>,
+    pub evaluation_timeout: Option<f32>,
+    pub suppress_missing_source_files: Option<bool>,
+    pub console_mode: Option<ConsoleMode>,
+    pub source_languages: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

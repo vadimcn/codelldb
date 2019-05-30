@@ -123,7 +123,7 @@ class DebugSession:
         }
 
     def DEBUG_launch(self, args):
-        self.update_display_settings(args.get('_displaySettings'))
+        self.update_display_settings(args.get('_adapterSettings'))
         self.init_source_map(args)
         if args.get('request') == 'custom' or args.get('custom', False):
             return self.custom_launch(args)
@@ -180,7 +180,7 @@ class DebugSession:
         self.exec_commands(args.get('postRunCommands'))
 
     def DEBUG_attach(self, args):
-        self.update_display_settings(args.get('_displaySettings'))
+        self.update_display_settings(args.get('_adapterSettings'))
         self.init_source_map(args)
         pid = args.get('pid', None)
         program = args.get('program', None)
@@ -1291,7 +1291,7 @@ class DebugSession:
     def DEBUG_test(self, args):
         self.console_msg('TEST')
 
-    def DEBUG_displaySettings(self, args):
+    def DEBUG_adapterSettings(self, args):
         self.update_display_settings(args)
         self.refresh_client_display()
 

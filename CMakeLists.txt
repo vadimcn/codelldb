@@ -13,8 +13,19 @@ endif()
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
 
-if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+# General OS-specific definitions
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(DylibPrefix lib)
+    set(DylibSuffix .so)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    set(DylibPrefix lib)
+    set(DylibSuffix .dylib)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(NodeProgExt .cmd)
+    set(ExeSuffix .exe)
+    set(DylibSuffix .dll)
+else()
+    message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
 add_subdirectory(adapter2)
@@ -59,26 +70,11 @@ file(GLOB_RECURSE AdapterFiles
 )
 add_copy_files_to(adapter ${CMAKE_BINARY_DIR}/formatters ${AdapterFiles})
 
-
 # For extension debugging
 
 add_custom_target(dev_debugging DEPENDS adapter codelldb debuggee extension)
 
-# Strip native binaries
-
-if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Linux")
-    set(StripBinaries strip
-                   ${CMAKE_CURRENT_BINARY_DIR}/adapter2/codelldb
-                   ${CMAKE_CURRENT_BINARY_DIR}/adapter2/libcodelldb.so
-                   ${CMAKE_CURRENT_BINARY_DIR}/lldb/bin/lldb
-                   ${CMAKE_CURRENT_BINARY_DIR}/lldb/bin/lldb-server
-                   ${CMAKE_CURRENT_BINARY_DIR}/lldb/lib/liblldb.so.8-custom
-                   ${CMAKE_CURRENT_BINARY_DIR}/lldb/lib/python2.7/site-packages/lldb/lldb-argdumper
-                   )
-endif()
-
 # VSIX packages
-
 
 set(PackagedFilesPortable
     README.md
@@ -125,11 +121,26 @@ add_custom_target(vsix_portable
 
 add_custom_target(vsix_full
     DEPENDS adapter extension lldb codelldb
-    COMMAND ${StripBinaries}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND vsce package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+# Strip native binaries if building vsix_full
+
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    if(NOT ${CMAKE_STRIP})
+        set(CMAKE_STRIP strip)
+    endif()
+
+    add_custom_target(strip_binaries
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} "{}" "\;"
+        COMMENT "Stripping debug info"
+        USES_TERMINAL
+    )
+    add_dependencies(vsix_full strip_binaries)
+endif()
 
 # Build vsix_portable, then extract to tmp
 
@@ -141,7 +152,7 @@ add_custom_target(vsix_extracted
 
 # Debuggee
 
-if (NOT ${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee)
     execute_process(
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G "${CMAKE_GENERATOR}"
@@ -187,10 +198,10 @@ add_dependencies(tests adapter codelldb debuggee)
 # Tests and test targets
 add_custom_target(check)
 
-if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(TestAdapters bundled native)
     set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
-elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(TestAdapters classic bundled native)
     set(TestTriples x86_64-apple-darwin)
 else()

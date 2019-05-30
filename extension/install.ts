@@ -75,7 +75,8 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
 async function getPlatformPackageUrl(): Promise<string> {
     let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
     let pp = pkg.config.platformPackages;
-    let platformPackage = pp.platforms[process.platform];
+    let id = `${process.arch}-${process.platform}`;
+    let platformPackage = pp.platforms[id];
     if (platformPackage == undefined) {
         throw new Error('Current platform is not suported.');
     }

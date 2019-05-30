@@ -735,9 +735,10 @@
 		"platformPackages": {
 			"url": "https://github.com/vadimcn/vscode-lldb/releases/download/v${version}/${platformPackage}",
 			"platforms": {
-				"linux": "vscode-lldb-linux.vsix",
-				"darwin": "vscode-lldb-osx.vsix",
-				"win32": "vscode-lldb-windows.vsix"
+				"x64-linux": "vscode-lldb-x86_64-linux.vsix",
+				"arm64-linux": "vscode-lldb-aarch64-linux.vsix",
+				"x64-darwin": "vscode-lldb-x86_64-darwin.vsix",
+				"x64-win32": "vscode-lldb-x86_64-windows.vsix"
 			}
 		}
 	}

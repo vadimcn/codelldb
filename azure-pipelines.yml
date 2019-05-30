@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 577
+  lldbBuildId: 621
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   runTests: true
@@ -14,7 +14,7 @@ variables:
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
       set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
 
-##########################################
+########################################################################################################################
 
 jobs:
 - job: Linux
@@ -27,6 +27,14 @@ jobs:
       versionSpec: '10.x'
     displayName: 'Install Node.js'
 
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      source /usr/local/cargo/env
+      rustup toolchain install nightly-x86_64-unknown-linux-gnu
+      rustup default nightly
+      rustup show
+    displayName: 'Install Rust'
+
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
@@ -36,33 +44,32 @@ jobs:
       buildVersionToDownload: specific
       downloadType: single
       artifactName: 'lldb'
-      itemPattern: 'lldb/lldb-linux.zip'
-      downloadPath: '$(Agent.WorkFolder)/D'
+      itemPattern: 'lldb/lldb--x86_64-unknown-linux-gnu.zip'
+      downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
   - script: |
-      unzip $(Agent.WorkFolder)/D/lldb/lldb-linux.zip -d $(Agent.WorkFolder)/D/lldb-linux
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-unknown-linux-gnu
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
       sudo npm install -g vsce
       sudo chown -R $USER:$GROUP ~/.npm
-    displayName: 'Install'
+    displayName: 'Install other'
 
   - script: |
       $(setenvLinux)
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DLLDB_ROOT=$(Agent.WorkFolder)/D/lldb-linux\
+            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'Configure'
+    displayName: 'CMake configure'
 
   - script: |
       $(setenvLinux)
       cmake --build build --target vsix_portable
       cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-linux.vsix
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-linux.vsix
       cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
     displayName: 'Build'
 
@@ -87,7 +94,91 @@ jobs:
     displayName: 'On Failure'
     condition: failed()
 
-##########################################
+########################################################################################################################
+
+- job: Linux_aarch64
+  pool:
+    vmImage: 'Ubuntu 16.04'
+
+  container: 'vadimcn/aarch64-unknown-linux-gnu:latest'
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '10.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      wget -O- https://sh.rustup.rs | sh -s -- -v -y --default-toolchain none
+      source $HOME/.cargo/env
+      rustup toolchain install nightly
+      rustup default nightly
+      rustup target add aarch64-unknown-linux-gnu
+      rustup show
+      rustup target list
+    displayName: 'Install Rust'
+
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: specific
+      project:  $(lldbBuildProject)
+      pipeline: $(lldbBuildPipeline)
+      buildId:  $(lldbBuildId)
+      buildVersionToDownload: specific
+      downloadType: single
+      artifactName: 'lldb'
+      itemPattern: 'lldb/lldb--aarch64-unknown-linux-gnu.zip'
+      downloadPath: '$(Agent.BuildDirectory)/D'
+    displayName: 'Download LLDB'
+
+  - script: |
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+      echo 0 | tee /proc/sys/kernel/yama/ptrace_scope
+      npm install -g vsce
+      chown -R $USER:$GROUP ~/.npm
+    displayName: 'Install other'
+
+  - script: |
+      $(setenvLinux)
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-unknown-linux-gnu.cmake\
+            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
+            ..
+    displayName: 'CMake configure'
+
+  - script: |
+      $(setenvLinux)
+      cmake --build build --target vsix_portable
+      cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
+      cmake --build build --target vsix_full
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-aarch64-linux.vsix
+      cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
+    displayName: 'Build'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: 'vscode-lldb'
+
+  - script: |
+      $(setenvLinux)
+      cmake --build build --target tests
+      cd build
+      ctest --output-on-failure -R "bundled|native"
+    displayName: 'Test'
+    condition: variables.runTests
+
+  - script: |
+      echo - env ------------------
+      env
+      echo - dir -----------------------
+      ls -R build
+    displayName: 'On Failure'
+    condition: failed()
+
+########################################################################################################################
 
 - job: OSX
   pool:
@@ -99,6 +190,14 @@ jobs:
       versionSpec: '10.x'
     displayName: 'Install Node.js'
 
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      source $HOME/.cargo/env
+      rustup toolchain install nightly-x86_64-apple-darwin
+      rustup default nightly
+      rustup show
+    displayName: 'Install Rust'
+
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
@@ -108,29 +207,29 @@ jobs:
       buildVersionToDownload: specific
       downloadType: single
       artifactName: 'lldb'
-      itemPattern: 'lldb/lldb-osx.zip'
-      downloadPath: '$(Agent.WorkFolder)/D'
+      itemPattern: 'lldb/lldb--x86_64-apple-darwin.zip'
+      downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
   - script: |
-      unzip $(Agent.WorkFolder)/D/lldb/lldb-osx.zip -d $(Agent.WorkFolder)/D/lldb-osx
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-apple-darwin
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
       sudo npm install -g vsce
-    displayName: 'Install'
+      sudo chown -R $USER:$GROUP ~/.npm
+    displayName: 'Install other'
 
   - script: |
       $(setenvOSX)
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DLLDB_ROOT=$(Agent.WorkFolder)/D/lldb-osx\
+            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'Configure'
+    displayName: 'CMake configure'
 
   - script: |
       $(setenvOSX)
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-osx.vsix
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-darwin.vsix
     displayName: 'Build'
 
   - task: PublishBuildArtifacts@1
@@ -154,7 +253,7 @@ jobs:
     displayName: 'On Failure'
     condition: failed()
 
- ##########################################
+ ########################################################################################################################
 
 - job: Windows
   pool:
@@ -172,6 +271,15 @@ jobs:
       addToPath: true
       architecture: 'x64'
 
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+      rustup toolchain install nightly-x86_64-pc-windows-msvc
+      rustup toolchain install nightly-x86_64-pc-windows-gnu
+      rustup default nightly-x86_64-pc-windows-msvc
+      rustup show
+    displayName: 'Install Rust'
+
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
@@ -181,20 +289,17 @@ jobs:
       buildVersionToDownload: specific
       downloadType: single
       artifactName: 'lldb'
-      itemPattern: 'lldb/lldb-windows.zip'
-      downloadPath: '$(Agent.WorkFolder)/D'
+      itemPattern: 'lldb/lldb--x86_64-pc-windows-msvc.zip'
+      downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
   - script: |
       choco install zip
-      unzip $(Agent.WorkFolder)/D/lldb/lldb-windows.zip -d $(Agent.WorkFolder)/D/lldb-windows
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-x86_64-pc-windows-msvc
-      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-      rustup toolchain add nightly-x86_64-pc-windows-gnu
-      curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.WorkFolder)/D/ninja-win.zip
-      unzip $(Agent.WorkFolder)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
+      curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.BuildDirectory)/D/ninja-win.zip
+      unzip $(Agent.BuildDirectory)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
       call npm install -g vsce
-    displayName: 'Install'
+    displayName: 'Install other'
 
   - task: BatchScript@1
     inputs:
@@ -209,16 +314,16 @@ jobs:
       cd build
       cmake -GNinja^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
-            -DLLDB_ROOT=$(Agent.WorkFolder)\D\lldb-windows^
+            -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
             -DCMAKE_C_COMPILER=cl^
             -DCMAKE_CXX_COMPILER=cl^
             ..
-    displayName: 'Configure'
+    displayName: 'CMake configure'
 
   - script: |
       $(setenvWindows)
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-windows.vsix
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-windows.vsix
     displayName: 'Build'
 
   - task: PublishBuildArtifacts@1

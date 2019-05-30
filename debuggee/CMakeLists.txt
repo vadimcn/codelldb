@@ -17,7 +17,7 @@ add_executable(debuggee
     cpp/remote2/remote_path.cpp  # test source map
 )
 
-if (NOT ${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     target_link_libraries(debuggee dl pthread)
 else()
     set(Drive "C:")
@@ -33,7 +33,7 @@ else()
 endif()
 
 # rusttypes
-if (NOT ${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Rustc rustc)
     set(Rusttypes rusttypes)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")

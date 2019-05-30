@@ -1,9 +1,15 @@
 add_custom_target(lldb ALL)
 
-if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Linux")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_copy_file(lldb ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
     add_copy_file(lldb ${LLDB_ROOT}/bin/lldb-server ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-server)
     add_copy_file(lldb ${LLDB_ROOT}/lib/liblldb.so.8-custom ${CMAKE_CURRENT_BINARY_DIR}/lib/liblldb.so.8-custom)
+
+    # file(GLOB LibLLDB
+    #     RELATIVE ${LLDB_ROOT}/lib
+    #     ${LLDB_ROOT}/lib/liblldb.so*)
+    # list(GET LibLLDB 0 LibLLDB)
+    # message(STATUS "LibLLDB=${LibLLDB}")
 
     file(GLOB_RECURSE PythonFiles
         LIST_DIRECTORIES false
@@ -14,7 +20,7 @@ if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Linux")
         add_copy_file(lldb ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
     endforeach()
 
-elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     add_copy_file(lldb ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
     add_copy_file(lldb ${LLDB_ROOT}/bin/debugserver ${CMAKE_CURRENT_BINARY_DIR}/bin/debugserver)
     add_copy_file(lldb ${LLDB_ROOT}/lib/liblldb.8.0.0-custom.dylib ${CMAKE_CURRENT_BINARY_DIR}/lib/liblldb.8.0.0-custom.dylib)
@@ -28,7 +34,7 @@ elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
         add_copy_file(lldb ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
     endforeach()
 
-elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     find_file(MSDIA msdia140.dll PATHS "$ENV{VSINSTALLDIR}/DIA SDK/bin/amd64")
     if (NOT MSDIA)
         message(WARNING "msdiaXXX.dll not found")
@@ -51,5 +57,5 @@ elseif (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Windows")
     endforeach()
 
 else()
-    message(FATAL_ERROR "${CMAKE_HOST_SYSTEM_NAME} not supported." )
+    message(FATAL_ERROR)
 endif()

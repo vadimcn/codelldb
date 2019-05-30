@@ -4,14 +4,14 @@ use std::mem;
 
 pub fn with_cstr<R, F>(s: &str, f: F) -> R
 where
-    F: FnOnce(*const i8) -> R,
+    F: FnOnce(*const c_char) -> R,
 {
     let allocated;
     let mut buffer: [u8; 256] = unsafe { mem::uninitialized() };
-    let ptr: *const i8 = if s.len() < buffer.len() {
+    let ptr: *const c_char = if s.len() < buffer.len() {
         buffer[0..s.len()].clone_from_slice(s.as_bytes());
         buffer[s.len()] = 0;
-        buffer.as_ptr() as *const i8
+        buffer.as_ptr() as *const c_char
     } else {
         allocated = Some(CString::new(s).unwrap());
         allocated.as_ref().unwrap().as_ptr()
@@ -21,7 +21,7 @@ where
 
 pub fn with_opt_cstr<R, F>(s: Option<&str>, f: F) -> R
 where
-    F: FnOnce(*const i8) -> R,
+    F: FnOnce(*const c_char) -> R,
 {
     match s {
         Some(s) => with_cstr(s, f),

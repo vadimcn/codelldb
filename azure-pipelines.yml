@@ -51,7 +51,6 @@ jobs:
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      sudo npm install -g vsce
       sudo chown -R $USER:$GROUP ~/.npm
     displayName: 'Install other'
 
@@ -134,7 +133,6 @@ jobs:
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
       echo 0 | tee /proc/sys/kernel/yama/ptrace_scope
-      npm install -g vsce
       chown -R $USER:$GROUP ~/.npm
     displayName: 'Install other'
 
@@ -213,7 +211,6 @@ jobs:
 
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
-      sudo npm install -g vsce
       sudo chown -R $USER:$GROUP ~/.npm
     displayName: 'Install other'
 
@@ -298,7 +295,6 @@ jobs:
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
       curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.BuildDirectory)/D/ninja-win.zip
       unzip $(Agent.BuildDirectory)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
-      call npm install -g vsce
     displayName: 'Install other'
 
   - task: BatchScript@1

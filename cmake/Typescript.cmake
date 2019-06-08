@@ -15,7 +15,7 @@ function(add_typescript Target)
     add_custom_command(
         OUTPUT ${Outputs}
         DEPENDS ${Sources} ${CMAKE_CURRENT_SOURCE_DIR}/tsconfig.json
-        COMMAND ${CMAKE_COMMAND} -E env "${CMAKE_BINARY_DIR}/node_modules/.bin/tsc${NodeProgExt}" --project ${CMAKE_CURRENT_SOURCE_DIR} --outDir ${CMAKE_CURRENT_BINARY_DIR} #--traceResolution
+        COMMAND ${NPM} run tsc -- --project ${CMAKE_CURRENT_SOURCE_DIR} --outDir ${CMAKE_CURRENT_BINARY_DIR} #--traceResolution
         COMMENT "Building ${Target}"
     )
     set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${Outputs}")

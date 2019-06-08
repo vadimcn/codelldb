@@ -17,17 +17,15 @@ const triple = process.env.TARGET_TRIPLE || '';
 const adapterType = toAdapterType(process.env.ADAPTER_TYPE);
 const dumpLogsWhen = (process.env.DUMP_LOGS || 'onerror').toLowerCase();
 
-const sourceDir = process.cwd();
+const buildDir = process.cwd();
+const extensionRoot = buildDir;
+const sourceDir = path.join(buildDir, '..')
 
-var debuggeeDir = path.join(sourceDir, 'build');
+let debuggeeDir = path.join(buildDir, 'debuggee');
 if (triple.endsWith('pc-windows-gnu'))
-    debuggeeDir = path.join(debuggeeDir, 'debuggee-gnu');
+    debuggeeDir = path.join(buildDir, 'debuggee-gnu');
 else if (triple.endsWith('pc-windows-msvc'))
-    debuggeeDir = path.join(debuggeeDir, 'debuggee-msvc');
-else
-    debuggeeDir = path.join(debuggeeDir, 'debuggee');
-
-const extensionRoot = path.join(sourceDir, 'build');
+    debuggeeDir = path.join(buildDir, 'debuggee-msvc');
 
 const debuggee = path.join(debuggeeDir, 'debuggee');
 const debuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'debuggee.cpp'));

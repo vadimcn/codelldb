@@ -17,13 +17,15 @@ set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "I
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(DylibPrefix lib)
     set(DylibSuffix .so)
+    set(NPM npm)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
+    set(NPM npm)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(NodeProgExt .cmd)
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
+    set(NPM npm.cmd)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
@@ -46,7 +48,7 @@ configure_file(images/source.png ${CMAKE_CURRENT_BINARY_DIR}/images/source.png C
 configure_file(syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json COPYONLY)
 
 execute_process(
-    COMMAND npm${NodeProgExt} install
+    COMMAND ${NPM} install
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE Result
 )
@@ -115,14 +117,14 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${Content})
 add_custom_target(vsix_portable
     DEPENDS adapter extension
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND vsce package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
+    COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_custom_target(vsix_full
     DEPENDS adapter extension lldb codelldb
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND vsce package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
+    COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -183,10 +185,8 @@ endif()
 
 enable_testing()
 
-set(MochaCommand "${CMAKE_BINARY_DIR}/node_modules/.bin/mocha${NodeProgExt}"
-    -u tdd
-    --timeout 30000
-    --exit
+set(MochaTest ${NPM} run mocha --
+    -u tdd --timeout 30000 --exit
     --require source-map-support/register
     #-g "stop on a breakpoint 3"
     ${CMAKE_BINARY_DIR}/tests
@@ -212,8 +212,8 @@ endif()
 foreach(AdapterType ${TestAdapters})
     foreach(TestTriple ${TestTriples})
         add_test(NAME ${AdapterType}:${TestTriple}
-            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} ${MochaCommand}
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} ${MochaTest}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
     endforeach(TestTriple)
 
     add_custom_target(check_${AdapterType} DEPENDS tests

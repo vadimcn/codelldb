@@ -1,61 +1,55 @@
-add_custom_target(lldb ALL)
+
+function(add_copy_liblldb Target RelativeTo Pattern)
+    file(GLOB List
+        RELATIVE ${RelativeTo}
+        ${RelativeTo}/${Pattern})
+
+    foreach(File ${List})
+        add_copy_file(LLDBFiles ${RelativeTo}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
+    endforeach()
+    set(LLDBFiles ${LLDBFiles} PARENT_SCOPE)
+endfunction()
+
+function (add_copy_python_files Target RelativeTo Pattern)
+    file(GLOB_RECURSE PythonFiles
+        LIST_DIRECTORIES false
+        RELATIVE ${RelativeTo}
+        ${RelativeTo}/${Pattern})
+    list(FILTER PythonFiles EXCLUDE REGEX "_lldb.*")
+    foreach(File ${PythonFiles})
+        add_copy_file(LLDBFiles ${RelativeTo}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
+    endforeach()
+    set(LLDBFiles ${LLDBFiles} PARENT_SCOPE)
+endfunction()
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    add_copy_file(lldb ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
-    add_copy_file(lldb ${LLDB_ROOT}/bin/lldb-server ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-server)
-    add_copy_file(lldb ${LLDB_ROOT}/lib/liblldb.so.8-custom ${CMAKE_CURRENT_BINARY_DIR}/lib/liblldb.so.8-custom)
-
-    # file(GLOB LibLLDB
-    #     RELATIVE ${LLDB_ROOT}/lib
-    #     ${LLDB_ROOT}/lib/liblldb.so*)
-    # list(GET LibLLDB 0 LibLLDB)
-    # message(STATUS "LibLLDB=${LibLLDB}")
-
-    file(GLOB_RECURSE PythonFiles
-        LIST_DIRECTORIES false
-        RELATIVE ${LLDB_ROOT}
-        ${LLDB_ROOT}/lib/python2.7/site-packages/*)
-    list(FILTER PythonFiles EXCLUDE REGEX "_lldb.*")
-    foreach(File ${PythonFiles})
-        add_copy_file(lldb ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
-    endforeach()
-
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb-server ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-server)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb-argdumper ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-argdumper)
+    add_copy_liblldb(LLDBFiles ${LLDB_ROOT} lib/liblldb.so*)
+    add_copy_python_files(LLDBFiles ${LLDB_ROOT} lib/python2.7/site-packages/*)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    add_copy_file(lldb ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
-    add_copy_file(lldb ${LLDB_ROOT}/bin/debugserver ${CMAKE_CURRENT_BINARY_DIR}/bin/debugserver)
-    add_copy_file(lldb ${LLDB_ROOT}/lib/liblldb.8.0.0-custom.dylib ${CMAKE_CURRENT_BINARY_DIR}/lib/liblldb.8.0.0-custom.dylib)
-
-    file(GLOB_RECURSE PythonFiles
-        LIST_DIRECTORIES false
-        RELATIVE ${LLDB_ROOT}
-        ${LLDB_ROOT}/lib/python2.7/site-packages/*)
-    list(FILTER PythonFiles EXCLUDE REGEX "_lldb.*")
-    foreach(File ${PythonFiles})
-        add_copy_file(lldb ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
-    endforeach()
-
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/debugserver ${CMAKE_CURRENT_BINARY_DIR}/bin/debugserver)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb-argdumper ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-argdumper)
+    add_copy_liblldb(LLDBFiles ${LLDB_ROOT} lib/liblldb.*dylib)
+    add_copy_python_files(LLDBFiles ${LLDB_ROOT} lib/python2.7/site-packages/*)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     find_file(MSDIA msdia140.dll PATHS "$ENV{VSINSTALLDIR}/DIA SDK/bin/amd64")
     if (NOT MSDIA)
         message(WARNING "msdiaXXX.dll not found")
-        set(MSDIA)
     else()
         message ("Found MSDIA at ${MSDIA}")
     endif()
 
-    add_copy_file(lldb ${LLDB_ROOT}/bin/lldb.exe ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb.exe)
-    add_copy_file(lldb ${LLDB_ROOT}/bin/liblldb.dll ${CMAKE_CURRENT_BINARY_DIR}/bin/liblldb.dll)
-    add_copy_file(lldb "${MSDIA}" ${CMAKE_CURRENT_BINARY_DIR}/bin/msdia140.dll)
-
-    file(GLOB_RECURSE PythonFiles
-        LIST_DIRECTORIES false
-        RELATIVE ${LLDB_ROOT}
-        ${LLDB_ROOT}/lib/site-packages/*)
-    list(FILTER PythonFiles EXCLUDE REGEX "_lldb.*")
-    foreach(File ${PythonFiles})
-        add_copy_file(lldb ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
-    endforeach()
-
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb.exe ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb.exe)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb-argdumper.exe ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-argdumper.exe)
+    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/${LibLLDB} ${CMAKE_CURRENT_BINARY_DIR}/bin/${LibLLDB})
+    add_copy_file(LLDBFiles "${MSDIA}" ${CMAKE_CURRENT_BINARY_DIR}/bin/msdia140.dll)
+    add_copy_liblldb(LLDBFiles ${LLDB_ROOT} bin/liblldb.dll)
+    add_copy_python_files(LLDBFiles ${LLDB_ROOT} lib/site-packages/*)
 else()
     message(FATAL_ERROR)
 endif()
+
+add_custom_target(lldb ALL DEPENDS ${LLDBFiles})

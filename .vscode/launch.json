@@ -39,7 +39,7 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.so.8-custom",
+				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.so.8.0.0-custom",
 				"--multi-session",
 				"--port=4711"
 			],
@@ -169,18 +169,18 @@
 			"preLaunchTask": "tests",
 			"type": "node",
 			"request": "launch",
-			"cwd": "${workspaceRoot}",
+			"cwd": "${workspaceRoot}/build",
 			"program": "${workspaceRoot}/build/node_modules/mocha/bin/_mocha",
 			"args": [
 				"-u", "tdd",
 				"--timeout", "999999",
 				"--colors",
 				"--exit",
-				"-g", "Environment",
-				"build/tests"
+				//"-g", "Environment",
+				"tests"
 			],
 			"env": {
-				//"ADAPTER_TYPE": "native",
+				"ADAPTER_TYPE": "native",
 				//"TARGET_TRIPLE": "x86_64-pc-windows-gnu",
 				"RUST_LOG": "error,codelldb=debug",
 				"RUST_BACKTRACE": "full",
@@ -198,6 +198,18 @@
 			"request": "launch",
 			"program": "${file}",
 			"console": "integratedTerminal"
-		}
+		},
+		{
+			"name": "debuggee remote qemu",
+			"type": "lldb",
+			"request": "custom",
+			"targetCreateCommands": [
+				"target create ${env:HOME}/tmp/echo",
+			],
+			"processCreateCommands": [
+				"gdb-remote 127.0.0.1:4711",
+				"target modules load --file ${env:HOME}/tmp/echo -s 0x4000000000"
+			]
+		},
 	]
 }

@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 621
+  lldbBuildId: 666
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   runTests: true
@@ -51,7 +51,6 @@ jobs:
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      sudo chown -R $USER:$GROUP ~/.npm
     displayName: 'Install other'
 
   - script: |
@@ -89,7 +88,7 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R build
+      ls -R $(Agent.BuildDirectory)
     displayName: 'On Failure'
     condition: failed()
 
@@ -132,8 +131,7 @@ jobs:
 
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
-      echo 0 | tee /proc/sys/kernel/yama/ptrace_scope
-      chown -R $USER:$GROUP ~/.npm
+      #echo 0 | tee /proc/sys/kernel/yama/ptrace_scope
     displayName: 'Install other'
 
   - script: |
@@ -160,19 +158,19 @@ jobs:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'vscode-lldb'
 
-  - script: |
-      $(setenvLinux)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "bundled|native"
-    displayName: 'Test'
-    condition: variables.runTests
+  # - script: |
+  #     $(setenvLinux)
+  #     cmake --build build --target tests
+  #     cd build
+  #     ctest --output-on-failure -R "bundled|native"
+  #   displayName: 'Test'
+  #   condition: variables.runTests
 
   - script: |
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R build
+      ls -R $(Agent.BuildDirectory)
     displayName: 'On Failure'
     condition: failed()
 
@@ -211,7 +209,6 @@ jobs:
 
   - script: |
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
-      sudo chown -R $USER:$GROUP ~/.npm
     displayName: 'Install other'
 
   - script: |
@@ -246,7 +243,7 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R build
+      ls -R $(Agent.BuildDirectory)
     displayName: 'On Failure'
     condition: failed()
 
@@ -291,10 +288,9 @@ jobs:
     displayName: 'Download LLDB'
 
   - script: |
+      choco install ninja
       choco install zip
       unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
-      curl https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip -o $(Agent.BuildDirectory)/D/ninja-win.zip
-      unzip $(Agent.BuildDirectory)/D/ninja-win.zip -d %USERPROFILE%\.cargo\bin
     displayName: 'Install other'
 
   - task: BatchScript@1
@@ -339,6 +335,6 @@ jobs:
       echo - env ------------------
       env
       echo - dir -----------------------
-      ls -R build
+      ls -R $(Agent.BuildDirectory)
     displayName: 'On Failure'
     condition: failed()

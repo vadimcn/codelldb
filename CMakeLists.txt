@@ -58,19 +58,21 @@ endif()
 
 # Classic adapter
 
-add_custom_target(adapter ALL
-    DEPENDS lldb
-)
-file(GLOB_RECURSE AdapterFiles
+file(GLOB_RECURSE Files
     LIST_DIRECTORIES false
     ${CMAKE_SOURCE_DIR}/adapter/*.py
 )
-add_copy_files_to(adapter ${CMAKE_BINARY_DIR}/adapter ${AdapterFiles})
-file(GLOB_RECURSE AdapterFiles
+add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/adapter ${Files})
+
+file(GLOB_RECURSE Files
     LIST_DIRECTORIES false
     ${CMAKE_SOURCE_DIR}/formatters/*.py
 )
-add_copy_files_to(adapter ${CMAKE_BINARY_DIR}/formatters ${AdapterFiles})
+add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/formatters ${Files})
+
+add_custom_target(adapter ALL
+    DEPENDS lldb ${AdapterFiles}
+)
 
 # For extension debugging
 
@@ -211,9 +213,11 @@ endif()
 
 foreach(AdapterType ${TestAdapters})
     foreach(TestTriple ${TestTriples})
-        add_test(NAME ${AdapterType}:${TestTriple}
-            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} ${MochaTest}
+        set(TestName ${AdapterType}:${TestTriple})
+        add_test(NAME ${TestName}
+            COMMAND ${CMAKE_COMMAND} -E env ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} BUILD_DIR=${CMAKE_BINARY_DIR} SOURCE_DIR=${CMAKE_SOURCE_DIR} ${MochaTest}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+        set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
     endforeach(TestTriple)
 
     add_custom_target(check_${AdapterType} DEPENDS tests
@@ -237,11 +241,12 @@ install(
 add_custom_target(xclean
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter2
-    COMMAND ${CMAKE_COMMAND} -E remove_directory lldb
+    COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee
     COMMAND ${CMAKE_COMMAND} -E remove_directory extension
+    COMMAND ${CMAKE_COMMAND} -E remove_directory lldb
+    COMMAND ${CMAKE_COMMAND} -E remove_directory node_modules
+    COMMAND ${CMAKE_COMMAND} -E remove_directory target
     COMMAND ${CMAKE_COMMAND} -E remove_directory tests
     COMMAND ${CMAKE_COMMAND} -E remove_directory tmp
-    COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee
-    COMMAND ${CMAKE_COMMAND} -E remove_directory node_modules
     COMMAND ${CMAKE_COMMAND} ..
 )

@@ -26,21 +26,22 @@ endif()
 set(CargoFlags ${CargoFlags} -Zpackage-features --no-default-features --features=${CPythonFeature})
 set(CargoFlags ${CargoFlags} --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target)
 
-add_custom_target(codelldb ALL
-    DEPENDS lldb
-    COMMAND cargo rustc --package=codelldb --lib ${CargoFlags} -- ${RustFlags}
-    COMMAND cargo rustc --package=codelldb --bin codelldb ${CargoFlags}
-    COMMENT "Running cargo build: ${CargoFlags}"
-    USES_TERMINAL
-)
 
-add_copy_files_to(codelldb ${CMAKE_CURRENT_BINARY_DIR}
-        ${CargoOutDir}/codelldb${ExeSuffix}
-        ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix}
+add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/adapter2/codelldb.py
         ${CMAKE_SOURCE_DIR}/adapter2/value.py
         ${CMAKE_SOURCE_DIR}/adapter2/debugger.py
         ${CMAKE_SOURCE_DIR}/formatters/rust.py
+)
+
+add_custom_target(codelldb ALL
+    DEPENDS lldb ${PythonFiles}
+    COMMAND cargo rustc --package=codelldb --lib ${CargoFlags} -- ${RustFlags}
+    COMMAND cargo rustc --package=codelldb --bin codelldb ${CargoFlags}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Running cargo build"
+    USES_TERMINAL
 )
 
 add_custom_target(check_codelldb

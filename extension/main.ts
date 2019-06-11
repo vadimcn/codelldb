@@ -165,7 +165,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
         let currVersion = pkg.version;
         let lastVersion = this.context.globalState.get('lastLaunchedVersion');
-        if (currVersion != lastVersion) {
+        if (lastVersion != undefined && currVersion != lastVersion) {
             this.context.globalState.update('lastLaunchedVersion', currVersion);
             let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
             if (choice != null) {

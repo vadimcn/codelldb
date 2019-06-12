@@ -1,6 +1,5 @@
 use std;
 use std::borrow::Cow;
-use std::boxed::FnBox;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -38,7 +37,7 @@ pub struct AdapterParameters {
     source_languages: Option<Vec<String>>,
 }
 
-type AsyncResponder = FnBox(&mut DebugSession) -> Result<ResponseBody, Error>;
+type AsyncResponder = dyn FnOnce(&mut DebugSession) -> Result<ResponseBody, Error>;
 
 #[derive(Debug, Clone)]
 enum BreakpointKind {
@@ -78,7 +77,7 @@ struct BreakpointsState {
 enum InputEvent {
     ProtocolMessage(ProtocolMessage),
     DebugEvent(SBEvent),
-    Invoke(Box<FnBox() + Send>),
+    Invoke(Box<dyn FnOnce() + Send>),
 }
 
 pub struct DebugSession {
@@ -898,10 +897,10 @@ impl DebugSession {
         R: Send + 'static,
     {
         let (sender, receiver) = std::sync::mpsc::channel::<R>();
-        let cb: Box<FnBox() + Send> = Box::new(move || sender.send(f()).unwrap());
+        let cb: Box<dyn FnOnce() + Send> = Box::new(move || sender.send(f()).unwrap());
         // Casting away cb's lifetime.
         // This is safe, because we are blocking current thread until f() returns.
-        let cb: Box<FnBox() + Send + 'static> = unsafe { std::mem::transmute(cb) };
+        let cb: Box<dyn FnOnce() + Send + 'static> = unsafe { std::mem::transmute(cb) };
         self_ref.lock().unwrap().incoming_send.send(InputEvent::Invoke(cb)).unwrap();
         receiver.recv().unwrap()
     }
@@ -1265,7 +1264,7 @@ impl DebugSession {
             SBTargetEvent::BroadcastBitBreakpointChanged | SBTargetEvent::BroadcastBitModulesLoaded,
         );
         if let Some((request_seq, responder)) = self.on_configuration_done.take() {
-            let result = responder.call_box((self,));
+            let result = responder.call_once((self,));
             self.send_response(request_seq, result);
         }
         Ok(())
@@ -1508,7 +1507,7 @@ impl DebugSession {
     }
 
     fn convert_scope_values(
-        &mut self, vars_iter: &mut Iterator<Item = SBValue>, container_eval_name: &str,
+        &mut self, vars_iter: &mut dyn Iterator<Item = SBValue>, container_eval_name: &str,
         container_handle: Option<Handle>,
     ) -> Vec<Variable> {
         let mut variables = vec![];
@@ -2127,7 +2126,7 @@ impl DebugSession {
         if flags & (SBProcessEvent::BroadcastBitSTDOUT | SBProcessEvent::BroadcastBitSTDERR) != 0 {
             let read_stdout = |b: &mut [u8]| self.process.read_stdout(b);
             let read_stderr = |b: &mut [u8]| self.process.read_stderr(b);
-            let (read_stream, category): (&for<'r> Fn(&mut [u8]) -> usize, &str) =
+            let (read_stream, category): (&dyn for<'r> Fn(&mut [u8]) -> usize, &str) =
                 if flags & SBProcessEvent::BroadcastBitSTDOUT != 0 {
                     (&read_stdout, "stdout")
                 } else {

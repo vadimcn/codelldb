@@ -59,7 +59,9 @@ impl codec::Decoder for Codec {
 
                         debug!("--> {}", str::from_utf8(&message_bytes).unwrap());
                         match serde_json::from_slice(&message_bytes) {
-                            Ok(message) => return Ok(Some(message)),
+                            Ok(message) => {
+                                return Ok(Some(message))
+                            }
                             Err(err) => {
                                 error!("Could not deserialize: {}", err);
                                 return Err(io::Error::new(io::ErrorKind::InvalidData, Box::new(err)));

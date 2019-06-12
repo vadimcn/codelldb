@@ -1,5 +1,5 @@
 #![feature(try_trait)]
-#![feature(fnbox)]
+#![feature(fn_traits)]
 #![allow(unused)]
 
 use std::net;
@@ -49,7 +49,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
         panic!()
     });
 
-    let server: Box<Stream<Item = _, Error = _> + Send> = if !multi_session {
+    let server: Box<dyn Stream<Item = _, Error = _> + Send> = if !multi_session {
         Box::new(server.take(1))
     } else {
         Box::new(server)

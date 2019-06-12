@@ -37,7 +37,7 @@ pub struct PythonInterface {
 
 impl PythonInterface {
     pub fn new(
-        interpreter: SBCommandInterpreter, send_event: Box<Fn(EventBody) + Send>,
+        interpreter: SBCommandInterpreter, send_event: Box<dyn Fn(EventBody) + Send>,
     ) -> Result<Box<PythonInterface>, Error> {
         let current_exe = env::current_exe()?;
         let mut command_result = SBCommandReturnObject::new();
@@ -126,7 +126,7 @@ impl PythonInterface {
         result
     }
 
-    pub fn modules_loaded(&self, modules: &mut Iterator<Item = &SBModule>) {
+    pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
         let gil = Python::acquire_gil();
         let py = gil.python();
 
@@ -224,7 +224,7 @@ fn sbvalue_from_str(value: &str, target: &SBTarget) -> SBValue {
 
 // Python wrapper for Rust closures
 py_class!(class RustClosure |py| {
-    data closure: cell::RefCell<Box<FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send>>;
+    data closure: cell::RefCell<Box<dyn FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send>>;
 
     def __call__(&self, *args, **kwargs) -> PyResult<PyObject> {
         use std::ops::DerefMut;

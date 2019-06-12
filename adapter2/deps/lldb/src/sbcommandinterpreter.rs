@@ -28,7 +28,6 @@ impl SBCommandInterpreter {
     pub fn handle_completions(
         &self, current_line: &str, cursor_pos: u32, range: Option<(u32, u32)>,
     ) -> Option<(String, Vec<String>)> {
-        use std::ptr;
         unsafe {
             let line_start = if current_line.is_empty() {
                 ptr::null() // "".as_ptr() returns 0x00000001, which doesn't sit well with HandleCompletion()

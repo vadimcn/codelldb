@@ -6,9 +6,9 @@ version = "0.1.0"
 path = "src/lldb.rs"
 
 [dependencies]
-cpp = "0.5.1"
+cpp = "0.5.2"
 bitflags = "1.0"
 lazy_static = "1.1.0"
 
 [build-dependencies]
-cpp_build = "0.5.1"
+cpp_build = "0.5.2"

@@ -394,18 +394,19 @@ impl DebugSession {
         self.python = Initialized(python);
 
         let caps = Capabilities {
-            supports_configuration_done_request: true,
-            supports_evaluate_for_hovers: true,
-            supports_function_breakpoints: true,
-            supports_conditional_breakpoints: true,
-            supports_hit_conditional_breakpoints: true,
-            supports_set_variable: true,
-            supports_completions_request: true,
-            supports_goto_targets_request: true,
-            supports_delayed_stack_trace_loading: true,
-            support_terminate_debuggee: true,
-            supports_log_points: true,
-            exception_breakpoint_filters: self.get_exception_filters(&self.source_languages),
+            supports_configuration_done_request: Some(true),
+            supports_evaluate_for_hovers: Some(true),
+            supports_function_breakpoints: Some(true),
+            supports_conditional_breakpoints: Some(true),
+            supports_hit_conditional_breakpoints: Some(true),
+            supports_set_variable: Some(true),
+            supports_completions_request: Some(true),
+            supports_goto_targets_request: Some(true),
+            supports_delayed_stack_trace_loading: Some(true),
+            support_terminate_debuggee: Some(true),
+            supports_log_points: Some(true),
+            exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
+            ..Default::default()
         };
         Ok(caps)
     }
@@ -727,19 +728,19 @@ impl DebugSession {
             filters.push(ExceptionBreakpointsFilter {
                 filter: "cpp_throw".into(),
                 label: "C++: on throw".into(),
-                default: true,
+                default: Some(true),
             });
             filters.push(ExceptionBreakpointsFilter {
                 filter: "cpp_catch".into(),
                 label: "C++: on catch".into(),
-                default: false,
+                default: Some(false),
             });
         }
         if source_langs.iter().any(|x| x == "rust") {
             filters.push(ExceptionBreakpointsFilter {
                 filter: "rust_panic".into(),
                 label: "Rust: on panic".into(),
-                default: true,
+                default: Some(true),
             });
         }
         filters

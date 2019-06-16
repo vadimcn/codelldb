@@ -5,11 +5,11 @@ use serde_derive::*;
 use std::collections::HashMap as Map;
 
 pub use raw_debug_protocol::{
-    Breakpoint, BreakpointEventBody, CompletionItem, CompletionsArguments, CompletionsResponseBody, ContinueArguments,
-    ContinueResponseBody, ContinuedEventBody, DisconnectArguments, EvaluateArguments, EvaluateResponseBody,
-    ExitedEventBody, GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody,
-    InitializeRequestArguments, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments,
-    RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
+    Breakpoint, BreakpointEventBody, Capabilities, CompletionItem, CompletionsArguments, CompletionsResponseBody,
+    ContinueArguments, ContinueResponseBody, ContinuedEventBody, DisconnectArguments, EvaluateArguments,
+    EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget, GotoTargetsArguments,
+    GotoTargetsResponseBody, InitializeRequestArguments, ModuleEventBody, NextArguments, OutputEventBody,
+    PauseArguments, RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
     SetBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
     SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
     StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
@@ -180,31 +180,6 @@ pub struct AttachRequestArguments {
     pub source_languages: Option<Vec<String>>,
     #[serde(rename = "_adapterSettings")]
     pub adapter_settings: Option<AdapterSettings>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Capabilities {
-    pub supports_configuration_done_request: bool,
-    pub supports_function_breakpoints: bool,
-    pub supports_conditional_breakpoints: bool,
-    pub supports_hit_conditional_breakpoints: bool,
-    pub supports_evaluate_for_hovers: bool,
-    pub supports_set_variable: bool,
-    pub supports_completions_request: bool,
-    pub supports_goto_targets_request: bool,
-    pub support_terminate_debuggee: bool,
-    pub supports_delayed_stack_trace_loading: bool,
-    pub supports_log_points: bool,
-    pub exception_breakpoint_filters: Vec<ExceptionBreakpointsFilter>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ExceptionBreakpointsFilter {
-    pub filter: String,
-    pub label: String,
-    pub default: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -1034,7 +1034,10 @@ impl DebugSession {
     }
 
     fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(commands) = &args.target_create_commands.as_ref().or(args.init_commands.as_ref()) {
+        if let Some(commands) = &args.init_commands {
+            self.exec_commands("initCommands", &commands)?;
+        }
+        if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
         }
         self.target = Initialized(self.debugger.selected_target());

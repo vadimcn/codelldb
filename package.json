@@ -600,13 +600,18 @@
 					},
 					"custom": {
 						"properties": {
+							"initCommands": {
+								"description": "Initialization commands executed upon debugger startup.",
+								"type": "array",
+								"default": []
+							},
 							"targetCreateCommands": {
-								"description": "Commands that will create debug target.",
+								"description": "Commands that create a debug target.",
 								"type": "array",
 								"default": []
 							},
 							"processCreateCommands": {
-								"description": "Commands that will create debuggee process.",
+								"description": "Commands that create debuggee process.",
 								"type": "array",
 								"default": []
 							},

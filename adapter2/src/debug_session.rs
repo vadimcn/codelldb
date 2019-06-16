@@ -101,6 +101,7 @@ pub struct DebugSession {
     exit_commands: Option<Vec<String>>,
     terminal: Option<Terminal>,
     selected_frame_changed: bool,
+    last_goto_request: Option<GotoTargetsArguments>,
     default_expr_type: Expressions,
 
     global_format: Format,
@@ -173,6 +174,7 @@ impl DebugSession {
             exit_commands: None,
             terminal: None,
             selected_frame_changed: false,
+            last_goto_request: None,
             default_expr_type: Expressions::Simple,
 
             global_format: Format::Default,
@@ -293,6 +295,12 @@ impl DebugSession {
                 RequestArguments::completions(args) =>
                     self.handle_completions(args)
                         .map(|r| ResponseBody::completions(r)),
+                RequestArguments::gotoTargets(args) =>
+                    self.handle_goto_targets(args)
+                        .map(|r| ResponseBody::gotoTargets(r)),
+                RequestArguments::goto(args) =>
+                    self.handle_goto(args)
+                        .map(|r| ResponseBody::goto),
                 RequestArguments::disconnect(args) =>
                     self.handle_disconnect(Some(args))
                         .map(|_| ResponseBody::disconnect),
@@ -393,6 +401,7 @@ impl DebugSession {
             supports_hit_conditional_breakpoints: true,
             supports_set_variable: true,
             supports_completions_request: true,
+            supports_goto_targets_request: true,
             supports_delayed_stack_trace_loading: true,
             support_terminate_debuggee: true,
             supports_log_points: true,
@@ -2012,6 +2021,60 @@ impl DebugSession {
         })
     }
 
+    fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
+        let targets = vec![GotoTarget {
+            id: 1,
+            label: format!("line {}", args.line),
+            line: args.line,
+            end_line: None,
+            column: None,
+            end_column: None,
+        }];
+        self.last_goto_request = Some(args);
+        Ok(GotoTargetsResponseBody {
+            targets,
+        })
+    }
+
+    fn handle_goto(&mut self, args: GotoArguments) -> Result<(), Error> {
+        match &self.last_goto_request {
+            None => Err(Error::Protocol("Unexpected goto message.".into())),
+            Some(ref goto_args) => {
+                let thread_id = args.thread_id as u64;
+                match self.process.thread_by_id(thread_id) {
+                    None => Err(Error::Protocol("Invalid thread id".into())),
+                    Some(thread) => match goto_args.source.source_reference {
+                        // Disassembly
+                        Some(source_ref) => {
+                            let handle = handles::from_i64(source_ref)?;
+                            let dasm = self.disassembly.find_by_handle(handle)?;
+                            let addr = dasm.address_by_line_num(goto_args.line as u32);
+                            let frame = thread.frame_at_index(0).check()?;
+                            if frame.set_pc(addr) {
+                                self.refresh_client_display(Some(thread_id));
+                                Ok(())
+                            } else {
+                                Err(Error::UserError("Failed to set the instruction pointer.".into()))
+                            }
+                        }
+                        // Normal source file
+                        None => {
+                            let filespec = SBFileSpec::from(goto_args.source.path.as_ref()?);
+                            let result = thread.jump_to_line(&filespec, goto_args.line as u32);
+                            if result.is_success() {
+                                self.last_goto_request = None;
+                                self.refresh_client_display(Some(thread_id));
+                                Ok(())
+                            } else {
+                                Err(Error::UserError(result.error_string().into()))
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    }
+
     fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
         if let Some(commands) = &self.exit_commands {
             self.exec_commands("exitCommands", &commands)?;
@@ -2036,7 +2099,7 @@ impl DebugSession {
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
         self.update_adapter_settings(&args);
-        self.refresh_client_display();
+        self.refresh_client_display(None);
         Ok(())
     }
 
@@ -2060,16 +2123,14 @@ impl DebugSession {
         }
     }
 
-    // Fake target start/stop to force VSCode to refresh UI state.
-    fn refresh_client_display(&mut self) {
-        let thread_id = self.process.selected_thread().thread_id();
-        self.send_event(EventBody::continued(ContinuedEventBody {
-            thread_id: thread_id as i64,
-            all_threads_continued: Some(true),
-        }));
+    // Send fake stop event to force VSCode to refresh its UI state.
+    fn refresh_client_display(&mut self, thread_id: Option<ThreadID>) {
+        let thread_id = match thread_id {
+            Some(tid) => tid,
+            None => self.process.selected_thread().thread_id(),
+        };
         self.send_event(EventBody::stopped(StoppedEventBody {
             thread_id: Some(thread_id as i64),
-            //preserve_focus_hint: Some(true),
             all_threads_stopped: Some(true),
             ..Default::default()
         }));

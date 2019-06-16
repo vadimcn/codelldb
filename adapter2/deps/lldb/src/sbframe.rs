@@ -78,6 +78,11 @@ impl SBFrame {
             return self->GetPC();
         })
     }
+    pub fn set_pc(&self, address: Address) -> bool {
+        cpp!(unsafe [self as "SBFrame*", address as "addr_t"] -> bool as "bool" {
+            return self->SetPC(address);
+        })
+    }
     pub fn sp(&self) -> Address {
         cpp!(unsafe [self as "SBFrame*"] -> Address as "addr_t" {
             return self->GetSP();

@@ -93,6 +93,11 @@ impl SBThread {
             return self->StepInstruction(step_over);
         })
     }
+    pub fn jump_to_line(&self, file: &SBFileSpec, line: u32) -> SBError {
+        cpp!(unsafe [self as "SBThread*", file as "SBFileSpec*", line as "uint32_t"] -> SBError as "SBError" {
+            return self->JumpToLine(*file, line);
+        })
+    }
     pub fn broadcaster_class_name() -> &'static str {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBThread::GetBroadcasterClassName();

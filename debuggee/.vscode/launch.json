@@ -124,6 +124,18 @@
 			]
 		},
 		{
+			"name": "debuggee rr mandelbrot",
+			"type": "lldb",
+			"request": "custom",
+			"targetCreateCommands": [
+				"log enable -f ${env:HOME}/tmp/lldb.log gdb-remote all",
+				"target create ${dbgconfig:targetDir}/debuggee",
+			],
+			"processCreateCommands": [
+				"gdb-remote 127.0.0.1:1234",
+			]
+		},
+		{
 			"name": "debuggee launch weird_path",
 			"type": "lldb",
 			"request": "launch",

@@ -7,6 +7,7 @@
     - [Attaching](#attaching)
     - [Custom Launch](#custom-launch)
     - [Remote Debugging](#remote-debugging)
+    - [Reverse Debugging](#reverse-debugging)
     - [Loading a Core Dump](#loading-a-core-dump)
     - [Source Path Remapping](#source-path-remapping)
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
@@ -179,6 +180,32 @@ For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may n
 of the debuggee modules; you may need to specify this manually:
 ```
 target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>
+```
+
+## Reverse Debugging
+[Reverse debugging](https://en.wikipedia.org/wiki/Time_travel_debugging) (also known as "Time-travel debugging") is
+the ability to reverse the flow of debuggee execution to an earlier state.
+
+### Example
+Record execution trace:
+```sh
+rr record <debuggee> <arg1> ...
+```
+
+Replay execution:
+```sh
+rr replay -s <port>
+```
+
+```javascript
+{
+    "name": "Remote attach",
+    "type": "lldb",
+    "request": "custom",
+    "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
+    "processCreateCommands": ["gdb-remote 127.0.0.1:<port>"],
+    "reverseDebugging": true
+}
 ```
 
 ## Loading a Core Dump

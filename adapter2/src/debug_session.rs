@@ -90,7 +90,7 @@ pub struct DebugSession {
     debugger: MustInitialize<SBDebugger>,
     target: MustInitialize<SBTarget>,
     process: MustInitialize<SBProcess>,
-    process_launched: bool,
+    process_was_launched: bool,
     on_configuration_done: Option<(u32, Box<AsyncResponder>)>,
     python: MustInitialize<Box<PythonInterface>>,
     breakpoints: RefCell<BreakpointsState>,
@@ -157,7 +157,7 @@ impl DebugSession {
             debugger: NotInitialized,
             target: NotInitialized,
             process: NotInitialized,
-            process_launched: false,
+            process_was_launched: false,
             event_listener: event_listener,
             on_configuration_done: None,
             python: NotInitialized,
@@ -289,6 +289,12 @@ impl DebugSession {
                 RequestArguments::stepOut(args) =>
                     self.handle_step_out(args)
                         .map(|r| ResponseBody::stepOut),
+                RequestArguments::stepBack(args) =>
+                    self.handle_step_back(args)
+                        .map(|r| ResponseBody::stepBack),
+                RequestArguments::reverseContinue(args) =>
+                    self.handle_reverse_continue(args)
+                        .map(|r| ResponseBody::reverseContinue),
                 RequestArguments::source(args) =>
                     self.handle_source(args)
                         .map(|r| ResponseBody::source(r)),
@@ -308,7 +314,6 @@ impl DebugSession {
                     self.handle_adapter_settings(args)
                         .map(|_| ResponseBody::adapterSettings),
                 _ => {
-                    //error!("No handler for request message: {:?}", request);
                     Err(Error::Internal("Not implemented.".into()))
                 }
             },
@@ -927,6 +932,14 @@ impl DebugSession {
         if let Some(source_map) = &args.source_map {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
+        if let Some(true) = &args.reverse_debugging {
+            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
+                capabilities: Capabilities {
+                    supports_step_back: Some(true),
+                    ..Default::default()
+                },
+            }));
+        }
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)
         } else {
@@ -1024,7 +1037,7 @@ impl DebugSession {
             }
         };
         self.process = Initialized(process);
-        self.process_launched = true;
+        self.process_was_launched = true;
 
         // LLDB sometimes loses the initial stop event.
         if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
@@ -1057,7 +1070,7 @@ impl DebugSession {
         }
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
-        self.process_launched = false;
+        self.process_was_launched = false;
 
         // This is succeptible to race conditions, but probably the best we can do.
         if self.process.state().is_stopped() {
@@ -1073,6 +1086,14 @@ impl DebugSession {
         }
         if let Some(source_map) = &args.source_map {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
+        }
+        if let Some(true) = &args.reverse_debugging {
+            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
+                capabilities: Capabilities {
+                    supports_step_back: Some(true),
+                    ..Default::default()
+                },
+            }));
         }
         if args.program.is_none() && args.pid.is_none() {
             return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
@@ -1114,7 +1135,7 @@ impl DebugSession {
             Err(err) => return Err(Error::UserError(err.error_string().into())),
         };
         self.process = Initialized(process);
-        self.process_launched = false;
+        self.process_was_launched = false;
 
         if args.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
@@ -1953,6 +1974,41 @@ impl DebugSession {
         Ok(())
     }
 
+    fn handle_step_back(&mut self, args: StepBackArguments) -> Result<(), Error> {
+        self.before_resume();
+        self.show_disassembly = ShowDisassembly::Always; // Reverse line-step is not supported, so we switch to disassembly mode.
+        self.reverse_exec(&[
+            &format!("process plugin packet send Hc{:x}", args.thread_id), // select thread
+            "process plugin packet send bs",                               // reverse-step
+            "process plugin packet send bs",                               // reverse-step so we can forward step
+            "stepi", // forward-step to refresh LLDB's cached debuggee state
+        ])
+    }
+
+    fn handle_reverse_continue(&mut self, args: ReverseContinueArguments) -> Result<(), Error> {
+        self.before_resume();
+        self.reverse_exec(&[
+            &format!("process plugin packet send Hc{:x}", args.thread_id), // select thread
+            "process plugin packet send bc",                               // reverse-continue
+            "process plugin packet send bs",                               // reverse-step so we can forward step
+            "stepi", // forward-step to refresh LLDB's cached debuggee state
+        ])
+    }
+
+    fn reverse_exec(&mut self, commands: &[&str]) -> Result<(), Error> {
+        let interp = self.debugger.command_interpreter();
+        let mut result = SBCommandReturnObject::new();
+        for command in commands {
+            interp.handle_command(&command, &mut result, false);
+            if !result.succeeded() {
+                let error = into_string_lossy(result.error());
+                self.console_error(error.clone());
+                return Err(Error::Internal(error));
+            }
+        }
+        Ok(())
+    }
+
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {
         let handle = handles::from_i64(args.source_reference)?;
         let dasm = self.disassembly.find_by_handle(handle).unwrap();
@@ -2089,9 +2145,9 @@ impl DebugSession {
             self.exec_commands("exitCommands", &commands)?;
         }
         let terminate = match args {
-            None => self.process_launched,
+            None => self.process_was_launched,
             Some(args) => match args.terminate_debuggee {
-                None => self.process_launched,
+                None => self.process_was_launched,
                 Some(terminate) => terminate,
             },
         };

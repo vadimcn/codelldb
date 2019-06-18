@@ -508,6 +508,11 @@
 								"type": "array",
 								"default": []
 							},
+							"reverseDebugging": {
+								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
+								"type": "boolean",
+								"default": false
+							},
 							"custom": {
 								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead.",
 								"type": "boolean"
@@ -596,6 +601,11 @@
 								"description": "A list of source languages to enable language-specific features for.",
 								"type": "array",
 								"default": []
+							},
+							"reverseDebugging": {
+								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
+								"type": "boolean",
+								"default": false
 							}
 						}
 					},
@@ -648,9 +658,10 @@
 								"type": "array",
 								"default": []
 							},
-							"initCommands": {
-								"deprecationMessage": "Deprecated, use \"targetCreateCommands\" instead.",
-								"type": "array"
+							"reverseDebugging": {
+								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
+								"type": "boolean",
+								"default": false
 							},
 							"preRunCommands": {
 								"deprecationMessage": "Deprecated, use \"processCreateCommands\" instead.",

@@ -5,16 +5,16 @@ use serde_derive::*;
 use std::collections::HashMap as Map;
 
 pub use raw_debug_protocol::{
-    Breakpoint, BreakpointEventBody, Capabilities, CompletionItem, CompletionsArguments, CompletionsResponseBody,
-    ContinueArguments, ContinueResponseBody, ContinuedEventBody, DisconnectArguments, EvaluateArguments,
-    EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget, GotoTargetsArguments,
-    GotoTargetsResponseBody, InitializeRequestArguments, ModuleEventBody, NextArguments, OutputEventBody,
-    PauseArguments, RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
-    SetBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
-    SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
-    StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
-    StoppedEventBody, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
-    VariablesResponseBody,
+    Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
+    CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DisconnectArguments,
+    EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
+    GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, ModuleEventBody, NextArguments,
+    OutputEventBody, PauseArguments, ReverseContinueArguments, RunInTerminalRequestArguments, Scope, ScopesArguments,
+    ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetExceptionBreakpointsArguments,
+    SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
+    SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
+    StepInArguments, StepOutArguments, StoppedEventBody, TerminatedEventBody, Thread, ThreadEventBody,
+    ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,7 +80,7 @@ pub enum RequestArguments {
     stepIn(StepInArguments),
     stepOut(StepOutArguments),
     stepBack(StepBackArguments),
-    reverseContinue,
+    reverseContinue(ReverseContinueArguments),
     threads,
     stackTrace(StackTraceArguments),
     scopes(ScopesArguments),
@@ -138,12 +138,13 @@ pub enum EventBody {
     initialized,
     output(OutputEventBody),
     breakpoint(BreakpointEventBody),
-    module(ModuleEventBody),
-    thread(ThreadEventBody),
-    stopped(StoppedEventBody),
+    capabilities(CapabilitiesEventBody),
     continued(ContinuedEventBody),
     exited(ExitedEventBody),
+    module(ModuleEventBody),
     terminated(TerminatedEventBody),
+    thread(ThreadEventBody),
+    stopped(StoppedEventBody),
     // Custom
     displayHtml(DisplayHtmlEventBody),
 }
@@ -168,6 +169,7 @@ pub struct LaunchRequestArguments {
     pub expressions: Option<Expressions>,
     pub source_map: Option<Map<String, Option<String>>>,
     pub source_languages: Option<Vec<String>>,
+    pub reverse_debugging: Option<bool>,
     #[serde(rename = "_adapterSettings")]
     pub adapter_settings: Option<AdapterSettings>,
     pub custom: Option<bool>,
@@ -187,6 +189,7 @@ pub struct AttachRequestArguments {
     pub expressions: Option<Expressions>,
     pub source_map: Option<Map<String, Option<String>>>,
     pub source_languages: Option<Vec<String>>,
+    pub reverse_debugging: Option<bool>,
     #[serde(rename = "_adapterSettings")]
     pub adapter_settings: Option<AdapterSettings>,
 }

@@ -164,6 +164,7 @@
 				"lldb.suppressMissingSourceFiles": {
 					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
 					"type": "boolean",
+					"default": true,
 					"scope": "resource"
 				},
 				"lldb.evaluationTimeout": {

@@ -37,6 +37,7 @@ add_subdirectory(tests)
 
 # Extension package content
 
+set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
 configure_file(README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md @ONLY)
 configure_file(MANUAL.md ${CMAKE_CURRENT_BINARY_DIR}/MANUAL.md @ONLY)
@@ -121,6 +122,7 @@ add_custom_target(vsix_portable
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    USES_TERMINAL
 )
 
 add_custom_target(vsix_full
@@ -128,6 +130,7 @@ add_custom_target(vsix_full
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    USES_TERMINAL
 )
 
 # Strip native binaries if building vsix_full
@@ -146,12 +149,13 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_dependencies(vsix_full strip_binaries)
 endif()
 
-# Build vsix_portable, then extract to tmp
+# Build both VSIX pacakges, then extract vsix_portable to build/extracted
 
 add_custom_target(vsix_extracted
-    DEPENDS vsix_portable
-    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/tmp
-    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/tmp
+    DEPENDS vsix_portable vsix_full
+    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
+    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
 )
 
 # Debuggee

@@ -1,6 +1,6 @@
 import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChannel } from 'vscode';
 import * as cp from 'child_process';
-import { readdirAsync, execFileAsync } from './async';
+import * as async from './async';
 import { Dict } from './common';
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
@@ -168,7 +168,7 @@ export function logProcessOutput(process: cp.ChildProcess, output: OutputChannel
 
 export async function findFileByPattern(path: string, pattern: RegExp): Promise<string | null> {
     try {
-        let files = await readdirAsync(path);
+        let files = await async.fs.readdir(path);
         for (let file of files) {
             if (pattern.test(file))
                 return file;
@@ -195,7 +195,7 @@ export async function readRegistry(path: string, value?: string): Promise<string
     args.push('/reg:64');
 
     try {
-        let { stdout } = await execFileAsync('reg.exe', args);
+        let { stdout } = await async.cp.execFile('reg.exe', args);
         let m = (/REG_SZ\s+(.*)/).exec(stdout);
         if (m) {
             return m[1];
@@ -219,7 +219,7 @@ export async function getLLDBDirectories(executable: string): Promise<LLDBDirect
         statements.push(`print('<!' + lldb.SBHostOS.GetLLDBPath(lldb.${type}).fullpath + '!>')`);
     }
     let args = ['-b', '-O', `script ${statements.join(';')}`];
-    let { stdout, stderr } = await execFileAsync(executable, args);
+    let { stdout, stderr } = await async.cp.execFile(executable, args);
     let m = (/^<!([^!]*)!>$[^.]*^<!([^!]*)!>[^.]*^<!([^!]*)!>/m).exec(stdout);
     if (m) {
         return {

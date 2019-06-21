@@ -2,8 +2,8 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import { Readable } from 'stream';
 import * as util from './util';
+import * as async from './async';
 import { Dict } from './common';
-import { statAsync } from './async';
 import { Environment } from './util';
 
 export async function startClassic(
@@ -140,7 +140,7 @@ export function waitForPattern(
 }
 
 export async function findLibLLDB(pathHint: string): Promise<string | null> {
-    let stat = await statAsync(pathHint);
+    let stat = await async.fs.stat(pathHint);
     if (stat.isFile())
         return pathHint;
 

@@ -15,7 +15,6 @@ import * as adapter from './adapter';
 import * as install from './install';
 import { Dict, AdapterType, toAdapterType } from './common';
 import { AdapterSettings } from './adapterMessages';
-import { execFileAsync } from './async';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -176,6 +175,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         }
 
         this.propagateDisplaySettings();
+
+        let adapterType = this.getAdapterType(undefined);
+        if (adapterType =='bundled' || adapterType=='native')
+        {
+            install.ensurePlatformPackage(this.context, output);
+        }
     }
 
     async provideDebugConfigurations(

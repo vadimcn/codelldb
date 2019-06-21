@@ -131,7 +131,7 @@
 				"lldb.adapterType": {
 					"description": "Which debug adapter implementation to use.",
 					"type": "string",
-					"default": "classic",
+					"default": "native",
 					"enum": [
 						"classic",
 						"bundled",
@@ -743,7 +743,7 @@
 	},
 	"config": {
 		"platformPackages": {
-			"url": "https://github.com/vadimcn/vscode-lldb/releases/download/v${version}/${platformPackage}",
+			"url": "@PLATFORM_PACKAGE_URL@",
 			"platforms": {
 				"x64-linux": "vscode-lldb-x86_64-linux.vsix",
 				"arm64-linux": "vscode-lldb-aarch64-linux.vsix",

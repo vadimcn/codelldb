@@ -1,12 +1,11 @@
 import { window, DebugConfiguration } from 'vscode';
 import * as cp from 'child_process';
-import * as fs from 'fs';
+import * as async from './async';
 import * as path from 'path';
-import { inspect } from 'util';
 import * as util from './util';
+import { inspect } from 'util';
 import { Dict } from './common';
 import { output } from './main';
-import { existsAsync } from './async';
 
 export interface CargoConfig {
     args: string[];
@@ -110,7 +109,7 @@ async function getCargoArtifacts(cargoArgs: string[], folder: string): Promise<C
 
 
 export async function getLaunchConfigs(folder: string): Promise<DebugConfiguration[]> {
-    if (!await existsAsync(path.join(folder, 'Cargo.toml')))
+    if (!await async.fs.exists(path.join(folder, 'Cargo.toml')))
         return [];
 
     let metadata: any = null;

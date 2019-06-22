@@ -220,9 +220,9 @@ impl DebugSession {
     fn handle_response(&mut self, _response: Response) {}
 
     fn handle_request(&mut self, request: Request) {
-        let result = if let Some(arguments) = request.arguments {
-            #[cfg_attr(rustfmt, rustfmt_skip)]
-            match arguments {
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        let result = match request.command {
+            Command::Known(arguments) => match arguments {
                 RequestArguments::initialize(args) =>
                     self.handle_initialize(args)
                         .map(|r| ResponseBody::initialize(r)),
@@ -311,9 +311,14 @@ impl DebugSession {
                     //error!("No handler for request message: {:?}", request);
                     Err(Error::Internal("Not implemented.".into()))
                 }
+            },
+            // A special case for DebugClient, which omits "disconnect" arguments.
+            Command::Unknown { ref command } if command == "disconnect" =>
+                self.handle_disconnect(None).map(|_| ResponseBody::disconnect),
+            Command::Unknown { ref command } => {
+                info!("Received unknown command: {}", command);
+                Err(Error::Internal("Not implemented.".into()))
             }
-        } else {
-            self.handle_disconnect(None).map(|_| ResponseBody::disconnect)
         };
         self.send_response(request.seq, result);
     }
@@ -353,7 +358,7 @@ impl DebugSession {
     fn send_request(&self, args: RequestArguments) {
         let request = ProtocolMessage::Request(Request {
             seq: self.message_seq.get(),
-            arguments: Some(args),
+            command: Command::Known(args),
         });
         self.message_seq.set(self.message_seq.get() + 1);
         self.send_message.borrow_mut().try_send(request).map_err(|err| error!("Could not send request: {}", err));

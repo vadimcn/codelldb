@@ -93,6 +93,11 @@
 				"category": "LLDB",
 				"title": "Display Options...",
 				"command": "lldb.changeDisplaySettings"
+			},
+			{
+				"category": "LLDB",
+				"title": "Copy value",
+				"command": "lldb.modules.copyValue"
 			}
 		],
 		"languages": [
@@ -113,6 +118,23 @@
 				"path": "./syntaxes/disassembly.json"
 			}
 		],
+		"views": {
+			"debug": [
+				{
+					"id": "loadedModules",
+					"name": "Modules",
+					"when": "debugType == 'lldb'"
+				}
+			]
+		},
+		"menus": {
+			"view/item/context": [
+				{
+					"command": "lldb.modules.copyValue",
+					"when": "viewItem == lldb.moduleProperty"
+				}
+			]
+		},
 		"configuration": {
 			"type": "object",
 			"title": "LLDB",

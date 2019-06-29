@@ -21,7 +21,7 @@ export class DebuggerHtmlView {
 
     onDebugSessionCustomEvent(e: DebugSessionCustomEvent) {
         if (e.session.type == 'lldb') {
-            if (e.event = 'displayHtml') {
+            if (e.event == 'displayHtml') {
                 this.onDisplayHtml(e.session, e.body);
             }
         }

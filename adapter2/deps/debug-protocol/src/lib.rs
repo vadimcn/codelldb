@@ -123,3 +123,20 @@ impl Default for CompletionItem {
         }
     }
 }
+
+impl Default for Module {
+    fn default() -> Self {
+        Module {
+            name: String::new(),
+            id: serde_json::Value::Null,
+            path: None,
+            address_range: None,
+            date_time_stamp: None,
+            is_optimized: None,
+            is_user_code: None,
+            symbol_file_path: None,
+            symbol_status: None,
+            version: None,
+        }
+    }
+}

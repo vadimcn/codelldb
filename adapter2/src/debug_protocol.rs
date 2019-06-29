@@ -8,7 +8,7 @@ pub use raw_debug_protocol::{
     Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
     CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DisconnectArguments,
     EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
-    GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, ModuleEventBody, NextArguments,
+    GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
     OutputEventBody, PauseArguments, ReverseContinueArguments, RunInTerminalRequestArguments, Scope, ScopesArguments,
     ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetExceptionBreakpointsArguments,
     SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
@@ -298,7 +298,9 @@ mod tests {
 
     #[test]
     fn test5() {
-        dbg!(parse(br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#));
+        dbg!(parse(
+            br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#
+        ));
         dbg!(parse(br#"{"type":"request", "seq":12, "command":"disconnect"}"#));
         dbg!(parse(br#"{"type":"request", "seq":12, "command":"foobar"}"#));
     }

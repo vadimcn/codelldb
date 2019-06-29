@@ -5,6 +5,12 @@ cpp_class!(pub unsafe struct SBModule as "SBModule");
 unsafe impl Send for SBModule {}
 
 impl SBModule {
+    pub fn uuid_string(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBModule*"] -> *const c_char as "const char*" {
+            return self->GetUUIDString();
+        });
+        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
     pub fn filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetFileSpec();
@@ -23,6 +29,11 @@ impl SBModule {
     pub fn symbol_filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetSymbolFileSpec();
+        })
+    }
+    pub fn object_header_address(&self) -> SBAddress {
+        cpp!(unsafe [self as "SBModule*"] -> SBAddress as "SBAddress" {
+            return self->GetObjectFileHeaderAddress();
         })
     }
 }

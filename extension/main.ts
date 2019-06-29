@@ -15,6 +15,7 @@ import * as adapter from './adapter';
 import * as install from './install';
 import { Dict, AdapterType, toAdapterType } from './common';
 import { AdapterSettings } from './adapterMessages';
+import { ModuleTreeDataProvider } from './modulesView';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -28,6 +29,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     context: ExtensionContext;
     htmlViewer: htmlView.DebuggerHtmlView;
     status: StatusBarItem;
+    loadedModules: ModuleTreeDataProvider;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -80,6 +82,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 this.status.hide();
         }));
 
+        this.loadedModules = new ModuleTreeDataProvider(context);
+        window.registerTreeDataProvider('loadedModules', this.loadedModules);
     }
 
     registerDisplaySettingCommand(command: string, updater: (settings: AdapterSettings) => Promise<void>) {

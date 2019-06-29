@@ -55,6 +55,12 @@
       ]
     },
     {
+      "label": "extension",
+      "args": [
+        "extension"
+      ]
+    },
+    {
       "label": "check_codelldb",
       "args": [
         "check_codelldb"

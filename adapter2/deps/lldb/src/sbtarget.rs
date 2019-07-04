@@ -212,6 +212,7 @@ impl SBTarget {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBTarget::GetBroadcasterClassName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn platform(&self) -> SBPlatform {

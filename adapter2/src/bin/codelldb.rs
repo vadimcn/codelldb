@@ -26,7 +26,9 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), failure::Error> {
     #[cfg(unix)]
     {
         unsafe {
-            data = std::ffi::CStr::from_ptr(libc::ttyname(1)).to_str()?;
+            let ptr = libc::ttyname(1);
+            assert!(!ptr.is_null());
+            data = std::ffi::CStr::from_ptr(ptr).to_str()?;
         }
     }
     #[cfg(windows)]

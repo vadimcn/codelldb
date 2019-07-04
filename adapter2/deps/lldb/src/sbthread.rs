@@ -102,6 +102,7 @@ impl SBThread {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBThread::GetBroadcasterClassName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
 }

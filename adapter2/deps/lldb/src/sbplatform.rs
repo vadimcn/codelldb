@@ -20,24 +20,28 @@ impl SBPlatform {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetTriple();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn hostname(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetHostname();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn os_build(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetOSBuild();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn os_description(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetOSDescription();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn get_file_permissions(&self, path: &Path) -> u32 {

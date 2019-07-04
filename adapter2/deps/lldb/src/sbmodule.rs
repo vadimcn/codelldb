@@ -5,11 +5,15 @@ cpp_class!(pub unsafe struct SBModule as "SBModule");
 unsafe impl Send for SBModule {}
 
 impl SBModule {
-    pub fn uuid_string(&self) -> &str {
+    pub fn uuid_string(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBModule*"] -> *const c_char as "const char*" {
             return self->GetUUIDString();
         });
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        if ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
+        }
     }
     pub fn filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {

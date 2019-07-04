@@ -9,18 +9,21 @@ impl SBSymbol {
         let ptr = cpp!(unsafe [self as "SBSymbol*"] -> *const c_char as "const char*" {
             return self->GetName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn display_name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBSymbol*"] -> *const c_char as "const char*" {
             return self->GetDisplayName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn mangled_name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBSymbol*"] -> *const c_char as "const char*" {
             return self->GetMangledName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn start_address(&self) -> SBAddress {

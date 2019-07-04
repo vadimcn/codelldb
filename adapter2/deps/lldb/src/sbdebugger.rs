@@ -85,6 +85,7 @@ impl SBDebugger {
         let ptr = cpp!(unsafe [self as "SBDebugger*"] ->  *const c_char as "const char*" {
             return self->GetInstanceName();
         });
+        assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
     pub fn set_variable(&mut self, var_name: &str, value: &str) -> SBError {

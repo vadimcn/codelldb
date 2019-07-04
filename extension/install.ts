@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as async from './async';
-import { ExtensionContext, window, OutputChannel, Uri, commands, extensions } from 'vscode';
+import { ExtensionContext, window, OutputChannel, Uri, extensions, env } from 'vscode';
 import { Writable } from 'stream';
 
 const MaxRedirects = 10;
@@ -41,7 +41,7 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
                     'Open download URL in a browser'
                 );
                 if (choice != undefined) {
-                    commands.executeCommand('vscode.open', packageUrl);
+                    env.openExternal(packageUrl);
                 }
                 return false;
             }

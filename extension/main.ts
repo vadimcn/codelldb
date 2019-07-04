@@ -417,7 +417,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 this.context.globalState.update('lldb_works', true);
             }
         } else {
-            if (!await diagnostics.checkPython(output))
+            if (!await diagnostics.checkPython())
                 return false;
             if (!await install.ensurePlatformPackage(this.context, output))
                 return false;
@@ -434,7 +434,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 break;
             case 'bundled':
             case 'native':
-                succeeded = await diagnostics.checkPython(output);
+                succeeded = await diagnostics.checkPython();
                 break;
         }
         if (succeeded) {

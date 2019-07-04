@@ -8,10 +8,6 @@
 	"author": {
 		"name": "vadimcn"
 	},
-	"engines": {
-		"vscode": "^1.30.0",
-		"node": "^10.0"
-	},
 	"icon": "images/lldb.png",
 	"categories": [
 		"Debuggers"
@@ -32,23 +28,25 @@
 		"url": "https://github.com/vadimcn/vscode-lldb/issues"
 	},
 	"qna": "https://gitter.im/vscode-lldb/QnA",
+	"engines": {
+		"vscode": "^1.31.0"
+	},
 	"dependencies": {
 		"yauzl": "^2.10.0"
 	},
 	"devDependencies": {
-		"@types/mocha": "^5.2.0",
-		"@types/node": "^8.10",
+		"@types/vscode": "^1.31.0",
+		"@types/node": "^8.10.50",
+		"@types/mocha": "^5.2.7",
+		"@types/yauzl": "^2.9.0",
+		"typescript": "^3.5.0",
 		"mocha": "^6.1.0",
-		"typescript": "^3.5",
-		"vscode": "^1.1.30",
-		"vscode-debugadapter-testsupport": "^1.34.0",
-		"vscode-debugprotocol": "^1.34.0",
-		"vsce": "^1.62.0",
 		"memory-streams": "^0.1.3",
-		"@types/yauzl": "^2.9.0"
+		"vscode-debugprotocol": "^1.35.0",
+		"vscode-debugadapter-testsupport": "^1.35.0",
+		"vsce": "^1.62.0"
 	},
 	"scripts": {
-		"postinstall": "node ./node_modules/vscode/bin/install",
 		"vsce": "vsce",
 		"mocha": "mocha",
 		"tsc": "tsc"

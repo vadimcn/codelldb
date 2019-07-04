@@ -1,5 +1,5 @@
-import { workspace, window, commands, OutputChannel, ConfigurationTarget, Uri, WorkspaceFolder, ExtensionContext } from "vscode";
-import { inspect } from "util";
+import { workspace, window, OutputChannel, ConfigurationTarget, Uri, ExtensionContext, env } from 'vscode';
+import { inspect } from 'util';
 import * as ver from './ver';
 import * as adapter from './adapter';
 import * as install from './install';
@@ -77,8 +77,6 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
                 '-O', 'script print("OK")'
             ], env, workspace.rootPath);
             util.logProcessOutput(lldb2, output);
-            // [^] = match any char, including newline
-            let match2 = await adapter.waitForPattern(lldb2, lldb2.stdout, new RegExp('^True$[^]*^OK$', 'm'));
         }
         output.appendLine('--- Done ---');
         output.show(true);
@@ -124,7 +122,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
                 let choice = await window.showErrorMessage('Could not find LLDB on this machine.', { modal: true }, ...buttons);
                 if (choice != null) {
                     if (choice.action == 'instructions') {
-                        commands.executeCommand('vscode.open', Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB'));
+                        env.openExternal(Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB'));
                     } else if (choice.action == 'bundled') {
                         output.appendLine('Setting "lldb.adapterType": "bundled".');
                         config.update('adapterType', 'bundled', ConfigurationTarget.Global);
@@ -138,7 +136,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
     return status < DiagnosticsStatus.Failed;
 }
 
-export async function checkPython(output: OutputChannel, quiet = false): Promise<boolean> {
+export async function checkPython(): Promise<boolean> {
     if (process.platform == 'win32') {
         let path = await adapter.getWindowsPythonPath();
         if (path == null) {
@@ -147,7 +145,7 @@ export async function checkPython(output: OutputChannel, quiet = false): Promise
                 { modal: true },
                 'Take me to Python website');
             if (action != null)
-                commands.executeCommand('vscode.open', Uri.parse('https://www.python.org/downloads/windows/'));
+                env.openExternal(Uri.parse('https://www.python.org/downloads/windows/'));
             return false;
         } else {
             return true;

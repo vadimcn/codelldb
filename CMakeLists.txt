@@ -57,6 +57,13 @@ if (NOT ${Result} EQUAL 0)
     message(FATAL_ERROR "npm intall failed: ${Result}")
 endif()
 
+# Extension package resources
+
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md)
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/CHANGELOG.md ${CMAKE_CURRENT_BINARY_DIR}/CHANGELOG.md)
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/lldb.png ${CMAKE_CURRENT_BINARY_DIR}/images/lldb.png)
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json)
+
 # Classic adapter
 
 file(GLOB_RECURSE Files
@@ -77,7 +84,9 @@ add_custom_target(adapter ALL
 
 # For extension debugging
 
-add_custom_target(dev_debugging DEPENDS adapter codelldb debuggee extension)
+add_custom_target(dev_debugging
+    DEPENDS adapter codelldb debuggee extension ${PackageFiles}
+)
 
 # VSIX packages
 
@@ -225,12 +234,14 @@ foreach(AdapterType ${TestAdapters})
     endforeach(TestTriple)
 
     add_custom_target(check_${AdapterType} DEPENDS tests
-        COMMAND ${CMAKE_CTEST_COMMAND} -R ${AdapterType} --output-on-failure
+        COMMAND ${CMAKE_CTEST_COMMAND} -R ${AdapterType} --output-on-failure --verbose
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
     )
     add_dependencies(check check_${AdapterType})
 endforeach(AdapterType)
+
+add_dependencies(check_native cargo_test)
 
 # Install
 
@@ -243,6 +254,8 @@ install(
 # XtraClean
 
 add_custom_target(xclean
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target clean
+    COMMAND ${CMAKE_COMMAND} -E remove_directory CMakeFiles
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter2
     COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee

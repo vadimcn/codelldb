@@ -19,63 +19,94 @@
   ],
   "tasks": [
     {
-      "label": "dev_debugging",
+      "label": "make dev_debugging",
       "args": [
         "dev_debugging"
       ]
     },
     {
-      "label": "tests",
+      "label": "make tests",
       "args": [
         "dev_debugging"
       ]
     },
     {
-      "label": "lldb",
+      "label": "make lldb",
       "args": [
         "lldb"
       ]
     },
     {
-      "label": "adapter",
+      "label": "make adapter",
       "args": [
         "adapter"
       ]
     },
     {
-      "label": "codelldb",
+      "label": "make codelldb",
       "args": [
         "codelldb"
       ]
     },
     {
-      "label": "debuggee",
+      "label": "make debuggee",
       "args": [
         "debuggee"
       ]
     },
     {
-      "label": "extension",
+      "label": "make extension",
       "args": [
         "extension"
       ]
     },
     {
-      "label": "check_codelldb",
+      "label": "make check_codelldb",
       "args": [
         "check_codelldb"
       ]
     },
     {
-      "label": "doc_lldb",
+      "label": "make doc_lldb",
       "args": [
         "doc_lldb"
       ]
     },
     {
-      "label": "test_codelldb",
+      "label": "make test_codelldb",
       "args": [
         "test_codelldb"
+      ]
+    },
+    {
+      "label": "make cargo_test",
+      "args": [
+        "cargo_test"
+      ]
+    },
+    {
+      "label": "make vsix_portable",
+      "args": [
+        "vsix_portable"
+      ]
+    },
+    {
+      "label": "make vsix_full",
+      "args": [
+        "vsix_full"
+      ]
+    },
+    {
+      "label": "make vsix_extracted",
+      "args": [
+        "vsix_extracted"
+      ]
+    },
+    {
+      "label": "cargo check",
+      "command": "cargo",
+      "args": [
+        "check"
       ]
     },
     {
@@ -101,12 +132,6 @@
       "type": "shell",
       "label": "Start extension host (dev VSCode)",
       "command": "${workspaceFolder}/../vscode/scripts/code.sh --extensionDevelopmentPath=${workspaceFolder}/build ${workspaceFolder}/debuggee",
-    },
-    {
-      "label": "vsix_extracted",
-      "args": [
-        "vsix_extracted"
-      ]
     },
     {
       "type": "shell",
@@ -160,21 +185,5 @@
         "${file}"
       ]
     },
-    {
-      "label": "cargo build example pyo3",
-      "command": "cargo",
-      "args": [
-        "build",
-        "--example",
-        "pyo3"
-      ],
-    },
-    {
-      "label": "cargo check",
-      "command": "cargo",
-      "args": [
-        "check"
-      ]
-    }
   ]
 }

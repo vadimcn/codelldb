@@ -47,7 +47,7 @@ cmake .. -DLLDB_ROOT=<path to LLDB directory>
 - `debuggee` - build the debuggee project (used for debbugging and tests).
 - `adapter` - build classic adapter.
 - `codelldb` - build native adapter.
-- `check_codelldb` - run `cargo check` on codelldb crate.
+- `cargo_test` - run `cargo test` on all codelldb crates.
 - `dev_debugging` - build extension, adapters, debuggee and other stuff needed for debugging extension directly out of the build directory.
 After building this target you can run `code --extensionDevelopmentPath=${workspaceFolder}/build` to try out the extension.
 - `check_` { `classic` | `bundled` | `native` } - build and test the specified adapter type.

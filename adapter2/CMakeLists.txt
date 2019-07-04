@@ -44,17 +44,7 @@ add_custom_target(codelldb ALL
     USES_TERMINAL
 )
 
-add_custom_target(check_codelldb
-    COMMAND cargo check ${Features} --package=codelldb
-    USES_TERMINAL
-)
-
-add_custom_target(test_codelldb
-    COMMAND ${CMAKE_COMMAND} -E env RUST_BACKTRACE=1 cargo test ${Features} --package=codelldb
-    USES_TERMINAL
-)
-
-add_custom_target(doc_lldb
-    COMMAND ${CMAKE_COMMAND} -E env LLDB_ROOT=${LLDB_ROOT} cargo doc --package=lldb --no-deps
+add_custom_target(cargo_test
+    COMMAND ${CMAKE_COMMAND} -E env RUST_BACKTRACE=1 cargo test ${Features} -p=lldb -p=debug-protocol -p=codelldb
     USES_TERMINAL
 )

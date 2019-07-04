@@ -3,12 +3,13 @@
 	"configurations": [
 		{
 			"name": "extension",
-			"preLaunchTask": "dev_debugging",
+			"preLaunchTask": "make dev_debugging",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceRoot}/build"
+				"--extensionDevelopmentPath=${workspaceRoot}/build",
+				"${workspaceFolder}/debuggee"
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
@@ -34,7 +35,7 @@
 		},
 		{
 			"name": "codelldb on Linux",
-			"preLaunchTask": "codelldb",
+			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
@@ -56,7 +57,7 @@
 		},
 		{
 			"name": "codelldb on OSX",
-			"preLaunchTask": "codelldb",
+			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
@@ -78,7 +79,7 @@
 		},
 		{
 			"name": "codelldb on Windows",
-			"preLaunchTask": "codelldb",
+			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
@@ -103,7 +104,7 @@
 			"name": "codelldb on Windows+cppvsdbg",
 			"type": "cppvsdbg",
 			"request": "launch",
-			"preLaunchTask": "codelldb",
+			"preLaunchTask": "make codelldb",
 			"program": "${workspaceFolder}/build/adapter2/codelldb.exe",
 			"args": [
 				"--preload=${workspaceFolder}/build/lldb/bin/liblldb.dll",
@@ -137,7 +138,7 @@
 		},
 		{
 			"name": "test codelldb",
-			"preLaunchTask": "check_codelldb",
+			"preLaunchTask": "make dev_debugging",
 			"type": "lldb",
 			"request": "launch",
 			"cargo": {
@@ -166,7 +167,7 @@
 		},
 		{
 			"name": "tests",
-			"preLaunchTask": "tests",
+			"preLaunchTask": "make tests",
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}/build",
@@ -184,7 +185,8 @@
 				//"TARGET_TRIPLE": "x86_64-pc-windows-gnu",
 				"RUST_LOG": "error,codelldb=debug",
 				"RUST_BACKTRACE": "full",
-				"NODE_PATH": "${workspaceRoot}/build"
+				"NODE_PATH": "${workspaceRoot}/build",
+				"DEBUG_SERVER": "4711"
 			},
 			"sourceMaps": true,
 			"outFiles": [

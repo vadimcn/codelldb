@@ -1,21 +1,24 @@
-# list(
-#    <list>               ## list name
+# add_copy_file(
+#    <list>               ## list name to add output path to
 #    <input>              ## source file path
 #    <output>             ## destination file path
 # )
 
 # add_copy_files_to(
-#    <list>               ## list name
+#    <list>               ## list name to add output paths to
 #    <destination_dir>    ## destination directory path
 #    <file0> <file1> ...  ## list of files
 # )
 
 function(add_copy_file List Input Output)
     if (IS_SYMLINK ${Input})
-        get_filename_component(InputDir ${Input} DIRECTORY)
         get_filename_component(OutputDir ${Output} DIRECTORY)
+
+        get_filename_component(InputDir ${Input} DIRECTORY)
+        get_filename_component(InputDir ${InputDir} REALPATH)
         get_filename_component(SymlinkTgt ${Input} REALPATH)
         file(RELATIVE_PATH SymLinkTgtRel ${InputDir} ${SymlinkTgt})
+
         add_custom_command(
             OUTPUT ${Output}
             PRE_BUILD

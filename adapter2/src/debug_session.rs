@@ -1886,7 +1886,7 @@ impl DebugSession {
                     let response = SetVariableResponseBody {
                         value: self.get_var_value_str(&child, self.global_format, handle.is_some()),
                         type_: child.type_name().map(|s| s.to_owned()),
-                        variables_reference: handles::to_i64(handle),
+                        variables_reference: Some(handles::to_i64(handle)),
                         named_variables: None,
                         indexed_variables: None,
                     };
@@ -2100,6 +2100,7 @@ impl DebugSession {
             end_line: None,
             column: None,
             end_column: None,
+            instruction_pointer_reference: None,
         }];
         self.last_goto_request = Some(args);
         Ok(GotoTargetsResponseBody {

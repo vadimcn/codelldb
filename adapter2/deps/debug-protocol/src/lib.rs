@@ -34,6 +34,7 @@ impl Default for StackFrame {
             column: 0,
             end_column: None,
             end_line: None,
+            instruction_pointer_reference: None,
             module_id: None,
             presentation_hint: None,
         }
@@ -51,6 +52,7 @@ impl Default for Scope {
             line: None,
             name: String::new(),
             named_variables: None,
+            presentation_hint: None,
             source: None,
             variables_reference: 0,
         }
@@ -67,6 +69,7 @@ impl Default for Variable {
             evaluate_name: None,
             indexed_variables: None,
             named_variables: None,
+            memory_reference: None,
             presentation_hint: None,
         }
     }
@@ -92,6 +95,7 @@ impl Default for EvaluateResponseBody {
             type_: None,
             variables_reference: 0,
             indexed_variables: None,
+            memory_reference: None,
             named_variables: None,
             presentation_hint: None,
         }

@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 fn main() {
-    let schema = "src/schema.json";
+    let schema = "src/debugAdapterProtocol.json";
     println!("cargo:rerun-if-changed={}", schema);
     let src = Path::new(schema);
 

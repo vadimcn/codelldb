@@ -1187,7 +1187,7 @@ impl DebugSession {
     }
 
     fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {
-        let terminal_kind = args.terminal.unwrap_or(TerminalKind::Console);
+        let terminal_kind = args.terminal.unwrap_or(TerminalKind::Integrated);
 
         self.debuggee_terminal = match terminal_kind {
             TerminalKind::External | TerminalKind::Integrated => {

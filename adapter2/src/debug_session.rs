@@ -1191,8 +1191,18 @@ impl DebugSession {
 
         self.debuggee_terminal = match terminal_kind {
             TerminalKind::External | TerminalKind::Integrated => {
-                let terminal = Terminal::create(|args| self.run_in_vscode_terminal(terminal_kind.clone(), args))?;
-                Some(terminal)
+                match Terminal::create(|agent_args| {
+                    self.run_in_vscode_terminal(terminal_kind.clone(), args.common.name.clone(), agent_args)
+                }) {
+                    Ok(terminal) => Some(terminal),
+                    Err(err) => {
+                        self.console_error(format!(
+                            "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
+                            err
+                        ));
+                        None
+                    }
+                }
             }
             TerminalKind::Console => None,
         };
@@ -1240,7 +1250,7 @@ impl DebugSession {
         Ok(())
     }
 
-    fn run_in_vscode_terminal(&mut self, terminal_kind: TerminalKind, mut args: Vec<String>) {
+    fn run_in_vscode_terminal(&mut self, terminal_kind: TerminalKind, title: String, mut args: Vec<String>) {
         let terminal_kind = match terminal_kind {
             TerminalKind::External => "external",
             TerminalKind::Integrated => {
@@ -1254,7 +1264,7 @@ impl DebugSession {
             cwd: String::new(),
             env: None,
             kind: Some(terminal_kind.to_owned()),
-            title: Some("Debuggee".to_owned()),
+            title: Some(title),
         };
         self.send_request(RequestArguments::runInTerminal(req_args));
     }

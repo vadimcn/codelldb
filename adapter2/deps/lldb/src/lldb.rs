@@ -1,4 +1,5 @@
 #![allow(non_upper_case_globals)]
+#![allow(deprecated)] // TODO: check for rust-cpp updates
 
 #[macro_use]
 extern crate cpp;

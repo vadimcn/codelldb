@@ -25,14 +25,14 @@ impl SBDebugger {
             return self->Clear();
         })
     }
-    pub fn async(&self) -> bool {
+    pub fn async_mode(&self) -> bool {
         cpp!(unsafe [self as "SBDebugger*"]-> bool as "bool" {
             return self->GetAsync();
         })
     }
-    pub fn set_async(&self, async: bool) {
-        cpp!(unsafe [self as "SBDebugger*", async as "bool"] {
-            self->SetAsync(async);
+    pub fn set_async_mode(&self, is_async: bool) {
+        cpp!(unsafe [self as "SBDebugger*", is_async as "bool"] {
+            self->SetAsync(is_async);
         })
     }
     pub fn create_target(

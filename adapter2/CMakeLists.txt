@@ -16,6 +16,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Target x86_64-pc-windows-msvc)
 endif()
 
+set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml)
+set(CargoFlags ${CargoFlags} -Zpackage-features --no-default-features --features=${CPythonFeature})
+set(CargoFlags ${CargoFlags} --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target)
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
     set(CargoFlags ${CargoFlags} --release)
     set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/release)
@@ -23,8 +26,6 @@ else()
     set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/debug)
 endif()
 
-set(CargoFlags ${CargoFlags} -Zpackage-features --no-default-features --features=${CPythonFeature})
-set(CargoFlags ${CargoFlags} --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target)
 
 
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}

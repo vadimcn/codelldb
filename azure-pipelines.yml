@@ -5,7 +5,7 @@ variables:
   runTests: true
 
   setenvLinux: |
-      export PATH=$HOME/.cargo/bin:$PATH
+      true
   setenvOSX: |
       export PATH=$HOME/.cargo/bin:$PATH
       export PYTHON_SYS_EXECUTABLE=/usr/bin/python2.7
@@ -21,19 +21,11 @@ jobs:
   pool:
     vmImage: 'Ubuntu 16.04'
 
-  steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '10.x'
-    displayName: 'Install Node.js'
+  container:
+    image: 'vadimcn/x86_64-unknown-linux:latest'
+    options: --privileged
 
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
-      source /usr/local/cargo/env
-      rustup toolchain install nightly-x86_64-unknown-linux-gnu
-      rustup default nightly
-      rustup show
-    displayName: 'Install Rust'
+  steps:
 
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -49,18 +41,16 @@ jobs:
     displayName: 'Download LLDB'
 
   - script: |
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
-      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-    displayName: 'Install other'
-
-  - script: |
       $(setenvLinux)
+      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'CMake configure'
+    displayName: 'Configure'
 
   - script: |
       $(setenvLinux)
@@ -80,8 +70,16 @@ jobs:
       $(setenvLinux)
       cmake --build build --target tests
       cd build
-      ctest --output-on-failure -R "bundled|native"
-    displayName: 'Test'
+      ctest --output-on-failure -R "native"
+    displayName: 'Test native'
+    condition: variables.runTests
+
+  - script: |
+      $(setenvLinux)
+      cmake --build build --target tests
+      cd build
+      ctest --output-on-failure -R "bundled"
+    displayName: 'Test bundled'
     condition: variables.runTests
 
   - script: |
@@ -98,23 +96,11 @@ jobs:
   pool:
     vmImage: 'Ubuntu 16.04'
 
-  container: 'vadimcn/aarch64-unknown-linux-gnu:latest'
+  container:
+    image: 'vadimcn/aarch64-unknown-linux:latest'
+    options: --privileged
 
   steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '10.x'
-    displayName: 'Install Node.js'
-
-  - script: |
-      wget -O- https://sh.rustup.rs | sh -s -- -v -y --default-toolchain none
-      source $HOME/.cargo/env
-      rustup toolchain install nightly
-      rustup default nightly
-      rustup target add aarch64-unknown-linux-gnu
-      rustup show
-      rustup target list
-    displayName: 'Install Rust'
 
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -130,19 +116,17 @@ jobs:
     displayName: 'Download LLDB'
 
   - script: |
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
-      #echo 0 | tee /proc/sys/kernel/yama/ptrace_scope
-    displayName: 'Install other'
-
-  - script: |
       $(setenvLinux)
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
+
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-unknown-linux-gnu.cmake\
+            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-aarch64-unknown-linux-gnu.cmake\
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'CMake configure'
+    displayName: 'Configure'
 
   - script: |
       $(setenvLinux)
@@ -181,18 +165,6 @@ jobs:
     vmImage: 'macOS 10.13'
 
   steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '10.x'
-    displayName: 'Install Node.js'
-
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
-      source $HOME/.cargo/env
-      rustup toolchain install nightly-x86_64-apple-darwin
-      rustup default nightly
-      rustup show
-    displayName: 'Install Rust'
 
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -207,12 +179,23 @@ jobs:
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '10.x'
+    displayName: 'Install Node.js'
+
   - script: |
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
-    displayName: 'Install other'
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      source $HOME/.cargo/env
+      rustup toolchain install nightly-x86_64-apple-darwin
+      rustup default nightly
+      rustup show
+    displayName: 'Install Rust'
 
   - script: |
       $(setenvOSX)
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
+
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
@@ -235,8 +218,16 @@ jobs:
       $(setenvOSX)
       cmake --build build --target tests
       cd build
-      ctest --output-on-failure -R "bundled|native"
-    displayName: 'Test'
+      ctest --output-on-failure -R "native"
+    displayName: 'Test native'
+    condition: variables.runTests
+
+  - script: |
+      $(setenvOSX)
+      cmake --build build --target tests
+      cd build
+      ctest --output-on-failure -R "bundled"
+    displayName: 'Test bundled'
     condition: variables.runTests
 
   - script: |
@@ -254,6 +245,7 @@ jobs:
     vmImage: 'VS2017-Win2016'
 
   steps:
+
   - task: NodeTool@0
     inputs:
       versionSpec: '10.x'
@@ -264,15 +256,6 @@ jobs:
       versionSpec: '3.6'
       addToPath: true
       architecture: 'x64'
-
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
-      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-      rustup toolchain install nightly-x86_64-pc-windows-msvc
-      rustup toolchain install nightly-x86_64-pc-windows-gnu
-      rustup default nightly-x86_64-pc-windows-msvc
-      rustup show
-    displayName: 'Install Rust'
 
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -287,18 +270,27 @@ jobs:
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
-  - script: |
-      choco install ninja
-      choco install zip
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
-    displayName: 'Install other'
-
   - task: BatchScript@1
     inputs:
       filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat"
       arguments: -arch=amd64 -host_arch=amd64
       modifyEnvironment: true
     displayName: VsDevCmd
+
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+      rustup toolchain install nightly-x86_64-pc-windows-msvc
+      rustup toolchain install nightly-x86_64-pc-windows-gnu
+      rustup default nightly-x86_64-pc-windows-msvc
+      rustup show
+    displayName: 'Install Rust'
+
+  - script: |
+      choco install ninja
+      choco install zip
+      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
+    displayName: 'Install other'
 
   - script: |
       $(setenvWindows)
@@ -327,8 +319,16 @@ jobs:
       $(setenvWindows)
       cmake --build build --target tests
       cd build
-      ctest --output-on-failure -R "bundled|native"
-    displayName: 'Test'
+      ctest --output-on-failure -R "native"
+    displayName: 'Test native'
+    condition: variables.runTests
+
+  - script: |
+      $(setenvWindows)
+      cmake --build build --target tests
+      cd build
+      ctest --output-on-failure -R "bundled"
+    displayName: 'Test bundled'
     condition: variables.runTests
 
   - script: |

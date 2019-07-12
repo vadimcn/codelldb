@@ -153,7 +153,9 @@
 			"sourceMap": {
 				"/remote1": "${workspaceFolder}/cpp/remote1",
 				"/remote2": "${workspaceFolder}/cpp/remote2",
-			}
+				".": "${workspaceFolder}",
+			},
+			"preRunCommands": ["set show target.source-map"]
 		},
 		{
 			"name": "debuggee launch spam",

@@ -98,6 +98,7 @@ pub struct DebugSession {
     disassembly: MustInitialize<disassembly::AddressSpace>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     loaded_modules: Vec<SBModule>,
+    relative_path_base: MustInitialize<PathBuf>,
     exit_commands: Option<Vec<String>>,
     debuggee_terminal: Option<Terminal>,
     selected_frame_changed: bool,
@@ -171,6 +172,7 @@ impl DebugSession {
             disassembly: NotInitialized,
             source_map_cache: RefCell::new(HashMap::new()),
             loaded_modules: Vec::new(),
+            relative_path_base: NotInitialized,
             exit_commands: None,
             debuggee_terminal: None,
             selected_frame_changed: false,
@@ -448,7 +450,9 @@ impl DebugSession {
     }
 
     fn set_source_breakpoints(
-        &mut self, file_path: &Path, requested_bps: &[SourceBreakpoint],
+        &mut self,
+        file_path: &Path,
+        requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
         let BreakpointsState {
             ref mut source,
@@ -493,7 +497,9 @@ impl DebugSession {
     }
 
     fn set_dasm_breakpoints(
-        &mut self, dasm: Rc<disassembly::DisassembledRange>, requested_bps: &[SourceBreakpoint],
+        &mut self,
+        dasm: Rc<disassembly::DisassembledRange>,
+        requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
         let BreakpointsState {
             ref mut assembly,
@@ -536,7 +542,9 @@ impl DebugSession {
     }
 
     fn set_new_dasm_breakpoints(
-        &mut self, adapter_data: &disassembly::AdapterData, requested_bps: &[SourceBreakpoint],
+        &mut self,
+        adapter_data: &disassembly::AdapterData,
+        requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
         let mut new_bps = HashMap::new();
         let mut result = vec![];
@@ -657,7 +665,8 @@ impl DebugSession {
     }
 
     fn handle_set_function_breakpoints(
-        &mut self, args: SetFunctionBreakpointsArguments,
+        &mut self,
+        args: SetFunctionBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
         let BreakpointsState {
             ref mut function,
@@ -807,8 +816,12 @@ impl DebugSession {
     }
 
     fn on_breakpoint_hit(
-        &self, _process: &SBProcess, thread: &SBThread, location: &SBBreakpointLocation,
-        py_condition: &Option<PreparedExpression>, hit_condition: &Option<HitCondition>,
+        &self,
+        _process: &SBProcess,
+        thread: &SBThread,
+        location: &SBBreakpointLocation,
+        py_condition: &Option<PreparedExpression>,
+        hit_condition: &Option<HitCondition>,
     ) -> bool {
         let mut breakpoints = self.breakpoints.borrow_mut();
         let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
@@ -926,13 +939,13 @@ impl DebugSession {
     }
 
     fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(expressions) = args.expressions {
+        if let Some(expressions) = args.common.expressions {
             self.default_expr_type = expressions;
         }
-        if let Some(source_map) = &args.source_map {
+        if let Some(source_map) = &args.common.source_map {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
-        if let Some(true) = &args.reverse_debugging {
+        if let Some(true) = &args.common.reverse_debugging {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
                 capabilities: Capabilities {
                     supports_step_back: Some(true),
@@ -940,12 +953,18 @@ impl DebugSession {
                 },
             }));
         }
+        self.relative_path_base = Initialized(match &args.common.relative_path_base {
+            Some(base) => base.into(),
+            None => env::current_dir()?,
+        });
+
+        if let Some(commands) = &args.common.init_commands {
+            self.exec_commands("initCommands", &commands)?;
+        }
+
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)
         } else {
-            if let Some(commands) = &args.init_commands {
-                self.exec_commands("initCommands", &commands)?;
-            }
             let program = match &args.program {
                 Some(program) => program,
                 None => return Err(Error::UserError("\"program\" property is required for launch".into())),
@@ -967,14 +986,14 @@ impl DebugSession {
             launch_env.insert(k, v);
         }
         if let Some(ref env) = args.env {
-            for (k, v) in env {
+            for (k, v) in env.iter() {
                 launch_env.insert(k.clone(), v.clone());
             }
         }
         let launch_env = launch_env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>();
         launch_info.set_environment_entries(launch_env.iter().map(|s| s.as_ref()), false);
 
-        if let Some(ref settings) = args.adapter_settings {
+        if let Some(ref settings) = args.common.adapter_settings {
             self.update_adapter_settings(settings);
         }
         if let Some(ref args) = args.args {
@@ -983,14 +1002,14 @@ impl DebugSession {
         if let Some(ref cwd) = args.cwd {
             launch_info.set_working_directory(Path::new(&cwd));
         }
-        if let Some(true) = args.stop_on_entry {
+        if let Some(true) = args.common.stop_on_entry {
             launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
         }
         self.configure_stdio(&args, &mut launch_info);
         self.target.set_launch_info(&launch_info);
 
         // Run user commands (which may modify launch info)
-        if let Some(ref commands) = args.pre_run_commands {
+        if let Some(ref commands) = args.common.pre_run_commands {
             self.exec_commands("preRunCommands", commands)?;
         }
         // Grab updated launch info.
@@ -1050,17 +1069,14 @@ impl DebugSession {
             self.notify_process_stopped();
         }
 
-        if let Some(commands) = args.post_run_commands {
+        if let Some(commands) = args.common.post_run_commands {
             self.exec_commands("postRunCommands", &commands)?;
         }
-        self.exit_commands = args.exit_commands;
+        self.exit_commands = args.common.exit_commands;
         Ok(ResponseBody::launch)
     }
 
     fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(commands) = &args.init_commands {
-            self.exec_commands("initCommands", &commands)?;
-        }
         if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
         }
@@ -1071,7 +1087,7 @@ impl DebugSession {
     }
 
     fn complete_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(commands) = args.process_create_commands.as_ref().or(args.pre_run_commands.as_ref()) {
+        if let Some(commands) = args.process_create_commands.as_ref().or(args.common.pre_run_commands.as_ref()) {
             self.exec_commands("processCreateCommands", &commands)?;
         }
         self.process = Initialized(self.target.process());
@@ -1087,13 +1103,13 @@ impl DebugSession {
     }
 
     fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(expressions) = args.expressions {
+        if let Some(expressions) = args.common.expressions {
             self.default_expr_type = expressions;
         }
-        if let Some(source_map) = &args.source_map {
+        if let Some(source_map) = &args.common.source_map {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
-        if let Some(true) = &args.reverse_debugging {
+        if let Some(true) = &args.common.reverse_debugging {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
                 capabilities: Capabilities {
                     supports_step_back: Some(true),
@@ -1104,7 +1120,7 @@ impl DebugSession {
         if args.program.is_none() && args.pid.is_none() {
             return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
         }
-        if let Some(commands) = &args.init_commands {
+        if let Some(commands) = &args.common.init_commands {
             self.exec_commands("initCommands", &commands)?;
         }
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
@@ -1114,7 +1130,7 @@ impl DebugSession {
     }
 
     fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(ref commands) = args.pre_run_commands {
+        if let Some(ref commands) = args.common.pre_run_commands {
             self.exec_commands("preRunCommands", commands)?;
         }
 
@@ -1143,16 +1159,16 @@ impl DebugSession {
         self.process = Initialized(process);
         self.process_was_launched = false;
 
-        if args.stop_on_entry.unwrap_or(false) {
+        if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
         } else {
             self.process.resume();
         }
 
-        if let Some(commands) = args.post_run_commands {
+        if let Some(commands) = args.common.post_run_commands {
             self.exec_commands("postRunCommands", &commands)?;
         }
-        self.exit_commands = args.exit_commands;
+        self.exit_commands = args.common.exit_commands;
         Ok(ResponseBody::attach)
     }
 
@@ -1310,6 +1326,7 @@ impl DebugSession {
             args.push_str(&local_escaped);
             args.push_str("\" ");
         }
+        info!("Set target.source-map args: {}", args);
         self.debugger.set_variable("target.source-map", &args);
     }
 
@@ -1562,7 +1579,9 @@ impl DebugSession {
     }
 
     fn convert_scope_values(
-        &mut self, vars_iter: &mut dyn Iterator<Item = SBValue>, container_eval_name: &str,
+        &mut self,
+        vars_iter: &mut dyn Iterator<Item = SBValue>,
+        container_eval_name: &str,
         container_handle: Option<Handle>,
     ) -> Vec<Variable> {
         let mut variables = vec![];
@@ -1596,7 +1615,10 @@ impl DebugSession {
 
     // SBValue to VSCode Variable
     fn var_to_variable(
-        &mut self, var: &SBValue, container_eval_name: &str, container_handle: Option<Handle>,
+        &mut self,
+        var: &SBValue,
+        container_eval_name: &str,
+        container_handle: Option<Handle>,
     ) -> Variable {
         let name = var.name().unwrap_or_default();
         let dtype = var.type_name();
@@ -1781,7 +1803,9 @@ impl DebugSession {
     }
 
     fn handle_evaluate_expression(
-        &mut self, expression: &str, frame: Option<SBFrame>,
+        &mut self,
+        expression: &str,
+        frame: Option<SBFrame>,
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
         let (pp_expr, expr_format) = expressions::prepare_with_format(expression, self.default_expr_type)
@@ -1831,7 +1855,9 @@ impl DebugSession {
     // Evaluates expr in the context of frame (or in global context if frame is None)
     // Returns expressions.Value or SBValue on success, SBError on failure.
     fn evaluate_expr_in_frame(
-        &self, expression: &PreparedExpression, frame: Option<&SBFrame>,
+        &self,
+        expression: &PreparedExpression,
+        frame: Option<&SBFrame>,
     ) -> Result<SBValue, Error> {
         match expression {
             PreparedExpression::Native(pp_expr) => {
@@ -2478,6 +2504,12 @@ impl DebugSession {
         }
     }
 
+    // Maps remote file path to local file path.
+    // The bulk of this work is done by LLDB itself (via target.source-map), in addition to which:
+    // - if `filespec` contains a relative path, we convert it to an absolute one using relative_path_base
+    //   (which is normally initialized to ${workspaceFolder}) as a base.
+    // - we check whether the local file actually exists, and suppress it (if `suppress_missing_files` is true),
+    //   to prevent VSCode from prompting to create them.
     fn map_filespec_to_local(&self, filespec: &SBFileSpec) -> Option<Rc<PathBuf>> {
         if !filespec.is_valid() {
             return None;
@@ -2487,12 +2519,18 @@ impl DebugSession {
             match source_map_cache.get(&source_path) {
                 Some(mapped_path) => mapped_path.clone(),
                 None => {
-                    let path = filespec.path();
+                    let mut path = filespec.path();
+                    // Make sure the path is absolute.
+                    if path.is_relative() {
+                        path = self.relative_path_base.join(path);
+                    }
+                    // Check if the file exists.
                     let mapped_path = if self.suppress_missing_files && !path.is_file() {
                         None
                     } else {
                         Some(Rc::new(path))
                     };
+                    // Cache the result, so we don't have to probe file system again for the same path.
                     source_map_cache.insert(source_path, mapped_path.clone());
                     mapped_path
                 }

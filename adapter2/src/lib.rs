@@ -26,6 +26,7 @@ mod must_initialize;
 mod python;
 mod stdio_channel;
 mod terminal;
+mod vec_map;
 mod wire_protocol;
 
 #[no_mangle]
@@ -72,7 +73,8 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
 }
 
 fn run_debug_session(
-    stream: impl AsyncRead + AsyncWrite + Send + 'static, adapter_settings: debug_protocol::AdapterSettings,
+    stream: impl AsyncRead + AsyncWrite + Send + 'static,
+    adapter_settings: debug_protocol::AdapterSettings,
 ) -> impl Future<Item = (), Error = io::Error> {
     future::lazy(|| {
         debug!("New debug session");

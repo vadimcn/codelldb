@@ -13,6 +13,7 @@ add_executable(debuggee
     cpp/debuggee.cpp
     cpp/no_line_info.cpp # without debug info, for testing disassembly
     cpp/denorm_path.cpp  # test debugger's path normalization
+    cpp/relative_path.cpp  # test source map
     cpp/remote1/remote_path.cpp  # test source map
     cpp/remote2/remote_path.cpp  # test source map
 )
@@ -28,6 +29,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
     set_source_files_properties(cpp/no_line_info.cpp PROPERTIES COMPILE_FLAGS -g0)
     set_source_files_properties(cpp/denorm_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp=../../debuggee/cpp/../cpp/.)
+    set_source_files_properties(cpp/relative_path.cpp PROPERTIES COMPILE_FLAGS "-fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp=cpp -fdebug-prefix-map=${CMAKE_BINARY_DIR}=.")
     set_source_files_properties(cpp/remote1/remote_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp/remote1=${Drive}/remote1)
     set_source_files_properties(cpp/remote2/remote_path.cpp PROPERTIES COMPILE_FLAGS -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp/remote2=${Drive}/remote2)
 endif()

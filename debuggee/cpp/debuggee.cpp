@@ -26,6 +26,7 @@ extern "C" void disassembly1();
 extern "C" void denorm_path();
 extern "C" void remote_path1();
 extern "C" void remote_path2();
+extern "C" void relative_path();
 
 void deepstack(int levelsToGo)
 {
@@ -303,6 +304,7 @@ int main(int argc, char *argv[])
         denorm_path();
         remote_path1();
         remote_path2();
+        relative_path();
     }
     else if (testcase == "spam")
     {

@@ -33,11 +33,13 @@ const debuggeeHeader = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'd
 const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'denorm_path.cpp'));
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
+const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
 
 const rusttypes = path.join(debuggeeDir, 'rusttypes');
 const rusttypesSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
 
 var testLog: stream.Writable;
+var testDataLog: stream.Writable;
 var adapterLog: stream.Writable;
 
 generateSuite(adapterType, triple);
@@ -48,6 +50,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
         setup(function () {
             const maxMessage = 1024 * 1024;
             testLog = new WritableStream({ highWaterMark: maxMessage });
+            //testDataLog = new WritableStream({ highWaterMark: maxMessage });
             adapterLog = new WritableStream({ highWaterMark: maxMessage });
         });
 
@@ -84,14 +87,14 @@ function generateSuite(adapterType: AdapterType, triple: string) {
             test('stop on entry', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let stopAsync = ds.waitForEvent('stopped');
-                await ds.launch({ program: debuggee, args: ['inf_loop'], stopOnEntry: true });
+                await ds.launch({ name: "stop on entry", program: debuggee, args: ['inf_loop'], stopOnEntry: true });
                 log('Waiting for stop');
                 await stopAsync;
                 log('Terminating');
                 await ds.terminate();
             });
 
-            test('stop on a breakpoint 1', async function () {
+            test('stop on a breakpoint (basic)', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
@@ -99,7 +102,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let waitForStopAsync = ds.waitForStopEvent();
 
-                await ds.launch({ name: 'stop on a breakpoint', program: debuggee, cwd: path.dirname(debuggee) });
+                await ds.launch({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) });
                 await setBreakpointAsyncSource;
 
                 log('Wait for stop');
@@ -113,7 +116,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 await ds.terminate();
             });
 
-            test('stop on a breakpoint 2', async function () {
+            test('stop on a breakpoint (same file name)', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
@@ -128,7 +131,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 //     'header';
                 let testcase = 'header_nodylib';
 
-                await ds.launch({ name: 'stop on a breakpoint 2', program: debuggee, args: [testcase], cwd: path.dirname(debuggee) });
+                await ds.launch({ name: 'stop on a breakpoint (same file name)', program: debuggee, args: [testcase], cwd: path.dirname(debuggee) });
                 log('Set breakpoint 1');
                 await setBreakpointAsyncSource;
                 log('Set breakpoint 2');
@@ -143,7 +146,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for stop 2');
                 let stopEvent2 = await waitForStopAsync2;
-                await ds.verifyLocation(stopEvent.body.threadId, debuggeeHeader, bpLineHeader);
+                await ds.verifyLocation(stopEvent2.body.threadId, debuggeeHeader, bpLineHeader);
 
                 log('Continue 2');
                 await ds.continueRequest({ threadId: 0 });
@@ -152,55 +155,77 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 await ds.terminate();
             });
 
-            test('stop on a breakpoint 3', async function () {
+            test('path mapping', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
                 let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
                 let bpLineRemote2 = findMarker(debuggeeRemote2, '#BP1')
+                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
                 let setBreakpointAsyncDenorm = ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
                 let setBreakpointAsyncRemote1 = ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
                 let setBreakpointAsyncRemote2 = ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
+                let setBreakpointAsyncRelative;
+                if (adapterType == 'native') {
+                    setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+                }
 
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let waitForStopAsync = ds.waitForStopEvent();
 
-                // On Windows LLDB will add current drive letter to drive-less paths.
+                // On Windows, LLDB adds current drive letter to drive-less paths.
                 let drive = process.platform == 'win32' ? 'C:' : '';
                 await ds.launch({
-                    name: 'stop on a breakpoint 2', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                    name: 'stop on a breakpoint (mapt remapping)', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
                     sourceMap: {
                         [`${drive}/remote1`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
-                        [`${drive}/remote2`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote2')
-                    }
+                        [`${drive}/remote2`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
+                        ['.']: path.join(sourceDir, 'debuggee'),
+                    },
+                    relativePathBase: path.join(sourceDir, 'debuggee'),
+                    preRunCommands: [
+                        `set show target.source-map`
+                    ]
                 });
+
+                // Wait for breakpoints to be resolved and verify locations.
                 log('Set breakpoint 1');
                 await setBreakpointAsyncDenorm;
                 log('Set breakpoint 2');
                 await setBreakpointAsyncRemote1;
                 log('Set breakpoint 3');
                 await setBreakpointAsyncRemote2;
+                if (adapterType == 'native') {
+                    log('Set breakpoint 4');
+                    await setBreakpointAsyncRelative;
+                }
 
+                // Wait for stops and verify stop locations.
                 log('Wait for stop 1');
-                let stopEvent = await waitForStopAsync;
-                await ds.verifyLocation(stopEvent.body.threadId, debuggeeDenorm, bpLineDenorm);
+                let stopEvent1 = await waitForStopAsync;
+                await ds.verifyLocation(stopEvent1.body.threadId, debuggeeDenorm, bpLineDenorm);
 
                 let waitForStopAsync2 = ds.waitForStopEvent();
-                log('Continue 1');
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for stop 2');
                 let stopEvent2 = await waitForStopAsync2;
-                await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote1, bpLineRemote1);
+                await ds.verifyLocation(stopEvent2.body.threadId, debuggeeRemote1, bpLineRemote1);
 
                 let waitForStopAsync3 = ds.waitForStopEvent();
-                log('Continue 2');
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for stop 3');
                 let stopEvent3 = await waitForStopAsync3;
-                await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote2, bpLineRemote2);
+                await ds.verifyLocation(stopEvent3.body.threadId, debuggeeRemote2, bpLineRemote2);
 
-                log('Continue 3');
+                if (adapterType == 'native') {
+                    let waitForStopAsync4 = ds.waitForStopEvent();
+                    await ds.continueRequest({ threadId: 0 });
+                    log('Wait for stop 4');
+                    let stopEvent4 = await waitForStopAsync4;
+                    await ds.verifyLocation(stopEvent4.body.threadId, debuggeeRelative, bpLineRelative);
+                }
+
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
                 await waitForExitAsync;
@@ -444,7 +469,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
 
                 let ds = await DebugTestSession.start(adapterLog);
                 let asyncWaitStopped = ds.waitForEvent('stopped');
-                let attachResp = await ds.attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
+                let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
                 assert(attachResp.success);
                 await asyncWaitStopped;
                 await ds.terminate();
@@ -457,7 +482,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let stopCount = 0;
                 ds.addListener('stopped', () => stopCount += 1);
                 ds.addListener('continued', () => stopCount -= 1);
-                let attachResp = await ds.attach({ program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
+                let attachResp = await ds.attach({ name: 'attach by pid / nostop', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
                 assert(attachResp.success);
                 assert(stopCount <= 0);
                 await ds.terminate();
@@ -468,7 +493,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
 
                 let ds = await DebugTestSession.start(adapterLog);
                 let asyncWaitStopped = ds.waitForEvent('stopped');
-                let attachResp = await ds.attach({ program: debuggee, stopOnEntry: true });
+                let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
                 assert(attachResp.success);
                 await asyncWaitStopped;
                 await ds.terminate();
@@ -642,11 +667,19 @@ class DebugTestSession extends DebugClient {
             session.adapter.stderr.pipe(logStream);
             session.port = await adapter.getDebugServerPort(session.adapter);
         }
+
+        let logger = (event: dp.Event) => log(`Received event: ${inspect(event, { breakLength: Infinity })}`);
+        session.addListener('breakpoint', logger);
+        session.addListener('stopped', logger);
+        session.addListener('continued', logger);
         await session.start(session.port);
-        let socket = <net.Socket>((<any>session)._socket);
-        socket.on('data', buffer => {
-            testLog.write(`-- > ${buffer} \n`)
-        });
+
+        if (testDataLog) {
+            let socket = <net.Socket>((<any>session)._socket);
+            socket.on('data', buffer => {
+                testDataLog.write(`[${timestamp()}] --> ${buffer} \n`)
+            });
+        }
         return session;
     }
 
@@ -656,6 +689,7 @@ class DebugTestSession extends DebugClient {
     }
 
     async launch(launchArgs: any): Promise<dp.LaunchResponse> {
+        launchArgs.terminal = 'console';
         let waitForInit = this.waitForEvent('initialized');
         await this.initializeRequest()
         let launchResp = this.launchRequest(launchArgs);
@@ -680,9 +714,9 @@ class DebugTestSession extends DebugClient {
             breakpoints: [{ line: line, column: 0, condition: condition }],
         });
         let bp = breakpointResp.body.breakpoints[0];
-        log(`Received setBreakpoint response: ${inspect(bp)} `);
-        //assert.ok(bp.verified);
-        assert.equal(bp.line, line);
+        log(`Received setBreakpoint response: ${inspect(bp, { breakLength: Infinity })}`);
+        // assert.ok(bp.verified);
+        // assert.equal(bp.line, line);
         return breakpointResp;
     }
 
@@ -799,6 +833,10 @@ function findMarker(file: string, marker: string): number {
     throw Error('Marker not found');
 }
 
+function asyncTimer(timeoutMillis: number): Promise<void> {
+    return new Promise<void>((resolve) => setTimeout(resolve));
+}
+
 function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
     let error = new Error('Timed out');
     return new Promise<T>((resolve, reject) => {
@@ -820,18 +858,27 @@ function leftPad(s: string, p: string, n: number): string {
     return s;
 }
 
-function log(message: string) {
+function timestamp(): string {
     let d = new Date();
     let hh = leftPad(d.getHours().toString(), '0', 2);
     let mm = leftPad(d.getMinutes().toString(), '0', 2);
     let ss = leftPad(d.getSeconds().toString(), '0', 2);
-    testLog.write(`[${hh}: ${mm}: ${ss}]${message} `);
+    let fff = leftPad(d.getMilliseconds().toString(), '0', 3);
+    return `${hh}:${mm}:${ss}.${fff}`;
+}
+
+function log(message: string) {
+    testLog.write(`[${timestamp()}] ${message}\n`);
 }
 
 function dumpLogs(dest: stream.Writable) {
-    dest.write('--- Test log ---\n');
+    dest.write('\n=== Test log ==============\n');
     dest.write(testLog.toString());
-    dest.write('\n--- Adapter log ---\n');
+    if (testDataLog) {
+        dest.write('\n=== Received data log ====\n');
+        dest.write(testDataLog.toString());
+    }
+    dest.write('\n=== Adapter log ===========\n');
     dest.write(adapterLog.toString());
-    dest.write('\n------------------\n');
+    dest.write('\n===========================\n');
 }

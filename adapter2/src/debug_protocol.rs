@@ -1,8 +1,7 @@
 #![allow(non_camel_case_types)]
 
+use crate::vec_map::VecMap;
 use serde_derive::*;
-
-use std::collections::HashMap as Map;
 
 pub use raw_debug_protocol::{
     Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
@@ -151,47 +150,46 @@ pub enum EventBody {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct CommonLaunchFields {
+    pub name: String,
+    pub stop_on_entry: Option<bool>,
+    pub source_map: Option<VecMap<String, Option<String>>>,
+    pub expressions: Option<Expressions>,
+    pub init_commands: Option<Vec<String>>,
+    pub pre_run_commands: Option<Vec<String>>,
+    pub post_run_commands: Option<Vec<String>>,
+    pub exit_commands: Option<Vec<String>>,
+    pub source_languages: Option<Vec<String>>,
+    pub reverse_debugging: Option<bool>,
+    pub relative_path_base: Option<String>,
+    #[serde(rename = "_adapterSettings")]
+    pub adapter_settings: Option<AdapterSettings>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LaunchRequestArguments {
+    #[serde(flatten)]
+    pub common: CommonLaunchFields,
     pub no_debug: Option<bool>,
     pub program: Option<String>,
     pub args: Option<Vec<String>>,
     pub cwd: Option<String>,
-    pub env: Option<Map<String, String>>,
+    pub env: Option<VecMap<String, String>>,
     pub stdio: Option<Vec<Option<String>>>,
     pub terminal: Option<TerminalKind>,
-    pub stop_on_entry: Option<bool>,
-    pub init_commands: Option<Vec<String>>,
     pub target_create_commands: Option<Vec<String>>,
-    pub pre_run_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
-    pub post_run_commands: Option<Vec<String>>,
-    pub exit_commands: Option<Vec<String>>,
-    pub expressions: Option<Expressions>,
-    pub source_map: Option<Map<String, Option<String>>>,
-    pub source_languages: Option<Vec<String>>,
-    pub reverse_debugging: Option<bool>,
-    #[serde(rename = "_adapterSettings")]
-    pub adapter_settings: Option<AdapterSettings>,
     pub custom: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachRequestArguments {
+    #[serde(flatten)]
+    pub common: CommonLaunchFields,
     pub program: Option<String>,
     pub pid: Option<Pid>,
     pub wait_for: Option<bool>,
-    pub stop_on_entry: Option<bool>,
-    pub init_commands: Option<Vec<String>>,
-    pub pre_run_commands: Option<Vec<String>>,
-    pub post_run_commands: Option<Vec<String>>,
-    pub exit_commands: Option<Vec<String>>,
-    pub expressions: Option<Expressions>,
-    pub source_map: Option<Map<String, Option<String>>>,
-    pub source_languages: Option<Vec<String>>,
-    pub reverse_debugging: Option<bool>,
-    #[serde(rename = "_adapterSettings")]
-    pub adapter_settings: Option<AdapterSettings>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -268,40 +266,142 @@ pub enum Expressions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    macro_rules! assert_match(($e:expr, $p:pat) => { let r = $e; assert!(match r { $p => true, _ => false }, "{:?} does not match {}", r, stringify!($p)) });
+
     fn parse(s: &[u8]) -> ProtocolMessage {
         serde_json::from_slice::<ProtocolMessage>(s).unwrap()
     }
 
     #[test]
-    fn test1() {
-        dbg!(parse(br#"{"command":"initialize","arguments":{"clientID":"vscode","clientName":"Visual Studio Code","adapterID":"lldb","pathFormat":"path","linesStartAt1":true,"columnsStartAt1":true,"supportsVariableType":true,"supportsVariablePaging":true,"supportsRunInTerminalRequest":true,"locale":"en-us"},"type":"request","seq":1}"#));
-        dbg!(parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#));
+    fn test_initialize() {
+        let request = parse(br#"{"command":"initialize","arguments":{"clientID":"vscode","clientName":"Visual Studio Code","adapterID":"lldb","pathFormat":"path","linesStartAt1":true,"columnsStartAt1":true,"supportsVariableType":true,"supportsVariablePaging":true,"supportsRunInTerminalRequest":true,"locale":"en-us"},"type":"request","seq":1}"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::initialize(..)),
+                ..
+            })
+        );
+
+        let response = parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#);
+        assert_match!(
+            response,
+            ProtocolMessage::Response(Response {
+                body: Some(ResponseBody::initialize(..)),
+                ..
+            })
+        );
     }
 
     #[test]
-    fn test2() {
-        dbg!(parse(br#"{"command":"launch","arguments":{"type":"lldb","request":"launch","name":"Debug tests in types_lib","args":[],"cwd":"/home/chega/NW/vscode-lldb/debuggee","initCommands":["platform shell echo 'init'"],"env":{"TEST":"folder"},"sourceMap":{"/checkout/src":"/home/chega/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src"},"program":"/home/chega/NW/vscode-lldb/debuggee/target/debug/types_lib-d6a67ab7ca515c6b","debugServer":41025,"_displaySettings":{"showDisassembly":"always","displayFormat":"auto","dereferencePointers":true,"toggleContainerSummary":false,"containerSummary":true},"__sessionId":"81865613-a1ee-4a66-b449-a94165625fd2"},"type":"request","seq":2}"#));
-        dbg!(parse(br#"{"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#));
+    fn test_launch() {
+        let request = parse(br#"{"type":"request","seq":2, "command":"launch","arguments":{"type":"lldb","request":"launch","name":"Debug tests in types_lib",
+                        "program":"/home/chega/NW/vscode-lldb/debuggee/target/debug/types_lib-d6a67ab7ca515c6b",
+                        "args":[],
+                        "cwd":"/home/chega/NW/vscode-lldb/debuggee",
+                        "initCommands":["platform shell echo 'init'"],
+                        "env":{"TEST":"folder"},
+                        "sourceMap":{"/checkout/src":"/home/chega/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src"},
+                        "debugServer":41025,
+                        "_displaySettings":{"showDisassembly":"always","displayFormat":"auto","dereferencePointers":true,"toggleContainerSummary":false,"containerSummary":true},
+                        "__sessionId":"81865613-a1ee-4a66-b449-a94165625fd2"}
+                      }"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::launch(..)),
+                ..
+            })
+        );
+
+        let response = parse(br#"{"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
+        assert_match!(
+            response,
+            ProtocolMessage::Response(Response {
+                body: Some(ResponseBody::launch),
+                ..
+            })
+        );
     }
 
     #[test]
-    fn test3() {
-        dbg!(parse(br#"{"type":"event","event":"initialized","seq":0}"#));
-        dbg!(parse(br#"{"body":{"reason":"started","threadId":7537},"type":"event","event":"thread","seq":0}"#));
+    fn test_event() {
+        let event = parse(br#"{"type":"event","event":"initialized","seq":0}"#);
+        assert_match!(
+            event,
+            ProtocolMessage::Event(Event {
+                body: EventBody::initialized,
+                ..
+            })
+        );
+
+        let event = parse(br#"{"body":{"reason":"started","threadId":7537},"type":"event","event":"thread","seq":0}"#);
+        assert_match!(
+            event,
+            ProtocolMessage::Event(Event {
+                body: EventBody::thread(..),
+                ..
+            })
+        );
     }
 
     #[test]
-    fn test4() {
-        dbg!(parse(br#"{"command":"scopes","arguments":{"frameId":1000},"type":"request","seq":12}"#));
-        dbg!(parse(br#"{"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#));
+    fn test_scopes() {
+        let request = parse(br#"{"command":"scopes","arguments":{"frameId":1000},"type":"request","seq":12}"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::scopes(..)),
+                ..
+            })
+        );
+
+        let response = parse(br#"{"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
+        assert_match!(
+            response,
+            ProtocolMessage::Response(Response {
+                body: Some(ResponseBody::scopes(..)),
+                ..
+            })
+        );
     }
 
     #[test]
-    fn test5() {
-        dbg!(parse(
-            br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#
-        ));
-        dbg!(parse(br#"{"type":"request", "seq":12, "command":"disconnect"}"#));
-        dbg!(parse(br#"{"type":"request", "seq":12, "command":"foobar"}"#));
+    fn test_disconnect() {
+        let request =
+            parse(br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::disconnect(..)),
+                ..
+            })
+        );
+
+        let request = parse(br#"{"type":"request", "seq":12, "command":"disconnect"}"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Unknown {
+                    ..
+                },
+                ..
+            })
+        );
+    }
+
+    #[test]
+    fn test_unknown() {
+        let request = parse(br#"{"type":"request", "seq":12, "command":"foobar"}"#);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Unknown {
+                    ..
+                },
+                ..
+            })
+        );
     }
 }

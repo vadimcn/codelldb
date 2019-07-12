@@ -181,8 +181,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         this.propagateDisplaySettings();
 
         let adapterType = this.getAdapterType(undefined);
-        if (adapterType =='bundled' || adapterType=='native')
-        {
+        if (adapterType == 'bundled' || adapterType == 'native') {
             install.ensurePlatformPackage(this.context, output);
         }
     }
@@ -242,6 +241,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             launchConfig.request = 'launch';
             launchConfig.custom = true;
         }
+
+        launchConfig.relativePathBase = launchConfig.relativePathBase || workspace.rootPath;
 
         // Deal with Cargo
         let cargoDict: Dict<string> = {};

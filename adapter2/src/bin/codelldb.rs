@@ -1,9 +1,4 @@
-use clap::{App, Arg};
-use std::env;
-use std::mem;
-use std::path::Path;
-
-use self::loading::*;
+use clap::{App, Arg, ArgMatches, SubCommand};
 
 fn main() -> Result<(), failure::Error> {
     env_logger::Builder::from_default_env().init();
@@ -13,7 +8,54 @@ fn main() -> Result<(), failure::Error> {
         .arg(Arg::with_name("multi-session").long("multi-session"))
         .arg(Arg::with_name("preload").long("preload").multiple(true).takes_value(true))
         .arg(Arg::with_name("params").long("params").takes_value(true))
+        .subcommand(SubCommand::with_name("terminal-agent").arg(Arg::with_name("port").long("port").takes_value(true)))
         .get_matches();
+
+    if let Some(matches) = matches.subcommand_matches("terminal-agent") {
+        terminal_agent(&matches)
+    } else {
+        debug_server(&matches)
+    }
+}
+
+fn terminal_agent(matches: &ArgMatches) -> Result<(), failure::Error> {
+    use std::io::{Read, Write};
+    use std::net;
+
+    let data;
+    #[cfg(unix)]
+    {
+        unsafe {
+            data = std::ffi::CStr::from_ptr(libc::ttyname(1)).to_str()?;
+        }
+    }
+    #[cfg(windows)]
+    {
+        data = std::process::id();
+    }
+
+    let port: u16 = matches.value_of("port").unwrap().parse().unwrap();
+    let addr = net::SocketAddr::new(net::Ipv4Addr::new(127, 0, 0, 1).into(), port);
+    let mut stream = net::TcpStream::connect(addr)?;
+    write!(stream, "{}", data)?;
+
+    let terminal = crossterm::terminal();
+    let _ = terminal.clear(crossterm::ClearType::All);
+
+    stream.shutdown(net::Shutdown::Write)?;
+    // Wait for the other end to close connection (which will be maintained till the end of
+    // the debug session; this prevents terminal shell from stealing debuggee's input form stdin).
+    for b in stream.bytes() {
+        b?;
+    }
+    Ok(())
+}
+
+fn debug_server(matches: &ArgMatches) -> Result<(), failure::Error> {
+    use self::loading::*;
+    use std::env;
+    use std::mem;
+    use std::path::Path;
 
     let multi_session = matches.is_present("multi-session");
     let port = matches.value_of("port").map(|s| s.parse().unwrap()).unwrap_or(0);

@@ -1,41 +1,112 @@
+use crate::error::Error;
+use log::debug;
 use std::io::{self, BufRead};
-use std::net;
+use std::net::{TcpListener, TcpStream};
+use std::thread;
+use std::time::{Duration, Instant};
+
+#[cfg(windows)]
+extern "stdcall" {
+    fn FreeConsole() -> u32;
+    fn AttachConsole(pid: u32) -> u32;
+    fn GetLastError() -> u32;
+}
 
 pub struct Terminal {
-    connection: net::TcpStream,
-    tty_name: String,
+    connection: TcpStream,
+    data: String,
 }
 
 impl Terminal {
-    pub fn create<F>(run_in_terminal: F) -> Result<Self, io::Error>
+    pub fn create<F>(run_in_terminal: F) -> Result<Self, Error>
     where
         F: FnOnce(Vec<String>),
     {
-        let mut listener = net::TcpListener::bind("127.0.0.1:0")?;
+        let mut listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
 
-        // Opens TCP connection, send output of `tty`, wait till the socket gets closed from our end
-        let args = vec![
-            "/bin/bash".to_owned(),
-            "-c".to_owned(),
-            format!("exec 3<>/dev/tcp/127.0.0.1/{}; tty >&3; clear; read <&3", addr.port()),
-        ];
-        run_in_terminal(args);
+        // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
+        // or its own process id (Windows), then waits till the socket gets closed from our end.
+        let mut executable = std::env::current_exe()?;
+        run_in_terminal(vec![
+            executable.to_str().unwrap().into(),
+            "terminal-agent".into(),
+            format!("--port={}", addr.port()),
+        ]);
 
-        let (stream, _) = listener.accept()?;
+        let stream = accept_with_timeout(&mut listener, Duration::from_millis(5000))?;
         let stream2 = stream.try_clone()?;
 
         let mut reader = io::BufReader::new(stream);
-        let mut tty_name = String::new();
-        reader.read_line(&mut tty_name)?;
+        let mut data = String::new();
+        reader.read_line(&mut data)?;
 
         Ok(Terminal {
             connection: stream2,
-            tty_name: tty_name.trim().to_owned(),
+            data: data.trim().to_owned(),
         })
     }
 
-    pub fn tty_name(&self) -> &str {
-        &self.tty_name
+    pub fn input_devname(&self) -> &str {
+        if cfg!(windows) {
+            "CONIN$"
+        } else {
+            &self.data
+        }
     }
+
+    pub fn output_devname(&self) -> &str {
+        if cfg!(windows) {
+            "CONOUT$"
+        } else {
+            &self.data
+        }
+    }
+
+    pub fn attach<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        // Windows does not have an API for launching a child process attached to another console.
+        // Instead,
+        #[cfg(windows)]
+        {
+            let pid = self.data.parse::<u32>().unwrap();
+            unsafe {
+                dbg!(FreeConsole());
+                dbg!(AttachConsole(pid));
+            }
+            let result = f();
+            unsafe {
+                dbg!(FreeConsole());
+            }
+            result
+        }
+
+        #[cfg(not(windows))]
+        f()
+    }
+}
+
+// No set_accept_timeout() in std :(
+fn accept_with_timeout(listener: &mut TcpListener, timeout: Duration) -> Result<TcpStream, Error> {
+    listener.set_nonblocking(true)?;
+    let timeout = Duration::from_millis(5000);
+    let started = Instant::now();
+    let stream = loop {
+        match listener.accept() {
+            Ok((stream, _addr)) => break stream,
+            Err(e) => {
+                if e.kind() != io::ErrorKind::WouldBlock {
+                    return Err(e.into());
+                } else {
+                    thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+        if started.elapsed() > timeout {
+            return Err(Error::Internal("Terminal agent did not respond within the allotted time.".into()));
+        }
+    };
+    Ok(stream)
 }

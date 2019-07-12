@@ -309,6 +309,13 @@ int main(int argc, char *argv[])
         for (int i = 0; i < 1000; ++i)
             printf("SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM SPAM\n");
     }
+    else if (testcase == "stdio")
+    {
+        fprintf(stdout, "stdout\n");
+        fflush(stdout);
+        fprintf(stderr, "stderr\n");
+        fflush(stderr);
+    }
     else
     {
         printf("Unknown testcase.\n");

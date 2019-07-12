@@ -99,7 +99,7 @@ pub struct DebugSession {
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     loaded_modules: Vec<SBModule>,
     exit_commands: Option<Vec<String>>,
-    terminal: Option<Terminal>,
+    debuggee_terminal: Option<Terminal>,
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
     default_expr_type: Expressions,
@@ -172,7 +172,7 @@ impl DebugSession {
             source_map_cache: RefCell::new(HashMap::new()),
             loaded_modules: Vec::new(),
             exit_commands: None,
-            terminal: None,
+            debuggee_terminal: None,
             selected_frame_changed: false,
             last_goto_request: None,
             default_expr_type: Expressions::Simple,
@@ -1019,9 +1019,15 @@ impl DebugSession {
             }
         }
 
-        // Launch!
         launch_info.set_listener(&self.event_listener);
-        let process = match self.target.launch(&launch_info) {
+
+        // Launch!
+        let result = match &self.debuggee_terminal {
+            Some(t) => t.attach(|| self.target.launch(&launch_info)),
+            None => self.target.launch(&launch_info)
+        };
+
+        let process = match result {
             Ok(process) => process,
             Err(err) => {
                 let mut msg: String = err.error_string().into();
@@ -1183,31 +1189,26 @@ impl DebugSession {
     fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {
         let terminal_kind = args.terminal.unwrap_or(TerminalKind::Console);
 
-        let tty_name = {
-            #[cfg(unix)]
-            match terminal_kind {
-                TerminalKind::External | TerminalKind::Integrated => {
-                    let terminal = Terminal::create(|args| self.run_in_vscode_terminal(terminal_kind.clone(), args))?;
-                    let tty_name = terminal.tty_name().to_owned();
-                    self.terminal = Some(terminal);
-                    Some(tty_name)
-                }
-                TerminalKind::Console => None,
+        self.debuggee_terminal = match terminal_kind {
+            TerminalKind::External | TerminalKind::Integrated => {
+                let terminal = Terminal::create(|args| self.run_in_vscode_terminal(terminal_kind.clone(), args))?;
+                Some(terminal)
             }
-            #[cfg(windows)]
-            {
-                let without_console: &[u8] = match terminal_kind {
-                    TerminalKind::External => b"false\0",
-                    TerminalKind::Integrated | TerminalKind::Console => b"true\0",
-                };
-                // MSVC's getenv caches environment vars, so setting it via env::set_var() doesn't work.
-                put_env(
-                    CStr::from_bytes_with_nul(b"LLDB_LAUNCH_INFERIORS_WITHOUT_CONSOLE\0").unwrap(),
-                    CStr::from_bytes_with_nul(without_console).unwrap(),
-                );
-                None
-            }
+            TerminalKind::Console => None,
         };
+        // #[cfg(windows)]
+        // {
+        //     let without_console: &[u8] = match terminal_kind {
+        //         TerminalKind::External => b"false\0",
+        //         TerminalKind::Integrated | TerminalKind::Console => b"true\0",
+        //     };
+        //     // MSVC's getenv caches environment vars, so setting it via env::set_var() doesn't work.
+        //     put_env(
+        //         CStr::from_bytes_with_nul(b"LLDB_LAUNCH_INFERIORS_WITHOUT_CONSOLE\0").unwrap(),
+        //         CStr::from_bytes_with_nul(without_console).unwrap(),
+        //     );
+        //     None
+        // }
 
         let mut stdio = match args.stdio {
             Some(ref stdio) => stdio.clone(),
@@ -1218,16 +1219,21 @@ impl DebugSession {
             stdio.push(None)
         }
 
-        for (fd, name) in stdio.iter().enumerate() {
-            let (read, write) = match fd {
-                0 => (true, false),
-                1 => (false, true),
-                2 => (false, true),
-                _ => (true, true),
-            };
-            let name = name.as_ref().or(tty_name.as_ref());
-            if let Some(name) = name {
-                launch_info.add_open_file_action(fd as i32, name, read, write);
+        if let Some(terminal) = &self.debuggee_terminal {
+            for (fd, name) in stdio.iter().enumerate() {
+                // Use file name specified in the launch config if available,
+                // otherwise use the appropriate terminal device name.
+                let name = match (name, fd) {
+                    (Some(name), _) => name,
+                    (None, 0) => terminal.input_devname(),
+                    (None, _) => terminal.output_devname(),
+                };
+                let _ = match fd {
+                    0 => launch_info.add_open_file_action(fd as i32, name, true, false),
+                    1 => launch_info.add_open_file_action(fd as i32, name, false, true),
+                    2 => launch_info.add_open_file_action(fd as i32, name, false, true),
+                    _ => launch_info.add_open_file_action(fd as i32, name, true, true),
+                };
             }
         }
 
@@ -2144,6 +2150,10 @@ impl DebugSession {
         if let Some(commands) = &self.exit_commands {
             self.exec_commands("exitCommands", &commands)?;
         }
+
+        // Let go of the terminal helper connection
+        self.debuggee_terminal = None;
+
         let terminate = match args {
             None => self.process_was_launched,
             Some(args) => match args.terminate_debuggee {

@@ -48,6 +48,15 @@
 			]
 		},
 		{
+			"name": "debuggee launch stdio",
+			"type": "lldb",
+			"request": "launch",
+			"initCommands": ["log enable lldb target process"],
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["stdio"],
+			"terminal": "integrated"
+		},
+		{
 			"name": "debuggee launch disassembly",
 			"type": "lldb",
 			"request": "launch",

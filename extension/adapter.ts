@@ -49,9 +49,9 @@ export async function startNative(
     if (adapterParameters) {
         args = args.concat(['--params', JSON.stringify(adapterParameters)]);
     }
+    env['RUST_TRACEBACK'] = '1';
     if (verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
-        env['RUST_TRACEBACK'] = '1';
     }
     return spawnDebugAdapter(executable, args, env, workDir);
 }

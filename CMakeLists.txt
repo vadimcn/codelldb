@@ -147,8 +147,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     endif()
 
     add_custom_target(strip_binaries
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} "{}" "\;"
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} -g "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} -g "{}" "\;"
         COMMENT "Stripping debug info"
         USES_TERMINAL
     )

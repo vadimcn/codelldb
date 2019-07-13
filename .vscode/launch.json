@@ -47,7 +47,7 @@
 			"env": {
 				"RUST_LOG": "error,codelldb=debug",
 				"RUST_LOG_STYLE": "always",
-				"RUST_BACKTRACE": "full",
+				"RUST_BACKTRACE": "1",
 			},
 			"sourceLanguages": [
 				"cpp",

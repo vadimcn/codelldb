@@ -406,6 +406,16 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         }
         util.logProcessOutput(adapterProcess, output);
         let port = await adapter.getDebugServerPort(adapterProcess);
+
+        adapterProcess.on('exit', async (code, signal) => {
+            output.appendLine(`Debug adapter exit code=${code}, signal=${signal}.`);
+            if (code != 0) {
+                let result = await window.showErrorMessage('Oops!  The debug adapter has terminated abnormally.', 'Open log');
+                if (result != undefined) {
+                    output.show();
+                }
+            }
+        });
         return [adapterProcess, port];
     }
 

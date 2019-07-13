@@ -106,7 +106,6 @@ impl PythonInterface {
         let result = self.pyfn_evaluate_in_frame.call(py, (expr, is_simple_expr, pysb_exec_context), None);
         let target = context.target().unwrap();
         let result = self.to_sbvalue(py, &target, result);
-        debug!("evaluate {} -> {:?}", expr, result);
         result
     }
 

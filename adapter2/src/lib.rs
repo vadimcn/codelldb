@@ -31,6 +31,7 @@ mod wire_protocol;
 
 #[no_mangle]
 pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
+    hook_crashes();
     env_logger::Builder::from_default_env().init();
     SBDebugger::initialize();
 
@@ -73,8 +74,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
 }
 
 fn run_debug_session(
-    stream: impl AsyncRead + AsyncWrite + Send + 'static,
-    adapter_settings: debug_protocol::AdapterSettings,
+    stream: impl AsyncRead + AsyncWrite + Send + 'static, adapter_settings: debug_protocol::AdapterSettings,
 ) -> impl Future<Item = (), Error = io::Error> {
     future::lazy(|| {
         debug!("New debug session");
@@ -102,3 +102,28 @@ fn run_debug_session(
         session_to_client
     })
 }
+
+#[cfg(unix)]
+fn hook_crashes() {
+    extern "C" fn handler(sig: libc::c_int) {
+        let sig_name = match sig {
+            libc::SIGSEGV => "SIGSEGV",
+            libc::SIGBUS => "SIGBUS",
+            libc::SIGILL => "SIGILL",
+            libc::SIGFPE => "SIGFPE",
+            libc::SIGABRT => "SIGABRT",
+            _ => unreachable!(),
+        };
+        panic!(sig_name);
+    }
+    unsafe {
+        libc::signal(libc::SIGSEGV, handler as usize);
+        libc::signal(libc::SIGBUS, handler as usize);
+        libc::signal(libc::SIGILL, handler as usize);
+        libc::signal(libc::SIGFPE, handler as usize);
+        libc::signal(libc::SIGABRT, handler as usize);
+    }
+}
+
+#[cfg(windows)]
+fn hook_crashes() {}

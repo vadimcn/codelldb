@@ -1,5 +1,18 @@
 # Release Notes
 
+# 1.3.0
+
+## Fixed
+- Redirection to the integrated terminal now works on Windows too.
+
+## Changed
+- Native adapter is now the default.  You can still use 'classic' or 'bundle' by setting the `lldb.adapterType` configuration option.
+- "integrated" is now the default value for the "terminal" launch config property.
+
+## New
+- Loaded modules viewlet: rather than printing loaded modules notifications in the Debug Console view, modules are now displayed in a separate tab in the Debug view.
+- Native adapter now supports [reverse debugging](MANUAL.md#reverse-debugging).
+- `lldb.consoleMode` setting, which controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate.
 # 1.2.3
 
 ## New

@@ -1,4 +1,4 @@
-# Pre-requisites:
+# Prerequisites:
 - Node.js and npm, v8 or later.
 - Python 2.7 on Linux and OSX, Python 3.6 on Windows.
 - C++ compiler (GCC, clang or MSVC).

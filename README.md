@@ -2,30 +2,26 @@ CodeLLDB: a LLDB front end for Visual Studio Code
 =================================================
 
 # Features
-- Supports Linux, macOS and Windows (with caveats - see below).
-- Launch processes with configurable stdio redirection.
-- Attach to processes by pid or by name.
-- Scripted custom launch for ultimate flexibility.
-- Function, conditional and regex breakpoints.
-- Disassembly View.
-- LLDB commands and expression evaluation in Debug Console.
-- Configurable result formatting.
-- Display of HTML content.
+- Supports Linux, macOS and Windows.
+- Launch/attach/custom launch.
+- Redirection of debuggee's stdio to integrated or external terminal.
+- Function, conditional and regex breakpoints, logpoints.
+- Flexible launch configurations with settings inheritance.
+- Jump to cursor.
+- Variable view with customizable formatting.
+- Disassembly view.
 - Rust language support.
+- Python scripting.
+- Direct execution of LLDB commands.
+- Remote debugging.
+- Reverse debugging (experimental, requires compatible backend).
 
-For full details please see the [Manual](https://github.com/vadimcn/vscode-lldb/blob/v@VERSION@/MANUAL.md).
+For full details please see the [Users Manual](MANUAL.md).
 
----
-
-C++ debugging with data visualization ([Howto](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization)):
-![source](images/plotting.png)
-<br>
-Rust debugging:
-![source](images/source.png)
-
-# Prerequisites
-- Visual Studio Code 1.15.0.
-- LLDB with Python scripting support on system PATH. ([Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB))
+# Requirements
+- 64-bit OS.
+- Python 2.7 on Linux and macOS.
+- Python 3.6 on Windows.
 
 # Quick Start
 Here's a minimal debug configuration to get you started:
@@ -39,10 +35,21 @@ Here's a minimal debug configuration to get you started:
 }
 ```
 
-See also: [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging).
-
 # Links
-- [Installing LLDB](https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB)
-- [The Fine Manual](https://github.com/vadimcn/vscode-lldb/blob/v@VERSION@/MANUAL.md)
+- [Users Manual](MANUAL.md)
+- [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging)
+- [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
 - [Wiki](https://github.com/vadimcn/vscode-lldb/wiki)
 - [Chat](https://gitter.im/vscode-lldb/QnA)
+
+
+# Screenshots
+
+C++ debugging with data visualization ([Howto](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization)):<br>
+![source](images/plotting.png)
+<br>
+<br>
+Rust debugging:<br>
+![source](images/source.png)
+
+

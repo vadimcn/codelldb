@@ -8,7 +8,7 @@
     - [Custom Launch](#custom-launch)
     - [Remote Debugging](#remote-debugging)
     - [Reverse Debugging](#reverse-debugging)
-    - [Loading a Core Dump](#loading-a-core-dump)
+    - [Loading Core Dump](#loading-core-dump)
     - [Source Path Remapping](#source-path-remapping)
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
 - [Debugger Features](#debugger-features)
@@ -63,18 +63,19 @@ At the end of the debug session `exitCommands` sequence is executed.
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ### Stdio
-The **stdio** property is a list of redirection targets for each of debuggee's stdio streams:
-- `null` (default) will connect stream to a terminal (as specified by the **terminal** launch property)<sup>1</sup>.
-- `"/some/path"` will cause stream to be redirected to the specified file, pipe or a TTY device <sup>2</sup>.
+The **stdio** property is a list of redirection targets for each of the debuggee's stdio streams:
+- `null` value will cause redirect to the default debug session terminal (as specified by the **terminal** launch property),
+- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or a TTY device,
+- if you provide less than 3 values, the list will be padded to 3 entries using the last provided value,
+- you may specify more than three values, in which case additional file descriptors will be created (4, 5, etc.)
 
-For example, `"stdio": [null, null, "/tmp/my.log"]` will connect stdin and stdout to a terminal, while sending
-stderr to the specified file.
-- A scalar value will configure all three streams identically: `"stdio": null`.
-- You may also use dictionary syntax: `"stdio": { "stdin": null, "stdout": null, "stderr": "/tmp/my.log" }`.
+Examples:
+- `"stdio": [null, "log.txt", null]` - connect stdin and stderr to the default terminal, while sending
+stdout to "log.txt",
+- `"stdio": ["input.txt", "log.txt"]` - connect stdin to "input.txt", while sending both stdout and stderr to "log.txt",
+- `"stdio": null` - connect all three streams to the default terminal.
 
-<sup>1</sup> On Windows debuggee is always launched in a new window, however stdio streams may still be redirected
-as described above.<br>
-<sup>2</sup> Use `tty` command inside a terminal window to find out its TTY device path.
+Hint: Use `tty` command inside a terminal window to find out its TTY device name.
 
 ## Attaching
 
@@ -124,12 +125,14 @@ happens in these steps:
 |**name**           |string  |Y| Launch configuration name.
 |**type**           |string  |Y| Set to `lldb`.
 |**request**        |string  |Y| Set to `custom`.
+|**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**targetCreateCommands**  |[string]| | Commands that create the debug target.
 |**processCreateCommands** |[string]| | Commands that create the debuggee process.
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**reverseDebugging**|bool| | Enable [reverse debugging](#reverse-debugging).
 
 ## Remote debugging
 
@@ -159,8 +162,8 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
 (See `help platform` for a list of available platform commands).
 
 ### Connecting to a gdbserver-style agent
-(This includes not just gdbserver itself, but also environments that implement the gdbserver protocol,
- such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others)
+This includes not just gdbserver itself, but also execution environments that implement the gdbserver protocol,
+such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others.
 
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
 - Create a custom launch configuration:
@@ -183,10 +186,17 @@ target modules load --file ${workspaceFolder}/build/debuggee -s <base load addre
 ```
 
 ## Reverse Debugging
-[Reverse debugging](https://en.wikipedia.org/wiki/Time_travel_debugging) (also known as "Time-travel debugging") is
-the ability to reverse the flow of debuggee execution to an earlier state.
+[Reverse debugging](https://en.wikipedia.org/wiki/Time_travel_debugging), is the ability to revert the flow of debuggee
+execution to an earlier state.
 
-### Example
+Provided you use a debugging backend that supports [this feature](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB can send reverse-step and reverse-continue commands to it.
+
+At the moment, the only tested backend is [Mozilla's rr](https://rr-project.org/) (you will need version 5.3 or later).
+There are others mentioned [here](http://www.sourceware.org/gdb/news/reversible.html) and [here](https://github.com/mozilla/rr/wiki/Related-work).
+[QEMU](https://www.qemu.org/) reportedly [supports record/replay](https://github.com/qemu/qemu/blob/master/docs/replay.txt) in full system emulation mode.
+If you get any of them to work, please let me know!
+
+### Example: (using rr)
 Record execution trace:
 ```sh
 rr record <debuggee> <arg1> ...
@@ -208,7 +218,7 @@ rr replay -s <port>
 }
 ```
 
-## Loading a Core Dump
+## Loading Core Dump
 Use custom launch with `target crate -c <core path>` command:
 ```javascript
 {
@@ -447,9 +457,10 @@ configurations (if there is no `launch.json` in the workspace).
 |**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
 |**lldb.displayFormat**|The default format for variable and expression values.
-|**lldb.showDisassembly**|When to show disassembly:<li>auto - only when source is not available.,<li>never - never show.,<li>always - always show, even if source is available.
+|**lldb.showDisassembly**|When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
 |**lldb.dereferencePointers**|Whether to show a summary of the pointee, or a numeriric value for pointers.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
+|**lldb.consoleMode**|Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).
 
 ## Advanced
 |                       |                                                         |

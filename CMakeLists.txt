@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(VERSION 1.2.4-dev)
+set(VERSION 1.3.0-dev)
 
 include(cmake/CopyFiles.cmake)
 include(cmake/Typescript.cmake)
@@ -39,15 +39,8 @@ add_subdirectory(tests)
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
-configure_file(README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md @ONLY)
-configure_file(MANUAL.md ${CMAKE_CURRENT_BINARY_DIR}/MANUAL.md @ONLY)
-configure_file(CHANGELOG.md ${CMAKE_CURRENT_BINARY_DIR}/CHANGELOG.md @ONLY)
-configure_file(images/lldb.png ${CMAKE_CURRENT_BINARY_DIR}/images/lldb.png COPYONLY)
-configure_file(images/disasm.png ${CMAKE_CURRENT_BINARY_DIR}/images/disasm.png COPYONLY)
-configure_file(images/plotting.png ${CMAKE_CURRENT_BINARY_DIR}/images/plotting.png COPYONLY)
-configure_file(images/source.png ${CMAKE_CURRENT_BINARY_DIR}/images/source.png COPYONLY)
-configure_file(syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json COPYONLY)
 
+# Run 'npm install'
 execute_process(
     COMMAND ${NPM} install
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -93,7 +86,6 @@ add_custom_target(dev_debugging
 set(PackagedFilesPortable
     README.md
     CHANGELOG.md
-    MANUAL.md
     adapter/**/*.py
     formatters/*
     images/*
@@ -126,18 +118,23 @@ foreach(Line ${PackagedFilesFull})
 endforeach()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${Content})
 
+set(VsceOptions
+    --baseContentUrl https://github.com/vadimcn/vscode-lldb/blob/v${VERSION}
+    --baseImagesUrl https://github.com/vadimcn/vscode-lldb/raw/v${VERSION}
+)
+
 add_custom_target(vsix_portable
-    DEPENDS adapter extension
+    DEPENDS adapter extension ${PackageFiles}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
 
 add_custom_target(vsix_full
-    DEPENDS adapter extension lldb codelldb
+    DEPENDS adapter extension lldb codelldb ${PackageFiles}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )

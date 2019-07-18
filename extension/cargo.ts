@@ -1,11 +1,12 @@
 import { window, DebugConfiguration } from 'vscode';
 import * as cp from 'child_process';
-import * as async from './async';
+import * as async from './novsc/async';
 import * as path from 'path';
-import * as util from './util';
+import * as util from './configUtils';
 import { inspect } from 'util';
-import { Dict } from './common';
+import { Dict } from './novsc/commonTypes';
 import { output } from './main';
+import {expandVariablesInObject} from './novsc/expand';
 
 export interface CargoConfig {
     args: string[];
@@ -231,5 +232,5 @@ export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<st
             return value.toString();
         }
     };
-    return util.expandVariablesInObject(launchConfig, expander);
+    return expandVariablesInObject(launchConfig, expander);
 }

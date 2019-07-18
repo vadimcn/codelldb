@@ -10,12 +10,14 @@ import * as path from 'path';
 import * as diagnostics from './diagnostics';
 import * as htmlView from './htmlView';
 import * as cargo from './cargo';
-import * as util from './util';
-import * as adapter from './adapter';
+import * as util from './configUtils';
+import { pickProcess } from './pickProcess';
+import * as adapter from './novsc/adapter';
 import * as install from './install';
-import { Dict, AdapterType, toAdapterType } from './common';
+import { Dict, AdapterType, toAdapterType } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
+import { mergeValues } from './novsc/expand';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -42,8 +44,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
-        subscriptions.push(commands.registerCommand('lldb.pickProcess', () => this.pickProcess(false)));
-        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => this.pickProcess(true)));
+        subscriptions.push(commands.registerCommand('lldb.pickProcess', () => pickProcess(false)));
+        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => pickProcess(true)));
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
@@ -291,7 +293,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let mergeConfig = (key: string, reverse: boolean = false) => {
             let value1 = util.getConfigNoDefault(launchConfig, key);
             let value2 = debugConfig[key];
-            let value = !reverse ? util.mergeValues(value1, value2) : util.mergeValues(value2, value1);
+            let value = !reverse ? mergeValues(value1, value2) : mergeValues(value2, value1);
             if (!util.isEmpty(value))
                 debugConfig[key] = value;
         }
@@ -329,16 +331,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         } catch (err) {
             output.show();
             window.showErrorMessage(err.toString());
-        }
-    }
-
-    async pickProcess(currentUserOnly: boolean): Promise<string> {
-        let items = util.getProcessList(currentUserOnly);
-        let item = await window.showQuickPick(items);
-        if (item) {
-            return item.pid.toString();
-        } else {
-            return undefined;
         }
     }
 

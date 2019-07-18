@@ -10,8 +10,8 @@ import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import { WritableStream } from 'memory-streams';
 
-import { AdapterType, toAdapterType } from 'extension/common';
-import * as adapter from 'extension/adapter';
+import { AdapterType, toAdapterType } from 'extension/novsc/commonTypes';
+import * as adapter from 'extension/novsc/adapter';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const adapterType = toAdapterType(process.env.ADAPTER_TYPE);

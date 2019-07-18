@@ -1,10 +1,10 @@
+import { ExtensionContext, window, OutputChannel, Uri, extensions, env } from 'vscode';
 import * as zip from 'yauzl';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as async from './async';
-import { ExtensionContext, window, OutputChannel, Uri, extensions, env } from 'vscode';
 import { Writable } from 'stream';
+import * as async from './novsc/async';
 
 const MaxRedirects = 10;
 
@@ -74,7 +74,7 @@ async function download(srcUrl: Uri, destPath: string,
     progress?: (downloaded: number, contentLength?: number) => void) {
 
     for (let i = 0; i < MaxRedirects; ++i) {
-        let response = await async.https.get(srcUrl);
+        let response = await async.https.get(srcUrl.toString(true));
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
             srcUrl = Uri.parse(response.headers.location);
         } else {

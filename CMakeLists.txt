@@ -94,7 +94,7 @@ set(PackagedFilesPortable
     formatters/*
     images/*
     syntaxes/*
-    extension/*.js
+    extension/**/*.js
     node_modules/**/*.js
 )
 

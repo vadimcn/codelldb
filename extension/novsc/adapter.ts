@@ -1,10 +1,9 @@
 import * as cp from 'child_process';
 import * as path from 'path';
 import { Readable } from 'stream';
-import * as util from './util';
 import * as async from './async';
-import { Dict } from './common';
-import { Environment } from './util';
+import { Dict, Environment } from './commonTypes';
+import { expandVariables } from './expand';
 
 export async function startClassic(
     extensionRoot: string,
@@ -15,7 +14,7 @@ export async function startClassic(
     verboseLogging: boolean,
 ): Promise<cp.ChildProcess> {
 
-    let env = util.mergeEnv(extraEnv);
+    let env = mergeEnv(extraEnv);
     if (verboseLogging) {
         adapterParameters['logLevel'] = 0;
     }
@@ -36,7 +35,7 @@ export async function startNative(
     verboseLogging: boolean,
 ): Promise<cp.ChildProcess> {
 
-    let env = util.mergeEnv(extraEnv);
+    let env = mergeEnv(extraEnv);
     let executable = path.join(extensionRoot, 'adapter2/codelldb');
     let args = ['--preload', liblldb];
     if (process.platform == 'win32') {
@@ -158,12 +157,41 @@ export async function findLibLLDB(pathHint: string): Promise<string | null> {
     }
 
     for (let dir of [pathHint, libDir]) {
-        let file = await util.findFileByPattern(dir, pattern);
+        let file = await findFileByPattern(dir, pattern);
         if (file) {
             return path.join(dir, file);
         }
     }
     return null;
+}
+
+async function findFileByPattern(path: string, pattern: RegExp): Promise<string | null> {
+    try {
+        let files = await async.fs.readdir(path);
+        for (let file of files) {
+            if (pattern.test(file))
+                return file;
+        }
+    }
+    catch (err) {
+        // Ignore missing diractories and such...
+    }
+    return null;
+}
+
+
+// Expand ${env:...} placeholders in extraEnv and merge it with the current process' environment.
+export function mergeEnv(extraEnv: Dict<string>): Environment {
+    let env = new Environment(process.platform == 'win32');
+    env = Object.assign(env, process.env);
+    for (let key in extraEnv) {
+        env[key] = expandVariables(extraEnv[key], (type, key) => {
+            if (type == 'env')
+                return process.env[key];
+            throw new Error('Unknown variable type ' + type);
+        });
+    }
+    return env;
 }
 
 export const pythonVersion = '3.6';
@@ -187,9 +215,30 @@ async function getWindowsPythonPathImpl(): Promise<string> {
     if (process.platform != 'win32')
         return undefined;
 
-    let path = await util.readRegistry(`HKCU\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
+    let path = await readRegistry(`HKCU\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
     if (!path) {
-        path = await util.readRegistry(`HKLM\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
+        path = await readRegistry(`HKLM\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
     }
     return path;
+}
+
+async function readRegistry(path: string, value?: string): Promise<string> {
+    let args = ['query', path];
+    if (value != null)
+        args.push('/v', value);
+    else
+        args.push('/ve');
+    args.push('/reg:64');
+
+    try {
+        let { stdout } = await async.cp.execFile('reg.exe', args);
+        let m = (/REG_SZ\s+(.*)/).exec(stdout);
+        if (m) {
+            return m[1];
+        } else {
+            return null;
+        }
+    } catch (err) {
+        return null;
+    }
 }

@@ -1,5 +1,5 @@
 function(add_typescript Target)
-    file(GLOB Sources
+    file(GLOB_RECURSE Sources
         RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/*.ts)
 

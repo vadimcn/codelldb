@@ -1,6 +1,6 @@
 import { debug, TreeDataProvider, TreeItem, ProviderResult, EventEmitter, ExtensionContext, DebugSessionCustomEvent, TreeItemCollapsibleState, DebugSession, commands, env } from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { Dict } from './common';
+import { Dict } from './novsc/commonTypes';
 
 type Module = DebugProtocol.Module
 

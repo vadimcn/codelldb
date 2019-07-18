@@ -39,6 +39,7 @@ add_subdirectory(tests)
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Run 'npm install'
 execute_process(
@@ -49,6 +50,9 @@ execute_process(
 if (NOT ${Result} EQUAL 0)
     message(FATAL_ERROR "npm intall failed: ${Result}")
 endif()
+
+# Copy it back, so we can commit the lock file.
+file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Extension package resources
 

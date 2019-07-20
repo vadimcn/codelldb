@@ -175,7 +175,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
             if (choice != null) {
                 let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
-                let uri = Uri.parse(`file://${changelog}`);
+                let uri = Uri.file(changelog);
                 await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
             }
         }

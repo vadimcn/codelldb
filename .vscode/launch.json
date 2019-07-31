@@ -40,7 +40,7 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.so.8.0.0-custom",
+				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.so.8.0.1-custom",
 				"--multi-session",
 				"--port=4711"
 			],
@@ -62,7 +62,7 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.8.0.0-custom.dylib",
+				"--preload=${workspaceFolder}/build/lldb/lib/liblldb.8.0.1-custom.dylib",
 				"--multi-session",
 				"--port=4711"
 			],

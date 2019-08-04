@@ -3,11 +3,11 @@
 
 - [Starting a Debug Session](#starting-a-debug-session)
     - [Launching](#launching)
-        - [Configuring Stdio](#stdio)
+        - [Stdio Redirection](#stdio)
     - [Attaching](#attaching)
     - [Custom Launch](#custom-launch)
     - [Remote Debugging](#remote-debugging)
-    - [Reverse Debugging](#reverse-debugging)
+    - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Loading Core Dump](#loading-core-dump)
     - [Source Path Remapping](#source-path-remapping)
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
@@ -20,6 +20,7 @@
         - [Pointers](#pointers)
     - [Expressions](#expressions)
     - [Debugger API](#debugger-api)
+- [Adapter types](#adapter-types)
 - [Alternate LLDB backends](#alternate-lldb-backends)
 - [Rust Language Support](#rust-language-support)
 - [Workspace Configuration](#workspace-configuration)
@@ -186,12 +187,14 @@ target modules load --file ${workspaceFolder}/build/debuggee -s <base load addre
 ```
 
 ## Reverse Debugging
-[Reverse debugging](https://en.wikipedia.org/wiki/Time_travel_debugging), is the ability to revert the flow of debuggee
-execution to an earlier state.
 
-Provided you use a debugging backend that supports [this feature](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB can send reverse-step and reverse-continue commands to it.
+[Reverse debugging](https://en.wikipedia.org/wiki/Time_travel_debugging).  Provided you use a debugging backend that supports
+[this](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB be used to control reverse execution and stepping.
 
-At the moment, the only tested backend is [Mozilla's rr](https://rr-project.org/) (you will need version 5.3 or later).
+As of this writing, the only backend known to work is [Mozilla's rr](https://rr-project.org/).  Unfortunately, the last
+released version contains a bug that breaks compatibility with LLDB, so you will need to build `rr` from source.
+This problem should be fixed in v5.3.
+
 There are others mentioned [here](http://www.sourceware.org/gdb/news/reversible.html) and [here](https://github.com/mozilla/rr/wiki/Related-work).
 [QEMU](https://www.qemu.org/) reportedly [supports record/replay](https://github.com/qemu/qemu/blob/master/docs/replay.txt) in full system emulation mode.
 If you get any of them to work, please let me know!
@@ -396,6 +399,8 @@ debugger's main script context).
 |**wrap(obj: `lldb.SBValue`) -> `Value`**| Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
 |**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
 
+# Adapter types
+Please see [this announcement](CHANGELOG.md#heads-up-codelldb-is-moving-to-native-code).
 
 # Alternate LLDB backends
 *(native adapter only)*<br>
@@ -411,11 +416,6 @@ CodeLLDB natively supports visualization of most common Rust data types:
 - Standard library types: Vec, String, CString, OSString.
 
 To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
-
-Note: There is a known incompatibility of debug info emitted by `rustc` and LLDB 3.8:
-you won't be able to step through code or inspect variables if you have this version.
-The workaround is to use either LLDB 3.7 or 3.9.  On macOS, LLDB shipped with Xcode 8 is known to
-have this problem fixed.
 
 ![source](images/source.png)
 
@@ -465,7 +465,7 @@ configurations (if there is no `launch.json` in the workspace).
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8.0),<li>native - native debug adapter (based on libLLDB 8.0).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8),<li>native - native debug adapter (based on libLLDB 8).<br>The last two options will require one-time download of platform-specific binaries.
 |**lldb.executable**    |Which LLDB executable to use. (default="lldb")
 |**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**|Environment variables to pass to the debug adapter.

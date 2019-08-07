@@ -8,6 +8,8 @@ logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
 
 log = logging.getLogger('codelldb')
 
+def set_log_level(level):
+    logging.getLogger().setLevel(level)
 
 # try:
 #     import ptvsd

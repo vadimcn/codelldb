@@ -978,7 +978,6 @@ impl DebugSession {
 
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         let mut launch_info = self.target.launch_info();
-        launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::DisableASLR);
 
         // Merge environment
         let mut launch_env = HashMap::new();

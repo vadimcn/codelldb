@@ -73,12 +73,6 @@
       ]
     },
     {
-      "label": "make test_codelldb",
-      "args": [
-        "test_codelldb"
-      ]
-    },
-    {
       "label": "make cargo_test",
       "args": [
         "cargo_test"

@@ -2,16 +2,18 @@
 #![feature(fn_traits)]
 #![allow(unused)]
 
-use std::net;
+extern crate codelldb_python as python;
 
 use futures::prelude::*;
 use tokio::prelude::*;
 
 use log::{debug, error, info};
+use std::net;
 use tokio::codec::Decoder;
 use tokio::io;
 use tokio::net::TcpListener;
 
+use crate::error::Error;
 use lldb::*;
 
 mod cancellation;
@@ -23,7 +25,6 @@ mod expressions;
 mod fsutil;
 mod handles;
 mod must_initialize;
-mod python;
 mod stdio_channel;
 mod terminal;
 mod vec_map;
@@ -33,7 +34,16 @@ mod wire_protocol;
 pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
     hook_crashes();
     env_logger::Builder::from_default_env().init();
+
     SBDebugger::initialize();
+
+    let python_new_session = match load_python() {
+        Ok(entry) => Some(entry),
+        Err(err) => {
+            error!("load_python: {:?}", err);
+            None
+        }
+    };
 
     let adapter_settings: debug_protocol::AdapterSettings = match adapter_params {
         Some(s) => serde_json::from_str(s).unwrap(),
@@ -60,7 +70,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     let server = server
         .for_each(move |conn| {
             conn.set_nodelay(true).unwrap();
-            run_debug_session(conn, adapter_settings.clone())
+            run_debug_session(conn, adapter_settings.clone(), python_new_session)
         })
         .then(|r| {
             info!("### server resolved: {:?}", r);
@@ -73,14 +83,36 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     SBDebugger::terminate();
 }
 
+fn load_python() -> Result<python::NewSession, Error> {
+    use std::env;
+    use std::mem;
+
+    let mut dylib_path = env::current_exe()?;
+    dylib_path.pop();
+    dylib_path.push(loading::get_dylib_filename("codelldb_python"));
+    unsafe {
+        let codelldb_python = loading::load_library(&dylib_path, true)?;
+
+        let python_entry: python::Entry = mem::transmute(loading::find_symbol(codelldb_python, "entry")?);
+        python_entry()?;
+
+        let python_new_session: python::NewSession =
+            mem::transmute(loading::find_symbol(codelldb_python, "new_session")?);
+
+        Ok(python_new_session)
+    }
+}
+
 fn run_debug_session(
-    stream: impl AsyncRead + AsyncWrite + Send + 'static, adapter_settings: debug_protocol::AdapterSettings,
+    stream: impl AsyncRead + AsyncWrite + Send + 'static,
+    adapter_settings: debug_protocol::AdapterSettings,
+    python_new_session: Option<python::NewSession>,
 ) -> impl Future<Item = (), Error = io::Error> {
-    future::lazy(|| {
+    future::lazy(move || {
         debug!("New debug session");
 
         let (to_client, from_client) = wire_protocol::Codec::new().framed(stream).split();
-        let (to_session, from_session) = debug_session::DebugSession::new(adapter_settings).split();
+        let (to_session, from_session) = debug_session::DebugSession::new(adapter_settings, python_new_session).split();
 
         let client_to_session = from_client
             .map_err(|_| ()) //.

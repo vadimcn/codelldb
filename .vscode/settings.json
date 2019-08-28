@@ -11,5 +11,5 @@
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
     "python.linting.enabled": false,
-    "lldb.verboseLogging": true
+    "lldb.verboseLogging": true,
 }

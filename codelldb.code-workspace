@@ -2,7 +2,7 @@
 	"folders": [
 		{
 			"path": "."
-		}
+		},
 	],
 	"settings": {
 		"window.title": "${rootName}",

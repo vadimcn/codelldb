@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
+project(CodeLLDB)
 
 set(VERSION 1.3.1-dev)
 
@@ -9,6 +10,7 @@ set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
 if (NOT LLDB_ROOT)
     message(FATAL_ERROR "LLDB_ROOT not set." )
 endif()
+message("Using LLDB from ${LLDB_ROOT}")
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
@@ -103,9 +105,12 @@ set(PackagedFilesFull
     adapter2/*.py
     adapter2/codelldb
     adapter2/libcodelldb.so
+    adapter2/libcodelldb_python.so
     adapter2/libcodelldb.dylib
+    adapter2/libcodelldb_python.dylib
     adapter2/codelldb.exe
     adapter2/codelldb.dll
+    adapter2/codelldb_python.dll
     lldb/bin/**/*
     lldb/lib/**/*
 )

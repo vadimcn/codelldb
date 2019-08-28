@@ -37,7 +37,7 @@ export async function startNative(
 
     let env = mergeEnv(extraEnv);
     let executable = path.join(extensionRoot, 'adapter2/codelldb');
-    let args = ['--preload', liblldb];
+    let args = ['--liblldb', liblldb];
     if (process.platform == 'win32') {
         // Add liblldb's directory to PATH so it can find msdia dll later.
         env['PATH'] = env['PATH'] + ';' + path.dirname(liblldb);

@@ -6,8 +6,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     endif()
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(CPythonFeature python2)
-    # We want to play games with loading liblldb dynamically,
-    # so we need to prevent OSX loader from trying to load it on its own.
     set(RustFlags -Clink-args='-undefined dynamic_lookup')
     set(Target x86_64-apple-darwin)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
@@ -16,17 +14,15 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Target x86_64-pc-windows-msvc)
 endif()
 
-set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml)
-set(CargoFlags ${CargoFlags} -Zpackage-features --no-default-features --features=${CPythonFeature})
-set(CargoFlags ${CargoFlags} --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target)
+set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
+                             --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target
+                             -Zpackage-features)
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
     set(CargoFlags ${CargoFlags} --release)
     set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/release)
 else()
     set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/debug)
 endif()
-
-
 
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/adapter2/codelldb.py
@@ -35,17 +31,36 @@ add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/formatters/rust.py
 )
 
+set(copy_file ${CMAKE_COMMAND} -E copy_if_different)
+
 add_custom_target(codelldb ALL
-    DEPENDS lldb ${PythonFiles}
-    COMMAND cargo rustc --package=codelldb --lib ${CargoFlags} -- ${RustFlags}
+    DEPENDS codelldb_bin codelldb_lib codelldb_python
+)
+
+add_custom_target(codelldb_bin
     COMMAND cargo rustc --package=codelldb --bin codelldb ${CargoFlags}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Running cargo build"
+    COMMAND ${copy_file} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Building codelldb_bin"
+    USES_TERMINAL
+)
+
+add_custom_target(codelldb_lib
+    DEPENDS lldb
+    COMMAND cargo rustc --package=codelldb --lib ${CargoFlags} --no-default-features -- ${RustFlags}
+    COMMAND ${copy_file} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Building codelldb_lib"
+    USES_TERMINAL
+)
+
+add_custom_target(codelldb_python
+    DEPENDS lldb ${PythonFiles}
+    COMMAND cargo rustc --package=codelldb_python --example codelldb_python ${CargoFlags} --no-default-features --features=${CPythonFeature} -- ${RustFlags}
+    COMMAND ${copy_file} ${CargoOutDir}/examples/${DylibPrefix}codelldb_python${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Building codelldb_python"
     USES_TERMINAL
 )
 
 add_custom_target(cargo_test
-    COMMAND ${CMAKE_COMMAND} -E env RUST_BACKTRACE=1 cargo test ${Features} -p=lldb -p=debug-protocol -p=codelldb
+    COMMAND ${CMAKE_COMMAND} -E env RUST_BACKTRACE=1 RUSTFLAGS="-lpython2.7" cargo test ${Features} -p=lldb -p=debug-protocol -p=codelldb
     USES_TERMINAL
 )

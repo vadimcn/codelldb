@@ -1,29 +1,14 @@
-use log::{self, debug, error, info};
+use codelldb_python::*;
+use cpython::{self, *};
+use failure::format_err;
+use lldb::*;
+use log::{self, debug, error};
 use std::cell;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::env;
-use std::fmt::Write;
-use std::os::raw::{c_char, c_int, c_void};
-use std::slice;
 use std::str;
 
-use cpython::*;
-use lldb::*;
-
-use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
-use crate::error::Error;
-
-#[derive(Debug)]
-pub enum PythonValue {
-    SBValue(SBValue),
-    Int(i64),
-    Bool(bool),
-    String(String),
-    Object(String),
-}
-
-pub struct PythonInterface {
+#[allow(unused)]
+struct PythonInterfaceImpl {
     interpreter: SBCommandInterpreter,
     pymod_lldb: PyModule,
     pymod_codelldb: PyModule,
@@ -35,84 +20,93 @@ pub struct PythonInterface {
     pyfn_modules_loaded: PyObject,
 }
 
-impl PythonInterface {
-    pub fn new(
-        interpreter: SBCommandInterpreter,
-        send_event: Box<dyn Fn(EventBody) + Send>,
-    ) -> Result<Box<PythonInterface>, Error> {
-        let current_exe = env::current_exe()?;
-        let mut command_result = SBCommandReturnObject::new();
+#[no_mangle]
+pub fn entry() -> Result<(), Error> {
+    env_logger::Builder::from_default_env().init();
+    Ok(())
+}
 
-        // Import debugger.py into script interpreter's namespace.
-        // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
-        let init_script = current_exe.with_file_name("debugger.py");
-        let command = format!("command script import '{}'", init_script.to_str()?);
-        interpreter.handle_command(&command, &mut command_result, false);
-        info!("{:?}", command_result);
+#[no_mangle]
+pub fn new_session(
+    interpreter: SBCommandInterpreter,
+    event_sink: Box<dyn EventSink + Send>,
+) -> Result<Box<dyn PythonInterface>, Error> {
+    let current_exe = env::current_exe()?;
+    let mut command_result = SBCommandReturnObject::new();
 
-        // Init python logging
-        let py_log_level = match log::max_level() {
-            log::LevelFilter::Error => 40,
-            log::LevelFilter::Warn => 30,
-            log::LevelFilter::Info => 20,
-            log::LevelFilter::Debug => 10,
-            log::LevelFilter::Trace | log::LevelFilter::Off => 0,
-        };
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let pymod_codelldb = py.import("codelldb")?;
-        pymod_codelldb.call(py, "set_log_level", (py_log_level,), None)?;
-        drop(gil);
-
-        let rust_formatters = current_exe.with_file_name("rust.py");
-        let command = format!("command script import '{}'", rust_formatters.to_str()?);
-        interpreter.handle_command(&command, &mut command_result, false);
-        info!("{:?}", command_result);
-
-        // Cache some objects
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-
-        let pymod_lldb = py.import("lldb")?;
-        let pyty_sbvalue = PyType::downcast_from(py, pymod_lldb.get(py, "SBValue")?).unwrap();
-        let pyty_sbmodule = PyType::downcast_from(py, pymod_lldb.get(py, "SBModule")?).unwrap();
-        let pyty_sbexec_context = PyType::downcast_from(py, pymod_lldb.get(py, "SBExecutionContext")?).unwrap();
-
-        let pyfn_evaluate_in_frame = pymod_codelldb.get(py, "evaluate_in_frame")?;
-        let pyfn_modules_loaded = pymod_codelldb.get(py, "modules_loaded")?;
-
-        let pymod_traceback = py.import("traceback")?;
-
-        let callback = RustClosure::new(py, move |py: Python, args, kwargs| {
-            py_argparse!(py, None, args, kwargs, (
-                    html: String,
-                    title: Option<String> = None,
-                    position: Option<i32> = None,
-                    reveal: bool = false
-            ) {
-                send_event(EventBody::displayHtml(DisplayHtmlEventBody {
-                    html, title, position, reveal
-                }));
-                Ok(py.None())
-            })
-        });
-        pymod_codelldb.as_object().setattr(py, "display_html", callback?);
-
-        let mut py_interface = Box::new(PythonInterface {
-            interpreter,
-            pymod_lldb,
-            pymod_codelldb,
-            pymod_traceback,
-            pyty_sbexec_context,
-            pyty_sbmodule,
-            pyty_sbvalue,
-            pyfn_evaluate_in_frame,
-            pyfn_modules_loaded,
-        });
-        Ok(py_interface)
+    // Import debugger.py into script interpreter's namespace.
+    // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
+    let init_script = current_exe.with_file_name("debugger.py");
+    let command = format!("command script import '{}'", init_script.to_str()?);
+    interpreter.handle_command(&command, &mut command_result, false);
+    if !command_result.succeeded() {
+        return Err(Error(format_err!("{:?}", command_result)));
     }
 
-    pub fn evaluate(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<SBValue, String> {
+    // Init python logging
+    let py_log_level = match log::max_level() {
+        log::LevelFilter::Error => 40,
+        log::LevelFilter::Warn => 30,
+        log::LevelFilter::Info => 20,
+        log::LevelFilter::Debug => 10,
+        log::LevelFilter::Trace | log::LevelFilter::Off => 0,
+    };
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    let pymod_codelldb = py.import("codelldb")?;
+    pymod_codelldb.call(py, "set_log_level", (py_log_level,), None)?;
+    drop(gil);
+
+    let rust_formatters = current_exe.with_file_name("rust.py");
+    let command = format!("command script import '{}'", rust_formatters.to_str()?);
+    interpreter.handle_command(&command, &mut command_result, false);
+    if !command_result.succeeded() {
+        error!("{:?}", command_result); // But carry on - Rust formatters are not critical to have.
+    }
+
+    // Cache some objects
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+
+    let pymod_lldb = py.import("lldb")?;
+    let pyty_sbvalue = PyType::downcast_from(py, pymod_lldb.get(py, "SBValue")?).unwrap();
+    let pyty_sbmodule = PyType::downcast_from(py, pymod_lldb.get(py, "SBModule")?).unwrap();
+    let pyty_sbexec_context = PyType::downcast_from(py, pymod_lldb.get(py, "SBExecutionContext")?).unwrap();
+
+    let pyfn_evaluate_in_frame = pymod_codelldb.get(py, "evaluate_in_frame")?;
+    let pyfn_modules_loaded = pymod_codelldb.get(py, "modules_loaded")?;
+
+    let pymod_traceback = py.import("traceback")?;
+
+    let callback = RustClosure::new(py, move |py: Python, args, kwargs| {
+        py_argparse!(py, None, args, kwargs, (
+                html: String,
+                title: Option<String> = None,
+                position: Option<i32> = None,
+                reveal: bool = false
+        ) {
+            event_sink.display_html(html, title, position, reveal);
+            Ok(py.None())
+        })
+    });
+    pymod_codelldb.as_object().setattr(py, "display_html", callback?)?;
+
+    let py_interface = Box::new(PythonInterfaceImpl {
+        interpreter,
+        pymod_lldb,
+        pymod_codelldb,
+        pymod_traceback,
+        pyty_sbexec_context,
+        pyty_sbmodule,
+        pyty_sbvalue,
+        pyfn_evaluate_in_frame,
+        pyfn_modules_loaded,
+    });
+    Ok(py_interface)
+}
+
+impl PythonInterface for PythonInterfaceImpl {
+    fn evaluate(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<SBValue, String> {
         let gil = Python::acquire_gil();
         let py = gil.python();
         let pysb_exec_context =
@@ -123,12 +117,7 @@ impl PythonInterface {
         result
     }
 
-    pub fn evaluate_as_bool(
-        &self,
-        expr: &str,
-        is_simple_expr: bool,
-        context: &SBExecutionContext,
-    ) -> Result<bool, String> {
+    fn evaluate_as_bool(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<bool, String> {
         let gil = Python::acquire_gil();
         let py = gil.python();
         let pysb_exec_context =
@@ -142,7 +131,7 @@ impl PythonInterface {
         result
     }
 
-    pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
+    fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
         let gil = Python::acquire_gil();
         let py = gil.python();
 
@@ -155,7 +144,9 @@ impl PythonInterface {
             error!("modules_loaded: {}", self.format_exception(py, err));
         }
     }
+}
 
+impl PythonInterfaceImpl {
     fn to_sbvalue(&self, py: Python, target: &SBTarget, result: PyResult<PyObject>) -> Result<SBValue, String> {
         match result {
             Ok(value) => {
@@ -215,7 +206,7 @@ where
     SBT: Clone,
 {
     let this = pyobj.getattr(py, "this").unwrap().extract::<usize>(py).unwrap();
-    let mut sb = this as *const SBT;
+    let sb = this as *const SBT;
     (*sb).clone()
 }
 
@@ -242,14 +233,14 @@ fn sbvalue_from_str(value: &str, target: &SBTarget) -> SBValue {
 
 // Python wrapper for Rust closures
 py_class!(class RustClosure |py| {
-    data closure: cell::RefCell<Box<dyn FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send>>;
+        data closure: cell::RefCell<Box<dyn FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send>>;
 
-    def __call__(&self, *args, **kwargs) -> PyResult<PyObject> {
-        use std::ops::DerefMut;
-        let mut mut_ref = self.closure(py).borrow_mut();
-        mut_ref.deref_mut()(py, &args, kwargs)
-    }
-});
+        def __call__(&self, *args, **kwargs) -> PyResult<PyObject> {
+            use std::ops::DerefMut;
+            let mut mut_ref = self.closure(py).borrow_mut();
+            mut_ref.deref_mut()(py, &args, kwargs)
+        }
+    });
 
 impl RustClosure {
     fn new<F>(py: Python, closure: F) -> PyResult<RustClosure>
@@ -258,11 +249,5 @@ impl RustClosure {
     {
         let closure = cell::RefCell::new(Box::new(closure));
         RustClosure::create_instance(py, closure)
-    }
-}
-
-impl From<PyErr> for Error {
-    fn from(err: PyErr) -> Self {
-        Error::Internal(format!("{:?}", err))
     }
 }

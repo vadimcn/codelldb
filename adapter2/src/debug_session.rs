@@ -27,8 +27,10 @@ use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::{is_same_path, normalize_path};
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::python::{self, PythonInterface, PythonValue};
 use crate::terminal::Terminal;
+
+use python::{PythonInterface, PythonValue};
+
 use lldb::*;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -87,12 +89,12 @@ pub struct DebugSession {
     shutdown: CancellationSource,
     event_listener: SBListener,
     self_ref: MustInitialize<Weak<Mutex<DebugSession>>>,
-    debugger: MustInitialize<SBDebugger>,
+    debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
     process: MustInitialize<SBProcess>,
     process_was_launched: bool,
     on_configuration_done: Option<(u32, Box<AsyncResponder>)>,
-    python: MustInitialize<Box<PythonInterface>>,
+    python: Option<Box<dyn PythonInterface>>,
     breakpoints: RefCell<BreakpointsState>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
@@ -121,6 +123,7 @@ unsafe impl Send for DebugSession {}
 impl DebugSession {
     pub fn new(
         settings: AdapterSettings,
+        python_new_session: Option<python::NewSession>,
     ) -> impl Stream<Item = ProtocolMessage, Error = ()> + Sink<SinkItem = ProtocolMessage, SinkError = ()> {
         let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(100);
         let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(100);
@@ -149,19 +152,53 @@ impl DebugSession {
             });
         }
 
+        let send_message = RefCell::new(outgoing_send);
+
+        let debugger = SBDebugger::create(false);
+        debugger.set_async_mode(true);
+
+        let python = match python_new_session {
+            Some(python_new_session) => {
+                struct PythonEventSink(RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>);
+                impl python::EventSink for PythonEventSink {
+                    fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool) {
+                        let event = ProtocolMessage::Event(Event {
+                            seq: 0,
+                            body: EventBody::displayHtml(DisplayHtmlEventBody {
+                                html,
+                                title,
+                                position,
+                                reveal,
+                            }),
+                        });
+                        self.0.borrow_mut().try_send(event);
+                    }
+                }
+                let event_sink = Box::new(PythonEventSink(send_message.clone()));
+                match python_new_session(debugger.command_interpreter(), event_sink) {
+                    Ok(python) => Some(python),
+                    Err(err) => {
+                        error!("Initialize Python interpreter: {}", err);
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
+
         let mut debug_session = DebugSession {
-            send_message: RefCell::new(outgoing_send),
+            send_message: send_message,
             incoming_send: incoming_send.clone(),
             message_seq: Cell::new(1),
             shutdown: shutdown,
             self_ref: NotInitialized,
-            debugger: NotInitialized,
+            debugger: debugger,
             target: NotInitialized,
             process: NotInitialized,
             process_was_launched: false,
             event_listener: event_listener,
             on_configuration_done: None,
-            python: NotInitialized,
+            python: python,
             breakpoints: RefCell::new(BreakpointsState {
                 source: HashMap::new(),
                 assembly: HashMap::new(),
@@ -387,23 +424,7 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, _args: InitializeRequestArguments) -> Result<Capabilities, Error> {
-        self.debugger = Initialized(SBDebugger::create(false));
-        self.debugger.set_async_mode(true);
-
         self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
-
-        let send_message = self.send_message.clone();
-        let python = PythonInterface::new(
-            self.debugger.command_interpreter(),
-            Box::new(move |event_body| {
-                let event = ProtocolMessage::Event(Event {
-                    seq: 0,
-                    body: event_body,
-                });
-                send_message.borrow_mut().try_send(event);
-            }),
-        )?;
-        self.python = Initialized(python);
 
         let caps = Capabilities {
             supports_configuration_done_request: Some(true),
@@ -835,13 +856,19 @@ impl DebugSession {
             let frame = thread.frame_at_index(0);
             let context = self.context_from_frame(Some(&frame));
             // TODO: pass bpno
-            let should_stop = match self.python.evaluate_as_bool(&pycode, is_simple_expr, &context) {
-                Ok(val) => val,
-                Err(err) => {
-                    self.console_error(err.to_string());
-                    return true; // Stop on evluation errors, even if there's a log message.
+            let should_stop = match &self.python {
+                Some(python) => match python.evaluate_as_bool(&pycode, is_simple_expr, &context) {
+                    Ok(val) => val,
+                    Err(err) => {
+                        self.console_error(err.to_string());
+                        return true; // Stop on evluation errors, even if there's a log message.
+                    }
+                },
+                None => {
+                    return true;
                 }
             };
+
             if !should_stop {
                 return false;
             }
@@ -939,28 +966,7 @@ impl DebugSession {
     }
 
     fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(expressions) = args.common.expressions {
-            self.default_expr_type = expressions;
-        }
-        if let Some(source_map) = &args.common.source_map {
-            self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
-        }
-        if let Some(true) = &args.common.reverse_debugging {
-            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
-                capabilities: Capabilities {
-                    supports_step_back: Some(true),
-                    ..Default::default()
-                },
-            }));
-        }
-        self.relative_path_base = Initialized(match &args.common.relative_path_base {
-            Some(base) => base.into(),
-            None => env::current_dir()?,
-        });
-
-        if let Some(commands) = &args.common.init_commands {
-            self.exec_commands("initCommands", &commands)?;
-        }
+        self.common_init_session(&args.common)?;
 
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)
@@ -992,9 +998,6 @@ impl DebugSession {
         let launch_env = launch_env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>();
         launch_info.set_environment_entries(launch_env.iter().map(|s| s.as_ref()), false);
 
-        if let Some(ref settings) = args.common.adapter_settings {
-            self.update_adapter_settings(settings);
-        }
         if let Some(ref args) = args.args {
             launch_info.set_arguments(args.iter().map(|a| a.as_ref()), false);
         }
@@ -1102,26 +1105,12 @@ impl DebugSession {
     }
 
     fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<Box<AsyncResponder>, Error> {
-        if let Some(expressions) = args.common.expressions {
-            self.default_expr_type = expressions;
-        }
-        if let Some(source_map) = &args.common.source_map {
-            self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
-        }
-        if let Some(true) = &args.common.reverse_debugging {
-            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
-                capabilities: Capabilities {
-                    supports_step_back: Some(true),
-                    ..Default::default()
-                },
-            }));
-        }
+        self.common_init_session(&args.common)?;
+
         if args.program.is_none() && args.pid.is_none() {
             return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
         }
-        if let Some(commands) = &args.common.init_commands {
-            self.exec_commands("initCommands", &commands)?;
-        }
+
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
@@ -1284,6 +1273,50 @@ impl DebugSession {
             title: Some(title),
         };
         self.send_request(RequestArguments::runInTerminal(req_args));
+    }
+
+    // Handle initialization tasks common to both launching and attaching
+    fn common_init_session(&mut self, args_common: &CommonLaunchFields) -> Result<(), Error> {
+        if let Some(expressions) = args_common.expressions {
+            self.default_expr_type = expressions;
+        }
+        if let None = self.python {
+            match self.default_expr_type {
+                Expressions::Simple | Expressions::Python => self.console_error(
+                    "Could not initialize Python interpreter - only native expressions will be available.",
+                ),
+                Expressions::Native => (),
+            }
+            self.default_expr_type = Expressions::Native;
+        }
+
+        if let Some(source_map) = &args_common.source_map {
+            self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
+        }
+
+        if let Some(true) = &args_common.reverse_debugging {
+            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
+                capabilities: Capabilities {
+                    supports_step_back: Some(true),
+                    ..Default::default()
+                },
+            }));
+        }
+
+        self.relative_path_base = Initialized(match &args_common.relative_path_base {
+            Some(base) => base.into(),
+            None => env::current_dir()?,
+        });
+
+        if let Some(ref settings) = args_common.adapter_settings {
+            self.update_adapter_settings(settings);
+        }
+
+        if let Some(commands) = &args_common.init_commands {
+            self.exec_commands("initCommands", &commands)?;
+        }
+
+        Ok(())
     }
 
     fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
@@ -1860,8 +1893,8 @@ impl DebugSession {
         expression: &PreparedExpression,
         frame: Option<&SBFrame>,
     ) -> Result<SBValue, Error> {
-        match expression {
-            PreparedExpression::Native(pp_expr) => {
+        match (expression, self.python.as_ref()) {
+            (PreparedExpression::Native(pp_expr), _) => {
                 let result = match frame {
                     Some(frame) => frame.evaluate_expression(&pp_expr),
                     None => self.target.evaluate_expression(&pp_expr),
@@ -1873,20 +1906,21 @@ impl DebugSession {
                     Err(error.into())
                 }
             }
-            PreparedExpression::Python(pp_expr) => {
+            (PreparedExpression::Python(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                match self.python.evaluate(&pp_expr, false, &context) {
+                match python.evaluate(&pp_expr, false, &context) {
                     Ok(val) => Ok(val),
                     Err(s) => Err(Error::UserError(s)),
                 }
             }
-            PreparedExpression::Simple(pp_expr) => {
+            (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                match self.python.evaluate(&pp_expr, true, &context) {
+                match python.evaluate(&pp_expr, true, &context) {
                     Ok(val) => Ok(val),
                     Err(s) => Err(Error::UserError(s)),
                 }
             }
+            _ => Err(Error::UserError("Python expressions are disabled.".into())),
         }
     }
 
@@ -2380,7 +2414,9 @@ impl DebugSession {
             preserve_focus_hint: None,
         }));
 
-        self.python.modules_loaded(&mut self.loaded_modules.iter());
+        if let Some(python) = &self.python {
+            python.modules_loaded(&mut self.loaded_modules.iter());
+        }
         self.loaded_modules.clear();
     }
 
@@ -2421,7 +2457,8 @@ impl DebugSession {
         let header_addr = module.object_header_address();
         if header_addr.is_valid() {
             format!("{:X}", header_addr.load_address(&self.target))
-        } else { // header_addr not available on Windows, fall back to path
+        } else {
+            // header_addr not available on Windows, fall back to path
             module.filespec().path().display().to_string()
         }
     }

@@ -1,5 +1,5 @@
-.vscode
-build*
-target
-node_modules
+.vscode/
+build*/
+target/
+node_modules/
 *.pyc

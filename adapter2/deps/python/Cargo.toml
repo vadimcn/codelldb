@@ -1,0 +1,21 @@
+[package]
+name = "codelldb_python"
+version = "0.1.0"
+authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+env_logger = "0.6.2"
+failure = "0.1.5"
+lldb = { path = "../lldb" }
+log = "0.4.7"
+cpython = { version = "0.3.0", default-features = false, optional = true  }
+
+[features]
+python2 = ["cpython/python27-sys"]
+python3 = ["cpython/python3-sys"]
+
+[[example]]
+name = "codelldb_python"
+path = "src/impl.rs"
+crate-type = ["cdylib"]

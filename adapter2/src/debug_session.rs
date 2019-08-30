@@ -1206,8 +1206,9 @@ impl DebugSession {
 
         self.debuggee_terminal = match terminal_kind {
             TerminalKind::External | TerminalKind::Integrated => {
+                let title = args.common.name.clone().unwrap_or_else(|| "Debug".into());
                 match Terminal::create(|agent_args| {
-                    self.run_in_vscode_terminal(terminal_kind.clone(), args.common.name.clone(), agent_args)
+                    self.run_in_vscode_terminal(terminal_kind.clone(), title, agent_args)
                 }) {
                     Ok(terminal) => Some(terminal),
                     Err(err) => {

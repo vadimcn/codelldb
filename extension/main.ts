@@ -2,11 +2,12 @@ import {
     workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, ConfigurationChangeEvent,
+    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
+import * as querystring from 'querystring';
 import * as diagnostics from './diagnostics';
 import * as htmlView from './htmlView';
 import * as cargo from './cargo';
@@ -18,6 +19,9 @@ import { Dict, AdapterType, toAdapterType } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
+import stringArgv from 'string-argv';
+import * as JSON5 from 'json5';
+
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -27,7 +31,7 @@ export function activate(context: ExtensionContext) {
     extension.onActivate();
 }
 
-class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
+class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory, UriHandler {
     context: ExtensionContext;
     htmlViewer: htmlView.DebuggerHtmlView;
     status: StatusBarItem;
@@ -85,7 +89,62 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         }));
 
         this.loadedModules = new ModuleTreeDataProvider(context);
-        window.registerTreeDataProvider('loadedModules', this.loadedModules);
+        subscriptions.push(window.registerTreeDataProvider('loadedModules', this.loadedModules));
+
+        subscriptions.push(window.registerUriHandler(this));
+    }
+
+    async handleUri(uri: Uri) {
+        try {
+            output.appendLine(`Handling uri: ${uri}`);
+            let query = decodeURIComponent(uri.query);
+            output.appendLine(`Decoded query: ${query}`);
+
+            if (uri.path == '/launch') {
+                let params = <Dict<string>>querystring.parse(uri.query, ',');
+                if (params.folder && params.name) {
+                    let wsFolder = workspace.getWorkspaceFolder(Uri.file(params.folder));
+                    await debug.startDebugging(wsFolder, params.name);
+
+                } else if (params.name) {
+                    // Try all workspace folders
+                    for (let wsFolder of workspace.workspaceFolders) {
+                        if (await debug.startDebugging(wsFolder, params.name))
+                            break;
+                    }
+                } else {
+                    throw new Error(`Unsupported combination of launch Uri parameters.`);
+                }
+
+            } else if (uri.path == '/launch/command') {
+                let args = stringArgv(query);
+                let program = args.shift();
+                let debugConfig: DebugConfiguration = {
+                    type: 'lldb',
+                    request: 'launch',
+                    name: '',
+                    program: program,
+                    args: args,
+                };
+                debugConfig.name = debugConfig.name || debugConfig.program;
+                await debug.startDebugging(undefined, debugConfig);
+
+            } else if (uri.path == '/launch/config') {
+                let debugConfig: DebugConfiguration = {
+                    type: 'lldb',
+                    request: 'launch',
+                    name: '',
+                };
+                Object.assign(debugConfig, JSON5.parse(query));
+                debugConfig.name = debugConfig.name || debugConfig.program;
+                await debug.startDebugging(undefined, debugConfig);
+
+            } else {
+                throw new Error(`Unsupported Uri path: ${uri.path}`);
+            }
+        } catch (err) {
+            await window.showErrorMessage(err.message);
+        }
     }
 
     registerDisplaySettingCommand(command: string, updater: (settings: AdapterSettings) => Promise<void>) {
@@ -242,6 +301,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (launchConfig.request == 'custom') {
             launchConfig.request = 'launch';
             launchConfig.custom = true;
+        }
+
+        if (typeof launchConfig.args == 'string') {
+            launchConfig.args = stringArgv(launchConfig.args);
         }
 
         launchConfig.relativePathBase = launchConfig.relativePathBase || workspace.rootPath;

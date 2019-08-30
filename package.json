@@ -32,6 +32,8 @@
 		"vscode": "^1.31.0"
 	},
 	"dependencies": {
+		"string-argv": "^0.3.1",
+		"json5": "^2.1.0",
 		"yauzl": "^2.10.0"
 	},
 	"devDependencies": {
@@ -39,6 +41,7 @@
 		"@types/node": "^8.10.50",
 		"@types/mocha": "^5.2.7",
 		"@types/yauzl": "^2.9.0",
+		"@types/json5": "^0.0.30",
 		"typescript": "^3.5.0",
 		"mocha": "^6.1.0",
 		"source-map-support": "^0.5.12",

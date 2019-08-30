@@ -151,7 +151,7 @@ pub enum EventBody {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CommonLaunchFields {
-    pub name: String,
+    pub name: Option<String>,
     pub stop_on_entry: Option<bool>,
     pub source_map: Option<VecMap<String, Option<String>>>,
     pub expressions: Option<Expressions>,

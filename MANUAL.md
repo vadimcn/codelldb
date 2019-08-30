@@ -6,6 +6,7 @@
         - [Stdio Redirection](#stdio)
     - [Attaching](#attaching)
     - [Custom Launch](#custom-launch)
+    - [Starting Debug Session outside of VSCode](#starting-debug-session-outside-of-vscode)
     - [Remote Debugging](#remote-debugging)
     - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Loading Core Dump](#loading-core-dump)
@@ -134,6 +135,46 @@ happens in these steps:
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**reverseDebugging**|bool| | Enable [reverse debugging](#reverse-debugging).
+
+
+## Starting Debug Session outside of VSCode
+
+Debug sessions may also be started outside of VSCode by invoking specially formatted URI:
+
+- **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
+  This will start a new debug session using named launch configuration.  The optional `folder` parameter specifies
+  workspace folder where the launch configuration is defined. If missing, all folders in the current workspace will be searched.<br>
+  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
+- **`vscode://vadimcn.vscode-lldb/launch/command?<command line>`**</br>
+  The \<command line\> will be split into program name and its arguments using the usual shell command line parsing rules.<br>
+  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
+- **`vscode://vadimcn.vscode-lldb/launch/config?<json>`**</br>
+  This method accepts a <a href="https://json5.org/">JSON5</a> fragment representing a single launch configuration.
+  The `type` and `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.<br>
+  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program:'/path/filename', args:['arg1','arg 2','arg3']}"`
+
+### Applications
+Attach debugger to the current process:
+```C
+    char command[256];
+    snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{request:'attach',pid:%d}\"", getpid());
+    system(command);
+    sleep(1); // Wait for debugger to attach
+```
+
+Same in Rust (build scripts!):
+```Rust
+    let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{request:'attach',pid:{}}}", std::process::id());
+    std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
+    std::thread::sleep_ms(1000);
+```
+
+### Notes
+- All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), therefore all '%' characters must be escaped as '%25'.<br>
+- VSCode URIs may also be invoked using OS-specific tools:
+  - Linux: `xdg-open <uri>`
+  - MacOS: `open <uri>`
+  - Windows: `start <uri>`
 
 ## Remote debugging
 

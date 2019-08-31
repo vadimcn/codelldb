@@ -1237,8 +1237,9 @@ impl DebugSession {
         // }
 
         let mut stdio = match args.stdio {
-            Some(ref stdio) => stdio.clone(),
             None => vec![],
+            Some(Either::First(ref stdio)) => vec![Some(stdio.clone())], // A single string
+            Some(Either::Second(ref stdio)) => stdio.clone(),            // List of strings
         };
         // Pad to at least 3 entries
         while stdio.len() < 3 {

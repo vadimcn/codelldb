@@ -175,7 +175,7 @@ pub struct LaunchRequestArguments {
     pub args: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub env: Option<VecMap<String, String>>,
-    pub stdio: Option<Vec<Option<String>>>,
+    pub stdio: Option<Either<String, Vec<Option<String>>>>,
     pub terminal: Option<TerminalKind>,
     pub target_create_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
@@ -259,6 +259,13 @@ pub enum Expressions {
     Simple,
     Python,
     Native,
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(untagged)]
+pub enum Either<T1, T2> {
+    First(T1),
+    Second(T2),
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

@@ -34,13 +34,12 @@ endif()
 
 add_subdirectory(adapter2)
 add_subdirectory(lldb)
-add_subdirectory(extension)
-add_subdirectory(tests)
 
 # Extension package content
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
+configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js @ONLY)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Run 'npm install'
@@ -55,6 +54,30 @@ endif()
 
 # Copy it back, so we can commit the lock file.
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Extension and tests
+
+if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
+    set(WebpackMode production)
+else()
+    set(WebpackMode development)
+endif()
+
+add_custom_target(extension
+    COMMAND
+    COMMAND ${NPM} run webpack -- --display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/extension.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    USES_TERMINAL
+)
+
+add_custom_target(tests
+    COMMAND ${NPM} run webpack -- -display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/tests.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    USES_TERMINAL
+)
 
 # Extension package resources
 
@@ -92,12 +115,11 @@ add_custom_target(dev_debugging
 set(PackagedFilesPortable
     README.md
     CHANGELOG.md
+    extension.js
     adapter/**/*.py
     formatters/*
     images/*
     syntaxes/*
-    extension/**/*.js
-    node_modules/**/*.js
 )
 
 set(PackagedFilesFull
@@ -169,7 +191,7 @@ endif()
 add_custom_target(vsix_extracted
     DEPENDS vsix_portable vsix_full
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
-    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
+    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
 )
 
@@ -210,7 +232,7 @@ set(MochaTest ${NPM} run mocha --
     -u tdd --timeout 30000 --exit
     --require source-map-support/register
     #-g "stop on a breakpoint 3"
-    ${CMAKE_BINARY_DIR}/tests
+    ${CMAKE_BINARY_DIR}/tests.js
 )
 
 # Build everything for testing

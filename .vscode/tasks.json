@@ -27,7 +27,7 @@
     {
       "label": "make tests",
       "args": [
-        "dev_debugging"
+        "tests"
       ]
     },
     {

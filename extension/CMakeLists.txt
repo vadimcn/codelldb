@@ -1,1 +1,0 @@
-add_typescript(extension)

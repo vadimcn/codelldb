@@ -5,15 +5,17 @@ use serde_derive::*;
 
 pub use raw_debug_protocol::{
     Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
-    CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DisconnectArguments,
+    CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DataBreakpoint,
+    DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody, DisconnectArguments,
     EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
     GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
     OutputEventBody, PauseArguments, ReverseContinueArguments, RunInTerminalRequestArguments, Scope, ScopesArguments,
-    ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetExceptionBreakpointsArguments,
-    SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
-    SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
-    StepInArguments, StepOutArguments, StoppedEventBody, TerminatedEventBody, Thread, ThreadEventBody,
-    ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
+    ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetDataBreakpointsArguments,
+    SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
+    SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
+    StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
+    StoppedEventBody, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
+    VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,6 +92,8 @@ pub enum RequestArguments {
     goto(GotoArguments),
     evaluate(EvaluateArguments),
     setVariable(SetVariableArguments),
+    dataBreakpointInfo(DataBreakpointInfoArguments),
+    setDataBreakpoints(SetDataBreakpointsArguments),
     disconnect(DisconnectArguments),
     // Custom
     adapterSettings(AdapterSettings),
@@ -126,6 +130,8 @@ pub enum ResponseBody {
     goto,
     evaluate(EvaluateResponseBody),
     setVariable(SetVariableResponseBody),
+    dataBreakpointInfo(DataBreakpointInfoResponseBody),
+    setDataBreakpoints(SetDataBreakpointsResponseBody),
     disconnect,
     // Custom
     adapterSettings,

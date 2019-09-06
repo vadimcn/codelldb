@@ -140,6 +140,28 @@ impl SBTarget {
             return self->BreakpointDelete(id);
         })
     }
+    pub fn watch_address(&self, addr: Address, size: usize, read: bool, write: bool) -> Result<SBWatchpoint, SBError> {
+        let mut error = SBError::new();
+        let wp = cpp!(unsafe [self as "SBTarget*", addr as "addr_t", size as "size_t",
+                     read as "bool", write as "bool", mut error as "SBError"] -> SBWatchpoint as "SBWatchpoint" {
+            return self->WatchAddress(addr, size, read, write, error);
+        });
+        if error.is_success() {
+            Ok(wp)
+        } else {
+            Err(error)
+        }
+    }
+    pub fn delete_watchpoint(&self, id: WatchpointID) -> bool {
+        cpp!(unsafe [self as "SBTarget*", id as "watch_id_t"] -> bool as "bool" {
+            return self->DeleteWatchpoint(id);
+        })
+    }
+    pub fn delete_all_watchpoints(&self) -> bool {
+        cpp!(unsafe [self as "SBTarget*"] -> bool as "bool" {
+            return self->DeleteAllWatchpoints();
+        })
+    }
     pub fn get_basic_type(&self, basic_type: BasicType) -> SBType {
         cpp!(unsafe [self as "SBTarget*", basic_type as "BasicType"] -> SBType as "SBType" {
             return self->GetBasicType(basic_type);

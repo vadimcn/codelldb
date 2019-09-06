@@ -346,6 +346,12 @@ impl DebugSession {
                 RequestArguments::goto(args) =>
                     self.handle_goto(args)
                         .map(|r| ResponseBody::goto),
+                RequestArguments::dataBreakpointInfo(args) =>
+                    self.handle_data_breakpoint_info(args)
+                        .map(|r| ResponseBody::dataBreakpointInfo(r)),
+                RequestArguments::setDataBreakpoints(args) =>
+                    self.handle_set_data_breakpoints(args)
+                        .map(|r| ResponseBody::setDataBreakpoints(r)),
                 RequestArguments::disconnect(args) =>
                     self.handle_disconnect(Some(args))
                         .map(|_| ResponseBody::disconnect),
@@ -438,6 +444,7 @@ impl DebugSession {
             supports_delayed_stack_trace_loading: Some(true),
             support_terminate_debuggee: Some(true),
             supports_log_points: Some(true),
+            supports_data_breakpoints: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
         };
@@ -2216,6 +2223,67 @@ impl DebugSession {
                 }
             }
         }
+    }
+
+    fn handle_data_breakpoint_info(
+        &mut self,
+        args: DataBreakpointInfoArguments,
+    ) -> Result<DataBreakpointInfoResponseBody, Error> {
+        let container_handle = handles::from_i64(args.variables_reference?)?;
+        let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
+        let child = match container {
+            Container::SBValue(container) => container.child_member_with_name(&args.name),
+            Container::Locals(frame) | Container::Globals(frame) | Container::Statics(frame) => {
+                frame.find_variable(&args.name)
+            }
+            _ => None,
+        };
+        if let Some(child) = child {
+            let addr = child.load_address();
+            let size = child.byte_size();
+            let data_id = format!("{}/{}", addr, size);
+            let desc = child.name().unwrap_or("");
+            Ok(DataBreakpointInfoResponseBody {
+                data_id: Some(data_id),
+                description: format!("{} bytes at {:X} ({})", size, addr, desc),
+                ..Default::default()
+            })
+        } else {
+            Ok(DataBreakpointInfoResponseBody {
+                data_id: None,
+                description: "Variable not found.".into(),
+                ..Default::default()
+            })
+        }
+    }
+
+    fn handle_set_data_breakpoints(
+        &mut self,
+        args: SetDataBreakpointsArguments,
+    ) -> Result<SetDataBreakpointsResponseBody, Error> {
+        self.target.delete_all_watchpoints();
+        let mut watchpoints = vec![];
+        for wp in args.breakpoints {
+            let mut parts = wp.data_id.split('/');
+            let addr = parts.next()?.parse::<u64>()?;
+            let size = parts.next()?.parse::<usize>()?;
+            let res = match self.target.watch_address(addr, size, false, true) {
+                Ok(wp) => Breakpoint {
+                    verified: true,
+                    message: Some(format!("{} bytes at {:X} (", size, addr)),
+                    ..Default::default()
+                },
+                Err(err) => Breakpoint {
+                    verified: false,
+                    message: Some(err.to_string()),
+                    ..Default::default()
+                },
+            };
+            watchpoints.push(res);
+        }
+        Ok(SetDataBreakpointsResponseBody {
+            breakpoints: watchpoints,
+        })
     }
 
     fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {

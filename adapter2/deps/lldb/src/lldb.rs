@@ -24,6 +24,7 @@ pub type Address = u64;
 pub type ProcessID = u64;
 pub type ThreadID = u64;
 pub type BreakpointID = u32;
+pub type WatchpointID = u32;
 pub type UserID = u64;
 
 pub const INVALID_ADDRESS: Address = Address::max_value();
@@ -146,6 +147,7 @@ mod sbthread;
 mod sbtype;
 mod sbvalue;
 mod sbvaluelist;
+mod sbwatchpoint;
 
 pub use sbaddress::*;
 pub use sbattachinfo::*;
@@ -179,3 +181,4 @@ pub use sbthread::*;
 pub use sbtype::*;
 pub use sbvalue::*;
 pub use sbvaluelist::*;
+pub use sbwatchpoint::*;

@@ -61,12 +61,16 @@ impl SBValue {
     pub fn address(&self) -> Option<SBAddress> {
         cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
             return self->GetAddress();
-        })
-        .check()
+        }).check()
     }
     pub fn load_address(&self) -> Address {
         cpp!(unsafe [self as "SBValue*"] -> Address as "addr_t" {
             return self->GetLoadAddress();
+        })
+    }
+    pub fn byte_size(&self) -> usize {
+        cpp!(unsafe [self as "SBValue*"] -> usize as "size_t" {
+            return self->GetByteSize();
         })
     }
     pub fn target(&self) -> SBTarget {

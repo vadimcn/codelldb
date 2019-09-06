@@ -45,6 +45,15 @@ impl SBEvent {
             None
         }
     }
+    pub fn as_watchpoint_event(&self) -> Option<SBWatchpointEvent> {
+        if cpp!(unsafe [self as "SBEvent*"] -> bool as "bool" {
+            return SBWatchpoint::EventIsWatchpointEvent(*self);
+        }) {
+            Some(SBWatchpointEvent(self))
+        } else {
+            None
+        }
+    }
     pub fn as_target_event(&self) -> Option<SBTargetEvent> {
         if cpp!(unsafe [self as "SBEvent*"] -> bool as "bool" {
             return SBTarget::EventIsTargetEvent(*self);
@@ -242,5 +251,42 @@ bitflags! {
         const IgnoreChanged = (1 << 10);
         const ThreadChanged = (1 << 11);
         const AutoContinueChanged = (1 << 12);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct SBWatchpointEvent<'a>(&'a SBEvent);
+
+impl<'a> SBWatchpointEvent<'a> {
+    pub fn as_event(&self) -> &SBEvent {
+        self.0
+    }
+    pub fn watchpoint(&self) -> SBWatchpoint {
+        let event = self.0;
+        cpp!(unsafe [event as "SBEvent*"] -> SBWatchpoint as "SBWatchpoint" {
+            return SBWatchpoint::GetWatchpointFromEvent(*event);
+        })
+    }
+    pub fn event_type(&self) -> WatchpointEventType {
+        let event = self.0;
+        cpp!(unsafe [event as "SBEvent*"] -> WatchpointEventType as "WatchpointEventType" {
+            return SBWatchpoint::GetWatchpointEventTypeFromEvent(*event);
+        })
+    }
+}
+
+bitflags! {
+    pub struct WatchpointEventType : u32 {
+        const InvalidType = (1 << 0);
+        const Added = (1 << 1);
+        const Removed = (1 << 2);
+        const Enabled = (1 << 6);
+        const Disabled = (1 << 7);
+        const CommandChanged = (1 << 8);
+        const ConditionChanged = (1 << 9);
+        const IgnoreChanged = (1 << 10);
+        const ThreadChanged = (1 << 11);
+        const TypeChanged = (1 << 12);
     }
 }

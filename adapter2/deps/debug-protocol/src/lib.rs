@@ -144,3 +144,14 @@ impl Default for Module {
         }
     }
 }
+
+impl Default for DataBreakpointInfoResponseBody {
+    fn default() -> Self {
+        DataBreakpointInfoResponseBody {
+            data_id: None,
+            access_types: None,
+            can_persist: None,
+            description: String::new(),
+        }
+    }
+}

@@ -146,8 +146,12 @@ fn hook_crashes() {
             libc::SIGABRT => "SIGABRT",
             _ => unreachable!(),
         };
-        panic!(sig_name);
+        let bt = backtrace::Backtrace::new();
+        eprintln!("Received signal: {}", sig_name);
+        eprintln!("{:?}", bt);
+        std::process::exit(255);
     }
+
     unsafe {
         libc::signal(libc::SIGSEGV, handler as usize);
         libc::signal(libc::SIGBUS, handler as usize);

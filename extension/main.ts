@@ -346,8 +346,28 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             let descriptor = new DebugAdapterServer(port);
             return descriptor;
         } catch (err) {
-            diagnostics.analyzeStartupError(err, this.context, output);
+            this.analyzeStartupError(err);
             throw err;
+        }
+    }
+
+    async analyzeStartupError(err: Error) {
+        output.appendLine(err.toString());
+        output.show(true)
+        let e = <any>err;
+        let diagnostics = 'Run diagnostics';
+        let actionAsync;
+        if (e.code == 'ENOENT') {
+            actionAsync = window.showErrorMessage(
+                `Could not start debugging because executable "${e.path}" was not found.`,
+                diagnostics);
+        } else if (e.code == 'Timeout' || e.code == 'Handshake') {
+            actionAsync = window.showErrorMessage(err.message, diagnostics);
+        } else {
+            actionAsync = window.showErrorMessage('Could not start debugging.', diagnostics);
+        }
+        if ((await actionAsync) == diagnostics) {
+            await this.runDiagnostics();
         }
     }
 
@@ -399,7 +419,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async startDebugAdapter(
         folder: WorkspaceFolder | undefined,
-        params: Dict<string>
+        adapterParams: Dict<string>
     ): Promise<[ChildProcess, number]> {
         let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
         let adapterType = this.getAdapterType(folder);
@@ -407,57 +427,35 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let verboseLogging = config.get<boolean>('verboseLogging');
         let adapterProcess;
         if (adapterType == 'classic') {
-            adapterProcess = await adapter.startClassic(
-                this.context.extensionPath,
-                config.get('executable', 'lldb'),
-                adapterEnv,
-                workspace.rootPath,
-                params,
-                verboseLogging);
+            adapterProcess = await adapter.startClassic(config.get('executable', 'lldb'), {
+                extensionRoot: this.context.extensionPath,
+                extraEnv: adapterEnv,
+                adapterParameters: adapterParams,
+                workDir: workspace.rootPath,
+                verboseLogging: verboseLogging,
+            });
         } else if (adapterType == 'bundled') {
-            adapterProcess = await adapter.startClassic(
-                this.context.extensionPath,
-                path.join(this.context.extensionPath, 'lldb/bin/lldb'),
-                adapterEnv,
-                workspace.rootPath,
-                params,
-                verboseLogging);
+            adapterProcess = await adapter.startClassic(path.join(this.context.extensionPath, 'lldb/bin/lldb'), {
+                extensionRoot: this.context.extensionPath,
+                extraEnv: adapterEnv,
+                workDir: workspace.rootPath,
+                adapterParameters: adapterParams,
+                verboseLogging: verboseLogging
+            });
         } else {
-            let executablePath = util.getConfigNoDefault(config, 'executable');
-            let libraryPath = util.getConfigNoDefault(config, 'library');
-
-            if (!executablePath && !libraryPath) { // Use bundled
-                libraryPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
-            } else if (libraryPath) {
-                libraryPath = await adapter.findLibLLDB(libraryPath)
-            } else { // Infer from executablePath
-                let dirs;
-                let cachedDirs = this.context.workspaceState.get<any>('lldb_directories');
-                if (!cachedDirs || cachedDirs.key != executablePath) {
-                    dirs = await util.getLLDBDirectories(executablePath);
-                    this.context.workspaceState.update('lldb_directories', { key: executablePath, value: dirs });
-                } else {
-                    dirs = cachedDirs.value;
-                }
-                libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
-            }
-
-            if (!libraryPath)
-                throw new Error('Could not locate liblldb');
-
+            let lldbLibrary = await this.locateLibLLDB(folder);
             if (verboseLogging) {
-                output.appendLine(`library: ${libraryPath}`);
+                output.appendLine(`library: ${lldbLibrary}`);
                 output.appendLine(`environment: ${inspect(adapterEnv)}`);
-                output.appendLine(`params: ${inspect(params)}`);
+                output.appendLine(`params: ${inspect(adapterParams)}`);
             }
-
-            adapterProcess = await adapter.startNative(
-                this.context.extensionPath,
-                libraryPath,
-                adapterEnv,
-                workspace.rootPath,
-                params,
-                verboseLogging);
+            adapterProcess = await adapter.startNative(lldbLibrary, {
+                extensionRoot: this.context.extensionPath,
+                extraEnv: adapterEnv,
+                workDir: workspace.rootPath,
+                adapterParameters: adapterParams,
+                verboseLogging: verboseLogging
+            });
         }
         util.logProcessOutput(adapterProcess, output);
         let port = await adapter.getDebugServerPort(adapterProcess);
@@ -472,6 +470,30 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         });
         return [adapterProcess, port];
+    }
+
+    async locateLibLLDB(folder: WorkspaceFolder | undefined) {
+        let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
+
+        let executablePath = util.getConfigNoDefault(config, 'executable');
+        let libraryPath = util.getConfigNoDefault(config, 'library');
+
+        if (!executablePath && !libraryPath) { // Use bundled
+            libraryPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+        } else if (libraryPath) {
+            libraryPath = await adapter.findLibLLDB(libraryPath)
+        } else { // Infer from executablePath
+            let dirs;
+            let cachedDirs = this.context.workspaceState.get<any>('lldb_directories');
+            if (!cachedDirs || cachedDirs.key != executablePath) {
+                dirs = await util.getLLDBDirectories(executablePath);
+                this.context.workspaceState.update('lldb_directories', { key: executablePath, value: dirs });
+            } else {
+                dirs = cachedDirs.value;
+            }
+            libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
+        }
+        return libraryPath;
     }
 
     async checkPrerequisites(folder: WorkspaceFolder | undefined): Promise<boolean> {
@@ -491,7 +513,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         return true;
     }
 
-    async runDiagnostics() {
+    async runDiagnostics(folder?: WorkspaceFolder) {
         let adapterType = this.getAdapterType(undefined);
         let succeeded;
         switch (adapterType) {
@@ -501,6 +523,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             case 'bundled':
             case 'native':
                 succeeded = await diagnostics.checkPython();
+                if (succeeded) {
+                    let [_, port] = await this.startDebugAdapter(folder, {});
+                    await diagnostics.testAdapter(port);
+                }
                 break;
         }
         if (succeeded) {

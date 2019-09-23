@@ -4,6 +4,7 @@ import * as ver from './novsc/ver';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
 import * as util from './configUtils';
+import * as async from './novsc/async';
 
 enum DiagnosticsStatus {
     Succeeded = 0,
@@ -136,6 +137,11 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
     return status < DiagnosticsStatus.Failed;
 }
 
+export async function testAdapter(port: number) {
+    let socket = await async.net.createConnection({ port: port, timeout: 1000 });
+    socket.destroy()
+}
+
 export async function checkPython(): Promise<boolean> {
     if (process.platform == 'win32') {
         let path = await adapter.getWindowsPythonPath();
@@ -152,25 +158,4 @@ export async function checkPython(): Promise<boolean> {
         }
     }
     return true;
-}
-
-export async function analyzeStartupError(err: Error, context: ExtensionContext, output: OutputChannel) {
-    output.appendLine(err.toString());
-    output.show(true)
-    let e = <any>err;
-    let diagnostics = 'Run diagnostics';
-    let actionAsync;
-    if (e.code == 'ENOENT') {
-        actionAsync = window.showErrorMessage(
-            `Could not start debugging because executable "${e.path}" was not found.`,
-            diagnostics);
-    } else if (e.code == 'Timeout' || e.code == 'Handshake') {
-        actionAsync = window.showErrorMessage(err.message, diagnostics);
-    } else {
-        actionAsync = window.showErrorMessage('Could not start debugging.', diagnostics);
-    }
-
-    if ((await actionAsync) == diagnostics) {
-        await diagnoseExternalLLDB(context, output);
-    }
 }

@@ -5,61 +5,61 @@ import * as async from './async';
 import { Dict, Environment } from './commonTypes';
 import { expandVariables } from './expand';
 
+export interface AdapterStartOptions {
+    extensionRoot: string;
+    workDir: string;
+    extraEnv: Dict<string>; // extra environment to be set for adapter
+    adapterParameters: Dict<any>; // feature parameters to pass on to the adapter
+    verboseLogging: boolean;
+}
+
 export async function startClassic(
-    extensionRoot: string,
-    lldbLocation: string,
-    extraEnv: Dict<string>, // extra environment to be set for adapter
-    workDir: string,
-    adapterParameters: Dict<any>, // feature parameters that should be passed on to the adapter
-    verboseLogging: boolean,
+    lldbExecutable: string,
+    options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergeEnv(extraEnv);
-    if (verboseLogging) {
-        adapterParameters['logLevel'] = 0;
+    let env = mergeEnv(options.extraEnv);
+    if (options.verboseLogging) {
+        options.adapterParameters['logLevel'] = 0;
     }
-    let paramsBase64 = new Buffer(JSON.stringify(adapterParameters)).toString('base64');
+    let paramsBase64 = new Buffer(JSON.stringify(options.adapterParameters)).toString('base64');
     let args = ['-b',
-        '-O', `command script import '${path.join(extensionRoot, 'adapter')}'`,
+        '-O', `command script import '${path.join(options.extensionRoot, 'adapter')}'`,
         '-O', `script adapter.run_tcp_session(0, '${paramsBase64}')`
     ];
-    return spawnDebugAdapter(lldbLocation, args, env, workDir);
+    return spawnDebugAdapter(lldbExecutable, args, env, options.workDir);
 }
 
 export async function startNative(
-    extensionRoot: string,
-    liblldb: string,
-    extraEnv: Dict<string>, // extra environment to be set for adapter
-    workDir: string,
-    adapterParameters: Dict<any>, // feature parameters that should be passed on to the adapter
-    verboseLogging: boolean,
+    lldbLibrary: string,
+    options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergeEnv(extraEnv);
-    let executable = path.join(extensionRoot, 'adapter2/codelldb');
-    let args = ['--liblldb', liblldb];
+    let env = mergeEnv(options.extraEnv);
+    let executable = path.join(options.extensionRoot, 'adapter2/codelldb');
+    let args = ['--liblldb', lldbLibrary];
     if (process.platform == 'win32') {
         // Add liblldb's directory to PATH so it can find msdia dll later.
-        env['PATH'] = env['PATH'] + ';' + path.dirname(liblldb);
+        env['PATH'] = env['PATH'] + ';' + path.dirname(lldbLibrary);
         // LLDB will need python36.dll anyways, and we can provide a better error message
         // if we preload it explicitly.
         args = ['--preload', 'python36.dll'].concat(args);
     }
-    if (adapterParameters) {
-        args = args.concat(['--params', JSON.stringify(adapterParameters)]);
+    if (options.adapterParameters) {
+        args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
     }
     env['RUST_TRACEBACK'] = '1';
-    if (verboseLogging) {
+    if (options.verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
     }
-    return spawnDebugAdapter(executable, args, env, workDir);
+    return spawnDebugAdapter(executable, args, env, options.workDir);
 }
 
 export async function spawnDebugAdapter(
     executable: string,
     args: string[],
     env: Environment,
-    cwd: string
+    workDir: string
 ): Promise<cp.ChildProcess> {
     if (process.platform == 'darwin') {
         // Make sure LLDB finds system Python before Brew Python
@@ -73,10 +73,17 @@ export async function spawnDebugAdapter(
         }
     }
 
+    // Check if workDir exists and is a directory, otherwise launch with default cwd.
+    if (workDir) {
+        let stat = await async.fs.stat(workDir).catch(_ => null);
+        if (!stat || !stat.isDirectory())
+            workDir = undefined;
+    }
+
     return cp.spawn(executable, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: env,
-        cwd: cwd
+        cwd: workDir
     });
 }
 

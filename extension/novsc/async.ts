@@ -2,6 +2,7 @@ import * as _fs from 'fs';
 import * as _cp from 'child_process';
 import * as _http from 'http';
 import * as _https from 'https';
+import * as _net from 'net';
 import { promisify } from 'util';
 
 export namespace fs {
@@ -18,12 +19,18 @@ export namespace cp {
 export namespace https {
     export function get(url: string | URL): Promise<_http.IncomingMessage> {
         return new Promise<_http.IncomingMessage>((resolve, reject) => {
-            try {
-                let request = _https.get(url, resolve);
-                request.on('error', err => reject(err));
-            } catch (err) {
-                reject(err);
-            }
+            let request = _https.get(url, resolve);
+            request.on('error', reject);
+        });
+    }
+}
+
+export namespace net {
+    export function createConnection(options: _net.NetConnectOpts): Promise<_net.Socket> {
+        return new Promise((resolve, reject) => {
+            let socket = _net.createConnection(options);
+            socket.on('error', reject);
+            socket.on('connect', () => resolve(socket));
         });
     }
 }

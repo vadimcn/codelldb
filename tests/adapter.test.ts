@@ -630,31 +630,31 @@ class DebugTestSession extends DebugClient {
                 if (process.env.LLDB_EXECUTABLE) {
                     lldb = process.env.LLDB_EXECUTABLE;
                 }
-                session.adapter = await adapter.startClassic(
-                    extensionRoot,
-                    lldb,
-                    {},
-                    extensionRoot,
-                    {},
-                    true);
+                session.adapter = await adapter.startClassic(lldb, {
+                    extensionRoot: extensionRoot,
+                    extraEnv: {},
+                    adapterParameters: {},
+                    workDir: undefined,
+                    verboseLogging: true,
+                });
             } else if (adapterType == 'bundled') {
                 let lldb = path.join(extensionRoot, 'lldb/bin/lldb');
-                session.adapter = await adapter.startClassic(
-                    extensionRoot,
-                    lldb,
-                    {},
-                    extensionRoot,
-                    {},
-                    true);
+                session.adapter = await adapter.startClassic(lldb, {
+                    extensionRoot: extensionRoot,
+                    extraEnv: {},
+                    adapterParameters: {},
+                    workDir: undefined,
+                    verboseLogging: true,
+                });
             } else if (adapterType == 'native') {
                 let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
-                session.adapter = await adapter.startNative(
-                    extensionRoot,
-                    liblldb,
-                    { RUST_LOG: 'error,codelldb=debug' },
-                    extensionRoot,
-                    {},
-                    true);
+                session.adapter = await adapter.startNative(liblldb, {
+                    extensionRoot: extensionRoot,
+                    extraEnv: { RUST_LOG: 'error,codelldb=debug' },
+                    adapterParameters: {},
+                    workDir: undefined,
+                    verboseLogging: true,
+                });
             }
 
             session.adapter.on('error', (err) => log(`Adapter error: ${err} `));

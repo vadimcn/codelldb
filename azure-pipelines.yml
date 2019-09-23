@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 829
+  lldbBuildId: 936
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   runTests: true
@@ -22,7 +22,7 @@ jobs:
     vmImage: 'Ubuntu 16.04'
 
   container:
-    image: 'vadimcn/x86_64-unknown-linux:latest'
+    image: 'vadimcn/linux-builder:latest'
     options: --privileged
 
   steps:
@@ -97,7 +97,7 @@ jobs:
     vmImage: 'Ubuntu 16.04'
 
   container:
-    image: 'vadimcn/aarch64-unknown-linux:latest'
+    image: 'vadimcn/linux-builder:latest'
     options: --privileged
 
   steps:

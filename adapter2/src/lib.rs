@@ -89,7 +89,7 @@ fn load_python() -> Result<python::NewSession, Error> {
 
     let mut dylib_path = env::current_exe()?;
     dylib_path.pop();
-    dylib_path.push(loading::get_dylib_filename("codelldb_python"));
+    dylib_path.push(format!("{}codelldb_python.{}", loading::DYLIB_PREFIX, loading::DYLIB_EXTENSION));
     unsafe {
         let codelldb_python = loading::load_library(&dylib_path, true)?;
 

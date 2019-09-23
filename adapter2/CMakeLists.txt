@@ -1,16 +1,15 @@
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    set(CPythonFeature python2)
     set(Target x86_64-unknown-linux-gnu)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
         set(Target aarch64-unknown-linux-gnu)
     endif()
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(CPythonFeature python2)
     set(RustFlags -Clink-args='-undefined dynamic_lookup')
     set(Target x86_64-apple-darwin)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(CPythonFeature python3)
+    find_package(Python3 COMPONENTS Interpreter Development)
     set(RustFlags -L${LLDB_ROOT}/lib -lliblldb)
+    set(PythonLibs -L${Python3_LIBRARY_DIRS})
     set(Target x86_64-pc-windows-msvc)
 endif()
 
@@ -54,7 +53,7 @@ add_custom_target(codelldb_lib
 
 add_custom_target(codelldb_python
     DEPENDS lldb ${PythonFiles}
-    COMMAND cargo rustc --package=codelldb_python --example codelldb_python ${CargoFlags} --no-default-features --features=${CPythonFeature} -- ${RustFlags}
+    COMMAND cargo rustc --package=codelldb_python --example codelldb_python ${CargoFlags} -- ${RustFlags} ${PythonLibs}
     COMMAND ${copy_file} ${CargoOutDir}/examples/${DylibPrefix}codelldb_python${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_python"
     USES_TERMINAL

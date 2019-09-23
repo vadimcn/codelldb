@@ -7,6 +7,7 @@ fn main() -> Result<(), failure::Error> {
         .arg(Arg::with_name("port").long("port").takes_value(true))
         .arg(Arg::with_name("multi-session").long("multi-session"))
         .arg(Arg::with_name("preload").long("preload").multiple(true).takes_value(true))
+        .arg(Arg::with_name("libpython").long("libpython").takes_value(true))
         .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("params").long("params").takes_value(true))
         .subcommand(SubCommand::with_name("terminal-agent").arg(Arg::with_name("port").long("port").takes_value(true)))
@@ -69,13 +70,43 @@ fn debug_server(matches: &ArgMatches) -> Result<(), failure::Error> {
             load_library(Path::new(dylib), true)?;
         }
 
-        // Try loading Python dylib.
+        // Try loading libpython
         // This must be done before loading liblldb, because the latter is weak-linked to libpython.
-        let libpython = if cfg!(unix) { "python2.7" } else { "python36" };
-        let libpython = get_dylib_filename(libpython);
-        match load_library(&Path::new(&libpython), true) {
-            Ok(_) => (),
-            Err(err) => eprintln!("{:?}", err),
+        if let Some(libpython) = matches.value_of("libpython") {
+            match load_library(&Path::new(&libpython), true) {
+                Ok(_) => (),
+                Err(err) => eprintln!("{}", err),
+            }
+        } else {
+            if cfg!(windows) {
+                match load_library(&Path::new("python3.dll"), true) {
+                    Ok(_) => (),
+                    Err(err) => eprintln!("{}", err),
+                }
+            } else {
+                let mut found = false;
+                let libpython = format!("{}python3.{}", DYLIB_PREFIX, DYLIB_EXTENSION);
+                match load_library(&Path::new(&libpython), true) {
+                    Ok(_) => found = true,
+                    Err(_) => {
+                        'outer: for vminor in &[10, 9, 8, 7, 6, 5, 4] {
+                            for m in &["", "m"] {
+                                let libpython = format!("{}python3.{}{}.{}", DYLIB_PREFIX, vminor, m, DYLIB_EXTENSION);
+                                match load_library(&Path::new(&libpython), true) {
+                                    Ok(_) => {
+                                        found = true;
+                                        break 'outer;
+                                    }
+                                    Err(_) => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                if !found {
+                    eprintln!("Could not load libpython3.*");
+                }
+            }
         }
 
         let mut codelldb_dir = std::env::current_exe()?;
@@ -88,8 +119,8 @@ fn debug_server(matches: &ArgMatches) -> Result<(), failure::Error> {
                 let mut liblldb_path = codelldb_dir.clone();
                 liblldb_path.pop();
                 liblldb_path.push("lldb");
-                liblldb_path.push(if cfg!(unix) { "lib" } else { "bin" });
-                liblldb_path.push(get_dylib_filename("lldb"));
+                liblldb_path.push(DYLIB_SUBDIR);
+                liblldb_path.push(format!("{}lldb.{}", DYLIB_PREFIX, DYLIB_EXTENSION));
                 liblldb_path
             }
         };
@@ -97,7 +128,7 @@ fn debug_server(matches: &ArgMatches) -> Result<(), failure::Error> {
 
         // Load codelldb shared lib
         let mut codelldb_path = codelldb_dir.clone();
-        codelldb_path.push(get_dylib_filename("codelldb"));
+        codelldb_path.push(format!("{}codelldb.{}", DYLIB_PREFIX, DYLIB_EXTENSION));
         let codelldb = load_library(&codelldb_path, false)?;
 
         // Find codelldb's entry point and call it.

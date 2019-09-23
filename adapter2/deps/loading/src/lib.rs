@@ -1,13 +1,3 @@
-pub fn get_dylib_filename(basename: &str) -> String {
-    if cfg!(windows) {
-        format!("{}.dll", basename)
-    } else if cfg!(target_os = "macos") {
-        format!("lib{}.dylib", basename)
-    } else {
-        format!("lib{}.so", basename)
-    }
-}
-
 pub use platform::*;
 pub type Handle = *const std::os::raw::c_void;
 
@@ -17,6 +7,13 @@ mod platform {
     use std::ffi::{CStr, CString};
     use std::os::raw::{c_char, c_int, c_void};
     use std::path::Path;
+
+    pub const DYLIB_PREFIX: &str = "lib";
+    #[cfg(target_os = "linux")]
+    pub const DYLIB_EXTENSION: &str = "so";
+    #[cfg(target_os = "macos")]
+    pub const DYLIB_EXTENSION: &str = "dylib";
+    pub const DYLIB_SUBDIR: &str = "lib";
 
     #[link(name = "dl")]
     extern "C" {
@@ -59,6 +56,10 @@ mod platform {
     use std::os::raw::{c_char, c_void};
     use std::path::Path;
 
+    pub const DYLIB_PREFIX: &str = "";
+    pub const DYLIB_EXTENSION: &str = "dll";
+    pub const DYLIB_SUBDIR: &str = "bin";
+
     #[link(name = "kernel32")]
     extern "system" {
         fn LoadLibraryA(filename: *const c_char) -> *const c_void;
@@ -70,7 +71,7 @@ mod platform {
         let cpath = CString::new(path.as_os_str().to_str().unwrap().as_bytes()).unwrap();
         let handle = LoadLibraryA(cpath.as_ptr() as *const c_char);
         if handle.is_null() {
-            Err(format_err!("Could not load {:?} (err={:08X})", path, GetLastError()))
+            Err(format!("Could not load {:?} (err={:08X})", path, GetLastError()).into())
         } else {
             Ok(handle)
         }
@@ -80,7 +81,7 @@ mod platform {
         let cname = CString::new(name).unwrap();
         let ptr = GetProcAddress(handle, cname.as_ptr() as *const c_char);
         if ptr.is_null() {
-            Err(format_err!("Could not find {} (err={:08X})", name, GetLastError()))
+            Err(format!("Could not find {} (err={:08X})", name, GetLastError()).into())
         } else {
             Ok(ptr)
         }

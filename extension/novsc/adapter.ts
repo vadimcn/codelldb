@@ -41,9 +41,6 @@ export async function startNative(
     if (process.platform == 'win32') {
         // Add liblldb's directory to PATH so it can find msdia dll later.
         env['PATH'] = env['PATH'] + ';' + path.dirname(lldbLibrary);
-        // LLDB will need python36.dll anyways, and we can provide a better error message
-        // if we preload it explicitly.
-        args = ['--preload', 'python36.dll'].concat(args);
     }
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);

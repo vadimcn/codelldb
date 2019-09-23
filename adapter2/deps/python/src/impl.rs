@@ -1,23 +1,39 @@
+#![feature(try_trait)]
+
 use codelldb_python::*;
-use cpython::{self, *};
-use failure::format_err;
 use lldb::*;
-use log::{self, debug, error};
-use std::cell;
+use log::{self, error};
 use std::env;
+use std::fmt::Write;
+use std::os::raw::{c_char, c_long, c_void};
 use std::str;
 
-#[allow(unused)]
-struct PythonInterfaceImpl {
-    interpreter: SBCommandInterpreter,
-    pymod_lldb: PyModule,
-    pymod_codelldb: PyModule,
-    pymod_traceback: PyModule,
-    pyty_sbexec_context: PyType,
-    pyty_sbmodule: PyType,
-    pyty_sbvalue: PyType,
-    pyfn_evaluate_in_frame: PyObject,
-    pyfn_modules_loaded: PyObject,
+mod ffi;
+pub use ffi::PyErr;
+use ffi::*;
+
+macro_rules! cstr {
+    ($s:expr) => {
+        concat!($s, "\0").as_ptr() as *const c_char
+    };
+}
+
+#[derive(Debug)]
+pub enum PythonValue {
+    SBValue(SBValue),
+    Int(i64),
+    Bool(bool),
+    String(String),
+    Object(String),
+}
+
+pub struct PythonInterfaceImpl {
+    pyty_sbexec_context: PyObjectOwn,
+    pyty_sbmodule: PyObjectOwn,
+    pyty_sbvalue: PyObjectOwn,
+    pyfn_evaluate_in_frame: PyObjectOwn,
+    pyfn_modules_loaded: PyObjectOwn,
+    pyfn_format_exception: PyObjectOwn,
 }
 
 #[no_mangle]
@@ -37,10 +53,10 @@ pub fn new_session(
     // Import debugger.py into script interpreter's namespace.
     // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
     let init_script = current_exe.with_file_name("debugger.py");
-    let command = format!("command script import '{}'", init_script.to_str()?);
+    let command = format!("command script import '{}'", init_script.to_str().unwrap()); /*####*/
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
-        return Err(Error(format_err!("{:?}", command_result)));
+        return Err(format!("{:?}", command_result).into());
     }
 
     // Init python logging
@@ -51,136 +67,153 @@ pub fn new_session(
         log::LevelFilter::Debug => 10,
         log::LevelFilter::Trace | log::LevelFilter::Off => 0,
     };
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    let pymod_codelldb = py.import("codelldb")?;
-    pymod_codelldb.call(py, "set_log_level", (py_log_level,), None)?;
-    drop(gil);
+
+    let py = Python::acquire();
+    let pymod_codelldb = py.PyImport_ImportModule(cstr!("codelldb"))?;
+    let set_log_level = py.PyObject_GetAttrString(pymod_codelldb.get(), cstr!("set_log_level"))?;
+    let py_log_level = py.PyLong_FromLong(py_log_level)?;
+    let args = py.make_pytuple(vec![py_log_level])?;
+    py.PyObject_CallObject(set_log_level.get(), Some(args.get()))?;
+    drop(py);
 
     let rust_formatters = current_exe.with_file_name("rust.py");
-    let command = format!("command script import '{}'", rust_formatters.to_str()?);
+    let command = format!("command script import '{}'", rust_formatters.to_str().unwrap()); /*###*/
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         error!("{:?}", command_result); // But carry on - Rust formatters are not critical to have.
     }
 
     // Cache some objects
-    let gil = Python::acquire_gil();
-    let py = gil.python();
+    let py = Python::acquire();
 
-    let pymod_lldb = py.import("lldb")?;
-    let pyty_sbvalue = PyType::downcast_from(py, pymod_lldb.get(py, "SBValue")?).unwrap();
-    let pyty_sbmodule = PyType::downcast_from(py, pymod_lldb.get(py, "SBModule")?).unwrap();
-    let pyty_sbexec_context = PyType::downcast_from(py, pymod_lldb.get(py, "SBExecutionContext")?).unwrap();
+    let pymod_lldb = py.PyImport_ImportModule(cstr!("lldb"))?;
+    let pyty_sbvalue = py.PyObject_GetAttrString(pymod_lldb.get(), cstr!("SBValue"))?;
+    let pyty_sbmodule = py.PyObject_GetAttrString(pymod_lldb.get(), cstr!("SBModule"))?;
+    let pyty_sbexec_context = py.PyObject_GetAttrString(pymod_lldb.get(), cstr!("SBExecutionContext"))?;
 
-    let pyfn_evaluate_in_frame = pymod_codelldb.get(py, "evaluate_in_frame")?;
-    let pyfn_modules_loaded = pymod_codelldb.get(py, "modules_loaded")?;
+    let pyfn_evaluate_in_frame = py.PyObject_GetAttrString(pymod_codelldb.get(), cstr!("evaluate_in_frame"))?;
+    let pyfn_modules_loaded = py.PyObject_GetAttrString(pymod_codelldb.get(), cstr!("modules_loaded"))?;
 
-    let pymod_traceback = py.import("traceback")?;
+    let pymod_traceback = py.PyImport_ImportModule(cstr!("traceback"))?;
+    let pyfn_format_exception = py.PyObject_GetAttrString(pymod_traceback.get(), cstr!("format_exception"))?;
 
-    let callback = RustClosure::new(py, move |py: Python, args, kwargs| {
-        py_argparse!(py, None, args, kwargs, (
-                html: String,
-                title: Option<String> = None,
-                position: Option<i32> = None,
-                reveal: bool = false
-        ) {
-            event_sink.display_html(html, title, position, reveal);
-            Ok(py.None())
-        })
-    });
-    pymod_codelldb.as_object().setattr(py, "display_html", callback?)?;
+    let callback = wrap_callable(move |args| {
+        let py = Python::acquire();
+        let mut html = String::new();
+        let mut title = None;
+        let mut position = None;
+        let mut reveal = false;
+        py.parse_tuple(args, &mut [&mut html, &mut title, &mut position, &mut reveal], 1)?;
+        event_sink.display_html(html, title, position, reveal);
+        Ok(Python::_Py_NoneStruct().into())
+    })?;
+    py.PyObject_SetAttrString(pymod_codelldb.get(), cstr!("display_html"), callback.get());
 
     let py_interface = Box::new(PythonInterfaceImpl {
-        interpreter,
-        pymod_lldb,
-        pymod_codelldb,
-        pymod_traceback,
         pyty_sbexec_context,
         pyty_sbmodule,
         pyty_sbvalue,
         pyfn_evaluate_in_frame,
         pyfn_modules_loaded,
+        pyfn_format_exception,
     });
     Ok(py_interface)
 }
 
 impl PythonInterface for PythonInterfaceImpl {
     fn evaluate(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<SBValue, String> {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let pysb_exec_context =
-            unsafe { into_swig_wrapper::<SBExecutionContext>(py, context.clone(), &self.pyty_sbexec_context) };
-        let result = self.pyfn_evaluate_in_frame.call(py, (expr, is_simple_expr, pysb_exec_context), None);
+        let py = Python::acquire();
         let target = context.target().unwrap();
-        let result = self.to_sbvalue(py, &target, result);
+        let result = self
+            .evaluate_core(&py, expr, is_simple_expr, context)
+            .and_then(|value| self.to_sbvalue(&py, &target, value.get()))
+            .map_err(|err| self.format_exception(&py, err));
         result
     }
 
     fn evaluate_as_bool(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<bool, String> {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let pysb_exec_context =
-            unsafe { into_swig_wrapper::<SBExecutionContext>(py, context.clone(), &self.pyty_sbexec_context) };
-        let result = self.pyfn_evaluate_in_frame.call(py, (expr, is_simple_expr, pysb_exec_context), None);
-        let result = match result {
-            Ok(value) => Ok(value.is_true(py).unwrap()),
-            Err(pyerr) => Err(self.format_exception(py, pyerr)),
-        };
-        debug!("evaluate_as_bool {} -> {:?}", expr, result);
+        let py = Python::acquire();
+        let result = self
+            .evaluate_core(&py, expr, is_simple_expr, context)
+            .map(|value| py.pybool_as_bool(value.get()))
+            .map_err(|err| self.format_exception(&py, err));
         result
     }
 
     fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-
-        let list = PyList::new(py, &[]);
-        for module in modules {
-            let pysbmodule = unsafe { into_swig_wrapper::<SBModule>(py, module.clone(), &self.pyty_sbmodule) };
-            list.insert_item(py, list.len(py), pysbmodule);
-        }
-        if let Err(err) = self.pyfn_modules_loaded.call(py, (list,), None) {
-            error!("modules_loaded: {}", self.format_exception(py, err));
+        let py = Python::acquire();
+        let result = || -> Result<(), PyErr> {
+            let list = py.PyList_New(0)?;
+            for module in modules {
+                let pysbmodule =
+                    unsafe { into_swig_wrapper::<SBModule>(&py, module.clone(), self.pyty_sbmodule.get()) };
+                py.PyList_Append(list.get(), pysbmodule.get())?;
+            }
+            let args = py.make_pytuple(vec![list])?;
+            py.PyObject_CallObject(self.pyfn_modules_loaded.get(), Some(args.get()))?;
+            Ok(())
+        }();
+        if let Err(err) = result {
+            error!("modules_loaded: {}", self.format_exception(&py, err));
         }
     }
 }
 
 impl PythonInterfaceImpl {
-    fn to_sbvalue(&self, py: Python, target: &SBTarget, result: PyResult<PyObject>) -> Result<SBValue, String> {
-        match result {
-            Ok(value) => {
-                if self.pyty_sbvalue.is_instance(py, &value) {
-                    let sbvalue = unsafe { from_swig_wrapper::<SBValue>(py, &value) };
-                    Ok(sbvalue)
-                } else if PyBool::type_object(py).is_instance(py, &value) {
-                    let value = bool::extract(py, &value).unwrap();
-                    Ok(sbvalue_from_bool(value, target))
-                } else if PyInt::type_object(py).is_instance(py, &value) {
-                    let value = i64::extract(py, &value).unwrap();
-                    Ok(sbvalue_from_i64(value, target))
-                } else if PyLong::type_object(py).is_instance(py, &value) {
-                    let value = i64::extract(py, &value).unwrap();
-                    Ok(sbvalue_from_i64(value, target))
-                } else if PyString::type_object(py).is_instance(py, &value) {
-                    let value = String::extract(py, &value).unwrap();
-                    Ok(sbvalue_from_str(&value, target))
-                } else {
-                    let value = value.to_string();
-                    Ok(sbvalue_from_str(&value, target))
-                }
-            }
-            Err(pyerr) => Err(self.format_exception(py, pyerr)),
+    fn evaluate_core(
+        &self,
+        py: &Python,
+        expr: &str,
+        is_simple_expr: bool,
+        context: &SBExecutionContext,
+    ) -> Result<PyObjectOwn, PyErr> {
+        let pysb_exec_context =
+            unsafe { into_swig_wrapper::<SBExecutionContext>(&py, context.clone(), self.pyty_sbexec_context.get()) };
+        let args = py.make_pytuple(vec![
+            py.pystring_from_str(expr)?,
+            py.PyBool_FromLong(is_simple_expr as c_long)?,
+            pysb_exec_context,
+        ])?;
+        let value = py.PyObject_CallObject(self.pyfn_evaluate_in_frame.get(), Some(args.get()))?;
+        Ok(value)
+    }
+
+    fn to_sbvalue(&self, py: &Python, target: &SBTarget, value: PyObjectRef) -> Result<SBValue, PyErr> {
+        if py.PyObject_IsInstance(value, self.pyty_sbvalue.get()) != 0 {
+            let sbvalue = unsafe { from_swig_wrapper::<SBValue>(&py, value) };
+            Ok(sbvalue)
+        } else if Python::PyBool_Check(value) {
+            let b = py.pybool_as_bool(value);
+            Ok(sbvalue_from_bool(b, target))
+        } else if Python::PyLong_Check(value) {
+            let ll = py.PyLong_AsLongLong(value);
+            Ok(sbvalue_from_i64(ll as i64, target))
+        } else if Python::PyUnicode_Check(value) {
+            let value = value.into();
+            let s = py.pystring_as_str(&value);
+            Ok(sbvalue_from_str(s, target))
+        } else {
+            let val_str = py.PyObject_Str(value).unwrap();
+            let s = py.pystring_as_str(&val_str);
+            Ok(sbvalue_from_str(s, target))
         }
     }
 
-    fn format_exception(&self, py: Python, mut err: PyErr) -> String {
-        err.normalize(py);
-        match self.pymod_traceback.call(py, "format_exception", (&err.ptype, &err.pvalue, &err.ptraceback), None) {
-            Ok(tb) => {
-                let lines = Vec::<String>::extract(py, &tb).unwrap();
-                lines.concat()
+    fn format_exception(&self, py: &Python, mut err: PyErr) -> String {
+        let result = || -> Result<String, PyErr> {
+            err.normalize();
+            let args = py.make_pytuple(vec![err.err_type.clone(), err.value.clone(), err.traceback.clone()])?;
+            let lines = py.PyObject_CallObject(self.pyfn_format_exception.get(), Some(args.get()))?;
+
+            let mut s = String::new();
+            for i in 0..(py.PySequence_Size(lines.get())) {
+                let line = py.PySequence_GetItem(lines.get(), i)?;
+                write!(s, "{}", py.pystring_as_str(&line)).unwrap();
             }
+            Ok(s)
+        }();
+        match result {
+            Ok(s) => s,
             Err(_) => format!("Could not format exception: {:?}", err),
         }
     }
@@ -189,23 +222,27 @@ impl PythonInterfaceImpl {
 // Creates a SWIG wrapper containing native SB object.
 // `pytype` is the Python type object of the wrapper.
 // Obviously, `SBT` and `pytype` must match, hence `unsafe`.
-unsafe fn into_swig_wrapper<SBT>(py: Python, obj: SBT, pytype: &PyType) -> PyObject {
+unsafe fn into_swig_wrapper<SBT>(py: &Python, obj: SBT, pytype: PyObjectRef) -> PyObjectOwn {
     // SWIG does not provide an API for creating Python wrapper from a native object, so we have to employ a bit of trickery:
     // First, we call SB wrapper's constructor on the Python side, which creates an instance wrapping dummy native SB object,
-    let pysb = pytype.call(py, NoArgs, None).unwrap();
+    let pysb = py.PyObject_CallObject(pytype, None).unwrap();
     // then, we retrieve a pointer to the native object via wrapper's `this` attribute,
-    let this = pysb.getattr(py, "this").unwrap().extract::<usize>(py).unwrap();
+    let this = py.PyObject_GetAttrString(pysb.get(), cstr!("this")).unwrap();
+    let this = py.PyNumber_Long(this.get()).unwrap();
+    let this = py.PyLong_AsSsize_t(this.get());
     // finally, we replace it with the actual SB object we wanted to wrap.
     std::ptr::replace(this as *mut SBT, obj);
     pysb
 }
 
 // Extracts native SB object from a SWIG wrapper.
-unsafe fn from_swig_wrapper<SBT>(py: Python, pyobj: &PyObject) -> SBT
+unsafe fn from_swig_wrapper<SBT>(py: &Python, pyobj: PyObjectRef) -> SBT
 where
     SBT: Clone,
 {
-    let this = pyobj.getattr(py, "this").unwrap().extract::<usize>(py).unwrap();
+    let this = py.PyObject_GetAttrString(pyobj, cstr!("this")).unwrap();
+    let this = py.PyNumber_Long(this.get()).unwrap();
+    let this = py.PyLong_AsSsize_t(this.get());
     let sb = this as *const SBT;
     (*sb).clone()
 }
@@ -231,23 +268,41 @@ fn sbvalue_from_str(value: &str, target: &SBTarget) -> SBValue {
     target.create_value_from_data("result", &data, &ty)
 }
 
-// Python wrapper for Rust closures
-py_class!(class RustClosure |py| {
-        data closure: cell::RefCell<Box<dyn FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send>>;
+fn wrap_callable<F>(closure: F) -> Result<PyObjectOwn, PyErr>
+where
+    F: FnMut(PyObjectRef) -> Result<PyObjectOwn, PyErr> + Send + 'static,
+{
+    unsafe {
+        let py = Python::acquire();
 
-        def __call__(&self, *args, **kwargs) -> PyResult<PyObject> {
-            use std::ops::DerefMut;
-            let mut mut_ref = self.closure(py).borrow_mut();
-            mut_ref.deref_mut()(py, &args, kwargs)
+        extern "C" fn destructor<Data>(capsule: PyObjectRef) {
+            let py = Python::acquire();
+            let ptr = py.PyCapsule_GetPointer(capsule, cstr!("RustClosure"));
+            unsafe { Box::from_raw(ptr as *mut Data) };
         }
-    });
 
-impl RustClosure {
-    fn new<F>(py: Python, closure: F) -> PyResult<RustClosure>
-    where
-        F: FnMut(Python, &PyTuple, Option<&PyDict>) -> PyResult<PyObject> + Send + 'static,
-    {
-        let closure = cell::RefCell::new(Box::new(closure));
-        RustClosure::create_instance(py, closure)
+        extern "C" fn trampoline<F>(capsule: PyObjectRef, args: PyObjectRef) -> PyObjectResult
+        where
+            F: FnMut(PyObjectRef) -> Result<PyObjectOwn, PyErr>,
+        {
+            let py = Python::acquire();
+            let ptr = py.PyCapsule_GetPointer(capsule, cstr!("RustClosure"));
+            let data: &mut _ = unsafe { &mut *(ptr as *mut (F, PyMethodDef)) };
+            PyObjectResult::from_result((data.0)(args))
+        }
+
+        let md = PyMethodDef {
+            ml_name: cstr!("RustClosure"),
+            ml_meth: trampoline::<F>,
+            ml_flags: METH_VARARGS,
+            ml_doc: cstr!("Rust closure"),
+        };
+
+        let data = (closure, md);
+        let ptr = Box::into_raw(Box::new(data));
+        let capsule = py.PyCapsule_New(ptr as *mut c_void, cstr!("RustClosure"), destructor::<(F, PyMethodDef)>)?;
+
+        let func = py.PyCFunction_New(&(*ptr).1, Some(capsule.get()))?;
+        Ok(func)
     }
 }

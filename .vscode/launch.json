@@ -44,9 +44,10 @@
 			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
+			//"initCommands": ["set set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				//"--liblldb=${workspaceFolder}/build/lldb/lib/liblldb.so",
+				"--libpython=libpython3.6m.so",
 				"--multi-session",
 				"--port=4711"
 			],
@@ -144,6 +145,14 @@
 			"sourceFileMap": {
 				"C:\\_work\\4\\s": "c:\\NW\\cpython"
 			}
+		},
+		{
+			"name": "codelldb find-python",
+			"type": "lldb",
+			"request": "launch",
+			"preLaunchTask": "make codelldb",
+			"program": "${workspaceFolder}/build/adapter2/codelldb",
+			"args": ["find-python"]
 		},
 		{
 			"name": "codelldb python",

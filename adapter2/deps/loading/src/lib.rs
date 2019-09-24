@@ -3,10 +3,10 @@ pub type Handle = *const std::os::raw::c_void;
 
 #[cfg(unix)]
 mod platform {
-    use failure::*;
     use std::ffi::{CStr, CString};
     use std::os::raw::{c_char, c_int, c_void};
     use std::path::Path;
+    pub type Error = Box<dyn std::error::Error>;
 
     pub const DYLIB_PREFIX: &str = "lib";
     #[cfg(target_os = "linux")]
@@ -32,7 +32,7 @@ mod platform {
         };
         let handle = dlopen(cpath.as_ptr() as *const c_char, flags);
         if handle.is_null() {
-            Err(format_err!("{:?}", CStr::from_ptr(dlerror())))
+            Err(format!("{:?}", CStr::from_ptr(dlerror())).into())
         } else {
             Ok(handle)
         }
@@ -42,7 +42,7 @@ mod platform {
         let cname = CString::new(name).unwrap();
         let ptr = dlsym(handle, cname.as_ptr() as *const c_char);
         if ptr.is_null() {
-            Err(format_err!("{:?}", CStr::from_ptr(dlerror())))
+            Err(format!("{:?}", CStr::from_ptr(dlerror())).into())
         } else {
             Ok(ptr)
         }
@@ -51,10 +51,10 @@ mod platform {
 
 #[cfg(windows)]
 mod platform {
-    use failure::*;
     use std::ffi::CString;
     use std::os::raw::{c_char, c_void};
     use std::path::Path;
+    pub type Error = Box<dyn std::error::Error>;
 
     pub const DYLIB_PREFIX: &str = "";
     pub const DYLIB_EXTENSION: &str = "dll";

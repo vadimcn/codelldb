@@ -1,6 +1,8 @@
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-fn main() -> Result<(), failure::Error> {
+type Error = Box<dyn std::error::Error>;
+
+fn main() -> Result<(), Error> {
     env_logger::Builder::from_default_env().init();
 
     let matches = App::new("codelldb")
@@ -20,7 +22,7 @@ fn main() -> Result<(), failure::Error> {
     }
 }
 
-fn terminal_agent(matches: &ArgMatches) -> Result<(), failure::Error> {
+fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     use std::io::{Read, Write};
     use std::net;
 
@@ -55,7 +57,7 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), failure::Error> {
     Ok(())
 }
 
-fn debug_server(matches: &ArgMatches) -> Result<(), failure::Error> {
+fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     use loading::*;
     use std::mem::transmute;
     use std::path::{Path, PathBuf};

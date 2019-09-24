@@ -1,22 +1,30 @@
-use failure_derive::*;
 use lldb;
 use serde_json;
-use std::error::Error as ErrorTrait;
+use std::error::Error as StdError;
+use std::fmt;
 use std::io;
 use std::option;
 
-#[derive(Fail, Debug)]
+#[derive(Debug)]
 pub enum Error {
     // Out fault
-    #[fail(display = "Internal debugger error: {}", _0)]
     Internal(String),
     // VSCode's fault
-    #[fail(display = "Debug protocol error: {}", _0)]
     Protocol(String),
     // User's fault
-    #[fail(display = "{}", _0)]
     UserError(String),
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Internal(s) => write!(f, "Internal debugger error: {}", s),
+            Error::Protocol(s) => write!(f, "Debug protocol error: {}", s),
+            Error::UserError(s) => write!(f, "{}", s),
+        }
+    }
+}
+impl StdError for Error {}
 
 impl From<option::NoneError> for Error {
     fn from(_: option::NoneError) -> Self {
@@ -40,11 +48,6 @@ impl From<serde_json::Error> for Error {
 }
 impl From<std::num::ParseIntError> for Error {
     fn from(err: std::num::ParseIntError) -> Self {
-        Error::Internal(err.to_string())
-    }
-}
-impl From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Self {
         Error::Internal(err.to_string())
     }
 }

@@ -2,7 +2,7 @@ import {
     workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler,
+    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -51,6 +51,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.pickProcess', () => pickProcess(false)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => pickProcess(true)));
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
+        subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
@@ -443,7 +444,19 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 verboseLogging: verboseLogging
             });
         } else {
-            let lldbLibrary = await this.locateLibLLDB(folder);
+            let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
+            let libpython;
+            let liblldb = util.getConfigNoDefault(config, 'library');
+            if (liblldb) {
+                liblldb = await adapter.findLibLLDB(liblldb)
+                // Don't preload libpython, because external backend will have been linked to a specific Python version.
+                libpython = null;
+            } else {
+                liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+                // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
+                libpython = await adapter.findLibPython(this.context.extensionPath);
+            }
+
             if (verboseLogging) {
                 output.appendLine(`library: ${lldbLibrary}`);
                 output.appendLine(`environment: ${inspect(adapterEnv)}`);
@@ -470,30 +483,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         });
         return [adapterProcess, port];
-    }
-
-    async locateLibLLDB(folder: WorkspaceFolder | undefined) {
-        let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
-
-        let executablePath = util.getConfigNoDefault(config, 'executable');
-        let libraryPath = util.getConfigNoDefault(config, 'library');
-
-        if (!executablePath && !libraryPath) { // Use bundled
-            libraryPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
-        } else if (libraryPath) {
-            libraryPath = await adapter.findLibLLDB(libraryPath)
-        } else { // Infer from executablePath
-            let dirs;
-            let cachedDirs = this.context.workspaceState.get<any>('lldb_directories');
-            if (!cachedDirs || cachedDirs.key != executablePath) {
-                dirs = await util.getLLDBDirectories(executablePath);
-                this.context.workspaceState.update('lldb_directories', { key: executablePath, value: dirs });
-            } else {
-                dirs = cachedDirs.value;
-            }
-            libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
-        }
-        return libraryPath;
     }
 
     async checkPrerequisites(folder: WorkspaceFolder | undefined): Promise<boolean> {
@@ -532,6 +521,37 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (succeeded) {
             window.showInformationMessage('LLDB self-test completed successfuly.');
         }
+    }
+
+    async alternateBackend() {
+        let box = window.createInputBox();
+        box.prompt = 'Enter file name of the LLDB instance you\'d like to use. ';
+        box.onDidAccept(async () => {
+            try {
+                let dirs = await util.getLLDBDirectories(box.value);
+                if (dirs) {
+                    let libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
+                    if (libraryPath) {
+                        let choice = await window.showInformationMessage(
+                            `Located liblldb at: ${libraryPath}\r\nUse it to configure the current workspace?`,
+                            { modal: true }, 'Yes'
+                        );
+                        if (choice == 'Yes') {
+                            box.hide();
+                            let lldbConfig = workspace.getConfiguration('lldb');
+                            lldbConfig.update('library', libraryPath, ConfigurationTarget.Workspace);
+                        } else {
+                            box.show();
+                        }
+                    }
+                }
+            } catch (err) {
+                let message = (err.code == 'ENOENT') ? `could not find "${err.path}".` : err.message;
+                await window.showErrorMessage(`Failed to query LLDB for library location: ${message}`, { modal: true });
+                box.show();
+            }
+        });
+        box.show();
     }
 
     getAdapterType(folder: WorkspaceFolder | undefined): AdapterType {

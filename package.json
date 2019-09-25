@@ -92,7 +92,7 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Generate launch configurations from Cargo.toml",
+				"title": "Generate Launch Configurations from Cargo.toml",
 				"command": "lldb.getCargoLaunchConfigs"
 			},
 			{
@@ -102,8 +102,13 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Copy value",
+				"title": "Copy Value",
 				"command": "lldb.modules.copyValue"
+			},
+			{
+				"category": "LLDB",
+				"title": "Use Alternate Backend...",
+				"command": "lldb.alternateBackend"
 			}
 		],
 		"languages": [

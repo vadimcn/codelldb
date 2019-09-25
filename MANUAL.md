@@ -448,7 +448,10 @@ Please see [this announcement](CHANGELOG.md#heads-up-codelldb-is-moving-to-nativ
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging
 Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
 In order to use alternate backend, you will need to provide location of the corresponding liblldb&#46;so/.dylib/.dll
-dynamic library via the **lldb.library** configuration setting. Alternatively, it is also possible to provide name of the main LLDB executable (via **lldb.executable**), in which case CodeLLDB will attempt to locate the library automatically.
+dynamic library via the **lldb.library** configuration setting.
+Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
+You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the corresponding library.
+
 
 # Rust Language Support
 

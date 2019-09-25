@@ -85,22 +85,20 @@ export function setIfDefined(target: Dict<any>, config: WorkspaceConfiguration, 
 export interface LLDBDirectories {
     shlibDir: string;
     supportExeDir: string;
-    pythonDir: string
 }
 
 export async function getLLDBDirectories(executable: string): Promise<LLDBDirectories> {
     let statements = [];
-    for (let type of ['ePathTypeLLDBShlibDir', 'ePathTypeSupportExecutableDir', 'ePathTypePythonDir']) {
+    for (let type of ['ePathTypeLLDBShlibDir', 'ePathTypeSupportExecutableDir']) {
         statements.push(`print('<!' + lldb.SBHostOS.GetLLDBPath(lldb.${type}).fullpath + '!>')`);
     }
     let args = ['-b', '-O', `script ${statements.join(';')}`];
     let { stdout, stderr } = await async.cp.execFile(executable, args);
-    let m = (/^<!([^!]*)!>$[^.]*^<!([^!]*)!>[^.]*^<!([^!]*)!>/m).exec(stdout);
+    let m = (/^<!([^!]*)!>$[^.]*^<!([^!]*)!>/m).exec(stdout);
     if (m) {
         return {
             shlibDir: m[1],
-            supportExeDir: m[2],
-            pythonDir: m[3]
+            supportExeDir: m[2]
         };
     } else {
         throw new Error(stderr);

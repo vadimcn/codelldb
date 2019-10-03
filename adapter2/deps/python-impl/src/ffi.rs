@@ -485,6 +485,9 @@ fn check_repr() {
 }
 #[test]
 fn parse_tuple() {
+    extern "C" {
+        fn Py_InitializeEx(initsigs: c_int);
+    }
     unsafe {
         Py_InitializeEx(0);
         let py = Python::acquire();
@@ -493,7 +496,7 @@ fn parse_tuple() {
             .make_pytuple(vec![
                 py.pystring_from_str("String").unwrap(),
                 py.PyBool_FromLong(1).unwrap(),
-                py.PyInt_FromLong(42).unwrap(),
+                py.PyLong_FromLong(42).unwrap(),
             ])
             .unwrap();
 
@@ -504,7 +507,7 @@ fn parse_tuple() {
 
         let mut s: Option<String> = None;
         let mut b: Option<bool> = None;
-        let mut i: Option<i32> = None;;
+        let mut i: Option<i32> = None;
         py.parse_tuple(t.get(), &mut [&mut s, &mut b, &mut i], 3).unwrap();
     }
 }

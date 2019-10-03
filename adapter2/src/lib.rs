@@ -2,8 +2,6 @@
 #![feature(fn_traits)]
 #![allow(unused)]
 
-extern crate codelldb_python as python;
-
 use futures::prelude::*;
 use tokio::prelude::*;
 

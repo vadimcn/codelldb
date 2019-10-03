@@ -409,7 +409,8 @@ function generateSuite(adapterType: AdapterType, triple: string) {
             });
 
             test('disassembly', async function () {
-                if (triple.endsWith('pc-windows-msvc')) this.skip();
+                //if (triple.endsWith('pc-windows-msvc')) this.skip();
+                if (/windows/.test(triple)) this.skip();
 
                 let ds = await DebugTestSession.start(adapterLog);
                 let setBreakpointAsync = ds.setFnBreakpoint('/re disassembly1');
@@ -639,7 +640,8 @@ class DebugTestSession extends DebugClient {
                 });
             } else if (adapterType == 'native') {
                 let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
-                session.adapter = await adapter.startNative(liblldb, {
+                let libpython = await adapter.findLibPython(extensionRoot);
+                session.adapter = await adapter.startNative(liblldb, libpython, {
                     extensionRoot: extensionRoot,
                     extraEnv: { RUST_LOG: 'error,codelldb=debug' },
                     adapterParameters: {},

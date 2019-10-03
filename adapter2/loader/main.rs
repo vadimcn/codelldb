@@ -2,6 +2,8 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 type Error = Box<dyn std::error::Error>;
 
+mod find_python;
+
 fn main() -> Result<(), Error> {
     env_logger::Builder::from_default_env().init();
 
@@ -13,10 +15,13 @@ fn main() -> Result<(), Error> {
         .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("params").long("params").takes_value(true))
         .subcommand(SubCommand::with_name("terminal-agent").arg(Arg::with_name("port").long("port").takes_value(true)))
+        .subcommand(SubCommand::with_name("find-python"))
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("terminal-agent") {
         terminal_agent(&matches)
+    } else if let Some(_) = matches.subcommand_matches("find-python") {
+        find_python()
     } else {
         debug_server(&matches)
     }
@@ -39,7 +44,9 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     #[cfg(windows)]
     fn purge_stdin() {
         use std::os::windows::io::AsRawHandle;
-        unsafe { winapi::um::wincon::FlushConsoleInputBuffer(std::io::stdin().as_raw_handle()); }
+        unsafe {
+            winapi::um::wincon::FlushConsoleInputBuffer(std::io::stdin().as_raw_handle());
+        }
     }
 
     let data;
@@ -76,6 +83,19 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
+fn find_python() -> Result<(), Error> {
+    match find_python::find_python() {
+        Ok(path) => {
+            println!("{}", path.display());
+            return Ok(());
+        }
+        Err(err) => {
+            eprintln!("{}", err);
+            Err(err)
+        }
+    }
+}
+
 fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     use loading::*;
     use std::mem::transmute;
@@ -97,36 +117,6 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
             match load_library(&Path::new(&libpython), true) {
                 Ok(_) => (),
                 Err(err) => eprintln!("{}", err),
-            }
-        } else {
-            if cfg!(windows) {
-                match load_library(&Path::new("python3.dll"), true) {
-                    Ok(_) => (),
-                    Err(err) => eprintln!("{}", err),
-                }
-            } else {
-                let mut found = false;
-                let libpython = format!("{}python3.{}", DYLIB_PREFIX, DYLIB_EXTENSION);
-                match load_library(&Path::new(&libpython), true) {
-                    Ok(_) => found = true,
-                    Err(_) => {
-                        'outer: for vminor in &[10, 9, 8, 7, 6, 5, 4] {
-                            for m in &["", "m"] {
-                                let libpython = format!("{}python3.{}{}.{}", DYLIB_PREFIX, vminor, m, DYLIB_EXTENSION);
-                                match load_library(&Path::new(&libpython), true) {
-                                    Ok(_) => {
-                                        found = true;
-                                        break 'outer;
-                                    }
-                                    Err(_) => {}
-                                }
-                            }
-                        }
-                    }
-                }
-                if !found {
-                    eprintln!("Could not load libpython3.*");
-                }
             }
         }
 

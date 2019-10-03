@@ -13,3 +13,6 @@ lazy_static = "1.3.0"
 
 [build-dependencies]
 cpp_build = "0.5.2"
+
+[features]
+weak-linkage = []

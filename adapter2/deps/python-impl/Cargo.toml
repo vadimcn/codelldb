@@ -1,15 +1,18 @@
 [package]
-name = "codelldb_python"
+name = "python-impl"
 version = "0.1.0"
 authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 env_logger = "0.6.2"
-lldb = { path = "../lldb" }
 log = "0.4.7"
+lldb = { path = "../lldb" }
+interface = { package = "python-interface", path = "../python-interface" }
 
-[[example]]
+[lib]
 name = "codelldb_python"
-path = "src/impl.rs"
 crate-type = ["cdylib"]
+
+[features]
+weak-linkage = ["lldb/weak-linkage"]

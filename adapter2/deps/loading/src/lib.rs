@@ -18,6 +18,7 @@ mod platform {
     #[link(name = "dl")]
     extern "C" {
         fn dlopen(filename: *const c_char, flag: c_int) -> *const c_void;
+        fn dlclose(handle: *const c_void) -> c_int;
         fn dlsym(handle: *const c_void, symbol: *const c_char) -> *const c_void;
         fn dlerror() -> *const c_char;
     }
@@ -35,6 +36,14 @@ mod platform {
             Err(format!("{:?}", CStr::from_ptr(dlerror())).into())
         } else {
             Ok(handle)
+        }
+    }
+
+    pub unsafe fn free_library(handle: *const c_void) -> Result<(), Error> {
+        if dlclose(handle) == 0 {
+            Ok(())
+        } else {
+            Err(format!("{:?}", CStr::from_ptr(dlerror())).into())
         }
     }
 
@@ -63,6 +72,7 @@ mod platform {
     #[link(name = "kernel32")]
     extern "system" {
         fn LoadLibraryA(filename: *const c_char) -> *const c_void;
+        fn FreeLibrary(handle: *const c_void) -> u32;
         fn GetProcAddress(handle: *const c_void, symbol: *const c_char) -> *const c_void;
         fn GetLastError() -> u32;
     }
@@ -74,6 +84,14 @@ mod platform {
             Err(format!("Could not load {:?} (err={:08X})", path, GetLastError()).into())
         } else {
             Ok(handle)
+        }
+    }
+
+    pub unsafe fn free_library(handle: *const c_void) -> Result<(), Error> {
+        if FreeLibrary(handle) != 0 {
+            Ok(())
+        } else {
+            Err(format!("Could not free library (err={:08X})", GetLastError()).into())
         }
     }
 

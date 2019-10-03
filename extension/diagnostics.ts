@@ -142,12 +142,12 @@ export async function testAdapter(port: number) {
     socket.destroy()
 }
 
-export async function checkPython(): Promise<boolean> {
+export async function checkPython(context: ExtensionContext): Promise<boolean> {
     if (process.platform == 'win32') {
-        let path = await adapter.getWindowsPythonPath();
+        let path = await adapter.findLibPython(context.extensionPath);
         if (path == null) {
             let action = await window.showErrorMessage(
-                `CodeLLDB requires Python ${adapter.pythonVersion} (64-bit), but looks like it is not installed on this machine.`,
+                `CodeLLDB requires Python 3.3 or later (64-bit), but looks like it is not installed on this machine.`,
                 { modal: true },
                 'Take me to Python website');
             if (action != null)

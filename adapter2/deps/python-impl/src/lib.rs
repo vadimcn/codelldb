@@ -1,6 +1,6 @@
 #![feature(try_trait)]
 
-use codelldb_python::*;
+use interface::*;
 use lldb::*;
 use log::{self, error};
 use std::env;

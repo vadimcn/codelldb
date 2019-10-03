@@ -31,16 +31,20 @@ export async function startClassic(
 }
 
 export async function startNative(
-    lldbLibrary: string,
+    liblldb: string,
+    libpython: string,
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
     let env = mergeEnv(options.extraEnv);
     let executable = path.join(options.extensionRoot, 'adapter2/codelldb');
-    let args = ['--liblldb', lldbLibrary];
+    let args = ['--liblldb', liblldb];
+    if (libpython) {
+        args.push('--libpython', libpython);
+    }
     if (process.platform == 'win32') {
         // Add liblldb's directory to PATH so it can find msdia dll later.
-        env['PATH'] = env['PATH'] + ';' + path.dirname(lldbLibrary);
+        env['PATH'] = env['PATH'] + ';' + path.dirname(liblldb);
     }
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
@@ -58,18 +62,6 @@ export async function spawnDebugAdapter(
     env: Environment,
     workDir: string
 ): Promise<cp.ChildProcess> {
-    if (process.platform == 'darwin') {
-        // Make sure LLDB finds system Python before Brew Python
-        // https://github.com/Homebrew/legacy-homebrew/issues/47201
-        env['PATH'] = '/usr/bin:' + env['PATH'];
-    } else if (process.platform == 'win32') {
-        // Try to locate Python installation and add it to the PATH.
-        let pythonPath = await getWindowsPythonPath();
-        if (pythonPath) {
-            env['PATH'] = env['PATH'] + ';' + pythonPath;
-        }
-    }
-
     // Check if workDir exists and is a directory, otherwise launch with default cwd.
     if (workDir) {
         let stat = await async.fs.stat(workDir).catch(_ => null);
@@ -198,51 +190,13 @@ export function mergeEnv(extraEnv: Dict<string>): Environment {
     return env;
 }
 
-export const pythonVersion = '3.6';
 
-export async function getWindowsPythonPath(): Promise<string> {
-    if (process.platform != 'win32')
-        throw new Error('Windows only!');
+let findLibPythonAsync: Promise<string> = null;
 
-    let path = await getPythonPathAsync;
-    if (path == null) { // Don't cache negative result - in case they install Python without restarting VSCode.
-        getPythonPathAsync = getWindowsPythonPathImpl();
-        path = await getPythonPathAsync
+export async function findLibPython(extensionRoot: string): Promise<string> {
+    if (findLibPythonAsync == null) {
+        findLibPythonAsync = async.cp.execFile(path.join(extensionRoot, 'adapter2/codelldb'), ['find-python'])
+            .then(result => result.stdout.trim()).catch(_err => null)
     }
-    return path;
-}
-
-// Kick off this query as soon as the module gets loaded.
-let getPythonPathAsync = getWindowsPythonPathImpl();
-
-async function getWindowsPythonPathImpl(): Promise<string> {
-    if (process.platform != 'win32')
-        return undefined;
-
-    let path = await readRegistry(`HKCU\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
-    if (!path) {
-        path = await readRegistry(`HKLM\\Software\\Python\\PythonCore\\${pythonVersion}\\InstallPath`, null);
-    }
-    return path;
-}
-
-async function readRegistry(path: string, value?: string): Promise<string> {
-    let args = ['query', path];
-    if (value != null)
-        args.push('/v', value);
-    else
-        args.push('/ve');
-    args.push('/reg:64');
-
-    try {
-        let { stdout } = await async.cp.execFile('reg.exe', args);
-        let m = (/REG_SZ\s+(.*)/).exec(stdout);
-        if (m) {
-            return m[1];
-        } else {
-            return null;
-        }
-    } catch (err) {
-        return null;
-    }
+    return findLibPythonAsync;
 }

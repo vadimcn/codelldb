@@ -1,8 +1,6 @@
 use std::env;
 
 fn main() {
-    cpp_build::Config::new().include("include").build("src/lldb.rs");
-
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let weak_linkage = match env::var("CARGO_FEATURE_WEAK_LINKAGE") {
         Ok(_) => true,
@@ -17,8 +15,7 @@ fn main() {
     }
 
     if target_os == "windows" {
-        println!("cargo:rustc-link-lib=dylib=liblldb");
-        link_python(); // liblldb depends on Python too
+        link_python();
     } else {
         if weak_linkage {
             if target_os == "macos" {
@@ -26,7 +23,6 @@ fn main() {
                 println!("cargo:rustc-cdylib-link-arg=dynamic_lookup");
             }
         } else {
-            println!("cargo:rustc-link-lib=dylib=lldb");
             link_python();
         }
     }

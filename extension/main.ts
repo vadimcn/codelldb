@@ -447,15 +447,19 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             } else {
                 liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
                 // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
-                libpython = await adapter.findLibPython(this.context.extensionPath);
+                libpython = util.getConfigNoDefault(config, 'libpython');
+                if (!libpython) {
+                    libpython = await adapter.findLibPython(this.context.extensionPath);
+                }
             }
 
             if (verboseLogging) {
-                output.appendLine(`library: ${lldbLibrary}`);
+                output.appendLine(`liblldb: ${liblldb}`);
+                output.appendLine(`libpython: ${libpython}`);
                 output.appendLine(`environment: ${inspect(adapterEnv)}`);
                 output.appendLine(`params: ${inspect(adapterParams)}`);
             }
-            adapterProcess = await adapter.startNative(lldbLibrary, {
+            adapterProcess = await adapter.startNative(liblldb, libpython, {
                 extensionRoot: this.context.extensionPath,
                 extraEnv: adapterEnv,
                 workDir: workspace.rootPath,
@@ -487,7 +491,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 this.context.globalState.update('lldb_works', true);
             }
         } else {
-            if (!await diagnostics.checkPython())
+            if (!await diagnostics.checkPython(this.context))
                 return false;
             if (!await install.ensurePlatformPackage(this.context, output))
                 return false;
@@ -503,7 +507,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
                 break;
             case 'native':
-                succeeded = await diagnostics.checkPython();
+                succeeded = await diagnostics.checkPython(this.context);
                 if (succeeded) {
                     let [_, port] = await this.startDebugAdapter(folder, {});
                     await diagnostics.testAdapter(port);

@@ -75,14 +75,6 @@ jobs:
     condition: variables.runTests
 
   - script: |
-      $(setenvLinux)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "bundled"
-    displayName: 'Test bundled'
-    condition: variables.runTests
-
-  - script: |
       echo - env ------------------
       env
       echo - dir -----------------------
@@ -146,7 +138,7 @@ jobs:
   #     $(setenvLinux)
   #     cmake --build build --target tests
   #     cd build
-  #     ctest --output-on-failure -R "bundled|native"
+  #     ctest --output-on-failure -R "native"
   #   displayName: 'Test'
   #   condition: variables.runTests
 
@@ -220,14 +212,6 @@ jobs:
       cd build
       ctest --output-on-failure -R "native"
     displayName: 'Test native'
-    condition: variables.runTests
-
-  - script: |
-      $(setenvOSX)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "bundled"
-    displayName: 'Test bundled'
     condition: variables.runTests
 
   - script: |
@@ -321,14 +305,6 @@ jobs:
       cd build
       ctest --output-on-failure -R "native"
     displayName: 'Test native'
-    condition: variables.runTests
-
-  - script: |
-      $(setenvWindows)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "bundled"
-    displayName: 'Test bundled'
     condition: variables.runTests
 
   - script: |

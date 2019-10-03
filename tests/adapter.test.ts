@@ -637,15 +637,6 @@ class DebugTestSession extends DebugClient {
                     workDir: undefined,
                     verboseLogging: true,
                 });
-            } else if (adapterType == 'bundled') {
-                let lldb = path.join(extensionRoot, 'lldb/bin/lldb');
-                session.adapter = await adapter.startClassic(lldb, {
-                    extensionRoot: extensionRoot,
-                    extraEnv: {},
-                    adapterParameters: {},
-                    workDir: undefined,
-                    verboseLogging: true,
-                });
             } else if (adapterType == 'native') {
                 let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
                 session.adapter = await adapter.startNative(liblldb, {

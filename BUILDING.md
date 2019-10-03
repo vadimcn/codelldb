@@ -50,7 +50,7 @@ cmake .. -DLLDB_ROOT=<path to LLDB directory>
 - `cargo_test` - run `cargo test` on all codelldb crates.
 - `dev_debugging` - build extension, adapters, debuggee and other stuff needed for debugging extension directly out of the build directory.
 After building this target you can run `code --extensionDevelopmentPath=${workspaceFolder}/build` to try out the extension.
-- `check_` { `classic` | `bundled` | `native` } - build and test the specified adapter type.
+- `check_` { `classic` | `native` } - build and test the specified adapter type.
 - `check` - build adapter and run tests for all adapter types.
 - `vsix_portable` - build VSIX package containing only the "classic" adapter.
 - `vsix_full` - build VSIX package including all required native binaries (for the current platform).

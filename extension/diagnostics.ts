@@ -118,15 +118,15 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
             case DiagnosticsStatus.NotFound:
                 let buttons = [{ title: 'Show installation instructions', action: 'instructions' }];
                 if (config.get('adapterType') == 'classic') {
-                    buttons.push({ title: 'Use bundled LLDB [Beta]', action: 'bundled' });
+                    buttons.push({ title: 'Use native adapter.', action: 'native' });
                 }
                 let choice = await window.showErrorMessage('Could not find LLDB on this machine.', { modal: true }, ...buttons);
                 if (choice != null) {
                     if (choice.action == 'instructions') {
                         env.openExternal(Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Installing-LLDB'));
-                    } else if (choice.action == 'bundled') {
-                        output.appendLine('Setting "lldb.adapterType": "bundled".');
-                        config.update('adapterType', 'bundled', ConfigurationTarget.Global);
+                    } else if (choice.action == 'native') {
+                        output.appendLine('Setting "lldb.adapterType": "native".');
+                        config.update('adapterType', 'native', ConfigurationTarget.Global);
                         if (await install.ensurePlatformPackage(context, output))
                             status = DiagnosticsStatus.Succeeded;
                     }

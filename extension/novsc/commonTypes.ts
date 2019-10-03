@@ -1,7 +1,7 @@
-export type AdapterType = 'classic' | 'bundled' | 'native';
+export type AdapterType = 'classic' | 'native';
 
 export function toAdapterType(str: string): AdapterType {
-    return str == 'bundled' ? 'bundled' : (str == 'native' ? 'native' : 'classic');
+    return str == 'classic' ? 'classic' : 'native';
 }
 
 export interface Dict<T> {

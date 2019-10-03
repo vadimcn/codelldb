@@ -26,14 +26,6 @@
 			"host": "127.0.0.1",
 		},
 		{
-			"name": "bundled adapter",
-			"type": "python",
-			"request": "attach",
-			"preLaunchTask": "debug launch bundled adapter",
-			"port": 3000,
-			"host": "127.0.0.1",
-		},
-		{
 			"name": "codelldb on Linux",
 			"preLaunchTask": "make codelldb",
 			"type": "lldb",

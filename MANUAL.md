@@ -509,7 +509,7 @@ configurations (if there is no `launch.json` in the workspace).
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<li>classic - a Python-based debug adapter running in externally provided LLDB,<li>bundled - a Python-based debug adapter running in LLDB provided by this extension (based on LLDB 8),<li>native - native debug adapter (based on libLLDB 8).<br>The last two options will require one-time download of platform-specific binaries.
+|**lldb.adapterType**   |Type of debug adapter to use:<li>native - Native implementation, requires one-time download of platform-specific binaries (default),<li>classic - the original Python-based debug adapter running in externally provided LLDB.
 |**lldb.executable**    |Which LLDB executable to use. (default="lldb")
 |**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**|Environment variables to pass to the debug adapter.

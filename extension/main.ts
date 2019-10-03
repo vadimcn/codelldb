@@ -244,7 +244,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         this.propagateDisplaySettings();
 
         let adapterType = this.getAdapterType(undefined);
-        if (adapterType == 'bundled' || adapterType == 'native') {
+        if (adapterType == 'native') {
             install.ensurePlatformPackage(this.context, output);
         }
     }
@@ -436,14 +436,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 workDir: workspace.rootPath,
                 verboseLogging: verboseLogging,
             });
-        } else if (adapterType == 'bundled') {
-            adapterProcess = await adapter.startClassic(path.join(this.context.extensionPath, 'lldb/bin/lldb'), {
-                extensionRoot: this.context.extensionPath,
-                extraEnv: adapterEnv,
-                workDir: workspace.rootPath,
-                adapterParameters: adapterParams,
-                verboseLogging: verboseLogging
-            });
         } else {
             let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
             let libpython;
@@ -510,7 +502,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             case 'classic':
                 succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
                 break;
-            case 'bundled':
             case 'native':
                 succeeded = await diagnostics.checkPython();
                 if (succeeded) {

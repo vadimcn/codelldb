@@ -171,14 +171,12 @@
 					"type": "string",
 					"default": "native",
 					"enum": [
-						"classic",
-						"bundled",
-						"native"
+						"native",
+						"classic"
 					],
 					"enumDescriptions": [
-						"Use classic Python-based debug adapter",
-						"Use LLDB engine provided by this extension.  Requires one-time download of platform-specific files.",
-						"Use native debug adapter.  Requires one-time download of platform-specific files."
+						"Use native debug adapter.  Requires one-time download of platform-specific files.",
+						"Use classic Python-based debug adapter"
 					],
 					"scope": "resource"
 				},

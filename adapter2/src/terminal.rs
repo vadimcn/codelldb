@@ -5,13 +5,6 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::{Duration, Instant};
 
-#[cfg(windows)]
-extern "stdcall" {
-    fn FreeConsole() -> u32;
-    fn AttachConsole(pid: u32) -> u32;
-    fn GetLastError() -> u32;
-}
-
 pub struct Terminal {
     connection: TcpStream,
     data: String,
@@ -71,6 +64,7 @@ impl Terminal {
         // Instead,
         #[cfg(windows)]
         {
+            use winapi::um::wincon::{AttachConsole, FreeConsole};
             let pid = self.data.parse::<u32>().unwrap();
             unsafe {
                 dbg!(FreeConsole());

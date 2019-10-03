@@ -1266,10 +1266,7 @@ impl DebugSession {
     fn run_in_vscode_terminal(&mut self, terminal_kind: TerminalKind, title: String, mut args: Vec<String>) {
         let terminal_kind = match terminal_kind {
             TerminalKind::External => "external",
-            TerminalKind::Integrated => {
-                args.insert(0, "\n".into());
-                "integrated"
-            }
+            TerminalKind::Integrated => "integrated",
             _ => unreachable!(),
         };
         let req_args = RunInTerminalRequestArguments {

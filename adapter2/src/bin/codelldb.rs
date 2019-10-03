@@ -26,6 +26,22 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     use std::io::{Read, Write};
     use std::net;
 
+    fn clear_screen() {
+        let terminal = crossterm::terminal();
+        drop(terminal.clear(crossterm::ClearType::All));
+    }
+
+    #[cfg(unix)]
+    fn purge_stdin() {
+        use std::os::unix::io::AsRawFd;
+        drop(termios::tcflush(std::io::stdin().as_raw_fd(), termios::TCIFLUSH));
+    }
+    #[cfg(windows)]
+    fn purge_stdin() {
+        use std::os::windows::io::AsRawHandle;
+        unsafe { winapi::um::wincon::FlushConsoleInputBuffer(std::io::stdin().as_raw_handle()); }
+    }
+
     let data;
     #[cfg(unix)]
     {
@@ -45,8 +61,7 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     let mut stream = net::TcpStream::connect(addr)?;
     write!(stream, "{}", data)?;
 
-    let terminal = crossterm::terminal();
-    let _ = terminal.clear(crossterm::ClearType::All);
+    clear_screen();
 
     stream.shutdown(net::Shutdown::Write)?;
     // Wait for the other end to close connection (which will be maintained till the end of
@@ -54,6 +69,10 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     for b in stream.bytes() {
         b?;
     }
+
+    // Clear out any unread input buffered in stdin, so it doesn't get read by the shell.
+    purge_stdin();
+
     Ok(())
 }
 
@@ -122,7 +141,7 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
                 liblldb_path.pop();
                 liblldb_path.push("lldb");
                 liblldb_path.push(DYLIB_SUBDIR);
-                liblldb_path.push(format!("{}lldb.{}", DYLIB_PREFIX, DYLIB_EXTENSION));
+                liblldb_path.push(format!("liblldb.{}", DYLIB_EXTENSION));
                 liblldb_path
             }
         };

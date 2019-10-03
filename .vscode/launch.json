@@ -72,7 +72,6 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				//"--preload=${workspaceFolder}/build/lldb/lib/liblldb.dylib",
 				"--multi-session",
 				"--port=4711"
 			],
@@ -94,7 +93,6 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				//"--preload=${workspaceFolder}/build/lldb/bin/liblldb.dll",
 				"--multi-session",
 				"--port=4711"
 			],
@@ -108,7 +106,7 @@
 				"cpp",
 				"rust"
 			],
-			"terminal": "external"
+			"terminal": "integrated"
 		},
 		{
 			"name": "codelldb on Windows+cppvsdbg",
@@ -117,7 +115,6 @@
 			"preLaunchTask": "make codelldb",
 			"program": "${workspaceFolder}/build/adapter2/codelldb.exe",
 			"args": [
-				"--preload=${workspaceFolder}/build/lldb/bin/liblldb.dll",
 				"--multi-session",
 				"--port=4711"
 			],

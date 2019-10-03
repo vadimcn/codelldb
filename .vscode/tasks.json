@@ -1,6 +1,7 @@
 {
   "version": "2.0.0",
   "command": "cmake",
+  "windows" : { "command": "cmake.exe"},
   "args": [
     "--build",
     "${workspaceRoot}/build",

@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 936
+  lldbBuildId: 960
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   runTests: true
@@ -35,15 +35,15 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb'
-      itemPattern: 'lldb/lldb--x86_64-unknown-linux-gnu.zip'
+      artifactName: 'lldb--x86_64-unknown-linux-gnu'
+      itemPattern: 'lldb--x86_64-unknown-linux-gnu/lldb--x86_64-unknown-linux-gnu.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
   - script: |
       $(setenvLinux)
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-unknown-linux-gnu/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
 
       mkdir build
       cd build
@@ -110,14 +110,14 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb'
-      itemPattern: 'lldb/lldb--aarch64-unknown-linux-gnu.zip'
+      artifactName: 'lldb--aarch64-unknown-linux-gnu'
+      itemPattern: 'lldb--aarch64-unknown-linux-gnu/lldb--aarch64-unknown-linux-gnu.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
   - script: |
       $(setenvLinux)
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--aarch64-unknown-linux-gnu/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
       mkdir build
@@ -174,8 +174,8 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb'
-      itemPattern: 'lldb/lldb--x86_64-apple-darwin.zip'
+      artifactName: 'lldb--x86_64-apple-darwin'
+      itemPattern: 'lldb--x86_64-apple-darwin/lldb--x86_64-apple-darwin.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
@@ -194,7 +194,7 @@ jobs:
 
   - script: |
       $(setenvOSX)
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-apple-darwin/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
 
       mkdir build
       cd build
@@ -265,8 +265,8 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb'
-      itemPattern: 'lldb/lldb--x86_64-pc-windows-msvc.zip'
+      artifactName: 'lldb--x86_64-pc-windows-msvc'
+      itemPattern: 'lldb--x86_64-pc-windows-msvc/lldb--x86_64-pc-windows-msvc.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
@@ -289,7 +289,7 @@ jobs:
   - script: |
       choco install ninja
       choco install zip
-      unzip $(Agent.BuildDirectory)/D/lldb/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-pc-windows-msvc/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
     displayName: 'Install other'
 
   - script: |

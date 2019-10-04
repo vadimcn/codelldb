@@ -2,12 +2,6 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"type": "lldb",
-			"request": "attach",
-			"name": "Attach",
-			"pid": "${command:pickMyProcess}" // use ${command:pickProcess} to pick other users' processes
-		},
-		{
 			"name": "extension",
 			"preLaunchTask": "make dev_debugging",
 			"type": "extensionHost",
@@ -52,7 +46,7 @@
 				"--port=4711"
 			],
 			"env": {
-				"RUST_LOG": "error,codelldb=debug",
+				"RUST_LOG": "error",//,codelldb=debug",
 				"RUST_LOG_STYLE": "always",
 				"RUST_BACKTRACE": "1",
 				// "LLDB_DISABLE_PYTHON": "1",
@@ -63,7 +57,11 @@
 				"cpp",
 				"rust"
 			],
-			"terminal": "integrated"
+			"terminal": "integrated",
+			"sourceMap": {
+				"/workspace/source": "${env:HOME}/NW/llvm-project",
+				"/workspace/build": "${env:HOME}/NW/llvm-project/build",
+			}
 		},
 		{
 			"name": "codelldb on OSX",

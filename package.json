@@ -109,6 +109,11 @@
 				"category": "LLDB",
 				"title": "Use Alternate Backend...",
 				"command": "lldb.alternateBackend"
+			},
+			{
+				"category": "LLDB",
+				"title": "Attach to Process...",
+				"command": "lldb.attach"
 			}
 		],
 		"languages": [

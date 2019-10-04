@@ -48,9 +48,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
-        subscriptions.push(commands.registerCommand('lldb.pickProcess', () => pickProcess(false)));
-        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => pickProcess(true)));
+        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => pickProcess(context, false)));
+        subscriptions.push(commands.registerCommand('lldb.pickProcess', () => pickProcess(context, true)));
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
+        subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
         subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
@@ -521,6 +522,16 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (succeeded) {
             window.showInformationMessage('LLDB self-test completed successfuly.');
         }
+    }
+
+    async attach() {
+        let debugConfig: DebugConfiguration = {
+            type: 'lldb',
+            request: 'attach',
+            name: '',
+            pid: '${command:pickMyProcess}',
+        };
+        await debug.startDebugging(undefined, debugConfig);
     }
 
     async alternateBackend() {

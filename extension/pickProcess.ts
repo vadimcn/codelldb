@@ -1,31 +1,55 @@
-import { QuickPickItem, window } from 'vscode';
+import { QuickPickItem, window, Uri, ExtensionContext } from 'vscode';
 import * as cp from 'child_process';
 
-export async function pickProcess(currentUserOnly: boolean): Promise<string> {
-    let items = getProcessList(currentUserOnly);
-    let item = await window.showQuickPick(items);
-    if (item) {
-        return item.pid.toString();
-    } else {
-        return undefined;
-    }
+type ProcessItem = QuickPickItem & { pid: number };
+
+export async function pickProcess(context: ExtensionContext, allUsers: boolean): Promise<string> {
+    return new Promise<string>(async (resolve) => {
+        let showingAll = {
+            iconPath: Uri.file(context.extensionPath + '/images/checked.svg'),
+            tooltip: 'Show processes from all users.'
+        };
+        let showingMy = {
+            iconPath: Uri.file(context.extensionPath + '/images/unchecked.svg'),
+            tooltip: 'Show processes from all users.'
+        };
+        let qpick = window.createQuickPick<ProcessItem>();
+        qpick.title = 'Select a process:';
+        qpick.items = await getProcessList(allUsers);
+        qpick.buttons = [allUsers ? showingAll : showingMy];
+        qpick.onDidAccept(() => {
+            if (qpick.selectedItems && qpick.selectedItems[0])
+                resolve(qpick.selectedItems[0].pid.toString())
+            else
+                resolve(undefined);
+            qpick.dispose();
+        });
+        qpick.onDidTriggerButton(async () => {
+            allUsers = !allUsers;
+            qpick.items = await getProcessList(allUsers);
+            qpick.buttons = [allUsers ? showingAll : showingMy];
+        });
+        qpick.onDidHide(() => {
+            resolve(undefined);
+            qpick.dispose();
+        });
+        qpick.show();
+    });
 }
 
-async function getProcessList(currentUserOnly: boolean):
-    Promise<(QuickPickItem & { pid: number })[]> {
-
+async function getProcessList(allUsers: boolean): Promise<ProcessItem[]> {
     let is_windows = process.platform == 'win32';
     let command: string;
     if (!is_windows) {
-        if (currentUserOnly)
-            command = 'ps x';
-        else
+        if (allUsers)
             command = 'ps ax';
-    } else {
-        if (currentUserOnly)
-            command = 'tasklist /V /FO CSV /FI "USERNAME eq ' + process.env['USERNAME'] + '"';
         else
+            command = 'ps x';
+    } else {
+        if (allUsers)
             command = 'tasklist /V /FO CSV';
+        else
+            command = 'tasklist /V /FO CSV /FI "USERNAME eq ' + process.env['USERNAME'] + '"';
     }
     let stdout = await new Promise<string>((resolve, reject) => {
         cp.exec(command, (error, stdout) => {
@@ -52,7 +76,7 @@ async function getProcessList(currentUserOnly: boolean):
             let name = groups[idx[1]];
             let descr = groups[idx[2]];
             let item = { label: `${pid}: ${name}`, description: descr, pid: pid };
-            items.unshift(item);
+            items.push(item);
         }
     }
     return items;

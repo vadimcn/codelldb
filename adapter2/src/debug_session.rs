@@ -346,6 +346,9 @@ impl DebugSession {
                 RequestArguments::goto(args) =>
                     self.handle_goto(args)
                         .map(|r| ResponseBody::goto),
+                RequestArguments::restartFrame(args) =>
+                    self.handle_restart_frame(args)
+                        .map(|r| ResponseBody::restartFrame),
                 RequestArguments::dataBreakpointInfo(args) =>
                     self.handle_data_breakpoint_info(args)
                         .map(|r| ResponseBody::dataBreakpointInfo(r)),
@@ -445,6 +448,7 @@ impl DebugSession {
             support_terminate_debuggee: Some(true),
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
+            supports_restart_frame: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
         };
@@ -2022,7 +2026,7 @@ impl DebugSession {
         self.before_resume();
         let frame = thread.frame_at_index(0);
         if !self.in_disassembly(&frame) {
-            thread.step_over();
+            thread.step_over(RunMode::OnlyDuringStepping);
         } else {
             thread.step_instruction(true);
         }
@@ -2041,7 +2045,7 @@ impl DebugSession {
         self.before_resume();
         let frame = thread.frame_at_index(0);
         if !self.in_disassembly(&frame) {
-            thread.step_into();
+            thread.step_into(RunMode::OnlyDuringStepping);
         } else {
             thread.step_instruction(false);
         }
@@ -2220,6 +2224,23 @@ impl DebugSession {
                 }
             }
         }
+    }
+
+    fn handle_restart_frame(&mut self, args: RestartFrameArguments) -> Result<(), Error> {
+        let handle = handles::from_i64(args.frame_id)?;
+        let frame = match self.var_refs.get(handle) {
+            Some(Container::StackFrame(ref f)) => f.clone(),
+            _ => return Err(Error::Internal("Invalid frameId".into())),
+        };
+        let thread = frame.thread();
+        thread.return_from_frame(&frame); // TODO: ?
+        self.send_event(EventBody::stopped(StoppedEventBody {
+            thread_id: Some(thread.thread_id() as i64),
+            all_threads_stopped: Some(true),
+            reason: "restart".into(),
+            ..Default::default()
+        }));
+        Ok(())
     }
 
     fn handle_data_breakpoint_info(

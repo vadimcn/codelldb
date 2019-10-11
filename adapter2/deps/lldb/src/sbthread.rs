@@ -73,29 +73,35 @@ impl SBThread {
     pub fn frames<'a>(&'a self) -> impl Iterator<Item = SBFrame> + 'a {
         SBIterator::new(self.num_frames(), move |index| self.frame_at_index(index))
     }
-    pub fn step_over(&self) {
-        cpp!(unsafe [self as "SBThread*"] {
-            return self->StepOver();
+    pub fn step_over(&self, stop_others: RunMode) {
+        cpp!(unsafe [self as "SBThread*", stop_others as "lldb::RunMode"] {
+            self->StepOver(stop_others);
         })
     }
-    pub fn step_into(&self) {
-        cpp!(unsafe [self as "SBThread*"] {
-            return self->StepInto();
+    pub fn step_into(&self, stop_others: RunMode) {
+        cpp!(unsafe [self as "SBThread*", stop_others as "lldb::RunMode"] {
+            self->StepInto(stop_others);
         })
     }
     pub fn step_out(&self) {
         cpp!(unsafe [self as "SBThread*"] {
-            return self->StepOut();
+            self->StepOut();
         })
     }
     pub fn step_instruction(&self, step_over: bool) {
         cpp!(unsafe [self as "SBThread*", step_over as "bool"] {
-            return self->StepInstruction(step_over);
+            self->StepInstruction(step_over);
         })
     }
     pub fn jump_to_line(&self, file: &SBFileSpec, line: u32) -> SBError {
         cpp!(unsafe [self as "SBThread*", file as "SBFileSpec*", line as "uint32_t"] -> SBError as "SBError" {
             return self->JumpToLine(*file, line);
+        })
+    }
+    pub fn return_from_frame(&self, frame: &SBFrame) -> SBError {
+        cpp!(unsafe [self as "SBThread*", frame as "SBFrame*"] -> SBError as "SBError" {
+            SBValue val;
+            return self->ReturnFromFrame(*frame, val);
         })
     }
     pub fn broadcaster_class_name() -> &'static str {
@@ -123,6 +129,18 @@ impl fmt::Debug for SBThread {
             })
         })
     }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[repr(u32)]
+pub enum RunMode {
+    // Run only the current thread.
+    OnlyThisThread = 0,
+    // Run all threads.
+    AllThreads = 1,
+    // Run only the current thread while stepping directly through the code in the current frame,
+    // but run all threads while stepping over a function call.
+    OnlyDuringStepping = 2,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]

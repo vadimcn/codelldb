@@ -2,6 +2,7 @@ variables:
   lldbBuildId: 960
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
+  rustcVersion: 'nightly-2019-10-02'
   runTests: true
 
   setenvLinux: |
@@ -179,8 +180,8 @@ jobs:
   - script: |
       curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
       source $HOME/.cargo/env
-      rustup toolchain install nightly-x86_64-apple-darwin
-      rustup default nightly
+      rustup toolchain install $(rustcVersion)-x86_64-apple-darwin
+      rustup default $(rustcVersion)
       rustup show
     displayName: 'Install Rust'
 
@@ -264,9 +265,9 @@ jobs:
   - script: |
       curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-      rustup toolchain install nightly-x86_64-pc-windows-msvc
-      rustup toolchain install nightly-x86_64-pc-windows-gnu
-      rustup default nightly-x86_64-pc-windows-msvc
+      rustup toolchain install $(rustcVersion)-x86_64-pc-windows-gnu
+      rustup default $(rustcVersion)-x86_64-pc-windows-gnu
+      rustup target add x86_64-pc-windows-msvc
       rustup show
     displayName: 'Install Rust'
 

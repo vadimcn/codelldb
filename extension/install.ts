@@ -28,7 +28,7 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
                 let lastPercent = -100;
                 await download(packageUrl, downloadTarget, (downloaded, contentLength) => {
                     let percent = Math.round(100 * downloaded / contentLength);
-                    if (percent > lastPercent + 5) {
+                    if (percent >= lastPercent + 5) {
                         output.appendLine(`Downloaded ${percent}%`);
                         lastPercent = percent;
                     }

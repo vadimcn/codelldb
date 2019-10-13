@@ -800,7 +800,8 @@
 				"x64-linux": "vscode-lldb-x86_64-linux.vsix",
 				"arm64-linux": "vscode-lldb-aarch64-linux.vsix",
 				"x64-darwin": "vscode-lldb-x86_64-darwin.vsix",
-				"x64-win32": "vscode-lldb-x86_64-windows.vsix"
+				"x64-win32": "vscode-lldb-x86_64-windows.vsix",
+				"ia32-win32": "vscode-lldb-x86_64-windows.vsix"
 			}
 		}
 	}

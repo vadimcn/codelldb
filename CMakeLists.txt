@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
+enable_testing()
 
 set(VERSION 1.4.0-dev)
 
@@ -232,8 +233,6 @@ else()
 endif()
 
 # Tests
-
-enable_testing()
 
 set(MochaTest ${NPM} run mocha --
     -u tdd --timeout 30000 --exit

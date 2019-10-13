@@ -78,3 +78,18 @@ add_custom_target(cargo_test
             cargo test --target=${Target} -p=lldb -p=debug-protocol -p=python-impl -p=codelldb
     USES_TERMINAL
 )
+
+# Check that binaries don't depend on liblldb and libpython.
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    add_test(NAME native:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME native:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
+    add_test(NAME native:deps:libcodelldb_python COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb_python.so)
+    set_tests_properties(native:deps:libcodelldb native:deps:libcodelldb_python
+                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml")
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    add_test(NAME native:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME native:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
+    add_test(NAME native:deps:libcodelldb_python COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb_python.dylib)
+    set_tests_properties(native:deps:libcodelldb native:deps:libcodelldb_python
+                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;Python;liblldb;libxml")
+endif()

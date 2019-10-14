@@ -42,10 +42,6 @@ export async function startNative(
     if (libpython) {
         args.push('--libpython', libpython);
     }
-    if (process.platform == 'win32') {
-        // Add liblldb's directory to PATH so it can find msdia dll later.
-        env['PATH'] = env['PATH'] + ';' + path.dirname(liblldb);
-    }
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
     }

@@ -90,7 +90,6 @@ fn find_python() -> Result<(), Error> {
             return Ok(());
         }
         Err(err) => {
-            eprintln!("{}", err);
             Err(err)
         }
     }

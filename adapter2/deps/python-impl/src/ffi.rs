@@ -25,6 +25,12 @@ pub struct Python {
     gil_state: PyGILState_STATE,
 }
 
+macro_rules! cstr {
+    ($s:expr) => {
+        concat!($s, "\0").as_ptr() as *const c_char
+    };
+}
+
 macro_rules! py_api {
     { $name:ident ($($arg:ident : $type:ty),* ) -> $res:ty } => {
         pub fn $name(&self, $($arg:$type),*) -> $res {
@@ -105,11 +111,11 @@ impl Python {
         pvalue: &mut Option<PyObjectOwn>,
         ptraceback: &mut Option<PyObjectOwn>
     ) -> ());
-    py_api!(PyErr_Restore(err_type: PyObjectOwn, value: PyObjectOwn, traceback: PyObjectOwn) -> ());
+    py_api!(PyErr_Restore(err_type: PyObjectOwn, value: Option<PyObjectOwn>, traceback: Option<PyObjectOwn>) -> ());
     py_api!(PyErr_NormalizeException(
         ptype: &mut PyObjectOwn,
-        pvalue: &mut PyObjectOwn,
-        ptraceback: &mut PyObjectOwn
+        pvalue: &mut Option<PyObjectOwn>,
+        ptraceback: &mut Option<PyObjectOwn>
     ) -> ());
 
     py_obj!(PyBool_Type);
@@ -402,8 +408,8 @@ impl PyOkResult {
 
 pub struct PyErr {
     pub err_type: PyObjectOwn,
-    pub value: PyObjectOwn,
-    pub traceback: PyObjectOwn,
+    pub value: Option<PyObjectOwn>,
+    pub traceback: Option<PyObjectOwn>,
 }
 
 impl PyErr {
@@ -422,8 +428,8 @@ impl PyErr {
         py.PyErr_Fetch(&mut err_type, &mut value, &mut traceback);
         PyErr {
             err_type: err_type.unwrap(),
-            value: value.unwrap(),
-            traceback: traceback.unwrap(),
+            value: value,
+            traceback: traceback,
         }
     }
 
@@ -432,16 +438,35 @@ impl PyErr {
         py.PyErr_NormalizeException(&mut self.err_type, &mut self.value, &mut self.traceback);
     }
 }
+// Formats as "<type>[: <value>]"
 impl fmt::Debug for PyErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let py = Python::acquire();
-        let pystr = py.PyObject_Str(self.value.get()).into_result().map_err(|_| fmt::Error)?;
-        write!(f, "{}", py.pystring_as_str(&pystr))
+        let result: Result<(), PyErr> = try {
+            let py = Python::acquire();
+            let type_str = py.PyObject_GetAttrString(self.err_type.get(), cstr!("__name__"))?;
+            write!(f, "{}", py.pystring_as_str(&type_str));
+            if let Some(value) = self.value.as_ref() {
+                let value_str = py.PyObject_Str(value.get())?;
+                write!(f, ": {}", py.pystring_as_str(&value_str));
+            }
+        };
+        result.map_err(|_| fmt::Error)
     }
 }
+// Formats as "<value> | <type>"
 impl fmt::Display for PyErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        let result: Result<(), PyErr> = try {
+            let py = Python::acquire();
+            if let Some(value) = self.value.as_ref() {
+                let value_str = py.PyObject_Str(value.get())?;
+                write!(f, "{}", py.pystring_as_str(&value_str));
+            } else {
+                let type_str = py.PyObject_GetAttrString(self.err_type.get(), cstr!("__name__"))?;
+                write!(f, "{}", py.pystring_as_str(&type_str));
+            }
+        };
+        result.map_err(|_| fmt::Error)
     }
 }
 impl std::error::Error for PyErr {}

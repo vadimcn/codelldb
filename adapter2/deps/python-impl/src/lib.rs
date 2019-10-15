@@ -1,4 +1,5 @@
 #![feature(try_trait)]
+#![feature(try_blocks)]
 
 use interface::*;
 use lldb::*;
@@ -8,15 +9,10 @@ use std::fmt::Write;
 use std::os::raw::{c_char, c_long, c_void};
 use std::str;
 
+#[macro_use]
 mod ffi;
 pub use ffi::PyErr;
 use ffi::*;
-
-macro_rules! cstr {
-    ($s:expr) => {
-        concat!($s, "\0").as_ptr() as *const c_char
-    };
-}
 
 #[derive(Debug)]
 pub enum PythonValue {
@@ -127,7 +123,7 @@ impl PythonInterface for PythonInterfaceImpl {
         let result = self
             .evaluate_core(&py, expr, is_simple_expr, context)
             .and_then(|value| self.to_sbvalue(&py, &target, value.get()))
-            .map_err(|err| self.format_exception(&py, err));
+            .map_err(|err| self.format_exception(&py, err, !is_simple_expr));
         result
     }
 
@@ -136,7 +132,7 @@ impl PythonInterface for PythonInterfaceImpl {
         let result = self
             .evaluate_core(&py, expr, is_simple_expr, context)
             .map(|value| py.pybool_as_bool(value.get()))
-            .map_err(|err| self.format_exception(&py, err));
+            .map_err(|err| self.format_exception(&py, err, !is_simple_expr));
         result
     }
 
@@ -154,7 +150,7 @@ impl PythonInterface for PythonInterfaceImpl {
             Ok(())
         }();
         if let Err(err) = result {
-            error!("modules_loaded: {}", self.format_exception(&py, err));
+            error!("modules_loaded: {}", self.format_exception(&py, err, true));
         }
     }
 }
@@ -199,19 +195,24 @@ impl PythonInterfaceImpl {
         }
     }
 
-    fn format_exception(&self, py: &Python, mut err: PyErr) -> String {
-        let result = || -> Result<String, PyErr> {
+    fn format_exception(&self, py: &Python, mut err: PyErr, with_traceback: bool) -> String {
+        let result: Result<_, PyErr> = try {
             err.normalize();
-            let args = py.make_pytuple(vec![err.err_type.clone(), err.value.clone(), err.traceback.clone()])?;
-            let lines = py.PyObject_CallObject(self.pyfn_format_exception.get(), Some(args.get()))?;
-
-            let mut s = String::new();
-            for i in 0..(py.PySequence_Size(lines.get())) {
-                let line = py.PySequence_GetItem(lines.get(), i)?;
-                write!(s, "{}", py.pystring_as_str(&line)).unwrap();
+            let value = err.value.clone().unwrap_or(Python::_Py_NoneStruct().into());
+            if with_traceback {
+                let traceback = err.traceback.clone().unwrap_or(Python::_Py_NoneStruct().into());
+                let args = py.make_pytuple(vec![err.err_type.clone(), value, traceback])?;
+                let lines = py.PyObject_CallObject(self.pyfn_format_exception.get(), Some(args.get()))?;
+                let mut result = String::new();
+                for i in 0..(py.PySequence_Size(lines.get())) {
+                    let line = py.PySequence_GetItem(lines.get(), i)?;
+                    write!(result, "{}", py.pystring_as_str(&line)).unwrap();
+                }
+                result
+            } else {
+                format!("{}", err)
             }
-            Ok(s)
-        }();
+        };
         match result {
             Ok(s) => s,
             Err(_) => format!("Could not format exception: {:?}", err),

@@ -55,6 +55,18 @@ macro_rules! py_obj {
     }
 }
 
+macro_rules! py_error {
+    { $name:ident } => {
+        pub fn $name() -> PyObjectRef {
+            #[cfg_attr(windows, link(name="python3", kind="dylib"))]
+            extern "C" {
+                static $name: *mut PyObject;
+            }
+            unsafe { PyObjectRef::wrap($name) }
+        }
+    }
+}
+
 type Py_ssize_t = isize;
 
 impl Python {
@@ -121,9 +133,10 @@ impl Python {
     py_obj!(PyBool_Type);
     py_obj!(PyLong_Type);
     py_obj!(PyUnicode_Type);
-    py_obj!(PyExc_TypeError);
     py_obj!(_Py_TrueStruct);
     py_obj!(_Py_NoneStruct);
+
+    py_error!(PyExc_TypeError);
 }
 
 pub const METH_VARARGS: c_int = 0x0001;
@@ -248,15 +261,27 @@ impl Python {
             if let Some(s) = arg.downcast_mut::<String>() {
                 *s = py.extract_string(value)?;
             } else if let Some(s) = arg.downcast_mut::<Option<String>>() {
-                *s = Some(py.extract_string(value)?);
+                *s = if value == Python::_Py_NoneStruct() {
+                    None
+                } else {
+                    Some(py.extract_string(value)?)
+                }
             } else if let Some(i) = arg.downcast_mut::<i32>() {
                 *i = py.extract_i32(value)?;
             } else if let Some(i) = arg.downcast_mut::<Option<i32>>() {
-                *i = Some(py.extract_i32(value)?);
+                *i = if value == Python::_Py_NoneStruct() {
+                    None
+                } else {
+                    Some(py.extract_i32(value)?)
+                }
             } else if let Some(b) = arg.downcast_mut::<bool>() {
                 *b = py.extract_bool(value)?;
             } else if let Some(b) = arg.downcast_mut::<Option<bool>>() {
-                *b = Some(py.extract_bool(value)?);
+                *b = if value == Python::_Py_NoneStruct() {
+                    None
+                } else {
+                    Some(py.extract_bool(value)?)
+                }
             } else {
                 panic!("Unsupported data type.");
             }
@@ -272,6 +297,9 @@ pub struct PyObjectRef(ptr::NonNull<PyObject>);
 impl PyObjectRef {
     pub fn wrap(ptr: *mut PyObject) -> PyObjectRef {
         PyObjectRef(ptr::NonNull::new(ptr).unwrap())
+    }
+    pub fn as_ptr(&self) -> *const PyObject {
+        self.0.as_ptr()
     }
 }
 unsafe impl Send for PyObjectRef {}
@@ -529,10 +557,23 @@ fn parse_tuple() {
         let mut b = false;
         let mut i = 0;
         py.parse_tuple(t.get(), &mut [&mut s, &mut b, &mut i], 3).unwrap();
+        assert_eq!(s, "String");
+        assert_eq!(b, true);
+        assert_eq!(i, 42);
 
+        let t = py
+            .make_pytuple(vec![
+                Python::_Py_NoneStruct().into(),
+                py.PyBool_FromLong(1).unwrap(),
+                Python::_Py_NoneStruct().into(),
+            ])
+            .unwrap();
         let mut s: Option<String> = None;
         let mut b: Option<bool> = None;
         let mut i: Option<i32> = None;
         py.parse_tuple(t.get(), &mut [&mut s, &mut b, &mut i], 3).unwrap();
+        assert_eq!(s, None);
+        assert_eq!(b, Some(true));
+        assert_eq!(i, None);
     }
 }

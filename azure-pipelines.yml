@@ -2,7 +2,7 @@ variables:
   lldbBuildId: 993
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
-  rustcVersion: 'nightly-2019-10-02'
+  rustcVersion: 'nightly-2019-10-15'
   runTests: true
 
   setenvLinux: |
@@ -178,7 +178,7 @@ jobs:
     displayName: 'Install Node.js'
 
   - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --profile minimal --default-toolchain none
       source $HOME/.cargo/env
       rustup toolchain install $(rustcVersion)-x86_64-apple-darwin
       rustup default $(rustcVersion)
@@ -263,7 +263,7 @@ jobs:
     displayName: VsDevCmd
 
   - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --default-toolchain none
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --profile minimal --default-toolchain none
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       rustup toolchain install $(rustcVersion)-x86_64-pc-windows-gnu
       rustup default $(rustcVersion)-x86_64-pc-windows-gnu

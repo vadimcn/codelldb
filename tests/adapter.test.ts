@@ -439,6 +439,21 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 assert.equal(stackTrace2.body.stackFrames[0].line, 5);
                 await ds.terminate();
             });
+
+            test('display_html', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLine = findMarker(debuggeeSource, '#BP1');
+                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
+                let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
+                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"]});
+                await setBreakpointAsync;
+                let ev = await waitForDisplayHtmlAsync;
+                assert.equal(ev.body.html, "<html>");
+                assert.equal(ev.body.title, 'title');
+                assert.equal(ev.body.position, 1);
+                assert.equal(ev.body.reveal, false);
+                await ds.terminate();
+            });
         });
 
         suite('Attach tests', () => {

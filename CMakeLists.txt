@@ -78,7 +78,7 @@ add_custom_target(extension
 )
 
 add_custom_target(tests
-    COMMAND ${NPM} run webpack -- -display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/tests.js
+    COMMAND ${NPM} run webpack -- --display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/tests.js
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
-		"target": "es2017",
-		"module": "none",
+		"target": "es2016",
+		"module": "commonjs",
 		"moduleResolution": "node",
 		"alwaysStrict": true,
 		"noImplicitAny": true,
@@ -11,7 +11,7 @@
 		"baseUrl": ".",
 		"paths": {
 			"extension/*": [
-				"../build/extension/*"
+				"../extension/*"
 			],
 			"*": [
 				"../build/node_modules/*",

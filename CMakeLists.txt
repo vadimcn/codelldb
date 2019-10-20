@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.4.0-dev)
+set(VERSION 1.4.0)
 
 include(cmake/CopyFiles.cmake)
 include(cmake/Typescript.cmake)

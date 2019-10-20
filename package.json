@@ -3,7 +3,7 @@
 	"displayName": "CodeLLDB",
 	"version": "@VERSION@",
 	"publisher": "vadimcn",
-	"description": "Debug your native code with LLDB.",
+	"description": "Native debugger based on LLDB.",
 	"license": "MIT",
 	"author": {
 		"name": "vadimcn"

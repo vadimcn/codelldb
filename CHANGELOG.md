@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.4.0
+
+## Changed
+- In preparation for [Python 2 fading into the sunset](https://pythonclock.org/), all supported platforms now require Python 3.3 or later.
+
+## New
+- Added support for [data breakpoints](https://code.visualstudio.com/updates/v1_38#_breaking-when-value-changes-data-breakpoints).
+- Added "Attach to Process..." command for quick attaching without having to create a debug configuration.
+- Added URL handler for [starting a debug session from outside of VSCode](MANUAL.md#starting-debug-session-outside-of-vscode).<br>
+  Rust users: please take note - I believe this may provide a more convenient way of debugging the unit tests.
+
 # 1.3.0
 
 ## Fixed

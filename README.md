@@ -1,27 +1,21 @@
-CodeLLDB: a LLDB front end for Visual Studio Code
-=================================================
-
 # Features
-- Supports Linux, macOS and Windows.
-- Launch/attach/custom launch.
-- Redirection of debuggee's stdio to integrated or external terminal.
-- Function, conditional and regex breakpoints, logpoints.
-- Flexible launch configurations with settings inheritance.
-- Jump to cursor.
-- Variable view with customizable formatting.
-- Disassembly view.
-- Rust language support.
-- Python scripting.
-- Direct execution of LLDB commands.
-- Remote debugging.
+- Debugging on Linux (x64 or Aarch64), macOS and Windows,
+- Conditional breakpoints, function breakpoints, data breakpoints, logpoints,
+- Launch debuggee in integrated or external terminal,
+- Disassembly view with instruction-level stepping,
+- Loaded modules view,
+- Python scripting,
+- HTML rendering for advanced visualizations,
+- Rust language support with built-in visualizars for vectors, strings and other standard types,
+- Global and workspace defaults for launch configurations,
+- Remote debugging,
 - Reverse debugging (experimental, requires compatible backend).
 
 For full details please see the [Users Manual](MANUAL.md).
 
 # Requirements
-- 64-bit OS.
-- Python 2.7 on Linux and macOS.
-- Python 3.6 on Windows.
+- 64-bit OS,
+- Python 3.3 or later (optional, except on Windows).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:

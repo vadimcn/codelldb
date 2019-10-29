@@ -28,11 +28,18 @@ impl SBError {
         }
     }
     pub fn set_error_string(&self, string: &str) {
-        with_cstr(string, |string|
+        with_cstr(string, |string| {
             cpp!(unsafe [self as "SBError*", string as "const char*"] {
                 self->SetErrorString(string);
             })
-        );
+        });
+    }
+    pub fn into_result(self) -> Result<(), SBError> {
+        if self.is_failure() {
+            Err(self)
+        } else {
+            Ok(())
+        }
     }
 }
 

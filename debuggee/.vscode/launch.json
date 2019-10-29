@@ -57,6 +57,15 @@
 			"terminal": "integrated"
 		},
 		{
+			"name": "debuggee launch echo",
+			"type": "lldb",
+			"request": "launch",
+			"initCommands": ["log enable lldb target process"],
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["echo"],
+			"terminal": "integrated"
+		},
+		{
 			"name": "debuggee launch disassembly",
 			"type": "lldb",
 			"request": "launch",
@@ -163,7 +172,7 @@
 			"request": "launch",
 			"program": "${dbgconfig:targetDir}/debuggee",
 			"args": ["spam"],
-			"terminal": "console"
+			"terminal": "integrated"
 		},
 		{
 			"name": "rusttypes",

@@ -13,19 +13,16 @@ pub struct Terminal {
 impl Terminal {
     pub fn create<F>(run_in_terminal: F) -> Result<Self, Error>
     where
-        F: FnOnce(Vec<String>),
+        F: FnOnce(Vec<String>) -> Result<(), Error>,
     {
         let mut listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
 
         // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
         // or its own process id (Windows), then waits till the socket gets closed from our end.
-        let mut executable = std::env::current_exe()?;
-        run_in_terminal(vec![
-            executable.to_str().unwrap().into(),
-            "terminal-agent".into(),
-            format!("--port={}", addr.port()),
-        ]);
+        let executable = std::env::current_exe()?.to_str().unwrap().into();
+        let cmd = vec![executable, "terminal-agent".into(), format!("--port={}", addr.port())];
+        run_in_terminal(cmd)?;
 
         let stream = accept_with_timeout(&mut listener, Duration::from_millis(5000))?;
         let stream2 = stream.try_clone()?;

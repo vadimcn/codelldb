@@ -88,7 +88,9 @@ void echo()
     char buffer[1024];
     do
     {
+        fputs("> ", stdout);
         fgets(buffer, sizeof(buffer), stdin);
+        fputs(": ", stdout);
         fputs(buffer, stdout);
     } while (buffer[0] != '\n'); // till empty line is read
 }

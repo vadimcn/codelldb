@@ -1028,7 +1028,7 @@ impl DebugSession {
         // Grab updated launch info.
         let mut launch_info = self.target.launch_info();
 
-        // Announch the final launch command line
+        // Announce the final launch command line
         let executable = self.target.executable().path().to_string_lossy().into_owned();
         let command_line = launch_info.arguments().fold(executable, |mut args, a| {
             args.push(' ');
@@ -1037,56 +1037,59 @@ impl DebugSession {
         });
         self.console_message(format!("Launching: {}", command_line));
 
-        // If noDebug flag is set, we launch debuggee directly, then terminate debug session.
         if args.no_debug.unwrap_or(false) {
+            // No-debug launch: start debuggee directly and terminate debug session.
             launch_info.set_executable_file(&self.target.executable(), true);
-            let status = self.target.platform().launch(&launch_info);
-            if status.is_failure() {
-                return Err(Error::UserError(status.error_string().into()));
-            } else {
-                self.send_event(EventBody::terminated(TerminatedEventBody {
-                    restart: None,
-                }));
-                return Ok(ResponseBody::launch);
+            let status = match &self.debuggee_terminal {
+                Some(t) => t.attach(|| self.target.platform().launch(&launch_info)),
+                None => self.target.platform().launch(&launch_info),
+            };
+            // Terminate debug session
+            self.send_event(EventBody::terminated(TerminatedEventBody {
+                restart: None,
+            }));
+            match status.into_result() {
+                Ok(()) => Ok(ResponseBody::launch),
+                Err(err) => Err(Error::UserError(err.error_string().into())),
             }
-        }
+        } else {
+            // Normal launch
+            launch_info.set_listener(&self.event_listener);
 
-        launch_info.set_listener(&self.event_listener);
+            let result = match &self.debuggee_terminal {
+                Some(t) => t.attach(|| self.target.launch(&launch_info)),
+                None => self.target.launch(&launch_info),
+            };
 
-        // Launch!
-        let result = match &self.debuggee_terminal {
-            Some(t) => t.attach(|| self.target.launch(&launch_info)),
-            None => self.target.launch(&launch_info),
-        };
-
-        let process = match result {
-            Ok(process) => process,
-            Err(err) => {
-                let mut msg: String = err.error_string().into();
-                let work_dir = launch_info.working_directory().unwrap_or(Path::new(""));
-                if self.target.platform().get_file_permissions(work_dir) == 0 {
-                    msg = format!(
-                        "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
-                        msg,
-                        work_dir.display()
-                    );
+            let process = match result {
+                Ok(process) => process,
+                Err(err) => {
+                    let mut msg: String = err.error_string().into();
+                    let work_dir = launch_info.working_directory().unwrap_or(Path::new(""));
+                    if self.target.platform().get_file_permissions(work_dir) == 0 {
+                        msg = format!(
+                            "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                            msg,
+                            work_dir.display()
+                        );
+                    }
+                    return Err(Error::UserError(msg));
                 }
-                return Err(Error::UserError(msg));
+            };
+            self.process = Initialized(process);
+            self.process_was_launched = true;
+
+            // LLDB sometimes loses the initial stop event.
+            if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+                self.notify_process_stopped();
             }
-        };
-        self.process = Initialized(process);
-        self.process_was_launched = true;
 
-        // LLDB sometimes loses the initial stop event.
-        if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
-            self.notify_process_stopped();
+            if let Some(commands) = args.common.post_run_commands {
+                self.exec_commands("postRunCommands", &commands)?;
+            }
+            self.exit_commands = args.common.exit_commands;
+            Ok(ResponseBody::launch)
         }
-
-        if let Some(commands) = args.common.post_run_commands {
-            self.exec_commands("postRunCommands", &commands)?;
-        }
-        self.exit_commands = args.common.exit_commands;
-        Ok(ResponseBody::launch)
     }
 
     fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
@@ -1202,39 +1205,34 @@ impl DebugSession {
     }
 
     fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {
-        let terminal_kind = args.terminal.unwrap_or(TerminalKind::Integrated);
-
-        self.debuggee_terminal = match terminal_kind {
-            TerminalKind::External | TerminalKind::Integrated => {
-                let title = args.common.name.clone().unwrap_or_else(|| "Debug".into());
-                match Terminal::create(|agent_args| {
-                    self.run_in_vscode_terminal(terminal_kind.clone(), title, agent_args)
-                }) {
-                    Ok(terminal) => Some(terminal),
-                    Err(err) => {
-                        self.console_error(format!(
-                            "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
-                            err
-                        ));
-                        None
-                    }
-                }
-            }
+        let terminal_kind = match args.terminal.unwrap_or(TerminalKind::Integrated) {
             TerminalKind::Console => None,
+            TerminalKind::External => Some("external"),
+            TerminalKind::Integrated => Some("integrated"),
         };
-        // #[cfg(windows)]
-        // {
-        //     let without_console: &[u8] = match terminal_kind {
-        //         TerminalKind::External => b"false\0",
-        //         TerminalKind::Integrated | TerminalKind::Console => b"true\0",
-        //     };
-        //     // MSVC's getenv caches environment vars, so setting it via env::set_var() doesn't work.
-        //     put_env(
-        //         CStr::from_bytes_with_nul(b"LLDB_LAUNCH_INFERIORS_WITHOUT_CONSOLE\0").unwrap(),
-        //         CStr::from_bytes_with_nul(without_console).unwrap(),
-        //     );
-        //     None
-        // }
+
+        if let Some(terminal_kind) = terminal_kind {
+            let title = args.common.name.clone().unwrap_or_else(|| "Debug".into());
+            let result = Terminal::create(|agent_args| {
+                let req_args = RunInTerminalRequestArguments {
+                    args: agent_args,
+                    cwd: String::new(),
+                    env: None,
+                    kind: Some(terminal_kind.to_owned()),
+                    title: Some(title),
+                };
+                self.send_request(RequestArguments::runInTerminal(req_args));
+                Ok(())
+            });
+
+            match result {
+                Ok(terminal) => self.debuggee_terminal = Some(terminal),
+                Err(err) => self.console_error(format!(
+                    "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
+                    err
+                )),
+            }
+        }
 
         let mut stdio = match args.stdio {
             None => vec![],
@@ -1265,22 +1263,6 @@ impl DebugSession {
         }
 
         Ok(())
-    }
-
-    fn run_in_vscode_terminal(&mut self, terminal_kind: TerminalKind, title: String, mut args: Vec<String>) {
-        let terminal_kind = match terminal_kind {
-            TerminalKind::External => "external",
-            TerminalKind::Integrated => "integrated",
-            _ => unreachable!(),
-        };
-        let req_args = RunInTerminalRequestArguments {
-            args: args,
-            cwd: String::new(),
-            env: None,
-            kind: Some(terminal_kind.to_owned()),
-            title: Some(title),
-        };
-        self.send_request(RequestArguments::runInTerminal(req_args));
     }
 
     // Handle initialization tasks common to both launching and attaching

@@ -74,7 +74,9 @@ fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     // Wait for the other end to close connection (which will be maintained till the end of
     // the debug session; this prevents terminal shell from stealing debuggee's input form stdin).
     for b in stream.bytes() {
-        b?;
+        if let Err(_) = b {
+            break;
+        }
     }
 
     // Clear out any unread input buffered in stdin, so it doesn't get read by the shell.
@@ -89,9 +91,7 @@ fn find_python() -> Result<(), Error> {
             println!("{}", path.display());
             return Ok(());
         }
-        Err(err) => {
-            Err(err)
-        }
+        Err(err) => Err(err),
     }
 }
 

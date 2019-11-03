@@ -106,27 +106,18 @@ fn get_candidate_locations() -> Vec<PathBuf> {
 fn get_candidate_locations() -> Vec<PathBuf> {
     use winreg::enums::*;
 
-    fn probe_version(hk_version: winreg::RegKey) -> Result<PathBuf, Error> {
-        let sys_version: String = hk_version.get_value("SysVersion")?;
-        if sys_version.as_str() >= "3" {
-            let hk_install_path = hk_version.open_subkey("InstallPath")?;
-            let install_path: String = hk_install_path.get_value("")?;
-            let mut path = PathBuf::from(install_path);
-            path.push("python3.dll");
-            Ok(path)
-        } else {
-            Err("Nope".into())
-        }
-    }
-
     let mut results = vec![];
     for hive in &[HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
         if let Ok(hk_python) = winreg::RegKey::predef(*hive).open_subkey("Software\\Python\\PythonCore") {
             for ver_tag in hk_python.enum_keys() {
                 if let Ok(ver_tag) = ver_tag {
                     if let Ok(hk_version) = hk_python.open_subkey(ver_tag) {
-                        if let Ok(path) = probe_version(hk_version) {
-                            results.push(path);
+                        if let Ok(hk_install_path) = hk_version.open_subkey("InstallPath") {
+                            if let Ok(install_path) = hk_install_path.get_value::<String, _>("") {
+                                let mut path = PathBuf::from(install_path);
+                                path.push("python3.dll");
+                                results.push(path);
+                            }
                         }
                     }
                 }

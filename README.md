@@ -14,8 +14,11 @@
 For full details please see the [Users Manual](MANUAL.md).
 
 # Requirements
-- 64-bit OS,
-- Python 3.3 or later (optional, except on Windows).
+- 64-bit OS
+    - Linux: glibc 2.18 (available by default in Debian 8, Ubuntu 14.04, Centos 8)
+    - Mac: OS X 10.10 Yosemite
+    - Windows: 8.0
+- 64-bit Python 3.3 or later (optional, except on Windows).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:

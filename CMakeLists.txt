@@ -7,12 +7,6 @@ set(VERSION 1.4.1-dev)
 include(cmake/CopyFiles.cmake)
 include(cmake/Typescript.cmake)
 
-set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
-if (NOT LLDB_ROOT)
-    message(FATAL_ERROR "LLDB_ROOT not set." )
-endif()
-message("Using LLDB from ${LLDB_ROOT}")
-
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
 
@@ -37,6 +31,20 @@ else()
 endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
+
+set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
+if (LLDB_ROOT)
+    message("Using LLDB from ${LLDB_ROOT}")
+else()
+    set(LLDB_BUILD 957)
+    set(ArtifactUrl "https://dev.azure.com/vadimcn/llvm/_apis/build/builds/${LLDB_BUILD}/artifacts?api-version=4.1&artifactName=lldb--x86_64-unknown-linux-gnu")
+    message("Using LLDB from ${ArtifactUrl}")
+    file(DOWNLOAD ${ArtifactUrl} ${CMAKE_BINARY_DIR}/artifact.json)
+    file(READ ${CMAKE_BINARY_DIR}/artifact.json Artifact)
+    string(REGEX MATCH "\"downloadUrl\" *: *\"([^\"]*)\"" _ ${Artifact})
+    message("Downloading ${CMAKE_MATCH_1}")
+    file(DOWNLOAD "${CMAKE_MATCH_1}" ${CMAKE_BINARY_DIR}/lldb.zip SHOW_PROGRESS)
+endif()
 
 add_subdirectory(adapter2)
 add_subdirectory(lldb)
@@ -181,13 +189,14 @@ add_custom_target(vsix_full
 # Strip native binaries if building vsix_full
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    if(NOT ${CMAKE_STRIP})
+    if (NOT CMAKE_STRIP)
         set(CMAKE_STRIP strip)
     endif()
 
     add_custom_target(strip_binaries
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} -g "{}" "\;"
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} -g "{}" "\;"
+        DEPENDS lldb codelldb
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
         COMMENT "Stripping debug info"
         USES_TERMINAL
     )

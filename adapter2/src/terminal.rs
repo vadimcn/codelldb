@@ -99,5 +99,6 @@ fn accept_with_timeout(listener: &mut TcpListener, timeout: Duration) -> Result<
             return Err(Error::Internal("Terminal agent did not respond within the allotted time.".into()));
         }
     };
+    stream.set_nonblocking(false)?;
     Ok(stream)
 }

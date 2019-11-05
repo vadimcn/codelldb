@@ -57,5 +57,12 @@ suite('Util', () => {
         for (let key in env) {
             assert.ok(key == 'Foo' || key == 'Bar');
         }
+
+        delete env['Bar'];
+        for (let key in env) {
+            assert.ok(key != 'Bar');
+        }
+
+        delete env['Qoox'];
     });
 })

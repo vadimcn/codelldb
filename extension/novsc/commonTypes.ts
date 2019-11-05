@@ -23,7 +23,7 @@ export class Environment {
 class IgnoreCaseProxy {
     private keys: Dict<string> = {};
 
-    get(target: any, key: string) {
+    get(target: any, key: string): any {
         let upperKey = key.toUpperCase();
         let mappedKey = this.keys[upperKey];
         return target[mappedKey];
@@ -37,6 +37,13 @@ class IgnoreCaseProxy {
             mappedKey = key;
         }
         target[mappedKey] = value;
+        return true;
+    }
+
+    deleteProperty(target: any, key: string): boolean {
+        let upperKey = key.toUpperCase();
+        let mappedKey = this.keys[upperKey];
+        delete target[mappedKey];
         return true;
     }
 }

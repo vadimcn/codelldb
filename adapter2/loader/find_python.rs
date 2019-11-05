@@ -69,26 +69,35 @@ fn get_candidate_locations() -> Vec<PathBuf> {
     fn query_sysconfig() -> Result<Vec<PathBuf>, Error> {
         let result = std::process::Command::new("python3")
             .arg("-c")
-            .arg("import sysconfig; print(sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX')); print(sysconfig.get_config_var('LDLIBRARY'))")
+            .arg("import sys,sysconfig; print(sys.base_exec_prefix); print(sysconfig.get_config_var('INSTSONAME'))")
             .output()?;
         if !result.status.success() {
             return Err(format!("python exit code: {:?}", result.status.code()).into());
         }
         let stdout = BufReader::new(&result.stdout[..]);
         let mut lines = stdout.lines();
-        let prefix = lines.next().unwrap()?;
-        let libname = lines.next().unwrap()?;
+
+        let prefix = lines.next().unwrap()?; // e.g. '/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.7'
+        let libname = lines.next().unwrap()?; // e.g. 'Python3.framework/Versions/3.7/Python3'
 
         let mut results = vec![];
+
+        let mut path = PathBuf::from(&prefix);
+        path.push("Python3");
+        results.push(path);
+
+        let mut path = PathBuf::from(&prefix);
+        path.push("Python");
+        results.push(path);
+
+        let mut path = PathBuf::from(&prefix);
+        path.pop();
+        path.pop();
+        path.pop();
+        path.push(&libname);
+        results.push(path);
+
         results.push(PathBuf::from(&libname));
-
-        let mut path = PathBuf::from(prefix);
-        path.push(&libname);
-        results.push(path);
-
-        let mut path = PathBuf::from("/Library/Developer/CommandLineTools/Library/Frameworks");
-        path.push(&libname);
-        results.push(path);
 
         Ok(results)
     }
@@ -107,6 +116,13 @@ fn get_candidate_locations() -> Vec<PathBuf> {
     use winreg::enums::*;
 
     let mut results = vec![];
+
+    if let Ok(python_home) = std::env::var("PYTHONHOME") {
+        let mut path = PathBuf::from(python_home);
+        path.push("python3.dll");
+        results.push(path);
+    }
+
     for hive in &[HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
         if let Ok(hk_python) = winreg::RegKey::predef(*hive).open_subkey("Software\\Python\\PythonCore") {
             for ver_tag in hk_python.enum_keys() {

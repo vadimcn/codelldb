@@ -4,6 +4,9 @@ variables:
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: 'nightly-2019-10-15'
   runTests: true
+  cacheDiscr: C
+  AZP_CACHING_CONTENT_FORMAT: SingleTar
+  AZP_CACHING_TAR: true
 
   setenvLinux: |
       true
@@ -21,6 +24,9 @@ jobs:
 - job: Linux
   pool:
     vmImage: 'Ubuntu 16.04'
+
+  variables:
+    cachePrefix: $(cacheDiscr)-x86_64-unknown-linux
 
   container:
     image: 'vadimcn/linux-builder:latest'
@@ -40,6 +46,33 @@ jobs:
       itemPattern: 'lldb--x86_64-unknown-linux-gnu/lldb--x86_64-unknown-linux-gnu.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
+
+  - script: |
+      echo $(HOME)
+      echo $HOME
+      ls -laR $HOME
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | node_modules | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | node_modules | $(Build.BuildId)
+        $(cachePrefix) | node_modules
+      path: $(Build.SourcesDirectory)/build/node_modules
+      continueOnError: true
+    displayName: Cache node_modules
+    condition: always()
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | cargo_target | $(Build.BuildId)
+        $(cachePrefix) | cargo_target
+      path: $(Build.SourcesDirectory)/build/target
+      continueOnError: true
+    displayName: Cache cargo_target
+    condition: always()
 
   - script: |
       $(setenvLinux)
@@ -89,6 +122,9 @@ jobs:
   pool:
     vmImage: 'Ubuntu 16.04'
 
+  variables:
+    cachePrefix: $(cacheDiscr)-aarch64-unknown-linux
+
   container:
     image: 'vadimcn/linux-builder:latest'
     options: --privileged
@@ -107,6 +143,28 @@ jobs:
       itemPattern: 'lldb--aarch64-unknown-linux-gnu/lldb--aarch64-unknown-linux-gnu.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | node_modules | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | node_modules | $(Build.BuildId)
+        $(cachePrefix) | node_modules
+      path: $(Build.SourcesDirectory)/build/node_modules
+      continueOnError: true
+    displayName: Cache node_modules
+    condition: always()
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | cargo_target | $(Build.BuildId)
+        $(cachePrefix) | cargo_target
+      path: $(Build.SourcesDirectory)/build/target
+      continueOnError: true
+    displayName: Cache cargo_target
+    condition: always()
 
   - script: |
       $(setenvLinux)
@@ -157,6 +215,9 @@ jobs:
   pool:
     vmImage: 'macOS 10.13'
 
+  variables:
+    cachePrefix: $(cacheDiscr)-x86_64-apple-darwin
+
   steps:
 
   - task: DownloadBuildArtifacts@0
@@ -171,6 +232,28 @@ jobs:
       itemPattern: 'lldb--x86_64-apple-darwin/lldb--x86_64-apple-darwin.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | node_modules | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | node_modules | $(Build.BuildId)
+        $(cachePrefix) | node_modules
+      path: $(Build.SourcesDirectory)/build/node_modules
+      continueOnError: true
+    displayName: Cache node_modules
+    condition: always()
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | cargo_target | $(Build.BuildId)
+        $(cachePrefix) | cargo_target
+      path: $(Build.SourcesDirectory)/build/target
+      continueOnError: true
+    displayName: Cache cargo_target
+    condition: always()
 
   - task: NodeTool@0
     inputs:
@@ -229,6 +312,9 @@ jobs:
   pool:
     vmImage: 'VS2017-Win2016'
 
+  variables:
+    cachePrefix: $(cacheDiscr)-x86_64-pc-windows
+
   steps:
 
   - task: NodeTool@0
@@ -254,6 +340,28 @@ jobs:
       itemPattern: 'lldb--x86_64-pc-windows-msvc/lldb--x86_64-pc-windows-msvc.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | node_modules | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | node_modules | $(Build.BuildId)
+        $(cachePrefix) | node_modules
+      path: $(Build.SourcesDirectory)/build/node_modules
+      continueOnError: true
+    displayName: Cache node_modules
+    condition: always()
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+      restoreKeys: |
+        $(cachePrefix) | cargo_target | $(Build.BuildId)
+        $(cachePrefix) | cargo_target
+      path: $(Build.SourcesDirectory)/build/target
+      continueOnError: true
+    displayName: Cache cargo_target
+    condition: always()
 
   - task: BatchScript@1
     inputs:

@@ -42,7 +42,7 @@
 		"@types/mocha": "^5.2.7",
 		"@types/yauzl": "^2.9.0",
 		"@types/json5": "^0.0.30",
-		"typescript": "^3.5.0",
+		"typescript": "^3.7.0",
 		"mocha": "^6.1.0",
 		"source-map-support": "^0.5.12",
 		"memory-streams": "^0.1.3",

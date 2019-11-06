@@ -1,10 +1,11 @@
 import { workspace, window, OutputChannel, ConfigurationTarget, Uri, ExtensionContext, env } from 'vscode';
-import { inspect } from 'util';
 import * as ver from './novsc/ver';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
 import * as util from './configUtils';
 import * as async from './novsc/async';
+import { inspect } from 'util';
+import { mergedEnvironment } from './novsc/expand';
 
 enum DiagnosticsStatus {
     Succeeded = 0,
@@ -47,7 +48,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
         }
         for (let name of lldbNames) {
             try {
-                let env = adapter.mergeEnv(adapterEnv);
+                let env = mergedEnvironment(adapterEnv);
                 let lldb = await adapter.spawnDebugAdapter(name, ['-v'], env, workspace.rootPath);
                 util.logProcessOutput(lldb, output);
                 version = (await adapter.waitForPattern(lldb, lldb.stdout, pattern))[1];
@@ -70,7 +71,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
 
             // Check if Python scripting is usable.
             output.appendLine('--- Checking Python ---');
-            let env = adapter.mergeEnv(adapterEnv);
+            let env = mergedEnvironment(adapterEnv);
             let lldb2 = await adapter.spawnDebugAdapter(adapterPath, [
                 '-b',
                 '-O', 'script import sys, io, lldb',

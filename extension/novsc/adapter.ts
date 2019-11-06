@@ -3,7 +3,7 @@ import * as path from 'path';
 import { Readable } from 'stream';
 import * as async from './async';
 import { Dict, Environment } from './commonTypes';
-import { expandVariables } from './expand';
+import { mergedEnvironment } from './expand';
 
 export interface AdapterStartOptions {
     extensionRoot: string;
@@ -18,7 +18,7 @@ export async function startClassic(
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergeEnv(options.extraEnv);
+    let env = mergedEnvironment(options.extraEnv);
     if (options.verboseLogging) {
         options.adapterParameters['logLevel'] = 0;
     }
@@ -36,7 +36,7 @@ export async function startNative(
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergeEnv(options.extraEnv);
+    let env = mergedEnvironment(options.extraEnv);
     let executable = path.join(options.extensionRoot, 'adapter2/codelldb');
     let args = ['--liblldb', liblldb];
     if (libpython) {
@@ -171,28 +171,11 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
     return null;
 }
 
-
-// Expand ${env:...} placeholders in extraEnv and merge it with the current process' environment.
-export function mergeEnv(extraEnv: Dict<string>): Environment {
-    let env = new Environment(process.platform == 'win32');
-    env = Object.assign(env, process.env);
-    for (let key in extraEnv) {
-        env[key] = expandVariables(extraEnv[key], (type, key) => {
-            if (type == 'env')
-                return process.env[key];
-            throw new Error('Unknown variable type ' + type);
-        });
-    }
-    return env;
-}
-
-
-let findLibPythonAsync: Promise<string> = null;
-
-export async function findLibPython(extensionRoot: string): Promise<string> {
-    if (findLibPythonAsync == null) {
-        findLibPythonAsync = async.cp.execFile(path.join(extensionRoot, 'adapter2/codelldb'), ['find-python'])
-            .then(result => result.stdout.trim()).catch(_err => null)
-    }
-    return findLibPythonAsync;
+// Ask codelldb to locate libpython
+export async function findLibPython(extensionRoot: string, extraEnv: Dict<string> = undefined): Promise<string> {
+    let adapter = path.join(extensionRoot, 'adapter2/codelldb');
+    let options = extraEnv ? { env: mergedEnvironment(extraEnv) } : {};
+    return async.cp.execFile(adapter, ['find-python'], options)
+        .then(result => result.stdout.trim())
+        .catch(_err => null);
 }

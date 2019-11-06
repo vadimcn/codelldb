@@ -1,5 +1,5 @@
 import {
-    workspace, window, commands, debug,
+    workspace, window, commands, debug, env,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
@@ -8,19 +8,19 @@ import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as querystring from 'querystring';
+import * as JSON5 from 'json5';
+import stringArgv from 'string-argv';
 import * as diagnostics from './diagnostics';
 import * as htmlView from './htmlView';
-import * as cargo from './cargo';
 import * as util from './configUtils';
-import { pickProcess } from './pickProcess';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
+import { Cargo, expandCargo } from './cargo';
+import { pickProcess } from './pickProcess';
 import { Dict, AdapterType, toAdapterType } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
-import stringArgv from 'string-argv';
-import * as JSON5 from 'json5';
 
 
 export let output = window.createOutputChannel('LLDB');
@@ -62,6 +62,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 event.affectsConfiguration('lldb.evaluationTimeout') ||
                 event.affectsConfiguration('lldb.consoleMode')) {
                 this.propagateDisplaySettings();
+            }
+            if (event.affectsConfiguration('lldb.library') ||
+                event.affectsConfiguration('lldb.libpython')) {
+                this.adapterDylibsCache = null;
             }
         }));
 
@@ -159,8 +163,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     // Read current adapter settings values from workspace configuration.
     getAdapterSettings(): AdapterSettings {
-        let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
-        let config = workspace.getConfiguration('lldb', folder);
+        let folder = debug.activeDebugSession?.workspaceFolder;
+        let config = this.getExtensionConfig(folder);
         let settings: AdapterSettings = {
             displayFormat: config.get('displayFormat'),
             showDisassembly: config.get('showDisassembly'),
@@ -175,8 +179,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     // Update workspace configuration.
     async setAdapterSettings(settings: AdapterSettings) {
-        let folder = debug.activeDebugSession ? debug.activeDebugSession.workspaceFolder.uri : undefined;
-        let config = workspace.getConfiguration('lldb', folder);
+        let folder = debug.activeDebugSession?.workspaceFolder;
+        let config = this.getExtensionConfig(folder);
         await config.update('displayFormat', settings.displayFormat);
         await config.update('showDisassembly', settings.showDisassembly);
         await config.update('dereferencePointers', settings.dereferencePointers);
@@ -243,18 +247,22 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         this.propagateDisplaySettings();
 
-        let adapterType = this.getAdapterType(undefined);
+        let config = this.getExtensionConfig();
+        let adapterType = this.getAdapterType(config);
         if (adapterType == 'native') {
             install.ensurePlatformPackage(this.context, output);
         }
     }
 
     async provideDebugConfigurations(
-        folder: WorkspaceFolder | undefined,
+        workspaceFolder: WorkspaceFolder | undefined,
         token?: CancellationToken
     ): Promise<DebugConfiguration[]> {
         try {
-            let debugConfigs = await cargo.getLaunchConfigs(folder ? folder.uri.fsPath : workspace.rootPath);
+            let config = this.getExtensionConfig(workspaceFolder);
+            let folder = workspaceFolder ? workspaceFolder.uri.fsPath : workspace.rootPath;
+            let cargo = new Cargo(folder, config.get('adapterEnv', {}));
+            let debugConfigs = await cargo.getLaunchConfigs();
             if (debugConfigs.length > 0) {
                 let response = await window.showInformationMessage(
                     'Cargo.toml has been detected in this workspace.\r\n' +
@@ -293,10 +301,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (!await this.checkPrerequisites(folder))
             return undefined;
 
-        let launchDefaults = workspace.getConfiguration('lldb.launch', folder ? folder.uri : undefined);
+        let config = this.getExtensionConfig(folder);
+
+        let launchDefaults = this.getExtensionConfig(folder, 'lldb.launch');
         launchConfig = this.mergeWorkspaceSettings(launchDefaults, launchConfig);
 
-        let dbgconfigConfig = workspace.getConfiguration('lldb.dbgconfig', folder ? folder.uri : undefined);
+        let dbgconfigConfig = this.getExtensionConfig(folder, 'lldb.dbgconfig');
         launchConfig = util.expandDbgConfig(launchConfig, dbgconfigConfig);
 
         // Transform "request":"custom" to "request":"launch" + "custom":true
@@ -312,14 +322,14 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         launchConfig.relativePathBase = launchConfig.relativePathBase || workspace.rootPath;
 
         // Deal with Cargo
-        let cargoDict: Dict<string> = {};
         if (launchConfig.cargo != undefined) {
-            let cargoCwd = folder ? folder.uri.fsPath : workspace.rootPath;
-            cargoDict.program = await cargo.getProgramFromCargo(launchConfig.cargo, cargoCwd);
+            let cargoTomlFolder = folder ? folder.uri.fsPath : workspace.rootPath;
+            let cargo = new Cargo(cargoTomlFolder, config.get('adapterEnv', {}));
+            let cargoDict = { program: await cargo.getProgramFromCargoConfig(launchConfig.cargo) };
             delete launchConfig.cargo;
 
             // Expand ${cargo:program}.
-            launchConfig = cargo.expandCargo(launchConfig, cargoDict);
+            launchConfig = expandCargo(launchConfig, cargoDict);
 
             if (launchConfig.program == undefined) {
                 launchConfig.program = cargoDict.program;
@@ -336,7 +346,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {
-        let lldbConfig = workspace.getConfiguration('lldb', session.workspaceFolder ? session.workspaceFolder.uri : undefined);
+        let lldbConfig = this.getExtensionConfig(session.workspaceFolder);
         let adapterParams: any = this.getAdapterParameters(lldbConfig);
         if (session.configuration.sourceLanguages) {
             adapterParams.sourceLanguages = session.configuration.sourceLanguages;
@@ -407,7 +417,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async getCargoLaunchConfigs() {
         try {
-            let debugConfigs = await cargo.getLaunchConfigs(workspace.rootPath);
+            let config = this.getExtensionConfig();
+            let cargo = new Cargo(workspace.rootPath, config.get('adapterEnv'));
+            let debugConfigs = await cargo.getLaunchConfigs();
             let doc = await workspace.openTextDocument({
                 content: JSON.stringify(debugConfigs, null, 4),
                 language: 'jsonc'
@@ -423,8 +435,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         folder: WorkspaceFolder | undefined,
         adapterParams: Dict<string>
     ): Promise<[ChildProcess, number]> {
-        let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
-        let adapterType = this.getAdapterType(folder);
+        let config = this.getExtensionConfig(folder);
+        let adapterType = this.getAdapterType(config);
         let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
         let adapterProcess;
@@ -437,21 +449,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 verboseLogging: verboseLogging,
             });
         } else {
-            let config = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
-            let libpython;
-            let liblldb = util.getConfigNoDefault(config, 'library');
-            if (liblldb) {
-                liblldb = await adapter.findLibLLDB(liblldb)
-                // Don't preload libpython, because external backend will have been linked to a specific Python version.
-                libpython = null;
-            } else {
-                liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
-                // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
-                libpython = util.getConfigNoDefault(config, 'libpython');
-                if (!libpython) {
-                    libpython = await adapter.findLibPython(this.context.extensionPath);
-                }
-            }
+            let [liblldb, libpython] = await this.getAdapterDylibs(config);
 
             if (verboseLogging) {
                 output.appendLine(`liblldb: ${liblldb}`);
@@ -459,6 +457,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 output.appendLine(`environment: ${inspect(adapterEnv)}`);
                 output.appendLine(`params: ${inspect(adapterParams)}`);
             }
+
             adapterProcess = await adapter.startNative(liblldb, libpython, {
                 extensionRoot: this.context.extensionPath,
                 extraEnv: adapterEnv,
@@ -482,8 +481,32 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         return [adapterProcess, port];
     }
 
-    async checkPrerequisites(folder: WorkspaceFolder | undefined): Promise<boolean> {
-        if (this.getAdapterType(folder) == 'classic') {
+    // Resolve paths of the native adapter libraries and cache them.
+    async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string, string]> {
+        if (!this.adapterDylibsCache) {
+            let libpython;
+            let liblldb = util.getConfigNoDefault(config, 'library');
+            if (liblldb) {
+                liblldb = await adapter.findLibLLDB(liblldb)
+                // Don't preload libpython, because external backend will have been linked to a specific Python version.
+                libpython = null;
+            } else {
+                liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+                // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
+                libpython = util.getConfigNoDefault(config, 'libpython');
+                if (!libpython) {
+                    libpython = await adapter.findLibPython(this.context.extensionPath, config.get('adapterEnv'));
+                }
+            }
+            this.adapterDylibsCache = [liblldb, libpython];
+        }
+        return this.adapterDylibsCache;
+    }
+    adapterDylibsCache: [string, string] = null;
+
+    async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
+        let config = this.getExtensionConfig(folder);
+        if (this.getAdapterType(config) == 'classic') {
             if (!this.context.globalState.get('lldb_works')) {
                 window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
                 if (!await diagnostics.diagnoseExternalLLDB(this.context, output))
@@ -491,7 +514,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 this.context.globalState.update('lldb_works', true);
             }
         } else {
-            if (!await diagnostics.checkPython(this.context))
+            if (!await this.checkPython(folder))
                 return false;
             if (!await install.ensurePlatformPackage(this.context, output))
                 return false;
@@ -500,23 +523,51 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async runDiagnostics(folder?: WorkspaceFolder) {
-        let adapterType = this.getAdapterType(undefined);
+        let config = this.getExtensionConfig(folder);
+        let adapterType = this.getAdapterType(config);
         let succeeded;
-        switch (adapterType) {
-            case 'classic':
-                succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
-                break;
-            case 'native':
-                succeeded = await diagnostics.checkPython(this.context);
-                if (succeeded) {
-                    let [_, port] = await this.startDebugAdapter(folder, {});
-                    await diagnostics.testAdapter(port);
-                }
-                break;
+        try {
+            switch (adapterType) {
+                case 'classic':
+                    succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
+                    break;
+                case 'native':
+                    succeeded = await this.checkPython(folder);
+                    if (succeeded) {
+                        let [_, port] = await this.startDebugAdapter(folder, {});
+                        await diagnostics.testAdapter(port);
+                    }
+                    break;
+            }
+        } catch (err) {
+            succeeded = false;
         }
+
         if (succeeded) {
             window.showInformationMessage('LLDB self-test completed successfuly.');
+        } else {
+            window.showErrorMessage('LLDB self-test has failed.  Please check log output.');
+            output.show();
         }
+    }
+
+    async checkPython(folder?: WorkspaceFolder): Promise<boolean> {
+        if (process.platform == 'win32') {
+            // On Windows libpython is required.
+            let config = this.getExtensionConfig(folder);
+            let [liblldb, libpython] = await this.getAdapterDylibs(config);
+            if (!libpython) {
+                let action = await window.showErrorMessage(
+                    `CodeLLDB requires Python 3.3 or later (64-bit), but looks like it is not installed on this machine.`,
+                    { modal: true },
+                    'Take me to Python website');
+                if (action != null) {
+                    env.openExternal(Uri.parse('https://www.python.org/downloads/windows/'));
+                }
+                return false;
+            }
+        }
+        return true;
     }
 
     async attach() {
@@ -544,7 +595,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                         );
                         if (choice == 'Yes') {
                             box.hide();
-                            let lldbConfig = workspace.getConfiguration('lldb');
+                            let lldbConfig = this.getExtensionConfig();
                             lldbConfig.update('library', libraryPath, ConfigurationTarget.Workspace);
                         } else {
                             box.show();
@@ -560,9 +611,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         box.show();
     }
 
-    getAdapterType(folder: WorkspaceFolder | undefined): AdapterType {
-        let lldbConfig = workspace.getConfiguration('lldb', folder ? folder.uri : undefined);
-        return toAdapterType(lldbConfig.get<string>('adapterType'));
+    getAdapterType(config: WorkspaceConfiguration) {
+        return toAdapterType(config.get<string>('adapterType'));
+    }
+
+    getExtensionConfig(folder?: WorkspaceFolder, key: string = 'lldb'): WorkspaceConfiguration {
+        return workspace.getConfiguration(key, folder?.uri);
     }
 }
 

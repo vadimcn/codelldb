@@ -11,7 +11,7 @@ export interface Dict<T> {
 // Windows environment varibles are case-insensitive: for example, `Path` and `PATH` refer to the same variable.
 // This class emulates such a behavior.
 export class Environment {
-    constructor(ignoreCase: boolean) {
+    constructor(ignoreCase: boolean = (process.platform == 'win32')) {
         if (ignoreCase)
             return new Proxy(this, new IgnoreCaseProxy());
         else

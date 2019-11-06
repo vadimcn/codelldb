@@ -1,3 +1,5 @@
+import { Dict, Environment } from "./commonTypes";
+
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
 export function expandVariables(str: string | String, expander: (type: string, key: string) => string): string {
@@ -42,4 +44,18 @@ export function mergeValues(value1: any, value2: any): any {
         return value1.concat(value2);
     // Merge dictionaries.
     return Object.assign({}, value1, value2);
+}
+
+// Expand ${env:...} placeholders in extraEnv and merge it with the current process' environment.
+export function mergedEnvironment(extraEnv: Dict<string>): Environment {
+    let env = new Environment();
+    env = Object.assign(env, process.env);
+    for (let key in extraEnv) {
+        env[key] = expandVariables(extraEnv[key], (type, key) => {
+            if (type == 'env')
+                return process.env[key];
+            throw new Error('Unknown variable type ' + type);
+        });
+    }
+    return env;
 }

@@ -51,8 +51,4 @@ impl From<std::num::ParseIntError> for Error {
         Error::Internal(err.to_string())
     }
 }
-impl From<python::Error> for Error {
-    fn from(err: python::Error) -> Self {
-        Error::Internal(err.to_string())
-    }
-}
+

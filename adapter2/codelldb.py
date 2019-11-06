@@ -1,6 +1,10 @@
+from __future__ import print_function
 import lldb
 import logging
 import debugger
+import traceback
+import ctypes
+from ctypes import CFUNCTYPE, POINTER, pointer, sizeof, byref, memmove, c_bool, c_char, c_char_p, c_int, c_int64, c_size_t, c_void_p
 from value import Value
 
 logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
@@ -17,6 +21,147 @@ def set_log_level(level):
 #     #ptvsd.wait_for_attach()
 # except:
 #     log.warn('Could not import ptvsd')
+
+#============================================================================================
+
+class SBError(ctypes.Structure):
+    _fields_ = [("_opaque", c_int64)]
+    swig_type = lldb.SBError
+
+class SBExecutionContext(ctypes.Structure):
+    _fields_ = [("_opaque", c_int64 * 2)]
+    swig_type = lldb.SBExecutionContext
+
+class SBValue(ctypes.Structure):
+    _fields_ = [("_opaque", c_int64 * 2)]
+    swig_type = lldb.SBValue
+
+class SBModule(ctypes.Structure):
+    _fields_ = [("_opaque", c_int64 * 2)]
+    swig_type = lldb.SBModule
+
+class ValueResult(ctypes.Union):
+    _fields_ = [('value', SBValue),
+                ('error', SBError)]
+
+class BoolResult(ctypes.Union):
+    _fields_ = [('value', c_bool),
+                ('error', SBError)]
+
+SUCCESS = 1
+ERROR = -1
+
+shutdown_cfn = None
+evaluate_cfn = None
+evaluate_as_bool_cfn = None
+modules_loaded_cfn = None
+display_html = None
+
+def initialize(init_callback_addr, display_html_addr, callback_context):
+    global shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
+    shutdown_cfn = CFUNCTYPE(c_int)(shutdown)
+    evaluate_cfn = CFUNCTYPE(c_int, POINTER(ValueResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate)
+    evaluate_as_bool_cfn = CFUNCTYPE(c_int, POINTER(BoolResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate_as_bool)
+    modules_loaded_cfn = CFUNCTYPE(c_int, POINTER(SBModule), c_size_t)(modules_loaded)
+
+    init_callback_cfn = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(init_callback_addr)
+    init_callback_cfn(callback_context, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn)
+
+    display_html_cfn = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
+    display_html = lambda html, title, position, reveal: display_html_cfn(
+        callback_context, str_to_bytes(html), str_to_bytes(title), position if position != None else -1, reveal)
+
+def shutdown():
+    global shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
+    display_html = None
+    evaluate_cfn = None
+    evaluate_as_bool_cfn = None
+    modules_loaded_cfn = None
+    shutdown_cfn = None
+    return SUCCESS
+
+def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
+    try:
+        expr = ctypes.string_at(expr_ptr, expr_len)
+        context = into_swig_wrapper(context, SBExecutionContext)
+        res = evaluate_in_context(expr, is_simple_expr, context)
+        res = to_sbvalue(res, context.target)
+        result.contents.value = from_swig_wrapper(res, SBValue)
+        return SUCCESS
+    except Exception as err:
+        traceback.print_exc()
+        error = lldb.SBError()
+        error.SetErrorString(str(err))
+        result.contents.error = from_swig_wrapper(error, SBError)
+        return ERROR
+
+def evaluate_as_bool(result, expr_ptr, expr_len, is_simple_expr, context):
+    try:
+        expr = ctypes.string_at(expr_ptr, expr_len)
+        context = into_swig_wrapper(context, SBExecutionContext)
+        result.contents.value = bool(evaluate_in_context(expr, is_simple_expr, context))
+        return SUCCESS
+    except Exception as err:
+        traceback.print_exc()
+        error = lldb.SBError()
+        error.SetErrorString(str(err))
+        result.contents.error = from_swig_wrapper(error, SBError)
+        return ERROR
+
+def modules_loaded(modules_ptr, modules_len):
+    try:
+        modules = [into_swig_wrapper(modules_ptr[i], SBModule, False) for i in range(modules_len)]
+        for module in modules:
+            analyze_module(module)
+        return SUCCESS
+    except Exception as err:
+        traceback.print_exc()
+        return ERROR
+
+def into_swig_wrapper(cobject, ty, owned=True):
+    swig_object = ty.swig_type()
+    addr = int(swig_object.this)
+    memmove(addr, byref(cobject), sizeof(ty))
+    swig_object.this.own(owned)
+    return swig_object
+
+def from_swig_wrapper(swig_object, ty):
+    swig_object.this.disown() # We'll be moving the value out.
+    addr = int(swig_object.this)
+    cobject = ty()
+    memmove(byref(cobject), addr, sizeof(ty))
+    return cobject
+
+sberror = lldb.SBError()
+
+def to_sbvalue(value, target):
+    if isinstance(value, lldb.SBValue):
+        return value
+    elif isinstance(value, bool):
+        value = c_int(value)
+        asbytes = memoryview(value).tobytes()
+        data = lldb.SBData()
+        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        ty = target.GetBasicType(lldb.eBasicTypeBool)
+        return target.CreateValueFromData('result', data, ty)
+    elif isinstance(value, int):
+        value = c_int64(value)
+        asbytes = memoryview(value).tobytes()
+        data = lldb.SBData()
+        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        ty = target.GetBasicType(lldb.eBasicTypeLongLong)
+        return target.CreateValueFromData('result', data, ty)
+    else:
+        value = str(value)
+        data = lldb.SBData.CreateDataFromCString(target.GetByteOrder(), target.GetAddressByteSize(), value)
+        sbtype_arr = target.GetBasicType(lldb.eBasicTypeChar).GetArrayType(len(value))
+        return target.CreateValueFromData('result', data, sbtype_arr)
+
+def str_to_bytes(s):
+    return s.encode('utf8') if s != None else None
+
+def bytes_to_str(b):
+    return b.decode('utf8') if b != None else None
 
 #============================================================================================
 
@@ -48,7 +193,7 @@ class PyEvalContext(dict):
         else:
             raise KeyError(name)
 
-def evaluate_in_frame(script, simple_expr, execution_context):
+def evaluate_in_context(script, simple_expr, execution_context):
     frame = execution_context.GetFrame()
     debugger = execution_context.GetTarget().GetDebugger()
     if simple_expr:
@@ -94,6 +239,3 @@ def analyze_module(sbmodule):
                     except Exception as err:
                         log.error('Type callback %s raised %s', callback, err)
 
-def modules_loaded(modules):
-    for module in modules:
-        analyze_module(module)

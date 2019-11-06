@@ -27,9 +27,10 @@ use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::{is_same_path, normalize_path};
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use crate::python;
 use crate::terminal::Terminal;
 
-use python::{PythonInterface, PythonValue};
+use python::PythonInterface;
 
 use lldb::*;
 
@@ -94,7 +95,7 @@ pub struct DebugSession {
     process: MustInitialize<SBProcess>,
     process_was_launched: bool,
     on_configuration_done: Option<(u32, Box<AsyncResponder>)>,
-    python: Option<Box<dyn PythonInterface>>,
+    python: Option<Box<PythonInterface>>,
     breakpoints: RefCell<BreakpointsState>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
@@ -123,7 +124,6 @@ unsafe impl Send for DebugSession {}
 impl DebugSession {
     pub fn new(
         settings: AdapterSettings,
-        python_new_session: Option<python::NewSession>,
     ) -> impl Stream<Item = ProtocolMessage, Error = ()> + Sink<SinkItem = ProtocolMessage, SinkError = ()> {
         let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(100);
         let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(100);
@@ -157,33 +157,28 @@ impl DebugSession {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
-        let python = match python_new_session {
-            Some(python_new_session) => {
-                struct PythonEventSink(RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>);
-                impl python::EventSink for PythonEventSink {
-                    fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool) {
-                        let event = ProtocolMessage::Event(Event {
-                            seq: 0,
-                            body: EventBody::displayHtml(DisplayHtmlEventBody {
-                                html,
-                                title,
-                                position,
-                                reveal,
-                            }),
-                        });
-                        self.0.borrow_mut().try_send(event);
-                    }
-                }
-                let event_sink = Box::new(PythonEventSink(send_message.clone()));
-                match python_new_session(debugger.command_interpreter(), event_sink) {
-                    Ok(python) => Some(python),
-                    Err(err) => {
-                        error!("Initialize Python interpreter: {}", err);
-                        None
-                    }
-                }
+        struct PythonEventSink(RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>);
+        impl python::EventSink for PythonEventSink {
+            fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool) {
+                let event = ProtocolMessage::Event(Event {
+                    seq: 0,
+                    body: EventBody::displayHtml(DisplayHtmlEventBody {
+                        html,
+                        title,
+                        position,
+                        reveal,
+                    }),
+                });
+                self.0.borrow_mut().try_send(event);
             }
-            None => None,
+        }
+        let event_sink = Box::new(PythonEventSink(send_message.clone()));
+        let python = match python::PythonInterface::new(debugger.command_interpreter(), event_sink) {
+            Ok(python) => Some(python),
+            Err(err) => {
+                error!("Initialize Python interpreter: {}", err);
+                None
+            }
         };
 
         let mut debug_session = DebugSession {

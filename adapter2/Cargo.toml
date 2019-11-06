@@ -24,11 +24,7 @@ tokio = "0.1.22"
 
 lldb = { path = "deps/lldb" }
 loading = { path = "deps/loading" }
-python = { package = "python-interface", path = "deps/python-interface" }
 raw_debug_protocol = { package = "debug-protocol", path = "deps/debug-protocol" }
-
-[dev-dependencies]
-python-impl = { package = "python-impl", path = "deps/python-impl" }
 
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"
@@ -45,4 +41,4 @@ name = "codelldb"
 path = "loader/main.rs"
 
 [features]
-weak-linkage = ["lldb/weak-linkage", "python-impl/weak-linkage"]
+weak-linkage = ["lldb/weak-linkage"]

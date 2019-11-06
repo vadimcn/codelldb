@@ -1,8 +1,0 @@
-[package]
-name = "python-interface"
-version = "0.1.0"
-authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-lldb = { path = "../lldb" }

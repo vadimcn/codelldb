@@ -2,19 +2,37 @@ pub use platform::*;
 pub type Handle = *const std::os::raw::c_void;
 pub type Error = Box<dyn std::error::Error>;
 
+pub const CURRENT_PROCESS: Handle = 0 as Handle;
+
 #[cfg(unix)]
 mod platform {
-    use super::{Error, Handle};
+    use super::{Error, Handle, CURRENT_PROCESS};
     use std::ffi::{CStr, CString};
     use std::os::raw::{c_char, c_int, c_void};
     use std::path::Path;
 
+    pub const DYLIB_SUBDIR: &str = "lib";
     pub const DYLIB_PREFIX: &str = "lib";
     #[cfg(target_os = "linux")]
     pub const DYLIB_EXTENSION: &str = "so";
     #[cfg(target_os = "macos")]
     pub const DYLIB_EXTENSION: &str = "dylib";
-    pub const DYLIB_SUBDIR: &str = "lib";
+
+    #[cfg(target_os = "linux")]
+    mod constants {
+        use super::*;
+        pub const RTLD_LAZY: c_int = 0x1;
+        pub const RTLD_GLOBAL: c_int = 0x100;
+        pub const RTLD_DEFAULT: Handle = 0 as Handle;
+    }
+    #[cfg(target_os = "macos")]
+    mod constants {
+        use super::*;
+        pub const RTLD_LAZY: c_int = 0x1;
+        pub const RTLD_GLOBAL: c_int = 0x8;
+        pub const RTLD_DEFAULT: Handle = -2i32 as Handle;
+    }
+    pub use constants::*;
 
     #[link(name = "dl")]
     extern "C" {
@@ -23,8 +41,6 @@ mod platform {
         fn dlsym(handle: Handle, symbol: *const c_char) -> *const c_void;
         fn dlerror() -> *const c_char;
     }
-    const RTLD_LAZY: c_int = 0x00001;
-    const RTLD_GLOBAL: c_int = 0x00100;
 
     pub unsafe fn load_library(path: &Path, global_symbols: bool) -> Result<Handle, Error> {
         let cpath = CString::new(path.as_os_str().to_str().unwrap().as_bytes()).unwrap();
@@ -50,6 +66,10 @@ mod platform {
 
     pub unsafe fn find_symbol(handle: Handle, name: &str) -> Result<*const c_void, Error> {
         let cname = CString::new(name).unwrap();
+        let handle = match handle {
+            CURRENT_PROCESS => RTLD_DEFAULT,
+            _ => handle,
+        };
         let ptr = dlsym(handle, cname.as_ptr() as *const c_char);
         if ptr.is_null() {
             Err(format!("{:?}", CStr::from_ptr(dlerror())).into())

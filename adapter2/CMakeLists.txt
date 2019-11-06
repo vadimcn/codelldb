@@ -40,7 +40,7 @@ add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
 set(copy_file ${CMAKE_COMMAND} -E copy_if_different)
 
 add_custom_target(codelldb ALL
-    DEPENDS codelldb_bin codelldb_lib codelldb_python
+    DEPENDS codelldb_bin codelldb_lib
 )
 
 add_custom_target(codelldb_bin
@@ -52,20 +52,11 @@ add_custom_target(codelldb_bin
 )
 
 add_custom_target(codelldb_lib
-    DEPENDS lldb
+    DEPENDS lldb ${PythonFiles}
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython}
             cargo build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
     COMMAND ${copy_file} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"
-    USES_TERMINAL
-)
-
-add_custom_target(codelldb_python
-    DEPENDS lldb ${PythonFiles}
-    COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython}
-            cargo build --package=python-impl --lib --features=weak-linkage ${CargoFlags}
-    COMMAND ${copy_file} ${CargoOutDir}/${DylibPrefix}codelldb_python${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Building codelldb_python"
     USES_TERMINAL
 )
 
@@ -75,7 +66,7 @@ string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 
 add_custom_target(cargo_test
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --target=${Target} -p=lldb -p=debug-protocol -p=python-impl -p=codelldb
+            cargo test --target=${Target} -p=lldb -p=debug-protocol -p=codelldb
     USES_TERMINAL
 )
 
@@ -83,13 +74,11 @@ add_custom_target(cargo_test
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_test(NAME native:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
     add_test(NAME native:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
-    add_test(NAME native:deps:libcodelldb_python COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb_python.so)
-    set_tests_properties(native:deps:libcodelldb native:deps:libcodelldb_python
+    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     add_test(NAME native:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
     add_test(NAME native:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
-    add_test(NAME native:deps:libcodelldb_python COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb_python.dylib)
-    set_tests_properties(native:deps:libcodelldb native:deps:libcodelldb_python
+    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;Python;liblldb;libxml")
 endif()

@@ -142,8 +142,8 @@
 			"name": "codelldb python",
 			"type": "python",
 			"request": "attach",
-			"preLaunchTask": "wait for port 3000",
-			"port": 3000,
+			"preLaunchTask": "wait for port 4730",
+			"port": 4730,
 			"host": "127.0.0.1",
 			"pathMappings": [
 				{

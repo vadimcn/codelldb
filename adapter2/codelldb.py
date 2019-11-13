@@ -17,7 +17,7 @@ def set_log_level(level):
 
 # try:
 #     import ptvsd
-#     ptvsd.enable_attach(address=('0.0.0.0', 3000))
+#     ptvsd.enable_attach(address=('0.0.0.0', 4730))
 #     #ptvsd.wait_for_attach()
 # except:
 #     log.warn('Could not import ptvsd')

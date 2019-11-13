@@ -164,12 +164,10 @@
     },
     {
       "type": "process",
-      "label": "wait for port 3000",
+      "label": "wait for port 4730",
       "command": "python",
       "args": [
-        "${workspaceFolder}/tools/debug_launcher.py",
-        "--wait-port",
-        "3000"
+        "${workspaceFolder}/tools/debug_launcher.py", "--wait-port", "4730"
       ]
     },
     {

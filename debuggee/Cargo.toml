@@ -2,12 +2,17 @@
 name = "rust-debuggee"
 version = "0.1.0"
 authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
+edition = "2018"
 build = "rust/build.rs"
 
 [lib]
 name = "types_lib"
 path = "rust/types.rs"
 crate-type = ["lib", "staticlib", "dylib"]
+
+[[bin]]
+name = "rust-debuggee"
+path = "rust/types.rs"
 
 [[bin]]
 name = "types"
@@ -28,3 +33,5 @@ path = "rust/types.rs"
 [[bench]]
 name = "bench1"
 path = "rust/types.rs"
+
+[dependencies]

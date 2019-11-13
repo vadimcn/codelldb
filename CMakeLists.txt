@@ -31,6 +31,7 @@ else()
 endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
+set(CopyFile ${CMAKE_COMMAND} -E copy_if_different)
 
 set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
 if (LLDB_ROOT)
@@ -68,6 +69,15 @@ endif()
 
 # Copy it back, so we can commit the lock file.
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_custom_target(update_lockfiles
+    COMMAND ${CopyFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
+    COMMAND ${NPM} update
+    COMMAND ${CopyFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
+    COMMAND cargo update
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    USES_TERMINAL
+)
 
 # Extension and tests
 

@@ -53,7 +53,7 @@ struct PyKeywords {
 }
 
 fn make_hash() -> HashMap<String, i32> {
-    let mut vikings = HashMap::new();
+    let mut vikings = HashMap::default();
     vikings.insert("Einar".into(), 25);
     vikings.insert("Olaf".into(), 24);
     vikings.insert("Harald".into(), 12);

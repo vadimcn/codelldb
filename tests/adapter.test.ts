@@ -10,7 +10,7 @@ import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import { WritableStream } from 'memory-streams';
 
-import { AdapterType, toAdapterType } from 'extension/novsc/commonTypes';
+import { AdapterType, toAdapterType, Dict } from 'extension/novsc/commonTypes';
 import * as adapter from 'extension/novsc/adapter';
 
 const triple = process.env.TARGET_TRIPLE || '';
@@ -35,8 +35,8 @@ const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', '
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
 const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
 
-const rusttypes = path.join(debuggeeDir, 'rusttypes');
-const rusttypesSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
+const rustDebuggee = path.join(debuggeeDir, 'rust-debuggee');
+const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
 
 var testLog: stream.Writable;
 var testDataLog: stream.Writable;
@@ -453,7 +453,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let bpLine = findMarker(debuggeeSource, '#BP1');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
                 let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
-                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"]});
+                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"] });
                 await setBreakpointAsync;
                 let ev = await waitForDisplayHtmlAsync;
                 assert.equal(ev.body.html, "<html>");
@@ -527,19 +527,21 @@ function generateSuite(adapterType: AdapterType, triple: string) {
         suite('Rust tests', () => {
             test('variables', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
-                let bpLine = findMarker(rusttypesSource, '#BP1');
-                let setBreakpointAsync = ds.setBreakpoint(rusttypesSource, bpLine);
+                let bpLine = findMarker(rustDebuggeeSource, '#BP1');
+                let setBreakpointAsync = ds.setBreakpoint(rustDebuggeeSource, bpLine);
                 let waitForStopAsync = ds.waitForStopEvent();
-                await ds.launch({ name: 'rust variables', program: rusttypes });
+                await ds.launch({ name: 'rust variables', program: rustDebuggee });
                 await setBreakpointAsync;
                 let stoppedEvent = await waitForStopAsync;
-                await ds.verifyLocation(stoppedEvent.body.threadId, rusttypesSource, bpLine);
+                await ds.verifyLocation(stoppedEvent.body.threadId, rustDebuggeeSource, bpLine);
                 let frames = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
                 let scopes = await ds.scopesRequest({ frameId: frames.body.stackFrames[0].id });
 
                 let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
 
-                await ds.compareVariables(scopes.body.scopes[0].variablesReference, {
+                let localVars = await ds.readVariables(scopes.body.scopes[0].variablesReference);
+
+                await ds.compareVariables(localVars, {
                     int: 17,
                     float: 3.14159274,
                     tuple: '(1, "a", 42)',
@@ -579,7 +581,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 });
 
                 if (adapterType != 'classic' && !triple.endsWith('pc-windows-msvc')) {
-                    await ds.compareVariables(scopes.body.scopes[0].variablesReference, {
+                    await ds.compareVariables(localVars, {
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',
@@ -598,10 +600,32 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                         },
                     });
 
+                    let expected1 = [
+                        '("Olaf", 24)',
+                        '("Harald", 12)',
+                        '("Einar", 25)',
+                        '("Conan", 29)',
+                    ];
+                    let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
+                    for (let expectedValue of expected1) {
+                        assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
+                    }
+
+                    let expected2 = [
+                        '"Olaf"',
+                        '"Harald"',
+                        '"Einar"',
+                        '"Conan"',
+                    ];
+                    let setValues = await ds.readVariables(localVars['set'].variablesReference);
+                    for (let expectedValue of expected2) {
+                        assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
+                    }
+
                     if (!triple.endsWith('apple-darwin')) {
-                        await ds.compareVariables(scopes.body.scopes[0].variablesReference, {
-                            cstyle_enum1: 'types::CStyleEnum::A',
-                            cstyle_enum2: 'types::CStyleEnum::B',
+                        await ds.compareVariables(localVars, {
+                            cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
+                            cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
                         });
                     }
                 }
@@ -760,31 +784,24 @@ class DebugTestSession extends DebugClient {
         assert.equal(topFrame.line, line);
     }
 
-    async readVariables(variablesReference: number): Promise<any> {
+    async readVariables(variablesReference: number): Promise<Dict<dp.Variable>> {
         let response = await this.variablesRequest({ variablesReference: variablesReference });
-        let vars: any = {};
+        let vars: Dict<dp.Variable> = {};
         for (let v of response.body.variables) {
-            vars[v.name] = v.value;
+            vars[v.name] = v;
         }
         return vars;
     }
 
-    static assertDictContains(dict: any, expected: any) {
-        for (let key in expected) {
-            assert.equal(dict[key], expected[key], 'The value of "' + key + '" does not match the expected value.');
+    async compareVariables(vars: number | Dict<dp.Variable>, expected: Dict<any>, prefix: string = '') {
+        if (typeof vars == 'number') {
+            assert.notEqual(vars, 0, 'Expected non-zero.');
+            vars = await this.readVariables(vars);
         }
-    }
 
-    async compareVariables(varRef: number, expected: any, prefix: string = '') {
-        assert.notEqual(varRef, 0, 'Expected non-zero.');
-        let response = await this.variablesRequest({ variablesReference: varRef });
-        let vars: any = {};
-        for (let v of response.body.variables) {
-            vars[v.name] = v;
-        }
         for (let key of Object.keys(expected)) {
             if (key == '$')
-                continue; // Summary is checked by the caller.
+                continue; // Summary will have been checked by the caller.
 
             let keyPath = prefix.length > 0 ? prefix + '.' + key : key;
             let expectedValue = expected[key];
@@ -792,7 +809,7 @@ class DebugTestSession extends DebugClient {
             assert.notEqual(variable, undefined, 'Did not find variable "' + keyPath + '"');
 
             if (expectedValue == null) {
-                // Just check that the value exists
+                // Just check that the value exists.
             } else if (typeof expectedValue == 'string') {
                 assert.equal(variable.value, expectedValue,
                     `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
@@ -801,12 +818,16 @@ class DebugTestSession extends DebugClient {
                 assert.equal(numValue, expectedValue,
                     `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
             } else if (typeof expectedValue == 'object') {
-                let summary = expectedValue['$'];
-                if (summary != undefined) {
-                    assert.equal(variable.value, summary,
-                        `Summary of "${keyPath}", expected: "${summary}", actual: "${variable.value}"`);
+                if (expectedValue instanceof Array) {
+
+                } else {
+                    let summary = expectedValue['$'];
+                    if (summary != undefined) {
+                        assert.equal(variable.value, summary,
+                            `Summary of "${keyPath}", expected: "${summary}", actual: "${variable.value}"`);
+                    }
+                    await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
                 }
-                await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
             } else {
                 assert.ok(false, 'Unreachable');
             }

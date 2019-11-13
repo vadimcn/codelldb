@@ -1,3 +1,2 @@
 [workspace]
-members = ["adapter2"]
-exclude = ["debuggee"]
+members = ["adapter2", "debuggee"]

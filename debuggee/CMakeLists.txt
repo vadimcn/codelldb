@@ -36,19 +36,19 @@ endif()
 
 # rusttypes
 if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(Rustc rustc)
+    set(Target)
     set(Rusttypes rusttypes)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    set(Rustc rustc --target x86_64-pc-windows-msvc)
+    set(Target --target x86_64-pc-windows-msvc)
     set(Rusttypes rusttypes.exe)
 else()
-    set(Rustc rustc --target x86_64-pc-windows-gnu)
+    set(Target--target x86_64-pc-windows-gnu)
     set(Rusttypes rusttypes.exe)
 endif()
 
-add_custom_target(rusttypes
-    COMMAND ${Rustc} ${CMAKE_CURRENT_SOURCE_DIR}/rust/types.rs -g -o ${Rusttypes}
+add_custom_target(rust-debuggee
+    COMMAND cargo build -p rust-debuggee --bin rust-debuggee ${Target} --out-dir ${CMAKE_CURRENT_BINARY_DIR} -Zunstable-options
     USES_TERMINAL
 )
 
-add_dependencies(debuggee debuggee2 rusttypes)
+add_dependencies(debuggee debuggee2 rust-debuggee)

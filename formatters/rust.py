@@ -59,6 +59,9 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdRefCellBorrowSynthProvider, r'^core::cell::Ref<.+>$', True)
     attach_synthetic_to_type(StdRefCellBorrowSynthProvider, r'^core::cell::RefMut<.+>$', True)
 
+    attach_synthetic_to_type(StdHashMapSynthProvider, r'^std::collections::hash::map::HashMap<.+>$', True)
+    attach_synthetic_to_type(StdHashSetSynthProvider, r'^std::collections::hash::set::HashSet<.+>$', True)
+
 # Enums and tuples cannot be recognized based on type name.
 # These require deeper runtime analysis to tease them apart.
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
@@ -527,6 +530,87 @@ class StdRefCellSynthProvider(DerefSynthProvider):
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value').Dereference()
+
+##################################################################################################################
+
+def compute_valid_indices(ctrl):
+    error = lldb.SBError()
+    valid_indices = []
+    for i in range(ctrl.GetByteSize()):
+        c = ctrl.GetUnsignedInt8(error, i)
+        if c & 0x80 == 0:
+            valid_indices.append(i)
+    return valid_indices
+
+class StdHashMapSynthProvider(RustSynthProvider):
+    def initialize(self):
+        table = gcm(self.valobj, 'base', 'table')
+        items = gcm(table, 'items').GetValueAsUnsigned()
+        self.num_buckets = items + gcm(table, 'growth_left').GetValueAsUnsigned() + 1
+
+        ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
+        self.valid_indices = compute_valid_indices(ctrl)
+
+        data = gcm(table, 'data', 'pointer')
+        data_arr_ty = data.GetType().GetPointeeType().GetArrayType(self.num_buckets)
+        self.data = data.Dereference().Cast(data_arr_ty)
+        return None
+
+    def update(self):
+        return True
+
+    def has_children(self):
+        return True
+
+    def num_children(self):
+        return len(self.valid_indices)
+
+    def get_child_at_index(self, index):
+        return self.data.GetChildAtIndex(self.valid_indices[index])
+
+    def get_child_index(self, name):
+        return None
+
+    def get_summary(self):
+        return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
+
+
+class StdHashSetSynthProvider(RustSynthProvider):
+    def initialize(self):
+        table = gcm(self.valobj, 'map', 'base', 'table')
+        items = gcm(table, 'items').GetValueAsUnsigned()
+        self.num_buckets = items + gcm(table, 'growth_left').GetValueAsUnsigned() + 1
+
+        ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
+        self.valid_indices = compute_valid_indices(ctrl)
+
+        data = gcm(table, 'data', 'pointer')
+        data_arr_ty = data.GetType().GetPointeeType().GetArrayType(self.num_buckets)
+        self.data = data.Dereference().Cast(data_arr_ty)
+        return None
+
+    def update(self):
+        return True
+
+    def has_children(self):
+        return True
+
+    def num_children(self):
+        return len(self.valid_indices)
+
+    def get_child_at_index(self, index):
+        child = self.data.GetChildAtIndex(self.valid_indices[index])
+        # child is a tuple (K, ()).  We want return just the K, while keeping name of the parent tuple.
+        name = child.GetName()
+        child = child.GetChildAtIndex(0)
+        return child.CreateChildAtOffset(name, 0, child.GetType())
+
+    def get_child_index(self, name):
+        return None
+
+    def get_summary(self):
+        return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
+
 
 ##################################################################################################################
 

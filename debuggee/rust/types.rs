@@ -3,10 +3,11 @@
 mod tests;
 
 use std::cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path;
 use std::rc;
 use std::sync;
+use std::borrow::Cow;
 
 enum RegularEnum {
     A,
@@ -56,6 +57,7 @@ fn make_hash() -> HashMap<String, i32> {
     vikings.insert("Einar".into(), 25);
     vikings.insert("Olaf".into(), 24);
     vikings.insert("Harald".into(), 12);
+    vikings.insert("Conan".into(), 29);
     vikings
 }
 
@@ -149,6 +151,7 @@ fn main() {
     );
 
     let hash = make_hash();
+    let set = hash.iter().map(|(name, age)| name.clone()).collect::<HashSet<String>>();
 
     let class = PyKeywords {
         finally: 1,
@@ -156,6 +159,9 @@ fn main() {
         lambda: 3,
         raise: 4,
     };
+
+    let cow1 = Cow::Borrowed("foo");
+    let cow2 = Cow::<str>::Owned("bar".into());
 
     println!("---"); // #BP1
     println!("---");

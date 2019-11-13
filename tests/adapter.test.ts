@@ -305,6 +305,14 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 });
                 assert.equal(response2.body.result, '42');
 
+                // Check format-as-array.
+                let response3 = await ds.evaluateRequest({
+                    expression: 'array_int_ptr,[10]', context: 'watch', frameId: frameId
+                });
+                await ds.compareVariables(response3.body.variablesReference, {
+                    '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
+                });
+
                 // Set a variable and check that it has actually changed.
                 await ds.send('setVariable', { variablesReference: localsRef, name: 'a', value: '100' });
                 await ds.compareVariables(localsRef, { a: 100 });
@@ -623,6 +631,16 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                         { '[0]': `'A'`, '[7]': `'g'` } :
                         { '[0]': 65, '[7]': 103 }
                 );
+
+                // Check format-as-array.
+                let response3 = await ds.evaluateRequest({
+                    expression: 'array[0],[5]', context: 'watch',
+                    frameId: frames.body.stackFrames[0].id
+                });
+                await ds.compareVariables(response3.body.variablesReference, {
+                    '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
+                });
+
                 await ds.terminate();
             });
         });

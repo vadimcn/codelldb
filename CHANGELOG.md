@@ -1,5 +1,15 @@
 # Release Notes
 
+# 1.4.1
+
+## Fixed
+- Bug #221: No-debug launch mode doesn't work.
+- Fixed "reinterpret as array" format specifier (var,[length]).
+
+## New
+- Rust visualizers now support `HashMap` and `HashSet`.
+- The `.../command` [URL handler](MANUAL.md#starting-debug-session-outside-of-vscode) now supports setting debuggee environment variables.
+
 # 1.4.0
 
 ## Changed

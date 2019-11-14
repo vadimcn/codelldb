@@ -123,7 +123,17 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 }
 
             } else if (uri.path == '/launch/command') {
-                let args = stringArgv(query);
+                let frags = query.split('&');
+                let cmdLine = frags.pop();
+
+                let env: Dict<string> = {}
+                for (let frag of frags) {
+                    let pos = frag.indexOf('=');
+                    if (pos > 0)
+                        env[frag.substr(0, pos)] = frag.substr(pos + 1);
+                }
+
+                let args = stringArgv(cmdLine);
                 let program = args.shift();
                 let debugConfig: DebugConfiguration = {
                     type: 'lldb',
@@ -131,6 +141,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                     name: '',
                     program: program,
                     args: args,
+                    env: env,
                 };
                 debugConfig.name = debugConfig.name || debugConfig.program;
                 await debug.startDebugging(undefined, debugConfig);

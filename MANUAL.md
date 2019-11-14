@@ -146,7 +146,7 @@ Debug sessions may also be started outside of VSCode by invoking a specially for
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
   workspace folder where the launch configuration is defined. If missing, all folders in the current workspace will be searched.<br>
   Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
-- **`vscode://vadimcn.vscode-lldb/launch/command?<command-line>`**</br>
+- **`vscode://vadimcn.vscode-lldb/launch/command?<env1>=<val1>&<env2>=<val2>&<command-line>`**</br>
   The \<command-line\> will be split into program name and arguments array using the usual shell command-line parsing rules.<br>
   Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
 - **`vscode://vadimcn.vscode-lldb/launch/config?<json>`**</br>
@@ -181,7 +181,7 @@ Debug sessions may also be started outside of VSCode by invoking a specially for
         - `codelldb`
             ```sh
             #! /bin/bash
-            code --open-url "vscode://vadimcn.vscode-lldb/launch/command?$*"
+            code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
             ```
     - `chmod +x .cargo/codelldb`
     - Execute tests as normal.

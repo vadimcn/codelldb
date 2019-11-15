@@ -37,8 +37,6 @@ add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/formatters/rust.py
 )
 
-set(copy_file ${CMAKE_COMMAND} -E copy_if_different)
-
 add_custom_target(codelldb ALL
     DEPENDS codelldb_bin codelldb_lib
 )
@@ -46,7 +44,7 @@ add_custom_target(codelldb ALL
 add_custom_target(codelldb_bin
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\"
             cargo build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
-    COMMAND ${copy_file} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CopyFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_bin"
     USES_TERMINAL
 )
@@ -55,7 +53,7 @@ add_custom_target(codelldb_lib
     DEPENDS lldb ${PythonFiles}
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython}
             cargo build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
-    COMMAND ${copy_file} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CopyFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"
     USES_TERMINAL
 )

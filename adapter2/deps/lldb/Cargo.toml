@@ -15,4 +15,5 @@ lazy_static = "1.3.0"
 cpp_build = "0.5"
 
 [features]
-weak-linkage = []
+weak-linkage = [] # weak-link to libpython
+no-link-cpp-stdlib = [] # don't link to C++ libstd

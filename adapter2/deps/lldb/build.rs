@@ -1,13 +1,22 @@
 use std::env;
 
 fn main() {
-    cpp_build::Config::new().include("include").build("src/lldb.rs");
-
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let weak_linkage = match env::var("CARGO_FEATURE_WEAK_LINKAGE") {
         Ok(_) => true,
         Err(_) => false,
     };
+    let no_link_cpp_stdlib = match env::var("CARGO_FEATURE_NO_LINK_CPP_STDLIB") {
+        Ok(_) => true,
+        Err(_) => false,
+    };
+
+    let mut build_config = cpp_build::Config::new();
+    build_config.include("include");
+    if no_link_cpp_stdlib {
+        build_config.cpp_link_stdlib(None);
+    }
+    build_config.build("src/lldb.rs");
 
     println!("cargo:rerun-if-env-changed=LIBPATH");
     if let Ok(libpath) = env::var("LIBPATH") {

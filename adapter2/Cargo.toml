@@ -41,4 +41,4 @@ name = "codelldb"
 path = "loader/main.rs"
 
 [features]
-weak-linkage = ["lldb/weak-linkage"]
+weak-linkage = ["lldb/weak-linkage", "lldb/no-link-cpp-stdlib"]

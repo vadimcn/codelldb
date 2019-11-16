@@ -73,7 +73,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_test(NAME native:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
     add_test(NAME native:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
     set_tests_properties(native:deps:codelldb native:deps:libcodelldb
-                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml")
+                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml;libstdc\\+\\+")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     add_test(NAME native:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
     add_test(NAME native:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)

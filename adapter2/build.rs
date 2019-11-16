@@ -8,7 +8,11 @@ fn main() {
     };
 
     if weak_linkage {
-        if target_os == "macos" {
+        if target_os == "linux" {
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bstatic");
+            println!("cargo:rustc-cdylib-link-arg=-lstdc++");
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bdynamic");
+        } else if target_os == "macos" {
             println!("cargo:rustc-cdylib-link-arg=-undefined");
             println!("cargo:rustc-cdylib-link-arg=dynamic_lookup");
         }

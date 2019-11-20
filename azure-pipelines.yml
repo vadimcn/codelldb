@@ -1,10 +1,9 @@
 variables:
-  lldbBuildId: 993
+  lldbBuildId: 1106
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: 'nightly-2019-10-15'
-  runTests: true
-  cacheDiscr: C
+  cacheDiscr: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
 
@@ -25,8 +24,23 @@ jobs:
   pool:
     vmImage: 'Ubuntu 16.04'
 
+  strategy:
+    matrix:
+      x86_64:
+        Triple: 'x86_64-linux-gnu'
+        PlatformId: 'x86_64-linux'
+        CrossBuilding: false
+      arm:
+        Triple: 'arm-linux-gnueabihf'
+        PlatformId: 'arm-linux'
+        CrossBuilding: true
+      aarch64:
+        Triple: 'aarch64-linux-gnu'
+        PlatformId: 'aarch64-linux'
+        CrossBuilding: true
+
   variables:
-    cachePrefix: $(cacheDiscr)-x86_64-unknown-linux
+    cachePrefix: $(cacheDiscr) | $(Triple)
 
   container:
     image: 'vadimcn/linux-builder:latest'
@@ -42,15 +56,10 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb--x86_64-unknown-linux-gnu'
-      itemPattern: 'lldb--x86_64-unknown-linux-gnu/lldb--x86_64-unknown-linux-gnu.zip'
+      artifactName: 'lldb--$(Triple)'
+      itemPattern: 'lldb--$(Triple)/lldb--$(Triple).zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
-
-  - script: |
-      echo $(HOME)
-      echo $HOME
-      ls -laR $HOME
 
   - task: CacheBeta@0
     inputs:
@@ -63,26 +72,27 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  - task: CacheBeta@0
-    inputs:
-      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | cargo_target | $(Build.BuildId)
-        $(cachePrefix) | cargo_target
-      path: $(Build.SourcesDirectory)/build/target
-      continueOnError: true
-    displayName: Cache cargo_target
-    condition: always()
+  # - task: CacheBeta@0
+  #   inputs:
+  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #     restoreKeys: |
+  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #       $(cachePrefix) | cargo_target
+  #     path: $(Build.SourcesDirectory)/build/target
+  #     continueOnError: true
+  #   displayName: Cache cargo_target
+  #   condition: always()
 
   - script: |
       $(setenvLinux)
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-unknown-linux-gnu/lldb--x86_64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip -d $(Agent.BuildDirectory)/D/lldb
 
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
+            -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
     displayName: 'Configure'
 
@@ -90,8 +100,12 @@ jobs:
       $(setenvLinux)
       cmake --build build --target vsix_portable
       cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
+    displayName: 'Build portable package'
+    condition: not(eq(variables.CrossBuilding, 'true'))
+
+  - script: |
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-linux.vsix
+      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-$(PlatformId).vsix
       cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
     displayName: 'Build'
 
@@ -106,100 +120,7 @@ jobs:
       cd build
       ctest --output-on-failure -R "native"
     displayName: 'Test native'
-    condition: variables.runTests
-
-  - script: |
-      echo - env ------------------
-      env
-      echo - dir -----------------------
-      ls -R $(Agent.BuildDirectory)
-    displayName: 'On Failure'
-    condition: failed()
-
-########################################################################################################################
-
-- job: Linux_aarch64
-  pool:
-    vmImage: 'Ubuntu 16.04'
-
-  variables:
-    cachePrefix: $(cacheDiscr)-aarch64-unknown-linux
-
-  container:
-    image: 'vadimcn/linux-builder:latest'
-    options: --privileged
-
-  steps:
-
-  - task: DownloadBuildArtifacts@0
-    inputs:
-      buildType: specific
-      project:  $(lldbBuildProject)
-      pipeline: $(lldbBuildPipeline)
-      buildId:  $(lldbBuildId)
-      buildVersionToDownload: specific
-      downloadType: single
-      artifactName: 'lldb--aarch64-unknown-linux-gnu'
-      itemPattern: 'lldb--aarch64-unknown-linux-gnu/lldb--aarch64-unknown-linux-gnu.zip'
-      downloadPath: '$(Agent.BuildDirectory)/D'
-    displayName: 'Download LLDB'
-
-  - task: CacheBeta@0
-    inputs:
-      key: $(cachePrefix) | node_modules | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | node_modules | $(Build.BuildId)
-        $(cachePrefix) | node_modules
-      path: $(Build.SourcesDirectory)/build/node_modules
-      continueOnError: true
-    displayName: Cache node_modules
-    condition: always()
-
-  - task: CacheBeta@0
-    inputs:
-      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | cargo_target | $(Build.BuildId)
-        $(cachePrefix) | cargo_target
-      path: $(Build.SourcesDirectory)/build/target
-      continueOnError: true
-    displayName: Cache cargo_target
-    condition: always()
-
-  - script: |
-      $(setenvLinux)
-      unzip $(Agent.BuildDirectory)/D/lldb--aarch64-unknown-linux-gnu/lldb--aarch64-unknown-linux-gnu.zip -d $(Agent.BuildDirectory)/D/lldb
-      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-
-      mkdir build
-      cd build
-      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-aarch64-unknown-linux-gnu.cmake\
-            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
-            ..
-    displayName: 'Configure'
-
-  - script: |
-      $(setenvLinux)
-      cmake --build build --target vsix_portable
-      cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
-      cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-aarch64-linux.vsix
-      cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
-    displayName: 'Build'
-
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      artifactName: 'vscode-lldb'
-
-  # - script: |
-  #     $(setenvLinux)
-  #     cmake --build build --target tests
-  #     cd build
-  #     ctest --output-on-failure -R "native"
-  #   displayName: 'Test'
-  #   condition: variables.runTests
+    condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
       echo - env ------------------
@@ -216,7 +137,7 @@ jobs:
     vmImage: 'macOS 10.13'
 
   variables:
-    cachePrefix: $(cacheDiscr)-x86_64-apple-darwin
+    cachePrefix: $(cacheDiscr) | x86_64-apple-darwin
 
   steps:
 
@@ -244,16 +165,16 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  - task: CacheBeta@0
-    inputs:
-      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | cargo_target | $(Build.BuildId)
-        $(cachePrefix) | cargo_target
-      path: $(Build.SourcesDirectory)/build/target
-      continueOnError: true
-    displayName: Cache cargo_target
-    condition: always()
+  # - task: CacheBeta@0
+  #   inputs:
+  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #     restoreKeys: |
+  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #       $(cachePrefix) | cargo_target
+  #     path: $(Build.SourcesDirectory)/build/target
+  #     continueOnError: true
+  #   displayName: Cache cargo_target
+  #   condition: always()
 
   - task: NodeTool@0
     inputs:
@@ -296,7 +217,6 @@ jobs:
       cd build
       ctest --output-on-failure -R "native"
     displayName: 'Test native'
-    condition: variables.runTests
 
   - script: |
       echo - env ------------------
@@ -313,7 +233,7 @@ jobs:
     vmImage: 'VS2017-Win2016'
 
   variables:
-    cachePrefix: $(cacheDiscr)-x86_64-pc-windows
+    cachePrefix: $(cacheDiscr) | x86_64-windows
 
   steps:
 
@@ -336,8 +256,8 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb--x86_64-pc-windows-msvc'
-      itemPattern: 'lldb--x86_64-pc-windows-msvc/lldb--x86_64-pc-windows-msvc.zip'
+      artifactName: 'lldb--x86_64-windows-msvc'
+      itemPattern: 'lldb--x86_64-windows-msvc/lldb--x86_64-windows-msvc.zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
@@ -352,16 +272,16 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  - task: CacheBeta@0
-    inputs:
-      key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | cargo_target | $(Build.BuildId)
-        $(cachePrefix) | cargo_target
-      path: $(Build.SourcesDirectory)/build/target
-      continueOnError: true
-    displayName: Cache cargo_target
-    condition: always()
+  # - task: CacheBeta@0
+  #   inputs:
+  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #     restoreKeys: |
+  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
+  #       $(cachePrefix) | cargo_target
+  #     path: $(Build.SourcesDirectory)/build/target
+  #     continueOnError: true
+  #   displayName: Cache cargo_target
+  #   condition: always()
 
   - task: BatchScript@1
     inputs:
@@ -382,7 +302,7 @@ jobs:
   - script: |
       choco install ninja
       choco install zip
-      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-pc-windows-msvc/lldb--x86_64-pc-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
+      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-windows-msvc/lldb--x86_64-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
     displayName: 'Install other'
 
   - script: |
@@ -392,8 +312,7 @@ jobs:
       cmake -GNinja^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
             -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
-            -DCMAKE_C_COMPILER=cl^
-            -DCMAKE_CXX_COMPILER=cl^
+            -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
             ..
     displayName: 'CMake configure'
 
@@ -414,7 +333,6 @@ jobs:
       cd build
       ctest --output-on-failure -R "native"
     displayName: 'Test native'
-    condition: variables.runTests
 
   - script: |
       echo - env ------------------

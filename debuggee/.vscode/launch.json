@@ -175,10 +175,10 @@
 			"terminal": "integrated"
 		},
 		{
-			"name": "rusttypes",
+			"name": "rust-debuggee",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${dbgconfig:targetDir}/rusttypes",
+			"program": "${dbgconfig:targetDir}/rust-debuggee",
 			"cwd": "${workspaceRoot}",
 			"sourceLanguages": [
 				"rust"

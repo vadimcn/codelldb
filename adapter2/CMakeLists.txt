@@ -1,29 +1,23 @@
 find_package(Python3 COMPONENTS Interpreter Development)
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    set(Target x86_64-unknown-linux-gnu)
-    if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
-        set(Target aarch64-unknown-linux-gnu)
-    endif()
     set(LibPython python3.${Python3_VERSION_MINOR})
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(Target x86_64-apple-darwin)
     set(LibPython python3.${Python3_VERSION_MINOR})
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(Target x86_64-pc-windows-msvc)
     set(LibPython python3)
 endif()
 
 string(JOIN "$<SEMICOLON>" LibPath ${Python3_LIBRARY_DIRS} ${LLDB_ROOT}/lib)
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
-                             --target=${Target} --target-dir=${CMAKE_BINARY_DIR}/target
+                             --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target
                              -Zpackage-features)
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
     set(CargoFlags ${CargoFlags} --release)
-    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/release)
+    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/release)
 else()
-    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${Target}/debug)
+    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/debug)
 endif()
 
 if (CMAKE_VERBOSE_MAKEFILE)
@@ -64,7 +58,7 @@ string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 
 add_custom_target(cargo_test
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --target=${Target} -p=lldb -p=debug-protocol -p=codelldb
+            cargo test --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
     USES_TERMINAL
 )
 

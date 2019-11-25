@@ -9,6 +9,7 @@
 ## New
 - Rust visualizers now support `HashMap` and `HashSet`.
 - The `.../command` [URL handler](MANUAL.md#starting-debug-session-outside-of-vscode) now supports setting debuggee environment variables.
+- Added support for armv7 platform (Raspberry Pi, etc).
 
 # 1.4.0
 

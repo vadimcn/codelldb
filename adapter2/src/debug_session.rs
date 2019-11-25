@@ -1104,13 +1104,14 @@ impl DebugSession {
         }
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
-        self.process_was_launched = false;
+        self.process_was_launched = true;
 
         // This is succeptible to race conditions, but probably the best we can do.
         if self.process.state().is_stopped() {
             self.notify_process_stopped();
         }
 
+        self.exit_commands = args.common.exit_commands;
         Ok(ResponseBody::launch)
     }
 

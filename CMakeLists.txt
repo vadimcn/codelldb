@@ -5,7 +5,6 @@ enable_testing()
 set(VERSION 1.4.1-dev)
 
 include(cmake/CopyFiles.cmake)
-include(cmake/Typescript.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")

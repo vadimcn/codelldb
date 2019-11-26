@@ -2,11 +2,10 @@ import { window, DebugConfiguration, env } from 'vscode';
 import * as cp from 'child_process';
 import * as async from './novsc/async';
 import * as path from 'path';
-import * as util from './configUtils';
 import { inspect } from 'util';
 import { Dict } from './novsc/commonTypes';
 import { output } from './main';
-import { expandVariablesInObject } from './novsc/expand';
+import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
 
 export interface CargoConfig {
     args: string[];
@@ -202,7 +201,7 @@ export class Cargo {
             let cargo = cp.spawn('cargo', cargoArgs, {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 cwd: this.cargoTomlFolder,
-                env: this.extraEnv,
+                env: mergedEnvironment(this.extraEnv),
             });
 
             cargo.on('error', err => {

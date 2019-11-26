@@ -385,30 +385,28 @@
 				}
 			}
 		},
+		"breakpoints": [
+			{ "language": "ada" },
+			{ "language": "arm" },
+			{ "language": "asm" },
+			{ "language": "c" },
+			{ "language": "cpp" },
+			{ "language": "crystal" },
+			{ "language": "d" },
+			{ "language": "fortran" },
+			{ "language": "fortran-modern" },
+			{ "language": "lldb.disassembly" },
+			{ "language": "nim" },
+			{ "language": "objective-c" },
+			{ "language": "objectpascal" },
+			{ "language": "pascal" },
+			{ "language": "rust" },
+			{ "language": "swift" }
+		],
 		"debuggers": [
 			{
 				"type": "lldb",
 				"label": "LLDB",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"ada",
-						"arm",
-						"asm",
-						"c",
-						"cpp",
-						"crystal",
-						"d",
-						"fortran",
-						"fortran-modern",
-						"lldb.disassembly",
-						"nim",
-						"objective-c",
-						"objectpascal",
-						"pascal",
-						"rust",
-						"swift"
-					]
-				},
 				"variables": {
 					"pickProcess": "lldb.pickProcess",
 					"pickMyProcess": "lldb.pickMyProcess"

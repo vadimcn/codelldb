@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.4.2
+
+## Fixed
+- Bug #229: Cargo invocation has failed: Error: spawn ENOMEM
+
 # 1.4.1
 
 ## Fixed

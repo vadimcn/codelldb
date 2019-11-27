@@ -10,18 +10,16 @@ pub trait EventSink {
     fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool);
 }
 
-#[allow(unions_with_drop_fields)]
 #[repr(C)]
 union ValueResult {
-    value: SBValue,
-    error: SBError,
+    value: mem::ManuallyDrop<SBValue>,
+    error: mem::ManuallyDrop<SBError>,
 }
 
-#[allow(unions_with_drop_fields)]
 #[repr(C)]
 union BoolResult {
     value: bool,
-    error: SBError,
+    error: mem::ManuallyDrop<SBError>,
 }
 
 pub struct PythonInterface {
@@ -142,7 +140,7 @@ impl PythonInterface {
             let status =
                 (self.evaluate_ptr.unwrap())(result.as_mut_ptr(), expt_ptr, expr_size, is_simple_expr, context.clone());
             if status > 0 {
-                Ok(result.assume_init().value)
+                Ok(mem::ManuallyDrop::into_inner(result.assume_init().value))
             } else if status < 0 {
                 Err(result.assume_init().error.to_string())
             } else {

@@ -2311,7 +2311,9 @@ impl DebugSession {
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
         self.update_adapter_settings(&args);
-        self.refresh_client_display(None);
+        if self.process.state().is_stopped() {
+            self.refresh_client_display(None);
+        }
         Ok(())
     }
 

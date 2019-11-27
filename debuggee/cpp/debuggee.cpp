@@ -145,9 +145,10 @@ void vars()
         std::vector<std::vector<int>> empty_vec;
         Struct s1 = {i + 1, 'a', 3.0f, {i, i, i, i}};
         Struct s2 = {i + 10, 'b', 999.0f, {i * 10, i * 10, i * 10, i * 10}};
-        Struct *s_ptr = &s1;
-        Struct *null_s_ptr = nullptr;
-        Struct *invalid_s_ptr = (Struct *)1;
+        Struct* s_ptr = &s1;
+        Struct* null_s_ptr = nullptr;
+        Struct* invalid_s_ptr = (Struct *)1;
+        void* void_ptr = &s1;
         AnonUnion anon_union = { 4 };
         DeepStruct ds1 = {13, "foo", 3.14f,                  //
                           {i, 'd', 4.0f, {1, 2, 3, i}},      //

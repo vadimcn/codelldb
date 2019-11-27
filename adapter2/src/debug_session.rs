@@ -1692,7 +1692,8 @@ impl DebugSession {
                 // If the pointer has an associated synthetic, or if it's a pointer to a basic
                 // type such as `char`, use summary of the pointer itself;
                 // otherwise prefer to dereference and use summary of the pointee.
-                if var.is_synthetic() || ptr_type.pointee_type().basic_type() != BasicType::Invalid {
+                let pointee_basic_type = ptr_type.pointee_type().basic_type();
+                if var.is_synthetic() || pointee_basic_type != BasicType::Invalid {
                     if let Some(value_str) = var.summary().map(|s| into_string_lossy(s)) {
                         return value_str;
                     }
@@ -1700,14 +1701,17 @@ impl DebugSession {
 
                 // try dereferencing
                 let pointee = var.dereference();
-                if !pointee.is_valid() || pointee.data().byte_size() == 0 {
+                let pointee_type_size = pointee.type_().byte_size() as usize;
+                // If pointee is valid, and data can be read,
+                if pointee.is_valid() && pointee_type_size == pointee.data().byte_size() {
+                    var = Cow::Owned(pointee);
+                } else {
                     if var.value_as_unsigned(0) == 0 {
                         return "<null>".to_owned();
-                    } else {
+                    } else if pointee_type_size > 0 {
                         return "<invalid address>".to_owned();
                     }
                 }
-                var = Cow::Owned(pointee);
             }
         }
 

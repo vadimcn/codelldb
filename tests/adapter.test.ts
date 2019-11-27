@@ -285,7 +285,11 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     invalid_utf8: invalid_utf8,
                     anon_union: {
                         '': { x: 4, y: 4 }
-                    }
+                    },
+
+                    null_s_ptr: '<null>',
+                    invalid_s_ptr: '<invalid address>',
+                    void_ptr: v => v.value.startsWith('0x'),
                 });
 
                 let response1 = await ds.evaluateRequest({
@@ -295,7 +299,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     await ds.compareVariables(response1.body.variablesReference, {
                         '[0]': { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0, '[4]': 0 },
                         '[9]': { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0, '[4]': 0 },
-                        '[raw]': null
+                        '[raw]': _ => true
                     });
                 }
 
@@ -793,7 +797,11 @@ class DebugTestSession extends DebugClient {
         return vars;
     }
 
-    async compareVariables(vars: number | Dict<dp.Variable>, expected: Dict<any>, prefix: string = '') {
+    async compareVariables(
+        vars: number | Dict<dp.Variable>,
+        expected: Dict<string | number | ValidatorFn | Dict<any>>,
+        prefix: string = ''
+    ) {
         if (typeof vars == 'number') {
             assert.notEqual(vars, 0, 'Expected non-zero.');
             vars = await this.readVariables(vars);
@@ -808,29 +816,31 @@ class DebugTestSession extends DebugClient {
             let variable = vars[key];
             assert.notEqual(variable, undefined, 'Did not find variable "' + keyPath + '"');
 
-            if (expectedValue == null) {
-                // Just check that the value exists.
-            } else if (typeof expectedValue == 'string') {
-                assert.equal(variable.value, expectedValue,
-                    `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
-            } else if (typeof expectedValue == 'number') {
-                let numValue = parseFloat(variable.value);
-                assert.equal(numValue, expectedValue,
-                    `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
-            } else if (typeof expectedValue == 'object') {
-                if (expectedValue instanceof Array) {
-
-                } else {
-                    let summary = expectedValue['$'];
-                    if (summary != undefined) {
-                        assert.equal(variable.value, summary,
-                            `Summary of "${keyPath}", expected: "${summary}", actual: "${variable.value}"`);
-                    }
-                    await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
+            if (typeof expectedValue == 'object') {
+                let summary = expectedValue['$'];
+                if (summary != undefined) {
+                    this.compareToExpected(variable, summary, keyPath);
                 }
+                await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
             } else {
-                assert.ok(false, 'Unreachable');
+                this.compareToExpected(variable, expectedValue, keyPath);
             }
+        }
+    }
+
+    compareToExpected(variable: dp.Variable, expectedValue: string | number | ValidatorFn, keyPath: string) {
+        if (typeof expectedValue == 'string') {
+            assert.equal(variable.value, expectedValue,
+                `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
+        } else if (typeof expectedValue == 'number') {
+            let numValue = parseFloat(variable.value);
+            assert.equal(numValue, expectedValue,
+                `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
+        } else if (typeof expectedValue == 'function') {
+            assert.ok(expectedValue(variable),
+                `"${keyPath}": validator returned false`);
+        } else {
+            assert.ok(false, 'Unreachable');
         }
     }
 
@@ -869,6 +879,8 @@ class DebugTestSession extends DebugClient {
         return localsRef;
     }
 }
+
+type ValidatorFn = (v: dp.Variable) => boolean;
 
 function findMarker(file: string, marker: string): number {
     let data = fs.readFileSync(file, 'utf8');

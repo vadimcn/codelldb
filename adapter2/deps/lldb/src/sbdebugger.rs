@@ -36,7 +36,11 @@ impl SBDebugger {
         })
     }
     pub fn create_target(
-        &self, executable: &str, target_triple: Option<&str>, platform_name: Option<&str>, add_dependent_modules: bool,
+        &self,
+        executable: &str,
+        target_triple: Option<&str>,
+        platform_name: Option<&str>,
+        add_dependent_modules: bool,
     ) -> Result<SBTarget, SBError> {
         with_cstr(executable, |executable| {
             with_opt_cstr(target_triple, |target_triple| {
@@ -88,8 +92,20 @@ impl SBDebugger {
         assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
     }
+    pub fn get_variable(&mut self, var_name: &str) -> SBStringList {
+        SBDebugger::get_variable_for(self.instance_name(), var_name)
+    }
     pub fn set_variable(&mut self, var_name: &str, value: &str) -> SBError {
         SBDebugger::set_variable_for(self.instance_name(), var_name, value)
+    }
+    pub fn get_variable_for(debugger_instance_name: &str, var_name: &str) -> SBStringList {
+        with_cstr(debugger_instance_name, |debugger_instance_name| {
+            with_cstr(var_name, |var_name| {
+                cpp!(unsafe [var_name as "const char*", debugger_instance_name as "const char*"] -> SBStringList as "SBStringList" {
+                    return SBDebugger::GetInternalVariableValue(var_name, debugger_instance_name);
+                })
+            })
+        })
     }
     pub fn set_variable_for(debugger_instance_name: &str, var_name: &str, value: &str) -> SBError {
         with_cstr(debugger_instance_name, |debugger_instance_name| {

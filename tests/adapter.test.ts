@@ -269,6 +269,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 await ds.compareVariables(localsRef, {
                     a: 30,
                     b: 40,
+                    pi: 3.141592,
                     array_int: {
                         '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
                     },
@@ -834,7 +835,8 @@ class DebugTestSession extends DebugClient {
                 `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
         } else if (typeof expectedValue == 'number') {
             let numValue = parseFloat(variable.value);
-            assert.equal(numValue, expectedValue,
+            let delta = Math.abs(numValue - expectedValue);
+            assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
                 `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
         } else if (typeof expectedValue == 'function') {
             assert.ok(expectedValue(variable),

@@ -4,7 +4,7 @@ import logging
 import debugger
 import traceback
 import ctypes
-from ctypes import CFUNCTYPE, POINTER, pointer, sizeof, byref, memmove, c_bool, c_char, c_char_p, c_int, c_int64, c_size_t, c_void_p
+from ctypes import CFUNCTYPE, POINTER, pointer, sizeof, byref, memmove, c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p
 from value import Value
 
 logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
@@ -137,6 +137,9 @@ sberror = lldb.SBError()
 def to_sbvalue(value, target):
     if isinstance(value, lldb.SBValue):
         return value
+    elif value is None:
+        ty = target.GetBasicType(lldb.eBasicTypeVoid)
+        return target.CreateValueFromData('result', lldb.SBData(), ty)
     elif isinstance(value, bool):
         value = c_int(value)
         asbytes = memoryview(value).tobytes()
@@ -150,6 +153,13 @@ def to_sbvalue(value, target):
         data = lldb.SBData()
         data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeLongLong)
+        return target.CreateValueFromData('result', data, ty)
+    elif isinstance(value, float):
+        value = c_double(value)
+        asbytes = memoryview(value).tobytes()
+        data = lldb.SBData()
+        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        ty = target.GetBasicType(lldb.eBasicTypeDouble)
         return target.CreateValueFromData('result', data, ty)
     else:
         value = str(value)

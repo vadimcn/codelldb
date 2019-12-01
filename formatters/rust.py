@@ -546,7 +546,7 @@ class StdHashMapSynthProvider(RustSynthProvider):
     def initialize(self):
         table = gcm(self.valobj, 'base', 'table')
         items = gcm(table, 'items').GetValueAsUnsigned()
-        self.num_buckets = items + gcm(table, 'growth_left').GetValueAsUnsigned() + 1
+        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
 
         ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
         self.valid_indices = compute_valid_indices(ctrl)
@@ -579,7 +579,7 @@ class StdHashSetSynthProvider(RustSynthProvider):
     def initialize(self):
         table = gcm(self.valobj, 'map', 'base', 'table')
         items = gcm(table, 'items').GetValueAsUnsigned()
-        self.num_buckets = items + gcm(table, 'growth_left').GetValueAsUnsigned() + 1
+        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
 
         ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
         self.valid_indices = compute_valid_indices(ctrl)
@@ -615,12 +615,4 @@ class StdHashSetSynthProvider(RustSynthProvider):
 ##################################################################################################################
 
 def __lldb_init_module(debugger_obj, internal_dict):
-    # else:
-    #     try:
-    #         import debugger
-    #         debugger.register_type_callback(analyze_type, lldb.eLanguageTypeRust, lldb.eTypeClassUnion | lldb.eTypeClassStruct)
-    #     except Exception as err:
-    #         log.error('### %s', err)
-
     initialize_category(debugger_obj)
-

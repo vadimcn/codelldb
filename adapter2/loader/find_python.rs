@@ -16,7 +16,10 @@ pub fn find_python() -> Result<PathBuf, Error> {
                         let py_getversion: unsafe extern "C" fn() -> *const c_char = transmute(ptr);
                         let version = CStr::from_ptr(py_getversion());
                         if let Ok(version) = version.to_str() {
-                            if let Some(version) = version.split(" ").next() {
+                            //Python does not use a space before alpha, beta, or rc indicators.
+                            //This breaks semver parsing for these types of releases.
+                            //Split at these indicators to only parse the numeric part of the version.
+                            if let Some(version) = version.split(|c| c == ' ' || c == 'a' || c == 'b' || c == 'r' ).next() {
                                 if let Ok(version) = Version::parse(version) {
                                     if version.major == 3 && version.minor >= 3 {
                                         free_library(handle)?;

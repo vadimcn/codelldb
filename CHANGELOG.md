@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.4.3
+
+## Fixed
+- Bug #231: v1.4.1 freezes program
+
 # 1.4.2
 
 ## Fixed

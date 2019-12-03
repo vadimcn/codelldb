@@ -590,7 +590,7 @@
 								"default": true
 							},
 							"waitFor": {
-								"description": "Wait for the process to launch.",
+								"description": "Wait for the process to launch (MacOS only).",
 								"type": "boolean",
 								"default": true
 							},

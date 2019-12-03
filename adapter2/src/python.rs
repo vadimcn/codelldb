@@ -10,18 +10,16 @@ pub trait EventSink {
     fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool);
 }
 
-#[allow(unions_with_drop_fields)]
 #[repr(C)]
 union ValueResult {
-    value: SBValue,
-    error: SBError,
+    value: mem::MaybeUninit<SBValue>,
+    error: mem::MaybeUninit<SBError>,
 }
 
-#[allow(unions_with_drop_fields)]
 #[repr(C)]
 union BoolResult {
     value: bool,
-    error: SBError,
+    error: mem::MaybeUninit<SBError>,
 }
 
 pub struct PythonInterface {
@@ -138,13 +136,15 @@ impl PythonInterface {
         unsafe {
             let expt_ptr = expr.as_ptr() as *const c_char;
             let expr_size = expr.len();
-            let mut result = mem::MaybeUninit::<ValueResult>::uninit();
+            let mut result = ValueResult {
+                value: mem::MaybeUninit::uninit(),
+            };
             let status =
-                (self.evaluate_ptr.unwrap())(result.as_mut_ptr(), expt_ptr, expr_size, is_simple_expr, context.clone());
+                (self.evaluate_ptr.unwrap())(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
             if status > 0 {
-                Ok(result.assume_init().value)
+                Ok(result.value.assume_init())
             } else if status < 0 {
-                Err(result.assume_init().error.to_string())
+                Err(result.error.assume_init().to_string())
             } else {
                 Err("Evaluation failed".into())
             }
@@ -160,18 +160,15 @@ impl PythonInterface {
         unsafe {
             let expt_ptr = expr.as_ptr() as *const c_char;
             let expr_size = expr.len();
-            let mut result = mem::MaybeUninit::<BoolResult>::uninit();
-            let status = (self.evaluate_as_bool_ptr.unwrap())(
-                result.as_mut_ptr(),
-                expt_ptr,
-                expr_size,
-                is_simple_expr,
-                context.clone(),
-            );
+            let mut result = BoolResult {
+                value: false,
+            };
+            let status =
+                (self.evaluate_as_bool_ptr.unwrap())(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
             if status > 0 {
-                Ok(result.assume_init().value)
+                Ok(result.value)
             } else if status < 0 {
-                Err(result.assume_init().error.to_string())
+                Err(result.error.assume_init().to_string())
             } else {
                 Err("Evaluation failed".into())
             }

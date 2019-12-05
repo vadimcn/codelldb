@@ -8,7 +8,7 @@ import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as querystring from 'querystring';
-import * as JSON5 from 'json5';
+import JSON5 from 'json5';
 import stringArgv from 'string-argv';
 import * as diagnostics from './diagnostics';
 import * as htmlView from './htmlView';

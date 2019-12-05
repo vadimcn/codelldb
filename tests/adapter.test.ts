@@ -499,7 +499,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let ds = await DebugTestSession.start(adapterLog);
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
-                assert(attachResp.success);
+                assert.ok(attachResp.success);
                 await asyncWaitStopped;
                 await ds.terminate();
             });
@@ -512,8 +512,8 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 ds.addListener('stopped', () => stopCount += 1);
                 ds.addListener('continued', () => stopCount -= 1);
                 let attachResp = await ds.attach({ name: 'attach by pid / nostop', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
-                assert(attachResp.success);
-                assert(stopCount <= 0);
+                assert.ok(attachResp.success);
+                assert.ok(stopCount <= 0);
                 await ds.terminate();
             });
 
@@ -523,7 +523,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let ds = await DebugTestSession.start(adapterLog);
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
-                assert(attachResp.success);
+                assert.ok(attachResp.success);
                 await asyncWaitStopped;
                 await ds.terminate();
             });

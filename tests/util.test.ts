@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as ver from 'extension/novsc/ver';
 import { expandVariables, mergeValues } from 'extension/novsc/expand';
 import { Environment } from 'extension/novsc/commonTypes';
+import JSON5 from 'json5';
 
 suite('Versions', () => {
     test('comparisons', async () => {
@@ -65,4 +66,12 @@ suite('Util', () => {
 
         delete env['Qoox'];
     });
+})
+
+suite('Third party', () => {
+    test('JSON5', async () => {
+        let obj = JSON5.parse('{ foo: "foo", bar: 5}');
+        assert.equal(obj.foo, 'foo');
+        assert.equal(obj.bar, 5);
+    })
 })

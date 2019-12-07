@@ -1,6 +1,5 @@
 use crate::Error;
 use loading::*;
-use semver::Version;
 use std::ffi::CStr;
 use std::mem::transmute;
 use std::os::raw::c_char;
@@ -16,12 +15,11 @@ pub fn find_python() -> Result<PathBuf, Error> {
                         let py_getversion: unsafe extern "C" fn() -> *const c_char = transmute(ptr);
                         let version = CStr::from_ptr(py_getversion());
                         if let Ok(version) = version.to_str() {
-                            if let Some(version) = version.split(" ").next() {
-                                if let Ok(version) = Version::parse(version) {
-                                    if version.major == 3 && version.minor >= 3 {
-                                        free_library(handle)?;
-                                        return Ok(path);
-                                    }
+                            if let Ok((major, minor)) = parse_version(version) {
+                                // Unlikely that Python 4 will be compatible.
+                                if major == 3 && minor >= 3 {
+                                    free_library(handle)?;
+                                    return Ok(path);
                                 }
                             }
                         }
@@ -141,4 +139,23 @@ fn get_candidate_locations() -> Vec<PathBuf> {
         }
     }
     results
+}
+
+fn parse_version(version: &str) -> Result<(u32, u32), Error> {
+    let mut parts = version.split(|c| !char::is_digit(c, 10));
+    let major = parts.next().ok_or("None")?.parse::<u32>()?;
+    let minor = parts.next().ok_or("None")?.parse::<u32>()?;
+    Ok((major, minor))
+}
+
+#[test]
+fn test_parse_version() {
+    macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
+
+    assert_match!(parse_version(""), Err(_));
+    assert_match!(parse_version("1."), Err(_));
+    assert_match!(parse_version("1.2"), Ok((1, 2)));
+    assert_match!(parse_version("1.2.3.4"), Ok((1, 2)));
+    assert_match!(parse_version("12.34"), Ok((12, 34)));
+    assert_match!(parse_version("3.14rc1"), Ok((3, 14)));
 }

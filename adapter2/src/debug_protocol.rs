@@ -283,7 +283,7 @@ pub enum Either<T1, T2> {
 mod tests {
     use super::*;
 
-    macro_rules! assert_match(($e:expr, $p:pat) => { let r = $e; assert!(match r { $p => true, _ => false }, "{:?} does not match {}", r, stringify!($p)) });
+    macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
 
     fn parse(s: &[u8]) -> ProtocolMessage {
         serde_json::from_slice::<ProtocolMessage>(s).unwrap()

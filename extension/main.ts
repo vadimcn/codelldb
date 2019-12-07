@@ -413,6 +413,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('stdio');
         mergeConfig('expressions');
         mergeConfig('sourceMap');
+        mergeConfig('relativePathBase');
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
         return debugConfig;

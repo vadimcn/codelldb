@@ -53,6 +53,7 @@ To start a debug session you will need to create a [launch configuration](https:
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 Flow during the launch sequence:
@@ -98,6 +99,7 @@ stdout to "log.txt",
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 Flow during the attach sequence:
@@ -134,6 +136,7 @@ The custom launch method allows user to fully specify how the debug session is i
 |**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
+|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
 |**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**reverseDebugging**|bool| | Enable [reverse debugging](#reverse-debugging).
 
@@ -558,4 +561,5 @@ configurations when there is no existing `launch.json`.
 |**lldb.launch.expressions** |Default expression evaluator.
 |**lldb.launch.terminal** |Default terminal type.
 |**lldb.launch.sourceMap** |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
+|**lldb.launch.relativePathBase**|string| | Default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
 |**lldb.launch.sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.

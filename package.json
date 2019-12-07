@@ -344,6 +344,10 @@
 					"default": {},
 					"scope": "resource"
 				},
+				"lldb.launch.relativePathBase": {
+					"description": "Default base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
+					"type": "string"
+				},
 				"lldb.launch.sourceLanguages": {
 					"description": "A list of source languages to enable language-specific features for.",
 					"type": "array",
@@ -542,6 +546,10 @@
 								},
 								"default": {}
 							},
+							"relativePathBase": {
+								"description": "Base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
+								"type": "string"
+							},
 							"sourceLanguages": {
 								"description": "A list of source languages to enable language-specific features for.",
 								"type": "array",
@@ -691,6 +699,10 @@
 									}
 								},
 								"default": {}
+							},
+							"relativePathBase": {
+								"description": "Base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
+								"type": "string"
 							},
 							"sourceLanguages": {
 								"description": "A list of source languages to enable language-specific features for.",

@@ -1,13 +1,9 @@
 #![allow(non_camel_case_types)]
+#![cfg(not(feature = "test"))]
 
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-extern crate serde_json;
+use serde::{Serialize, Deserialize};
 
-mod generated;
-
-pub use generated::*;
+schemafy::schemafy!("adapter2/deps/debug-protocol/src/debugAdapterProtocol.json");
 
 impl Default for Breakpoint {
     fn default() -> Self {

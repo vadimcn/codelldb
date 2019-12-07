@@ -58,7 +58,7 @@ string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 
 add_custom_target(cargo_test
     COMMAND ${WithEnv} LIBPATH=\"${LibPath}\" LibPython=${LibPython} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
+            cargo test --lib --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
     USES_TERMINAL
 )
 

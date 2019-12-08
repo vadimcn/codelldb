@@ -108,9 +108,17 @@ impl PythonInterface {
             (*interface).event_sink.display_html(html, title, position, reveal);
         }
 
+        let py_log_level = match log::max_level() {
+            log::LevelFilter::Error => 40,
+            log::LevelFilter::Warn => 30,
+            log::LevelFilter::Info => 20,
+            log::LevelFilter::Debug => 10,
+            log::LevelFilter::Trace | log::LevelFilter::Off => 0,
+        };
+
         let command = format!(
-            "script import codelldb; codelldb.initialize({:p}, {:p}, {:p})",
-            init_callback as *const c_void, display_html_callback as *const c_void, interface
+            "script import codelldb; codelldb.initialize({}, {:p}, {:p}, {:p})",
+            py_log_level, init_callback as *const c_void, display_html_callback as *const c_void, interface
         );
         interpreter.handle_command(&command, &mut command_result, false);
         if !command_result.succeeded() {

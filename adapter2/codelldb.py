@@ -12,9 +12,6 @@ logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
 
 log = logging.getLogger('codelldb')
 
-def set_log_level(level):
-    logging.getLogger().setLevel(level)
-
 # try:
 #     import ptvsd
 #     ptvsd.enable_attach(address=('0.0.0.0', 4730))
@@ -57,7 +54,9 @@ evaluate_as_bool_cfn = None
 modules_loaded_cfn = None
 display_html = None
 
-def initialize(init_callback_addr, display_html_addr, callback_context):
+def initialize(log_level, init_callback_addr, display_html_addr, callback_context):
+    logging.getLogger().setLevel(log_level)
+
     global shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
     shutdown_cfn = CFUNCTYPE(c_int)(shutdown)
     evaluate_cfn = CFUNCTYPE(c_int, POINTER(ValueResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate)

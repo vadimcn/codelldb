@@ -932,7 +932,7 @@ class DebugSession:
             # we use it to identify descendents of the [raw] node, since that's the only time we reset it.
             descendant_of_raw = not container.GetPreferSyntheticValue()
 
-        time_limit = time.clock() + self.evaluation_timeout
+        time_limit = time.perf_counter() + self.evaluation_timeout
         for var in vars_iter:
             if not var.IsValid():
                 continue
@@ -963,7 +963,7 @@ class DebugSession:
                 del variables[name]
             variables[name] = variable
 
-            if time.clock() > time_limit:
+            if time.perf_counter() > time_limit:
                 self.console_err('Child list expansion has timed out.')
                 break
 

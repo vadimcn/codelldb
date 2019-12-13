@@ -46,7 +46,6 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 
     add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb.exe ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb.exe)
     add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/lldb-argdumper.exe ${CMAKE_CURRENT_BINARY_DIR}/bin/lldb-argdumper.exe)
-    add_copy_file(LLDBFiles ${LLDB_ROOT}/bin/${LibLLDB} ${CMAKE_CURRENT_BINARY_DIR}/bin/${LibLLDB})
     add_copy_file(LLDBFiles "${MSDIA}" ${CMAKE_CURRENT_BINARY_DIR}/bin/msdia140.dll)
     add_copy_liblldb(LLDBFiles ${LLDB_ROOT} bin/liblldb.dll)
     add_copy_python_files(LLDBFiles ${LLDB_ROOT} lib/site-packages/*)

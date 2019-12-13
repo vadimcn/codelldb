@@ -14,7 +14,7 @@ futures = "0.1.28"
 lazy_static = "1.3.0"
 libc = "0.2.59"
 log = "0.4.7"
-regex = "1.1.9"
+regex = "1.3.1"
 serde = "1.0.94"
 serde_derive = "1.0.94"
 serde_json = "1.0.40"
@@ -40,4 +40,4 @@ name = "codelldb"
 path = "loader/main.rs"
 
 [features]
-weak-linkage = ["lldb/weak-linkage", "lldb/no-link-cpp-stdlib"]
+weak-linkage = ["lldb/weak-linkage"]

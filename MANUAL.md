@@ -252,9 +252,7 @@ target modules load --file ${workspaceFolder}/build/debuggee -s <base load addre
 Also known as [Time travel debugging](https://en.wikipedia.org/wiki/Time_travel_debugging).  Provided you use a debugging backend that supports
 [these commands](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB be used to control reverse execution and stepping.
 
-As of this writing, the only backend known to work is [Mozilla's rr](https://rr-project.org/).  Unfortunately, the last
-released version contains a bug that breaks compatibility with LLDB, so you will need to build `rr` from source.
-This problem should be fixed in v5.3.
+As of this writing, the only backend known to work is [Mozilla's rr](https://rr-project.org/).  The minimum supported version is 5.3.0.
 
 There are others mentioned [here](http://www.sourceware.org/gdb/news/reversible.html) and [here](https://github.com/mozilla/rr/wiki/Related-work).
 [QEMU](https://www.qemu.org/) reportedly [supports record/replay](https://github.com/qemu/qemu/blob/master/docs/replay.txt) in full system emulation mode.

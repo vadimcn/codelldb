@@ -108,14 +108,7 @@ def evaluate_as_bool(result, expr_ptr, expr_len, is_simple_expr, context):
         return ERROR
 
 def modules_loaded(modules_ptr, modules_len):
-    try:
-        modules = [into_swig_wrapper(modules_ptr[i], SBModule, False) for i in range(modules_len)]
-        for module in modules:
-            analyze_module(module)
-        return SUCCESS
-    except Exception as err:
-        traceback.print_exc()
-        return ERROR
+    return SUCCESS
 
 def into_swig_wrapper(cobject, ty, owned=True):
     swig_object = ty.swig_type()
@@ -221,30 +214,3 @@ def evaluate_in_context(script, simple_expr, execution_context):
         lldb.debugger = lldb.target.GetDebugger()
     result = eval(script, eval_globals, eval_locals)
     return Value.unwrap(result)
-
-#============================================================================================
-
-type_callbacks = { None:[] }
-type_class_mask_union = 0
-
-# callback: Callable[SBModule]
-def register_type_callback(callback, language=None, type_class_mask=lldb.eTypeClassAny):
-    global type_callbacks, type_class_mask_union
-    type_callbacks.setdefault(language, []).append((type_class_mask, callback))
-    type_class_mask_union |= type_class_mask
-
-def analyze_module(sbmodule):
-    global type_callbacks, type_class_mask_union
-    log.info('### analyzing module %s', sbmodule)
-    for cu in sbmodule.compile_units:
-        callbacks = type_callbacks.get(None) + type_callbacks.get(cu.GetLanguage(), [])
-        types = cu.GetTypes(type_class_mask_union)
-        for sbtype in types:
-            type_class = sbtype.GetTypeClass()
-            for type_class_mask, callback in callbacks:
-                if type_class & type_class_mask != 0:
-                    try:
-                        callback(sbtype)
-                    except Exception as err:
-                        log.error('Type callback %s raised %s', callback, err)
-

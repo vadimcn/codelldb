@@ -269,9 +269,10 @@ Replay execution:
 rr replay -s <port>
 ```
 
+Launch config:
 ```javascript
 {
-    "name": "Remote attach",
+    "name": "Replay",
     "type": "lldb",
     "request": "custom",
     "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],

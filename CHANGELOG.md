@@ -1,5 +1,20 @@
 # Release Notes
 
+# 1.4.5
+
+## Fixed
+- Improved compatibility with Anaconda Python on Windows.
+- Fixed parsing of Python versions involving beta releases.
+
+## Other
+- [Version 5.3](https://github.com/mozilla/rr/releases/tag/5.3.0) of Mozilla's [rr](https://rr-project.org/) has been released a few days ago.  It seems to work pretty well with CodeLLDB's [reverse debugging](MANUAL.md#reverse-debugging) support.
+- This is likely to be the last version supporting "classic" adapter.
+
+# 1.4.4
+
+## Fixed
+- Bug #238: Unable use attach snippet
+
 # 1.4.3
 
 ## Fixed

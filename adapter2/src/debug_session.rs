@@ -360,9 +360,13 @@ impl DebugSession {
                     Err(Error::Internal("Not implemented.".into()))
                 }
             },
-            // A special case for DebugClient, which omits "disconnect" arguments.
+            // Special cases for DebugClients, which omit optional arguments.
             Command::Unknown { ref command } if command == "disconnect" =>
                 self.handle_disconnect(None).map(|_| ResponseBody::disconnect),
+            Command::Unknown { ref command } if command == "configurationDone" =>
+                self.handle_configuration_done().map(|_| ResponseBody::configurationDone),
+            Command::Unknown { ref command } if command == "threads" =>
+                self.handle_threads().map(|r| ResponseBody::threads(r)),
             Command::Unknown { ref command } => {
                 info!("Received unknown command: {}", command);
                 Err(Error::Internal("Not implemented.".into()))

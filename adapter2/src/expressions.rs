@@ -39,7 +39,8 @@ pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpressio
 // Same as prepare(), but also parses formatting options at the end of expression,
 // for example, `value,x` to format value as hex or `ptr,[50]` to interpret `ptr` as an array of 50 elements.
 pub fn prepare_with_format(
-    expression: &str, default_type: Expressions,
+    expression: &str,
+    default_type: Expressions,
 ) -> Result<(PreparedExpression, Option<FormatSpec>), String> {
     let (expr, ty) = get_expression_type(expression, default_type);
     let (expr, format) = get_expression_format(expr)?;
@@ -106,14 +107,11 @@ fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, Option<FormatSpe
                 "s" => lldb::Format::CString,
                 "y" => lldb::Format::Bytes,
                 "Y" => lldb::Format::BytesWithASCII,
-                _ => return Err(format!("Invalid format specifier: {}", m.as_str())),
+                _ => bail!(format!("Invalid format specifier: {}", m.as_str())),
             };
             Ok((expr, Some(FormatSpec::Format(format))))
         } else if let Some(m) = captures.get(2) {
-            let size = match m.as_str().parse::<u32>() {
-                Err(err) => return Err(err.to_string()),
-                Ok(size) => size,
-            };
+            let size = m.as_str().parse::<u32>().map_err(|err| err.to_string())?;
             Ok((expr, Some(FormatSpec::Array(size))))
         } else {
             unreachable!()

@@ -15,11 +15,12 @@ use tokio::net::TcpListener;
 use crate::error::Error;
 use lldb::*;
 
+#[macro_use]
+mod error;
 mod cancellation;
 mod debug_protocol;
 mod debug_session;
 mod disassembly;
-mod error;
 mod expressions;
 mod fsutil;
 mod handles;

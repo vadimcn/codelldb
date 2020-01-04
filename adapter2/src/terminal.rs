@@ -89,14 +89,14 @@ fn accept_with_timeout(listener: &mut TcpListener, timeout: Duration) -> Result<
             Ok((stream, _addr)) => break stream,
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
-                    return Err(e.into());
+                    bail!(e);
                 } else {
                     thread::sleep(Duration::from_millis(100));
                 }
             }
         }
         if started.elapsed() > timeout {
-            return Err(Error::Internal("Terminal agent did not respond within the allotted time.".into()));
+            bail!("Terminal agent did not respond within the allotted time.");
         }
     };
     stream.set_nonblocking(false)?;

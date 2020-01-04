@@ -22,7 +22,7 @@ use serde_json;
 use crate::cancellation::{CancellationSource, CancellationToken};
 use crate::debug_protocol::*;
 use crate::disassembly;
-use crate::error::Error;
+use crate::error::{Error, UserError};
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::{is_same_path, normalize_path};
 use crate::handles::{self, Handle, HandleTree};
@@ -357,7 +357,7 @@ impl DebugSession {
                     self.handle_adapter_settings(args)
                         .map(|_| ResponseBody::adapterSettings),
                 _ => {
-                    Err(Error::Internal("Not implemented.".into()))
+                    Err("Not implemented.".into())
                 }
             },
             // A special case for DebugClient, which omits "disconnect" arguments.
@@ -365,7 +365,7 @@ impl DebugSession {
                 self.handle_disconnect(None).map(|_| ResponseBody::disconnect),
             Command::Unknown { ref command } => {
                 info!("Received unknown command: {}", command);
-                Err(Error::Internal("Not implemented.".into()))
+                Err("Not implemented.".into())
             }
         };
         self.send_response(request.seq, result);
@@ -381,11 +381,16 @@ impl DebugSession {
                 show_user: None,
             }),
             Err(err) => {
-                error!("{}", err);
+                let message = if let Some(user_err) = err.downcast_ref::<UserError>() {
+                    format!("{}", user_err)
+                } else {
+                    format!("Internal debugger error: {}", err)
+                };
+                error!("{}", message);
                 ProtocolMessage::Response(Response {
                     request_seq: request_seq,
                     success: false,
-                    message: Some(format!("{}", err)),
+                    message: Some(message),
                     show_user: Some(true),
                     body: None,
                 })
@@ -451,7 +456,7 @@ impl DebugSession {
     }
 
     fn handle_set_breakpoints(&mut self, args: SetBreakpointsArguments) -> Result<SetBreakpointsResponseBody, Error> {
-        let requested_bps = args.breakpoints.as_ref()?;
+        let requested_bps = args.breakpoints.as_ref().ok_or("breakpoints")?;
         // Decide whether this is a real source file or a disassembled range:
         // if it has a `source_reference` attribute, it's a disassembled range - we never generate references for real sources;
         // if it has an `adapter_data` attribute, it's a disassembled range from a previous debug session;
@@ -469,7 +474,7 @@ impl DebugSession {
                 requested_bps,
             ),
             (None, None, Some(path)) => self.set_source_breakpoints(Path::new(path), requested_bps),
-            _ => Err(Error::Internal(String::new())),
+            _ => bail!("Unexpected"),
         }?;
         Ok(SetBreakpointsResponseBody {
             breakpoints,
@@ -495,7 +500,9 @@ impl DebugSession {
             // Find existing breakpoint or create a new one
             let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
                 Some(bp) => bp,
-                None => self.target.breakpoint_create_by_location(file_path_norm.to_str()?, req.line as u32),
+                None => {
+                    self.target.breakpoint_create_by_location(file_path_norm.to_str().ok_or("path")?, req.line as u32)
+                }
             };
 
             let bp_info = BreakpointInfo {
@@ -979,7 +986,7 @@ impl DebugSession {
         } else {
             let program = match &args.program {
                 Some(program) => program,
-                None => return Err(Error::UserError("\"program\" property is required for launch".into())),
+                None => bail!(UserError("\"program\" property is required for launch".into())),
             };
             self.target = Initialized(self.create_target_from_program(program)?);
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
@@ -1045,7 +1052,7 @@ impl DebugSession {
             }));
             match status.into_result() {
                 Ok(()) => Ok(ResponseBody::launch),
-                Err(err) => Err(Error::UserError(err.error_string().into())),
+                Err(err) => Err(UserError(err.error_string().into()))?,
             }
         } else {
             // Normal launch
@@ -1069,7 +1076,7 @@ impl DebugSession {
                             );
                         }
                     }
-                    return Err(Error::UserError(msg));
+                    return Err(UserError(msg))?;
                 }
             };
             self.process = Initialized(process);
@@ -1119,7 +1126,7 @@ impl DebugSession {
         self.common_init_session(&args.common)?;
 
         if args.program.is_none() && args.pid.is_none() {
-            return Err(Error::UserError(r#"Either "program" or "pid" is required for attach."#.into()));
+            return Err(UserError(r#"Either "program" or "pid" is required for attach."#.into()))?;
         }
 
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
@@ -1137,9 +1144,7 @@ impl DebugSession {
         if let Some(pid) = args.pid {
             let pid = match pid {
                 Pid::Number(n) => n as ProcessID,
-                Pid::String(s) => {
-                    s.parse().map_err(|_| Error::UserError("Process id must me a positive integer.".into()))?
-                }
+                Pid::String(s) => s.parse().map_err(|_| UserError("Process id must me a positive integer.".into()))?,
             };
             attach_info.set_process_id(pid);
         } else if let Some(program) = args.program {
@@ -1153,7 +1158,7 @@ impl DebugSession {
 
         let process = match self.target.attach(&attach_info) {
             Ok(process) => process,
-            Err(err) => return Err(Error::UserError(err.error_string().into())),
+            Err(err) => return Err(UserError(err.error_string().into()))?,
         };
         self.process = Initialized(process);
         self.process_was_launched = false;
@@ -1321,7 +1326,7 @@ impl DebugSession {
             if !result.succeeded() {
                 let err = result.error().to_string_lossy().into_owned();
                 self.console_error(err.clone());
-                return Err(Error::UserError(err));
+                return Err(UserError(err))?;
             }
         }
         Ok(())
@@ -1391,7 +1396,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in stack trace request.");
-                return Err(Error::Protocol("Invalid thread id.".into()));
+                return Err("Invalid thread id.")?;
             }
         };
 
@@ -1501,7 +1506,7 @@ impl DebugSession {
                 scopes: vec![locals, statics, globals, registers],
             })
         } else {
-            Err(Error::Internal(format!("Invalid frame reference: {}", args.frame_id)))
+            Err(format!("Invalid frame reference: {}", args.frame_id))?
         }
     }
 
@@ -1579,7 +1584,7 @@ impl DebugSession {
                 variables: variables,
             })
         } else {
-            Err(Error::Internal(format!("Invalid variabes reference: {}", container_handle)))
+            Err(format!("Invalid variabes reference: {}", container_handle))?
         }
     }
 
@@ -1771,7 +1776,7 @@ impl DebugSession {
             let handle = handles::from_i64(frame_id)?;
             let frame = match self.var_refs.get(handle) {
                 Some(Container::StackFrame(ref f)) => f.clone(),
-                _ => return Err(Error::Internal("Invalid frameId".into())),
+                _ => return Err("Invalid frameId".into()),
             };
             // If they used `frame select` command in after the last stop, use currently selected frame
             // from frame's thread, instead of the frame itself.
@@ -1833,8 +1838,8 @@ impl DebugSession {
         frame: Option<SBFrame>,
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
-        let (pp_expr, expr_format) = expressions::prepare_with_format(expression, self.default_expr_type)
-            .map_err(|err| Error::UserError(err))?;
+        let (pp_expr, expr_format) =
+            expressions::prepare_with_format(expression, self.default_expr_type).map_err(|err| UserError(err))?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
             Ok(mut sbval) => {
@@ -1901,17 +1906,17 @@ impl DebugSession {
                 let context = self.context_from_frame(frame);
                 match python.evaluate(&pp_expr, false, &context) {
                     Ok(val) => Ok(val),
-                    Err(s) => Err(Error::UserError(s)),
+                    Err(s) => Err(UserError(s))?,
                 }
             }
             (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
                 match python.evaluate(&pp_expr, true, &context) {
                     Ok(val) => Ok(val),
-                    Err(s) => Err(Error::UserError(s)),
+                    Err(s) => Err(UserError(s))?,
                 }
             }
-            _ => Err(Error::UserError("Python expressions are disabled.".into())),
+            _ => Err(UserError("Python expressions are disabled.".into()))?,
         }
     }
 
@@ -1954,10 +1959,10 @@ impl DebugSession {
                     };
                     Ok(response)
                 }
-                Err(err) => Err(Error::UserError(err.to_string())),
+                Err(err) => Err(UserError(err.to_string()))?,
             }
         } else {
-            Err(Error::UserError("Could not set variable value.".into()))
+            Err(UserError("Could not set variable value.".into()))?
         }
     }
 
@@ -1972,7 +1977,7 @@ impl DebugSession {
                 self.notify_process_stopped();
                 Ok(())
             } else {
-                Err(Error::UserError(error.error_string().into()))
+                Err(UserError(error.error_string().into()))?
             }
         }
     }
@@ -1992,7 +1997,7 @@ impl DebugSession {
                     all_threads_continued: Some(true),
                 })
             } else {
-                Err(Error::UserError(error.error_string().into()))
+                Err(UserError(error.error_string().into()))?
             }
         }
     }
@@ -2002,7 +2007,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step request.");
-                return Err(Error::Protocol("Invalid thread id.".into()));
+                return Err("Invalid thread id.")?;
             }
         };
 
@@ -2021,7 +2026,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step-in request.");
-                return Err(Error::Protocol("Invalid thread id.".into()));
+                bail!("Invalid thread id.")
             }
         };
 
@@ -2037,7 +2042,7 @@ impl DebugSession {
 
     fn handle_step_out(&mut self, args: StepOutArguments) -> Result<(), Error> {
         self.before_resume();
-        let thread = self.process.thread_by_id(args.thread_id as ThreadID)?;
+        let thread = self.process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
         thread.step_out();
         Ok(())
     }
@@ -2071,7 +2076,7 @@ impl DebugSession {
             if !result.succeeded() {
                 let error = into_string_lossy(result.error());
                 self.console_error(error.clone());
-                return Err(Error::Internal(error));
+                bail!(error);
             }
         }
         Ok(())
@@ -2172,35 +2177,35 @@ impl DebugSession {
 
     fn handle_goto(&mut self, args: GotoArguments) -> Result<(), Error> {
         match &self.last_goto_request {
-            None => Err(Error::Protocol("Unexpected goto message.".into())),
+            None => bail!("Unexpected goto message."),
             Some(ref goto_args) => {
                 let thread_id = args.thread_id as u64;
                 match self.process.thread_by_id(thread_id) {
-                    None => Err(Error::Protocol("Invalid thread id".into())),
+                    None => bail!("Invalid thread id"),
                     Some(thread) => match goto_args.source.source_reference {
                         // Disassembly
                         Some(source_ref) => {
                             let handle = handles::from_i64(source_ref)?;
-                            let dasm = self.disassembly.find_by_handle(handle)?;
+                            let dasm = self.disassembly.find_by_handle(handle).ok_or("source_ref")?;
                             let addr = dasm.address_by_line_num(goto_args.line as u32);
-                            let frame = thread.frame_at_index(0).check()?;
+                            let frame = thread.frame_at_index(0).check().ok_or("frame 0")?;
                             if frame.set_pc(addr) {
                                 self.refresh_client_display(Some(thread_id));
                                 Ok(())
                             } else {
-                                Err(Error::UserError("Failed to set the instruction pointer.".into()))
+                                bail!(UserError("Failed to set the instruction pointer.".into()));
                             }
                         }
                         // Normal source file
                         None => {
-                            let filespec = SBFileSpec::from(goto_args.source.path.as_ref()?);
+                            let filespec = SBFileSpec::from(goto_args.source.path.as_ref().ok_or("source.path")?);
                             let result = thread.jump_to_line(&filespec, goto_args.line as u32);
                             if result.is_success() {
                                 self.last_goto_request = None;
                                 self.refresh_client_display(Some(thread_id));
                                 Ok(())
                             } else {
-                                Err(Error::UserError(result.error_string().into()))
+                                bail!(UserError(result.error_string().into()));
                             }
                         }
                     },
@@ -2213,7 +2218,7 @@ impl DebugSession {
         let handle = handles::from_i64(args.frame_id)?;
         let frame = match self.var_refs.get(handle) {
             Some(Container::StackFrame(ref f)) => f.clone(),
-            _ => return Err(Error::Internal("Invalid frameId".into())),
+            _ => bail!("Invalid frameId"),
         };
         let thread = frame.thread();
         thread.return_from_frame(&frame); // TODO: ?
@@ -2230,7 +2235,7 @@ impl DebugSession {
         &mut self,
         args: DataBreakpointInfoArguments,
     ) -> Result<DataBreakpointInfoResponseBody, Error> {
-        let container_handle = handles::from_i64(args.variables_reference?)?;
+        let container_handle = handles::from_i64(args.variables_reference.ok_or("variables_reference")?)?;
         let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
         let child = match container {
             Container::SBValue(container) => container.child_member_with_name(&args.name),
@@ -2266,8 +2271,8 @@ impl DebugSession {
         let mut watchpoints = vec![];
         for wp in args.breakpoints {
             let mut parts = wp.data_id.split('/');
-            let addr = parts.next()?.parse::<u64>()?;
-            let size = parts.next()?.parse::<usize>()?;
+            let addr = parts.next().ok_or("")?.parse::<u64>()?;
+            let size = parts.next().ok_or("")?.parse::<usize>()?;
             let res = match self.target.watch_address(addr, size, false, true) {
                 Ok(wp) => Breakpoint {
                     verified: true,

@@ -1,8 +1,3 @@
-export type AdapterType = 'classic' | 'native';
-
-export function toAdapterType(str: string): AdapterType {
-    return str == 'classic' ? 'classic' : 'native';
-}
 
 export interface Dict<T> {
     [key: string]: T;

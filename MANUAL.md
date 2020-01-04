@@ -368,7 +368,7 @@ For example, on x86_64 the restrictions are as follows:
 - There may be at most 4 data watchpoints.
 
 
-## Hit conditions (native adapter only)
+## Hit conditions
 Syntax:
 ```
     operator :: = '<' | '<=' | '=' | '>=' | '>' | '%'
@@ -472,11 +472,7 @@ debugger's main script context).
 |**wrap(obj: `lldb.SBValue`) -> `Value`**| Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
 |**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
 
-# Adapter types
-Please see [this announcement](CHANGELOG.md#heads-up-codelldb-is-moving-to-native-code).
-
 # Alternate LLDB backends
-*(native adapter only)*<br>
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging
 Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
 In order to use alternate backend, you will need to provide location of the corresponding liblldb&#46;so/.dylib/.dll
@@ -541,9 +537,7 @@ configurations when there is no existing `launch.json`.
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<li>native - Native implementation, requires one-time download of platform-specific binaries (default),<li>classic - the original Python-based debug adapter running in externally provided LLDB.
-|**lldb.executable**    |Which LLDB executable to use. (default="lldb")
-|**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.library**       |Which LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in the "LLDB" output panel.
 

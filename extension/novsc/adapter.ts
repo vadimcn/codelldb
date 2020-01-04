@@ -13,24 +13,7 @@ export interface AdapterStartOptions {
     verboseLogging: boolean;
 }
 
-export async function startClassic(
-    lldbExecutable: string,
-    options: AdapterStartOptions
-): Promise<cp.ChildProcess> {
-
-    let env = mergedEnvironment(options.extraEnv);
-    if (options.verboseLogging) {
-        options.adapterParameters['logLevel'] = 0;
-    }
-    let paramsBase64 = new Buffer(JSON.stringify(options.adapterParameters)).toString('base64');
-    let args = ['-b',
-        '-O', `command script import '${path.join(options.extensionRoot, 'adapter')}'`,
-        '-O', `script adapter.run_tcp_session(0, '${paramsBase64}')`
-    ];
-    return spawnDebugAdapter(lldbExecutable, args, env, options.workDir);
-}
-
-export async function startNative(
+export async function start(
     liblldb: string,
     libpython: string,
     options: AdapterStartOptions

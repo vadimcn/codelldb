@@ -55,18 +55,19 @@ string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 add_custom_target(cargo_test
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
             cargo test --lib --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )
 
 # Check that binaries don't depend on liblldb and libpython.
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    add_test(NAME native:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME native:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
-    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
+    add_test(NAME adapter:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME adapter:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
+    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml;libstdc\\+\\+")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    add_test(NAME native:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME native:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
-    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
+    add_test(NAME adapter:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME adapter:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
+    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;Python;liblldb;libxml")
 endif()

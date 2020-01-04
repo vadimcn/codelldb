@@ -118,28 +118,10 @@ add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/checked.svg ${CMAK
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/unchecked.svg ${CMAKE_CURRENT_BINARY_DIR}/images/unchecked.svg)
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json)
 
-# Classic adapter
-
-file(GLOB_RECURSE Files
-    LIST_DIRECTORIES false
-    ${CMAKE_SOURCE_DIR}/adapter/*.py
-)
-add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/adapter ${Files})
-
-file(GLOB_RECURSE Files
-    LIST_DIRECTORIES false
-    ${CMAKE_SOURCE_DIR}/formatters/*.py
-)
-add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/formatters ${Files})
-
-add_custom_target(adapter ALL
-    DEPENDS lldb ${AdapterFiles}
-)
-
 # For extension debugging
 
 add_custom_target(dev_debugging
-    DEPENDS adapter codelldb debuggee extension ${PackageFiles}
+    DEPENDS codelldb debuggee extension ${PackageFiles}
 )
 
 # VSIX packages
@@ -148,7 +130,6 @@ set(PackagedFilesPortable
     README.md
     CHANGELOG.md
     extension.js
-    adapter/**/*.py
     formatters/*
     images/*
     syntaxes/*
@@ -187,7 +168,7 @@ set(VsceOptions
 )
 
 add_custom_target(vsix_portable
-    DEPENDS adapter extension ${PackageFiles}
+    DEPENDS extension ${PackageFiles}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -195,7 +176,7 @@ add_custom_target(vsix_portable
 )
 
 add_custom_target(vsix_full
-    DEPENDS adapter extension lldb codelldb ${PackageFiles}
+    DEPENDS extension lldb codelldb ${PackageFiles}
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -267,40 +248,30 @@ set(MochaTest ${NPM} run mocha --
 )
 
 # Build everything for testing
-add_dependencies(tests adapter codelldb debuggee)
+add_dependencies(tests codelldb debuggee)
 
 # Tests and test targets
-add_custom_target(check)
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(TestAdapters native)
     set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(TestAdapters classic native)
     set(TestTriples x86_64-apple-darwin)
 else()
-    set(TestAdapters classic native)
     set(TestTriples x86_64-unknown-linux-gnu)
 endif()
 
-foreach(AdapterType ${TestAdapters})
-    foreach(TestTriple ${TestTriples})
-        set(TestName ${AdapterType}:${TestTriple})
-        add_test(NAME ${TestName}
-            COMMAND ${WithEnv} ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} BUILD_DIR=${CMAKE_BINARY_DIR} SOURCE_DIR=${CMAKE_SOURCE_DIR} ${MochaTest}
-            WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-        set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
-    endforeach(TestTriple)
+foreach(TestTriple ${TestTriples})
+    set(TestName adapter:${TestTriple})
+    add_test(NAME ${TestName}
+        COMMAND ${WithEnv} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} BUILD_DIR=${CMAKE_BINARY_DIR} SOURCE_DIR=${CMAKE_SOURCE_DIR} ${MochaTest}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+    set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
+endforeach(TestTriple)
 
-    add_custom_target(check_${AdapterType} DEPENDS tests
-        COMMAND ${CMAKE_CTEST_COMMAND} -R ${AdapterType} --output-on-failure --verbose
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        USES_TERMINAL
-    )
-    add_dependencies(check check_${AdapterType})
-endforeach(AdapterType)
-
-add_dependencies(check_native cargo_test)
+add_custom_target(check
+    DEPENDS tests cargo_test
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+)
 
 # Install
 
@@ -315,7 +286,6 @@ install(
 add_custom_target(xclean
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target clean
     COMMAND ${CMAKE_COMMAND} -E remove_directory CMakeFiles
-    COMMAND ${CMAKE_COMMAND} -E remove_directory adapter
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter2
     COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee
     COMMAND ${CMAKE_COMMAND} -E remove_directory extension

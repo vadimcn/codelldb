@@ -117,10 +117,8 @@ jobs:
 
   - script: |
       $(setenvLinux)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
@@ -215,10 +213,8 @@ jobs:
 
   - script: |
       $(setenvOSX)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
 
   - script: |
       echo - env ------------------
@@ -332,10 +328,8 @@ jobs:
 
   - script: |
       $(setenvWindows)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
 
   - script: |
       echo - env ------------------

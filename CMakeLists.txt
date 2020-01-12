@@ -19,12 +19,14 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
+    set(SymSuffix .dSYM)
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
+    set(SymSuffix .pdb)
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
@@ -32,25 +34,19 @@ else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
+
 if (NOT LLVM_TRIPLE)
-    set(LLVM_TRIPLE ${DefaultTarget})
+set(LLVM_TRIPLE ${DefaultTarget})
 endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
-set(CopyFile ${CMAKE_COMMAND} -E copy_if_different)
+set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
 set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
 if (LLDB_ROOT)
     message("Using LLDB from ${LLDB_ROOT}")
 else()
-    set(LLDB_BUILD 957)
-    set(ArtifactUrl "https://dev.azure.com/vadimcn/llvm/_apis/build/builds/${LLDB_BUILD}/artifacts?api-version=4.1&artifactName=lldb--x86_64-unknown-linux-gnu")
-    message("Using LLDB from ${ArtifactUrl}")
-    file(DOWNLOAD ${ArtifactUrl} ${CMAKE_BINARY_DIR}/artifact.json)
-    file(READ ${CMAKE_BINARY_DIR}/artifact.json Artifact)
-    string(REGEX MATCH "\"downloadUrl\" *: *\"([^\"]*)\"" _ ${Artifact})
-    message("Downloading ${CMAKE_MATCH_1}")
-    file(DOWNLOAD "${CMAKE_MATCH_1}" ${CMAKE_BINARY_DIR}/lldb.zip SHOW_PROGRESS)
+    message(FATAL_ERROR "LLDB_ROOT not set." )
 endif()
 
 add_subdirectory(adapter2)
@@ -77,9 +73,9 @@ endif()
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_custom_target(update_lockfiles
-    COMMAND ${CopyFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
     COMMAND ${NPM} update
-    COMMAND ${CopyFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
     COMMAND cargo update
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
@@ -200,7 +196,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_dependencies(vsix_full strip_binaries)
 endif()
 
-# Build both VSIX pacakges, then extract vsix_portable to build/extracted
+# Build both VSIX packages, then extract vsix_portable to build/extracted
 
 add_custom_target(vsix_extracted
     DEPENDS vsix_portable vsix_full

@@ -11,31 +11,13 @@
 # )
 
 function(add_copy_file List Input Output)
-    if (IS_SYMLINK ${Input})
-        get_filename_component(OutputDir ${Output} DIRECTORY)
-
-        get_filename_component(InputDir ${Input} DIRECTORY)
-        get_filename_component(InputDir ${InputDir} REALPATH)
-        get_filename_component(SymlinkTgt ${Input} REALPATH)
-        file(RELATIVE_PATH SymLinkTgtRel ${InputDir} ${SymlinkTgt})
-
-        add_custom_command(
-            OUTPUT ${Output}
-            PRE_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${OutputDir}
-            COMMAND ${CMAKE_COMMAND} -E create_symlink ${SymLinkTgtRel} ${Output}
-            DEPENDS "${Input}"
-            COMMENT "Creating symlink ${Output} -> ${SymLinkTgtRel} "
-        )
-    else()
-        add_custom_command(
-            OUTPUT ${Output}
-            PRE_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${Input} ${Output}
-            DEPENDS "${Input}"
-            COMMENT "Copying ${Input} to ${Output}"
-        )
-    endif()
+    add_custom_command(
+        OUTPUT ${Output}
+        PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${Input} ${Output}
+        DEPENDS "${Input}"
+        COMMENT "Copying ${Input} to ${Output}"
+    )
     list(APPEND ${List} ${Output})
     set(${List} ${${List}} PARENT_SCOPE)
 endfunction()

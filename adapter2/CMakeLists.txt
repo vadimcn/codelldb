@@ -35,7 +35,7 @@ add_custom_target(codelldb ALL
 
 add_custom_target(codelldb_bin
     COMMAND cargo build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
-    COMMAND ${CopyFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_bin"
     USES_TERMINAL
 )
@@ -43,8 +43,16 @@ add_custom_target(codelldb_bin
 add_custom_target(codelldb_lib
     DEPENDS lldb ${PythonFiles}
     COMMAND cargo build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
-    COMMAND ${CopyFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"
+    USES_TERMINAL
+)
+
+add_custom_target(codelldb_syms
+    DEPENDS codelldb_bin codelldb_lib
+    COMMAND ${UpdateFile} ${CargoOutDir}/deps/${DylibPrefix}codelldb${DylibSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Updating codelldb symbols"
     USES_TERMINAL
 )
 

@@ -2,7 +2,7 @@ variables:
   lldbBuildId: 1152
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
-  rustcVersion: 'nightly-2019-10-15'
+  rustcVersion: 'nightly-2020-01-15'
   cacheDiscr: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
@@ -47,6 +47,14 @@ jobs:
     options: --privileged
 
   steps:
+
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -v -y --profile minimal --default-toolchain none
+      source $HOME/.cargo/env
+      rustup toolchain install $(rustcVersion)-$(Triple)
+      rustup default $(rustcVersion)
+      rustup show
+    displayName: 'Install Rust'
 
   - task: DownloadBuildArtifacts@0
     inputs:

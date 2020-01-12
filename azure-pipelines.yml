@@ -94,6 +94,7 @@ jobs:
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
+      cat CMakeCache.txt
     displayName: 'Configure'
 
   - script: |
@@ -198,7 +199,8 @@ jobs:
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'CMake configure'
+      cat CMakeCache.txt
+    displayName: 'Configure'
 
   - script: |
       $(setenvOSX)
@@ -314,7 +316,8 @@ jobs:
             -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
             ..
-    displayName: 'CMake configure'
+      type CMakeCache.txt
+    displayName: 'Configure'
 
   - script: |
       $(setenvWindows)

@@ -1,12 +1,17 @@
 find_package(Python3 COMPONENTS Interpreter Development)
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}m" CACHE STRING "" FORCE)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}" CACHE STRING "" FORCE)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(LLDB_LinkDylib "liblldb" CACHE STRING "" FORCE)
 else()
-    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}" CACHE STRING "" FORCE)
+    message(FATAL_ERROR "Unsupported platform")
 endif()
 
-set(LLDB_LinkSearch "${LLDB_ROOT}/lib;${Python3_LIBRARY_DIRS}" CACHE STRING "" FORCE)
+get_filename_component(LibPythonDir ${Python3_LIBRARY_RELEASE} DIRECTORY)
+set(LLDB_LinkSearch "${LLDB_ROOT}/lib;${LibPythonDir}" CACHE STRING "" FORCE)
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
                              --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target
@@ -57,7 +62,8 @@ add_custom_target(codelldb_syms
 )
 
 set(PATH $ENV{PATH})
-string(JOIN ${PathSep} PATH ${PATH} ${LLDB_ROOT}/bin ${Python3_LIBRARY_DIRS})
+get_filename_component(PythonRuntimeDir "${Python3_RUNTIME_LIBRARY_RELEASE}" DIRECTORY)
+string(JOIN ${PathSep} PATH ${PATH} ${LLDB_ROOT}/bin ${PythonRuntimeDir})
 string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 
 add_custom_target(cargo_test

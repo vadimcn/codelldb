@@ -2,17 +2,20 @@
 
 mod tests;
 
+use std::borrow::Cow;
 use std::cell;
 use std::collections::{HashMap, HashSet};
 use std::path;
 use std::rc;
 use std::sync;
-use std::borrow::Cow;
 
 enum RegularEnum {
     A,
     B(i32, i32),
-    C { x: f64, y: f64 },
+    C {
+        x: f64,
+        y: f64,
+    },
 }
 
 enum CStyleEnum {
@@ -34,6 +37,12 @@ struct RegularStruct<'a> {
     a: i32,
     c: f32,
     d: Vec<u32>,
+}
+
+impl RegularStruct<'_> {
+    fn print(&self) {
+        println!("{} {} {} {:?}", self.a, self.b, self.c, self.d);
+    }
 }
 
 impl<'a> Drop for RegularStruct<'a> {
@@ -62,15 +71,35 @@ fn make_hash() -> HashMap<String, i32> {
 }
 
 fn main() {
-    let int = 17;
-    let float = 3.1415926535;
+    let char_: char = 'A';
+    let bool_: bool = true;
 
+    let i8_: i8 = -8;
+    let u8_: u8 = 8;
+    let i16_: i16 = -16;
+    let u16_: u16 = 16;
+    let i32_: i32 = -32;
+    let u32_: u32 = 32;
+    let i64_: i64 = -64;
+    let u64_: u64 = 64;
+    let i128_: i128 = -128;
+    let u128_: u128 = 128;
+    let isize_: isize = -2;
+    let usize_: usize = 2;
+
+    let f32_: f32 = 3.1415926535;
+    let f64_: f64 = 3.1415926535 * 2.0;
+
+    let unit = ();
     let tuple = (1, "a", 42.0);
     let tuple_ref = &(1, "a", 42.0);
 
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
-    let reg_enum3 = RegularEnum::C { x: 11.35, y: 20.5 };
+    let reg_enum3 = RegularEnum::C {
+        x: 11.35,
+        y: 20.5,
+    };
     let reg_enum_ref = &reg_enum3;
     let cstyle_enum1 = CStyleEnum::A;
     let cstyle_enum2 = CStyleEnum::B;
@@ -89,6 +118,8 @@ fn main() {
     let reg_struct_ref = &reg_struct;
     let opt_reg_struct1 = Some(reg_struct.clone());
     let opt_reg_struct2: Option<RegularStruct> = None;
+
+    reg_struct.print();
 
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];
@@ -132,7 +163,7 @@ fn main() {
     let ref_cell3 = cell::RefCell::new(12);
     let ref_cell3_borrow = ref_cell3.borrow_mut();
 
-    let closure = move |x: i32| (x + int) as f32 * float;
+    let closure = move |x: i32| (x + i32_) as f32 * f32_;
 
     let mut path_buf = path::PathBuf::new();
     path_buf.push("foo");

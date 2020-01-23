@@ -533,8 +533,23 @@ function generateSuite(triple: string) {
                 let localVars = await ds.readVariables(scopes.body.scopes[0].variablesReference);
 
                 await ds.compareVariables(localVars, {
-                    int: 17,
-                    float: 3.14159274,
+                    bool_: true,
+                    i8_: -8,
+                    u8_: 8,
+                    i16_: -16,
+                    u16_: 16,
+                    i32_: -32,
+                    u32_: 32,
+                    i64_: -64,
+                    u64_: 64,
+                    i128_: -128,
+                    u128_: 128,
+                    isize_: -2,
+                    usize_: 2,
+                    f32_: 3.1415926535,
+                    f64_: 3.1415926535 * 2.0,
+
+                    unit: '()',
                     tuple: '(1, "a", 42)',
                     tuple_ref: '(1, "a", 42)',
                     reg_struct: '{a:1, c:12}',
@@ -573,6 +588,7 @@ function generateSuite(triple: string) {
 
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
+                        char_: "'A'",
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',
@@ -772,7 +788,7 @@ class DebugTestSession extends DebugClient {
 
     async compareVariables(
         vars: number | Dict<dp.Variable>,
-        expected: Dict<string | number | ValidatorFn | Dict<any>>,
+        expected: Dict<string | number | boolean | ValidatorFn | Dict<any>>,
         prefix: string = ''
     ) {
         if (typeof vars == 'number') {
@@ -801,15 +817,25 @@ class DebugTestSession extends DebugClient {
         }
     }
 
-    compareToExpected(variable: dp.Variable, expectedValue: string | number | ValidatorFn, keyPath: string) {
+    compareToExpected(variable: dp.Variable, expectedValue: string | number | boolean | ValidatorFn, keyPath: string) {
         if (typeof expectedValue == 'string') {
             assert.equal(variable.value, expectedValue,
                 `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
+        } else if (typeof expectedValue == 'boolean') {
+            let boolValue = variable.value == 'true' ? true : variable.value == 'false' ? false : null;
+            assert.equal(boolValue, expectedValue,
+                `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
         } else if (typeof expectedValue == 'number') {
-            let numValue = parseFloat(variable.value);
-            let delta = Math.abs(numValue - expectedValue);
-            assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
-                `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
+            if (Number.isSafeInteger(expectedValue)) {
+                let numValue = parseInt(variable.value);
+                assert.equal(numValue, expectedValue,
+                    `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
+            } else { // approximate comparison for floats
+                let numValue = parseFloat(variable.value);
+                let delta = Math.abs(numValue - expectedValue);
+                assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
+                    `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
+            }
         } else if (typeof expectedValue == 'function') {
             assert.ok(expectedValue(variable),
                 `"${keyPath}": validator returned false`);

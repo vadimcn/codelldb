@@ -133,6 +133,7 @@ set(PackagedFilesPortable
 
 set(PackagedFilesFull
     ${PackagedFilesPortable}
+    platform.ok
     adapter2/*.py
     adapter2/codelldb
     adapter2/libcodelldb.so
@@ -145,6 +146,9 @@ set(PackagedFilesFull
     lldb/bin/**/*
     lldb/lib/**/*
 )
+
+# Indicator file used to determine whether we have the platform package.
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/platform.ok "")
 
 set(Content **)
 foreach(Line ${PackagedFilesPortable})
@@ -165,7 +169,7 @@ set(VsceOptions
 
 add_custom_target(vsix_portable
     DEPENDS extension ${PackageFiles}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
@@ -173,7 +177,7 @@ add_custom_target(vsix_portable
 
 add_custom_target(vsix_full
     DEPENDS extension lldb codelldb ${PackageFiles}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
@@ -202,7 +206,7 @@ add_custom_target(vsix_extracted
     DEPENDS vsix_portable vsix_full
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
     COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
 )
 
 # Debuggee

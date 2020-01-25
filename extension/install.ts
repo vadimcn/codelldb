@@ -10,7 +10,7 @@ const MaxRedirects = 10;
 
 export async function ensurePlatformPackage(context: ExtensionContext, output: OutputChannel): Promise<boolean> {
 
-    if (await async.fs.exists(path.join(context.extensionPath, 'lldb/bin')))
+    if (await async.fs.exists(path.join(context.extensionPath, 'platform.ok')))
         return true;
 
     output.show();
@@ -107,20 +107,21 @@ async function download(srcUrl: Uri, destPath: string,
 async function installVsix(context: ExtensionContext, vsixPath: string) {
     let destDir = context.extensionPath;
     await extractZip(vsixPath, async (entry) => {
-        if (entry.fileName.startsWith('extension/')) {
-            let destPath = path.join(destDir, entry.fileName.substr(10));
-            await ensureDirectory(path.dirname(destPath));
-            let stream = fs.createWriteStream(destPath);
-            stream.on('finish', () => {
-                let attrs = (entry.externalFileAttributes >> 16) & 0o7777;
-                fs.chmod(destPath, attrs, (err) => { });
-            });
-            return stream;
-        }
-        else {
-            return null;
-        }
+        if (!entry.fileName.startsWith('extension/'))
+            return null; // Skip metadata files.
+        if (entry.fileName.endsWith('/platform.ok'))
+            return null; // Skip success indicator, we'll create it at the end.
+
+        let destPath = path.join(destDir, entry.fileName.substr(10));
+        await ensureDirectory(path.dirname(destPath));
+        let stream = fs.createWriteStream(destPath);
+        stream.on('finish', () => {
+            let attrs = (entry.externalFileAttributes >> 16) & 0o7777;
+            fs.chmod(destPath, attrs, (err) => { });
+        });
+        return stream;
     });
+    await async.fs.writeFile(path.join(destDir, 'platform.ok'), '');
 }
 
 function extractZip(zipPath: string, callback: (entry: zip.Entry) => Promise<Writable> | null): Promise<void> {

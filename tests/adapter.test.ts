@@ -534,8 +534,6 @@ function generateSuite(triple: string) {
 
                 await ds.compareVariables(localVars, {
                     bool_: true,
-                    i8_: -8,
-                    u8_: 8,
                     i16_: -16,
                     u16_: 16,
                     i32_: -32,
@@ -549,7 +547,6 @@ function generateSuite(triple: string) {
                     f32_: 3.1415926535,
                     f64_: 3.1415926535 * 2.0,
 
-                    unit: '()',
                     tuple: '(1, "a", 42)',
                     tuple_ref: '(1, "a", 42)',
                     reg_struct: '{a:1, c:12}',
@@ -589,6 +586,10 @@ function generateSuite(triple: string) {
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
                         char_: "'A'",
+                        i8_: -8,
+                        u8_: 8,
+                        unit: '()',
+
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',

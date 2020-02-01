@@ -42,7 +42,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     set(Target --target x86_64-pc-windows-msvc)
     set(Rusttypes rusttypes.exe)
 else()
-    set(Target--target x86_64-pc-windows-gnu)
+    set(Target --target x86_64-pc-windows-gnu)
     set(Rusttypes rusttypes.exe)
 endif()
 

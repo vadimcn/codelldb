@@ -8,6 +8,8 @@ export class AdapterSettings {
     suppressMissingSourceFiles: boolean;
     consoleMode: 'commands' | 'expressions';
     sourceLanguages: string[];
+    defaultPanicBreakpoint: boolean = true;
+    defaultCatchBreakpoint: boolean = false;
 };
 
 export interface DisplayHtmlRequest {

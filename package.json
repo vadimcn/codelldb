@@ -262,6 +262,18 @@
 					],
 					"scope": "resource"
 				},
+				"lldb.defaultPanicBreakpoint": {
+					"description": "The default value of `C++: on throw` and `Rust: on panic` breakpoints.",
+					"type": "boolean",
+					"default": true,
+					"scope": "resource"
+				},
+				"lldb.defaultCatchBreakpoint": {
+					"description": "The default value of `C++: on catch` breakpoint.",
+					"type": "boolean",
+					"default": false,
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

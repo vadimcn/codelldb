@@ -228,6 +228,8 @@ pub struct AdapterSettings {
     pub suppress_missing_source_files: Option<bool>,
     pub console_mode: Option<ConsoleMode>,
     pub source_languages: Option<Vec<String>>,
+    pub default_panic_breakpoint: Option<bool>,
+    pub default_catch_breakpoint: Option<bool>
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

@@ -60,7 +60,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 event.affectsConfiguration('lldb.dereferencePointers') ||
                 event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
                 event.affectsConfiguration('lldb.evaluationTimeout') ||
-                event.affectsConfiguration('lldb.consoleMode')) {
+                event.affectsConfiguration('lldb.consoleMode') ||
+                event.affectsConfiguration('lldb.defaultPanicBreakpoint') ||
+                event.affectsConfiguration('lldb.defaultCatchBreakpoint')) {
                 this.propagateDisplaySettings();
             }
             if (event.affectsConfiguration('lldb.library') ||
@@ -183,6 +185,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             suppressMissingSourceFiles: config.get('suppressMissingSourceFiles'),
             evaluationTimeout: config.get('evaluationTimeout'),
             consoleMode: config.get('consoleMode'),
+            defaultPanicBreakpoint: config.get('defaultPanicBreakpoint'),
+            defaultCatchBreakpoint: config.get('defaultCatchBreakpoint'),
             sourceLanguages: null
         };
         return settings;
@@ -195,6 +199,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         await config.update('displayFormat', settings.displayFormat);
         await config.update('showDisassembly', settings.showDisassembly);
         await config.update('dereferencePointers', settings.dereferencePointers);
+        await config.update('defaultPanicBreakpoint', settings.defaultPanicBreakpoint);
+        await config.update('defaultCatchBreakpoint', settings.defaultCatchBreakpoint);
     }
 
     // This is called When configuration change is detected. Updates UI, and if a debug session

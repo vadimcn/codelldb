@@ -115,6 +115,8 @@ pub struct DebugSession {
     suppress_missing_files: bool,
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
+    default_panic_breakpoint: bool,
+    default_catch_breakpoint: bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +220,8 @@ impl DebugSession {
             source_languages: vec!["cpp".into()],
             suppress_missing_files: true,
             evaluation_timeout: time::Duration::from_secs(5),
+            default_panic_breakpoint: true,
+            default_catch_breakpoint: false
         };
         debug_session.update_adapter_settings(&settings);
 
@@ -2339,6 +2343,8 @@ impl DebugSession {
         if let Some(ref source_languages) = args.source_languages {
             self.source_languages = source_languages.clone()
         }
+        self.default_panic_breakpoint = args.default_panic_breakpoint.unwrap_or(self.default_panic_breakpoint);
+        self.default_catch_breakpoint = args.default_catch_breakpoint.unwrap_or(self.default_catch_breakpoint);
     }
 
     // Send fake stop event to force VSCode to refresh its UI state.

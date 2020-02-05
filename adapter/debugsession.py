@@ -694,15 +694,18 @@ class DebugSession:
             self.enable_bp_events()
 
     def get_exception_filters(self, source_langs):
+        default_panic = settings.get('defaultPanicBreakpoints', True)
+        default_catch = settings.get('defaultCatchBreakpoints', False)
+
         filters = []
         if 'cpp' in source_langs:
             filters.extend([
-                ('cpp_throw', 'C++: on throw', True),
-                ('cpp_catch', 'C++: on catch', False),
+                ('cpp_throw', 'C++: on throw', default_panic),
+                ('cpp_catch', 'C++: on catch', default_catch),
             ])
         if 'rust' in source_langs:
             filters.extend([
-                ('rust_panic', 'Rust: on panic', True)
+                ('rust_panic', 'Rust: on panic', default_panic)
             ])
         return filters
 

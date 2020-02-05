@@ -537,6 +537,8 @@ configurations when there is no existing `launch.json`.
 |**lldb.dereferencePointers**|Whether to show a summary of the pointee, or a numeric value for pointers.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
 |**lldb.consoleMode**|Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).
+|**lldb.defaultPanicBreakpoint**|The default value of `C++: on throw` and `Rust: on panic` breakpoints.
+|**lldb.defaultCatchBreakpoint**|The default value of `C++: on catch` breakpoint.
 
 ## Advanced
 |                       |                                                         |

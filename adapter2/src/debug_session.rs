@@ -125,8 +125,8 @@ impl DebugSession {
     pub fn new(
         settings: AdapterSettings,
     ) -> impl Stream<Item = ProtocolMessage, Error = ()> + Sink<SinkItem = ProtocolMessage, SinkError = ()> {
-        let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(100);
-        let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(100);
+        let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(1000);
+        let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(1100);
 
         let shutdown = CancellationSource::new();
         let shutdown_token = shutdown.cancellation_token();

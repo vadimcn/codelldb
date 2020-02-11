@@ -76,6 +76,18 @@ void threads(int num_threads, int linger_time = 1)
 #endif
 }
 
+void dump_env()
+{
+    char** pval = environ;
+    if (pval)
+    {
+        while (pval && *pval)
+        {
+            puts(*pval++);
+        }
+    }
+}
+
 bool check_env(const char *env_name, const char *expected)
 {
     const char *val = getenv(env_name);
@@ -246,6 +258,10 @@ int main(int argc, char *argv[])
     else if (testcase == "threads_long")
     {
         threads(15, 10000);
+    }
+    else if (testcase == "dump_env")
+    {
+        dump_env();
     }
     else if (testcase == "check_env")
     {

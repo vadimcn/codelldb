@@ -998,10 +998,16 @@ impl DebugSession {
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         let mut launch_info = self.target.launch_info();
 
-        // Merge environment
         let mut launch_env = HashMap::new();
-        for (k, v) in env::vars() {
-            launch_env.insert(k, v);
+        let inherit_env = match self.debugger.get_variable("target.inherit-env").string_at_index(0) {
+            Some("true") => true,
+            _ => false,
+        };
+        // Init with host environment if `inherit-env` is set.
+        if inherit_env {
+            for (k, v) in env::vars() {
+                launch_env.insert(k, v);
+            }
         }
         if let Some(ref env) = args.env {
             for (k, v) in env.iter() {

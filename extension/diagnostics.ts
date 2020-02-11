@@ -128,7 +128,7 @@ export async function diagnoseExternalLLDB(context: ExtensionContext, output: Ou
                     } else if (choice.action == 'native') {
                         output.appendLine('Setting "lldb.adapterType": "native".');
                         config.update('adapterType', 'native', ConfigurationTarget.Global);
-                        if (await install.ensurePlatformPackage(context, output))
+                        if (await install.ensurePlatformPackage(context, output, true))
                             status = DiagnosticsStatus.Succeeded;
                     }
                 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.4.5)
+set(VERSION 1.4.6-dev)
 
 include(cmake/CopyFiles.cmake)
 

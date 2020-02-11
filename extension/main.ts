@@ -256,7 +256,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         }
         this.propagateDisplaySettings();
-        install.ensurePlatformPackage(this.context, output);
+        install.ensurePlatformPackage(this.context, output, false);
     }
 
     async provideDebugConfigurations(
@@ -502,7 +502,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
         if (!await this.checkPython(folder))
             return false;
-        if (!await install.ensurePlatformPackage(this.context, output))
+        if (!await install.ensurePlatformPackage(this.context, output, true))
             return false;
         return true;
     }

@@ -1045,6 +1045,28 @@ impl DebugSession {
         });
         self.console_message(format!("Launching: {}", command_line));
 
+        #[cfg(target_os = "linux")]
+        {
+            // The personality() syscall is often restricted inside Docker containers, which causes launch failure with a cryptic error.
+            // Test if ASLR can be disabled and turn DisableASLR off if so.
+            let flags = launch_info.launch_flags();
+            if flags.contains(LaunchFlag::DisableASLR) {
+                unsafe {
+                    const ADDR_NO_RANDOMIZE: libc::c_ulong = 0x0040000;
+                    let previous = libc::personality(0xffffffff) as libc::c_ulong;
+                    if libc::personality(previous | ADDR_NO_RANDOMIZE) < 0 {
+                        launch_info.set_launch_flags(flags - LaunchFlag::DisableASLR);
+                        self.console_error("Could not disable address space layout randomization (ASLR).");
+                        self.console_message("(Possibly due to running in a restricted container. \
+                            Add \"initCommands\":[\"settings set target.disable-aslr false\"] to the launch configuration \
+                            to suppress this warning.)",
+                        );
+                    }
+                    libc::personality(previous);
+                }
+            }
+        }
+
         if args.no_debug.unwrap_or(false) {
             // No-debug launch: start debuggee directly and terminate debug session.
             launch_info.set_executable_file(&self.target.executable(), true);
@@ -1075,9 +1097,9 @@ impl DebugSession {
                     let mut msg: String = err.error_string().into();
                     if let Some(work_dir) = launch_info.working_directory() {
                         if self.target.platform().get_file_permissions(work_dir) == 0 {
-                            msg = format!(
-                                "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                            write!(
                                 msg,
+                                "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
                                 work_dir.display()
                             );
                         }

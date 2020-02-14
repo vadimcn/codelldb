@@ -10,12 +10,17 @@
 #include <complex>
 #include <thread>
 #include <exception>
+
 #if !defined(_WIN32)
-#include <unistd.h>
-#include <dlfcn.h>
+ #include <unistd.h>
+ #include <dlfcn.h>
+ #if defined(__APPLE__)
+  #include <crt_externs.h>
+  #define environ (*_NSGetEnviron())
+ #endif
 #else
-#include <windows.h>
-void sleep(unsigned secs) { Sleep(secs * 1000); }
+ #include <windows.h>
+ void sleep(unsigned secs) { Sleep(secs * 1000); }
 #endif
 
 #include "dir1/debuggee.h"

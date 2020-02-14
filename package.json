@@ -545,10 +545,6 @@
 								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
 								"type": "boolean",
 								"default": false
-							},
-							"custom": {
-								"deprecationMessage": "Deprecated, use \"request\":\"custom\" instead.",
-								"type": "boolean"
 							}
 						},
 						"oneOf": [
@@ -699,17 +695,13 @@
 								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
 								"type": "boolean",
 								"default": false
-							},
-							"preRunCommands": {
-								"deprecationMessage": "Deprecated, use \"processCreateCommands\" instead.",
-								"type": "array"
 							}
 						}
 					}
 				},
 				"configurationSnippets": [
 					{
-						"label": "LLDB: Launch a New Process",
+						"label": "LLDB: Launch",
 						"body": {
 							"type": "lldb",
 							"request": "launch",

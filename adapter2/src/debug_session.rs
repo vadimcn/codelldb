@@ -958,7 +958,7 @@ impl DebugSession {
                 Some(FormatSpec::Format(format)) => format,
             };
             let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame)).map_err(|err| err.to_string())?;
-            let str_val = self.get_var_value_str(&sbval, format, sbval.num_children() > 0);
+            let str_val = self.get_var_summary(&sbval, format, sbval.num_children() > 0);
             Ok(str_val)
         })
     }
@@ -1676,7 +1676,7 @@ impl DebugSession {
     ) -> Variable {
         let name = var.name().unwrap_or_default();
         let dtype = var.type_name();
-        let value = self.get_var_value_str(&var, self.global_format, container_handle.is_some());
+        let value = self.get_var_summary(&var, self.global_format, container_handle.is_some());
         let handle = self.get_var_handle(container_handle, name, &var);
 
         let eval_name = if var.prefer_synthetic_value() {
@@ -1709,7 +1709,7 @@ impl DebugSession {
     }
 
     // Get displayable string from an SBValue
-    fn get_var_value_str(&self, var: &SBValue, format: Format, is_container: bool) -> String {
+    fn get_var_summary(&self, var: &SBValue, format: Format, is_container: bool) -> String {
         let err = var.error();
         if err.is_failure() {
             return format!("<{}>", err);
@@ -1719,24 +1719,31 @@ impl DebugSession {
         var.set_format(format);
 
         if self.deref_pointers && format == Format::Default {
-            let ptr_type = var.type_();
-            let type_class = ptr_type.type_class();
-            if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
+            // Rather than showing pointer's numeric value, which is rather uninteresting,
+            // we prefer to display summary of the object it points to.
+            let var_type = var.type_();
+            if var_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
+                let pointee_type = var_type.pointee_type();
                 // If the pointer has an associated synthetic, or if it's a pointer to a basic
                 // type such as `char`, use summary of the pointer itself;
                 // otherwise prefer to dereference and use summary of the pointee.
-                let pointee_basic_type = ptr_type.pointee_type().basic_type();
-                if var.is_synthetic() || pointee_basic_type != BasicType::Invalid {
+                if var.is_synthetic() || pointee_type.basic_type() != BasicType::Invalid {
                     if let Some(value_str) = var.summary().map(|s| into_string_lossy(s)) {
                         return value_str;
                     }
                 }
 
-                // try dereferencing
                 let pointee = var.dereference();
-                let pointee_type_size = pointee.type_().byte_size() as usize;
-                // If pointee is valid, and data can be read,
+                // If pointee is a pointer too, display its value in curly braces, otherwise it gets rather confusing.
+                if pointee_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
+                    if let Some(value_str) = pointee.value().map(|s| into_string_lossy(s)) {
+                        return format!("{{{}}}", value_str);
+                    }
+                }
+
+                let pointee_type_size = pointee_type.byte_size() as usize;
                 if pointee.is_valid() && pointee_type_size == pointee.data().byte_size() {
+                    // If pointee is valid and its data can be read, we'll display pointee summary instead of var's.
                     var = Cow::Owned(pointee);
                 } else {
                     if var.value_as_unsigned(0) == 0 {
@@ -1748,23 +1755,24 @@ impl DebugSession {
             }
         }
 
-        // Try value,
+        // Try value.
         if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
             return value_str;
         }
-        // ...then try summary
+        // Then try the summary.
         if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
             return summary_str;
         }
-
         if is_container {
-            self.get_container_summary(var.as_ref())
+            // Try to synthesize summary from its children.
+            Self::get_container_summary(var.as_ref())
         } else {
+            // Otherwise give up.
             "<not available>".to_owned()
         }
     }
 
-    fn get_container_summary(&self, var: &SBValue) -> String {
+    fn get_container_summary(var: &SBValue) -> String {
         const MAX_LENGTH: usize = 32;
 
         let mut summary = String::from("{");
@@ -1900,7 +1908,7 @@ impl DebugSession {
 
                 let handle = self.get_var_handle(None, expression, &var);
                 Ok(EvaluateResponseBody {
-                    result: self.get_var_value_str(&var, format, handle.is_some()),
+                    result: self.get_var_summary(&var, format, handle.is_some()),
                     type_: var.type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
                     ..Default::default()
@@ -1979,7 +1987,7 @@ impl DebugSession {
                 Ok(()) => {
                     let handle = self.get_var_handle(Some(container_handle), child.name().unwrap_or_default(), &child);
                     let response = SetVariableResponseBody {
-                        value: self.get_var_value_str(&child, self.global_format, handle.is_some()),
+                        value: self.get_var_summary(&child, self.global_format, handle.is_some()),
                         type_: child.type_name().map(|s| s.to_owned()),
                         variables_reference: Some(handles::to_i64(handle)),
                         named_variables: None,

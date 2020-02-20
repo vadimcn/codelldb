@@ -163,7 +163,9 @@ void vars()
         Struct s1 = {i + 1, 'a', 3.0f, {i, i, i, i}};
         Struct s2 = {i + 10, 'b', 999.0f, {i * 10, i * 10, i * 10, i * 10}};
         Struct* s_ptr = &s1;
+        Struct** s_ptr_ptr = &s_ptr;
         Struct* null_s_ptr = nullptr;
+        Struct** null_s_ptr_ptr = &null_s_ptr;
         Struct* invalid_s_ptr = (Struct *)1;
         void* void_ptr = &s1;
         AnonUnion anon_union = { 4 };

@@ -86,7 +86,7 @@ function generateSuite(triple: string) {
             test('stop on entry', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let stopAsync = ds.waitForEvent('stopped');
-                await ds.launch({ name: "stop on entry", program: debuggee, args: ['inf_loop'], stopOnEntry: true });
+                await ds.launch({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
                 log('Waiting for stop');
                 await stopAsync;
                 log('Terminating');
@@ -261,7 +261,15 @@ function generateSuite(triple: string) {
                     array_int: {
                         '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
                     },
-                    s1: { a: 1, b: "'a'", c: 3 },
+
+                    s1: {
+                        $: "{a:1, b:'a', c:3}",
+                        a: 1, b: "'a'", c: 3
+                    },
+                    s_ptr: { a: 1, b: "'a'", c: 3 },
+                    s_ptr_ptr: v => v.value.startsWith('{0x'),
+
+                    s2: { a: 10, b: "'b'", c: 999 },
                     cstr: '"The quick brown fox"',
                     wcstr: 'L"The quick brown fox"',
                     str1: '"The quick brown fox"',
@@ -277,6 +285,7 @@ function generateSuite(triple: string) {
                     },
 
                     null_s_ptr: '<null>',
+                    null_s_ptr_ptr: v => v.value.startsWith('{0x'),
                     invalid_s_ptr: '<invalid address>',
                     void_ptr: v => v.value.startsWith('0x'),
                 });

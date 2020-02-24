@@ -1,5 +1,5 @@
 # Features
-- Debugging on Linux (x64 or Aarch64), macOS and Windows,
+- Debugging on Linux (x64 or ARM), macOS and Windows<sup>*</sup>,
 - Conditional breakpoints, function breakpoints, data breakpoints, logpoints,
 - Launch debuggee in integrated or external terminal,
 - Disassembly view with instruction-level stepping,
@@ -11,14 +11,16 @@
 - Remote debugging,
 - Reverse debugging (experimental, requires compatible backend).
 
+<sup>\*</sup> DWARF debug info format recommended, limited support for MS PDB.
+
 For full details please see the [Users Manual](MANUAL.md).
 
 # Requirements
 - 64-bit OS
     - Linux: glibc 2.18 (available by default in Debian 8, Ubuntu 14.04, Centos 8)
     - Mac: OS X 10.10 Yosemite
-    - Windows: 8.0
-- 64-bit Python 3.3 or later (optional, except on Windows).
+    - Windows: 10.0
+- 64-bit Python 3.5 or later (optional, except on Windows).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:

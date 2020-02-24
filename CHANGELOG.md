@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.5.0
+
+## Fixed
+- Bug #252: Cannot Attach: Could not send event to DebugSession: "Full(..)"
+- Bug #253: Rust conditional breakpoints: `usize` is a string?
+- Debugging inside docker containers should work now.
+
+## Changed
+- Removed "classic" adapter.
+- Improved platform package validation after download.
+
 # 1.4.5
 
 ## Fixed

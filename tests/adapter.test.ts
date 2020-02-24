@@ -60,6 +60,18 @@ function generateSuite(triple: string) {
 
         suite('Basic', () => {
 
+            test('check python', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                await ds.launch({ name: 'check python', custom: true });
+                let result = await ds.evaluateRequest({
+                    expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
+                    context: 'repl'
+                });
+                assert.ok(result.body.result.startsWith('lldb version'));
+                assert.ok(result.body.result.indexOf('rust-enabled') >= 0);
+                await ds.terminate();
+            });
+
             test('run program to the end', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let terminatedAsync = ds.waitForEvent('terminated');
@@ -525,7 +537,7 @@ function generateSuite(triple: string) {
         })
 
         suite('Rust tests', () => {
-            test('variables', async function () {
+            test('rust_variables', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLine = findMarker(rustDebuggeeSource, '#BP1');
                 let setBreakpointAsync = ds.setBreakpoint(rustDebuggeeSource, bpLine);

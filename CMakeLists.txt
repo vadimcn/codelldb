@@ -9,6 +9,13 @@ include(cmake/CopyFiles.cmake)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
 
+set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
+if (LLDB_ROOT)
+    message("Using LLDB from ${LLDB_ROOT}")
+else()
+    message(FATAL_ERROR "LLDB_ROOT not set." )
+endif()
+
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(DylibPrefix lib)
@@ -41,13 +48,6 @@ endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
 set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
-
-set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
-if (LLDB_ROOT)
-    message("Using LLDB from ${LLDB_ROOT}")
-else()
-    message(FATAL_ERROR "LLDB_ROOT not set." )
-endif()
 
 add_subdirectory(adapter2)
 add_subdirectory(lldb)
@@ -170,7 +170,7 @@ set(VsceOptions
 add_custom_target(vsix_portable
     DEPENDS extension ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -178,7 +178,7 @@ add_custom_target(vsix_portable
 add_custom_target(vsix_full
     DEPENDS extension lldb codelldb ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -205,7 +205,7 @@ endif()
 add_custom_target(vsix_extracted
     DEPENDS vsix_portable vsix_full
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
-    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
+    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
 )
 
@@ -243,7 +243,7 @@ endif()
 set(MochaTest ${NPM} run mocha --
     -u tdd --timeout 30000 --exit
     --require source-map-support/register
-    #-g "stop on a breakpoint 3"
+    #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js
 )
 
@@ -275,7 +275,7 @@ add_custom_target(check
 
 # Install
 
-install(CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/vscode-lldb\")")
+install(CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/codelldb\")")
 install(
     DIRECTORY ${ExtensionRoot}
     DESTINATION .

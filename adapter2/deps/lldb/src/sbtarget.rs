@@ -45,6 +45,11 @@ impl SBTarget {
             return self->GetExecutable();
         })
     }
+    pub fn add_module(&self, modulespec: &SBModuleSpec) -> SBModule {
+        cpp!(unsafe [self as "SBTarget*", modulespec as "const SBModuleSpec*"] -> SBModule as "SBModule"  {
+            return self->AddModule(*modulespec);
+        })
+    }
     pub fn launch(&self, launch_info: &SBLaunchInfo) -> Result<SBProcess, SBError> {
         let mut error = SBError::new();
         let process = cpp!(unsafe [self as "SBTarget*", launch_info as "SBLaunchInfo*", mut error as "SBError"] -> SBProcess as "SBProcess" {

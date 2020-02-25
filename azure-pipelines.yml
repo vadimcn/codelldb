@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 1211
+  lldbBuildId: 1227
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: 'nightly-2020-01-15'
@@ -291,6 +291,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
             -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
+            -DPython3_ROOT_DIR=%USEPYTHONVERSION_PYTHONLOCATION%^
             ..
       type CMakeCache.txt
     displayName: 'Configure'

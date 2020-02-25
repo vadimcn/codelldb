@@ -23,6 +23,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-unknown-linux-gnu)
+    set(AllowedDependencies linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
+                            libm.so.6 libc.so.6 /lib64/ld-linux-x86-64.so.2)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
@@ -30,6 +32,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
+    set(AllowedDependencies Foundation CoreFoundation CoreServices Security
+                            libcompression.dylib libxml2.2.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
+                            libresolv.9.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib
+                            libcodelldb.dylib liblldb.dylib Python)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
@@ -37,10 +43,16 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
+    set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll ADVAPI32.dll VCRUNTIME140.dll MSVCP140.dll RPCRT4.dll
+                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll
+                            python3.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
+string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
+
+find_package(Python3 COMPONENTS Interpreter Development)
 
 if (NOT LLVM_TRIPLE)
 set(LLVM_TRIPLE ${DefaultTarget})
@@ -48,6 +60,9 @@ endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
 set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
+
+
+# Adapter
 
 add_subdirectory(adapter2)
 add_subdirectory(lldb)

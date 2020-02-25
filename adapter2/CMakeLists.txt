@@ -1,5 +1,3 @@
-find_package(Python3 COMPONENTS Interpreter Development)
-
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}m" CACHE STRING "" FORCE)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
@@ -73,15 +71,8 @@ add_custom_target(cargo_test
     USES_TERMINAL
 )
 
-# Check that binaries don't depend on liblldb and libpython.
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    add_test(NAME adapter:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME adapter:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
-    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
-                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml;libstdc\\+\\+")
-elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    add_test(NAME adapter:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME adapter:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
-    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
-                         PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;Python;liblldb;libxml")
-endif()
+# Create dependency check tests
+foreach (Binary codelldb${ExeSuffix} ${DylibPrefix}codelldb${DylibSuffix})
+    add_test(NAME dependencies:${Binary}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR}/${Binary} ${AllowedDependencies})
+endforeach()

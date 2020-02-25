@@ -33,6 +33,7 @@ file(GLOB List
 foreach(File ${List})
     if (NOT IS_SYMLINK ${LLDB_ROOT}/${File})
         add_copy_file(LLDBFiles ${LLDB_ROOT}/${File} ${CMAKE_CURRENT_BINARY_DIR}/${File})
+        set(CheckBinaries ${CheckBinaries} ${CMAKE_CURRENT_BINARY_DIR}/${File})
     endif()
 endforeach()
 
@@ -46,3 +47,9 @@ foreach(File ${PythonFiles})
 endforeach()
 
 add_custom_target(lldb ALL DEPENDS ${LLDBFiles})
+
+# Create dependency check tests
+foreach (Binary ${CheckBinaries})
+    add_test(NAME dependencies:${Binary}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${Binary} ${AllowedDependencies})
+endforeach()

@@ -133,7 +133,7 @@ jobs:
 
 - job: OSX
   pool:
-    vmImage: 'macOS 10.13'
+    vmImage: 'macOS 10.14'
 
   variables:
     cachePrefix: $(cacheDiscr) | x86_64-apple-darwin

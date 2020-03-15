@@ -83,9 +83,9 @@ def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
     try:
         expr = ctypes.string_at(expr_ptr, expr_len)
         context = into_swig_wrapper(context, SBExecutionContext)
-        res = evaluate_in_context(expr, is_simple_expr, context)
-        res = to_sbvalue(res, context.target)
-        result.contents.value = from_swig_wrapper(res, SBValue)
+        value = evaluate_in_context(expr, is_simple_expr, context)
+        value = to_sbvalue(value, context.target)
+        result.contents.value = from_swig_wrapper(value, SBValue)
         return SUCCESS
     except Exception as err:
         traceback.print_exc()
@@ -127,6 +127,8 @@ def from_swig_wrapper(swig_object, ty):
 sberror = lldb.SBError()
 
 def to_sbvalue(value, target):
+    value = Value.unwrap(value)
+
     if isinstance(value, lldb.SBValue):
         return value
     elif value is None:
@@ -212,5 +214,4 @@ def evaluate_in_context(script, simple_expr, execution_context):
         lldb.process = lldb.thread.GetProcess()
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
-    result = eval(script, eval_globals, eval_locals)
-    return Value.unwrap(result)
+    return eval(script, eval_globals, eval_locals)

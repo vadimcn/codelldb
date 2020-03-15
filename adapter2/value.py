@@ -7,7 +7,6 @@ class Value(object):
 
     def __init__(self, sbvalue):
         self.__sbvalue = sbvalue
-        #analyze(sbvalue)
 
     @classmethod
     def unwrap(cls, value):

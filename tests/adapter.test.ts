@@ -343,12 +343,12 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 log('Waiting a+b');
-                let response1 = await ds.evaluateRequest({ expression: "a+b", frameId: frameId, context: "watch" });
-                assert.equal(response1.body.result, "70");
+                let response1 = await ds.evaluateRequest({ expression: 'a+b', frameId: frameId, context: 'watch' });
+                assert.equal(response1.body.result, '70');
 
                 log('Waiting /py...');
-                let response2 = await ds.evaluateRequest({ expression: "/py sum([int(x) for x in $array_int])", frameId: frameId, context: "watch" });
-                assert.equal(response2.body.result, "55"); // sum(1..10)
+                let response2 = await ds.evaluateRequest({ expression: '/py sum([int(x) for x in $array_int])', frameId: frameId, context: 'watch' });
+                assert.equal(response2.body.result, '55'); // sum(1..10)
 
                 // let response3 = await ds.evaluateRequest({ expression: "/nat 2+2", frameId: frameId, context: "watch" });
                 // assert.ok(response3.body.result.endsWith("4")); // "(int) $0 = 70"
@@ -457,6 +457,33 @@ function generateSuite(triple: string) {
                 });
                 assert.equal(stackTrace2.body.stackFrames[0].source.sourceReference, sourceRef);
                 assert.equal(stackTrace2.body.stackFrames[0].line, 5);
+                await ds.terminate();
+            });
+
+            test('debugger api', async function () {
+                if (triple.endsWith('pc-windows-msvc')) this.skip();
+
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
+                let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
+
+                let response1 = await ds.evaluateRequest({
+                    expression: '/py type(debugger.evaluate("s1"))', frameId: frameId, context: 'watch'
+                });
+                assert.ok(response1.body.result.includes('value.Value'), `Actual: ${response1.body.result}`);
+
+                let response2 = await ds.evaluateRequest({
+                    expression: '/py type(debugger.evaluate("s1", unwrap=True))', frameId: frameId, context: 'watch'
+                });
+                assert.ok(response2.body.result.includes('lldb.SBValue'), `Actual: ${response2.body.result}`);
+
+                let response3 = await ds.evaluateRequest({
+                    expression: '/py type(debugger.wrap(debugger.evaluate("s1", unwrap=True)))', frameId: frameId, context: 'watch'
+                });
+                assert.ok(response3.body.result.includes('value.Value'), `Actual: ${response3.body.result}`);
+
                 await ds.terminate();
             });
 

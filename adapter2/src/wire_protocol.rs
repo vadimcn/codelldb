@@ -2,8 +2,8 @@ use bytes::BytesMut;
 use log::{debug, error, info};
 use std::fmt::Write;
 use std::str;
-use tokio::codec;
-use tokio::io;
+use std::io;
+use tokio_util::codec;
 
 use crate::debug_protocol::ProtocolMessage;
 use serde_json;
@@ -31,7 +31,7 @@ impl codec::Decoder for Codec {
     type Item = ProtocolMessage;
     type Error = io::Error;
 
-    fn decode(&mut self, buffer: &mut BytesMut) -> Result<Option<ProtocolMessage>, io::Error> {
+    fn decode(&mut self, buffer: &mut BytesMut) -> Result<Option<ProtocolMessage>, Self::Error> {
         loop {
             match self.state {
                 State::ReadingHeaders => match buffer.windows(2).position(|b| b == &[b'\r', b'\n']) {
@@ -74,11 +74,10 @@ impl codec::Decoder for Codec {
     }
 }
 
-impl codec::Encoder for Codec {
-    type Item = ProtocolMessage;
+impl codec::Encoder<ProtocolMessage> for Codec {
     type Error = io::Error;
 
-    fn encode(&mut self, message: ProtocolMessage, buffer: &mut BytesMut) -> Result<(), io::Error> {
+    fn encode(&mut self, message: ProtocolMessage, buffer: &mut BytesMut) -> Result<(), Self::Error> {
         let message_bytes = serde_json::to_vec(&message).unwrap();
         debug!("<-- {}", str::from_utf8(&message_bytes).unwrap());
 

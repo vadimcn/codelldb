@@ -777,7 +777,7 @@ class DebugTestSession extends DebugClient {
 
     async terminate() {
         log('Stopping adapter.');
-        super.stop();
+        await super.stop();
     }
 
     async launch(launchArgs: any): Promise<dp.LaunchResponse> {

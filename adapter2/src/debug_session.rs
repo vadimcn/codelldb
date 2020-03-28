@@ -6,10 +6,11 @@ use std::env;
 use std::ffi::CStr;
 use std::fmt::Write;
 use std::mem;
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::pin::Pin;
+use std::rc::{Rc, Weak};
 use std::str;
-use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use std::time;
 
@@ -18,13 +19,16 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use serde_derive::*;
 use serde_json;
+use tokio::sync::{mpsc, oneshot};
 
-use crate::cancellation::{CancellationSource, CancellationToken};
+use crate::dap_session::DAPSession;
+use crate::debug_event_listener;
 use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::error::{Error, UserError};
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::{is_same_path, normalize_path};
+use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::python;
@@ -39,8 +43,6 @@ use lldb::*;
 pub struct AdapterParameters {
     source_languages: Option<Vec<String>>,
 }
-
-type AsyncResponder = dyn FnOnce(&mut DebugSession) -> Result<ResponseBody, Error>;
 
 #[derive(Debug, Clone)]
 enum BreakpointKind {
@@ -77,25 +79,21 @@ struct BreakpointsState {
     breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
 }
 
-enum InputEvent {
-    ProtocolMessage(ProtocolMessage),
-    DebugEvent(SBEvent),
-    Invoke(Box<dyn FnOnce() + Send>),
-}
+type Invocation = &'static mut (dyn FnMut(&mut DebugSession) + Send + Sync);
 
 pub struct DebugSession {
-    send_message: RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>,
-    message_seq: Cell<u32>,
-    incoming_send: std::sync::mpsc::SyncSender<InputEvent>,
-    shutdown: CancellationSource,
+    self_ref: MustInitialize<Rc<RefCell<DebugSession>>>,
+    dap_session: RefCell<DAPSession>,
     event_listener: SBListener,
-    self_ref: MustInitialize<Weak<Mutex<DebugSession>>>,
+    invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
+    python: Option<Box<PythonInterface>>,
+
     debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
     process: MustInitialize<SBProcess>,
     process_was_launched: bool,
-    on_configuration_done: Option<(u32, Box<AsyncResponder>)>,
-    python: Option<Box<PythonInterface>>,
+    default_expr_type: Expressions,
+
     breakpoints: RefCell<BreakpointsState>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
@@ -106,7 +104,6 @@ pub struct DebugSession {
     debuggee_terminal: Option<Terminal>,
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
-    default_expr_type: Expressions,
 
     global_format: Format,
     show_disassembly: ShowDisassembly,
@@ -117,83 +114,54 @@ pub struct DebugSession {
     source_languages: Vec<String>,
 }
 
+// AsyncResponse is used to "smuggle" futures out of request handlers
+// in the few cases when we need to respond asynchronously.
+struct AsyncResponse(pub Box<dyn Future<Output = Result<ResponseBody, Error>> + 'static>);
+
+impl std::error::Error for AsyncResponse {}
+impl std::fmt::Debug for AsyncResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "AsyncResponse")
+    }
+}
+impl std::fmt::Display for AsyncResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "AsyncResponse")
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 unsafe impl Send for DebugSession {}
 
 impl DebugSession {
-    pub fn new(
-        settings: AdapterSettings,
-    ) -> impl Stream<Item = ProtocolMessage, Error = ()> + Sink<SinkItem = ProtocolMessage, SinkError = ()> {
-        let (incoming_send, incoming_recv) = std::sync::mpsc::sync_channel::<InputEvent>(1000);
-        let (outgoing_send, outgoing_recv) = futures::sync::mpsc::channel::<ProtocolMessage>(1100);
-
-        let shutdown = CancellationSource::new();
-        let shutdown_token = shutdown.cancellation_token();
-        let event_listener = SBListener::new_with_name("DebugSession");
-
-        {
-            let shutdown_token = shutdown_token.clone();
-            let event_listener = event_listener.clone();
-            let sender = incoming_send.clone();
-
-            thread::Builder::new().name("Event listener".into()).spawn(move || {
-                let mut event = SBEvent::new();
-                while !shutdown_token.is_cancelled() {
-                    if event_listener.wait_for_event(1, &mut event) {
-                        match sender.try_send(InputEvent::DebugEvent(event)) {
-                            Err(err) => error!("Could not send event to DebugSession: {:?}", err),
-                            Ok(_) => {}
-                        }
-                        event = SBEvent::new();
-                    }
-                }
-                debug!("### Shutting down event listener thread");
-            });
-        }
-
-        let send_message = RefCell::new(outgoing_send);
-
+    pub fn run(dap_session: DAPSession, settings: AdapterSettings) -> impl Future {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
-        struct PythonEventSink(RefCell<futures::sync::mpsc::Sender<ProtocolMessage>>);
-        impl python::EventSink for PythonEventSink {
-            fn display_html(&self, html: String, title: Option<String>, position: Option<i32>, reveal: bool) {
-                let event = ProtocolMessage::Event(Event {
-                    seq: 0,
-                    body: EventBody::displayHtml(DisplayHtmlEventBody {
-                        html,
-                        title,
-                        position,
-                        reveal,
-                    }),
-                });
-                self.0.borrow_mut().try_send(event);
-            }
-        }
-        let event_sink = Box::new(PythonEventSink(send_message.clone()));
-        let python = match python::PythonInterface::new(debugger.command_interpreter(), event_sink) {
-            Ok(python) => Some(python),
+        let (python, mut python_events) = match python::initialize(debugger.command_interpreter()) {
+            Ok((python, events)) => (Some(python), events.left_stream()),
             Err(err) => {
                 error!("Initialize Python interpreter: {}", err);
-                None
+                (None, stream::pending().right_stream())
             }
         };
 
+        let (invoke_client, mut invoke_server) = mpsc::channel(10);
+
         let mut debug_session = DebugSession {
-            send_message: send_message,
-            incoming_send: incoming_send.clone(),
-            message_seq: Cell::new(1),
-            shutdown: shutdown,
             self_ref: NotInitialized,
+            dap_session: RefCell::new(dap_session),
+            event_listener: SBListener::new_with_name("DebugSession"),
+            invoke_client: invoke_client,
+            python: python,
+
             debugger: debugger,
             target: NotInitialized,
             process: NotInitialized,
             process_was_launched: false,
-            event_listener: event_listener,
-            on_configuration_done: None,
-            python: python,
+            default_expr_type: Expressions::Simple,
+
             breakpoints: RefCell::new(BreakpointsState {
                 source: HashMap::new(),
                 assembly: HashMap::new(),
@@ -209,7 +177,6 @@ impl DebugSession {
             debuggee_terminal: None,
             selected_frame_changed: false,
             last_goto_request: None,
-            default_expr_type: Expressions::Simple,
 
             global_format: Format::Default,
             show_disassembly: ShowDisassembly::Auto,
@@ -219,167 +186,184 @@ impl DebugSession {
             suppress_missing_files: true,
             evaluation_timeout: time::Duration::from_secs(5),
         };
+
         debug_session.update_adapter_settings(&settings);
 
-        let debug_session = Arc::new(Mutex::new(debug_session));
-        let weak = Arc::downgrade(&debug_session);
-        debug_session.lock().unwrap().self_ref = MustInitialize::Initialized(weak);
+        let mut requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
+        let mut events_stream = debug_session.dap_session.borrow_mut().subscribe_events().unwrap();
+        let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
-        thread::Builder::new().name("DebugSession".into()).spawn(move || loop {
-            match incoming_recv.recv() {
-                Ok(event) => match event {
-                    InputEvent::ProtocolMessage(msg) => debug_session.lock().unwrap().handle_message(msg),
-                    InputEvent::DebugEvent(event) => debug_session.lock().unwrap().handle_debug_event(event),
-                    InputEvent::Invoke(func) => func(),
-                },
-                Err(_) => break,
-            }
-        });
-
-        AsyncDebugSession {
-            incoming_send,
-            outgoing_recv,
-            shutdown_token,
+        let mut rc_session = Rc::new(RefCell::new(debug_session));
+        async move {
+            rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
+            let local = tokio::task::LocalSet::new();
+            local
+                .run_until(async move {
+                    loop {
+                        tokio::select! {
+                            request = requests_stream.recv() => {
+                                match request {
+                                    Ok(request) => rc_session.borrow_mut().handle_request(request),
+                                    Err(_) => {
+                                        debug!("End of the requests stream");
+                                        break;
+                                    }
+                                }
+                            }
+                            Some(event) = debug_events_stream.next() => {
+                                rc_session.borrow_mut().handle_debug_event(event)
+                            }
+                            Some(event) = python_events.next() => {
+                                rc_session.borrow_mut().send_event(event);
+                            }
+                            Some((closure, caller)) = invoke_server.next() => {
+                                scoped_borrow_mut(&rc_session, |s| closure(s));
+                                caller.unpark();
+                            }
+                        }
+                    }
+                    rc_session.borrow_mut().self_ref = NotInitialized;
+                })
+                .await;
         }
     }
 
-    fn handle_message(&mut self, message: ProtocolMessage) {
-        match message {
-            ProtocolMessage::Request(request) => self.handle_request(request),
-            ProtocolMessage::Response(response) => self.handle_response(response),
-            ProtocolMessage::Event(event) => error!("No handler for event message: {:?}", event),
-        };
+    fn handle_request(&mut self, request: Request) {
+        let seq = request.seq;
+        let result = self.handle_command(request.command);
+        match result {
+            // Spawn async responses as tasks
+            Err(err) if err.is::<AsyncResponse>() => {
+                let self_ref = self.self_ref.clone();
+                tokio::task::spawn_local(async move {
+                    let fut = Box::into_pin(err.downcast::<AsyncResponse>().unwrap().0);
+                    let result = fut.await;
+                    self_ref.borrow().send_response(seq, result);
+                });
+            }
+            // Send synchronous results immediately
+            _ => {
+                self.send_response(seq, result);
+            }
+        }
     }
 
-    fn handle_response(&mut self, _response: Response) {}
-
-    fn handle_request(&mut self, request: Request) {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
-        let result = match request.command {
-            Command::Known(arguments) => match arguments {
-                RequestArguments::initialize(args) =>
-                    self.handle_initialize(args)
-                        .map(|r| ResponseBody::initialize(r)),
-                RequestArguments::setBreakpoints(args) =>
-                    self.handle_set_breakpoints(args)
-                        .map(|r| ResponseBody::setBreakpoints(r)),
-                RequestArguments::setFunctionBreakpoints(args) =>
-                    self.handle_set_function_breakpoints(args)
-                        .map(|r| ResponseBody::setFunctionBreakpoints(r)),
-                RequestArguments::setExceptionBreakpoints(args) =>
-                    self.handle_set_exception_breakpoints(args)
-                        .map(|r| ResponseBody::setExceptionBreakpoints),
-                RequestArguments::launch(args) => {
-                    match self.handle_launch(args) {
-                        Ok(responder) => {
-                            self.on_configuration_done = Some((request.seq, responder));
-                            return; // launch responds asynchronously
-                        }
-                        Err(err) => Err(err),
+    #[rustfmt::skip]
+    fn handle_command(&mut self, command: Command) -> Result<ResponseBody, Error> {
+        match command {
+            Command::Known(arguments) => {
+                match arguments {
+                    RequestArguments::initialize(args) =>
+                        self.handle_initialize(args)
+                            .map(|r| ResponseBody::initialize(r)),
+                    RequestArguments::setBreakpoints(args) =>
+                        self.handle_set_breakpoints(args)
+                            .map(|r| ResponseBody::setBreakpoints(r)),
+                    RequestArguments::setFunctionBreakpoints(args) =>
+                        self.handle_set_function_breakpoints(args)
+                            .map(|r| ResponseBody::setFunctionBreakpoints(r)),
+                    RequestArguments::setExceptionBreakpoints(args) =>
+                        self.handle_set_exception_breakpoints(args)
+                            .map(|r| ResponseBody::setExceptionBreakpoints),
+                    RequestArguments::launch(args) =>
+                        return self.handle_launch(args),
+                    RequestArguments::attach(args) =>
+                        return self.handle_attach(args),
+                    RequestArguments::configurationDone =>
+                        self.handle_configuration_done()
+                            .map(|r| ResponseBody::configurationDone),
+                    RequestArguments::threads =>
+                        self.handle_threads()
+                            .map(|r| ResponseBody::threads(r)),
+                    RequestArguments::stackTrace(args) =>
+                        self.handle_stack_trace(args)
+                            .map(|r| ResponseBody::stackTrace(r)),
+                    RequestArguments::scopes(args) =>
+                        self.handle_scopes(args)
+                            .map(|r| ResponseBody::scopes(r)),
+                    RequestArguments::variables(args) =>
+                        self.handle_variables(args)
+                            .map(|r| ResponseBody::variables(r)),
+                    RequestArguments::evaluate(args) =>
+                        self.handle_evaluate(args)
+                            .map(|r| ResponseBody::evaluate(r)),
+                    RequestArguments::setVariable(args) =>
+                        self.handle_set_variable(args)
+                            .map(|r| ResponseBody::setVariable(r)),
+                    RequestArguments::pause(args) =>
+                        self.handle_pause(args)
+                            .map(|_| ResponseBody::pause),
+                    RequestArguments::continue_(args) =>
+                        self.handle_continue(args)
+                            .map(|r| ResponseBody::continue_(r)),
+                    RequestArguments::next(args) =>
+                        self.handle_next(args)
+                            .map(|r| ResponseBody::next),
+                    RequestArguments::stepIn(args) =>
+                        self.handle_step_in(args)
+                            .map(|r| ResponseBody::stepIn),
+                    RequestArguments::stepOut(args) =>
+                        self.handle_step_out(args)
+                            .map(|r| ResponseBody::stepOut),
+                    RequestArguments::stepBack(args) =>
+                        self.handle_step_back(args)
+                            .map(|r| ResponseBody::stepBack),
+                    RequestArguments::reverseContinue(args) =>
+                        self.handle_reverse_continue(args)
+                            .map(|r| ResponseBody::reverseContinue),
+                    RequestArguments::source(args) =>
+                        self.handle_source(args)
+                            .map(|r| ResponseBody::source(r)),
+                    RequestArguments::completions(args) =>
+                        self.handle_completions(args)
+                            .map(|r| ResponseBody::completions(r)),
+                    RequestArguments::gotoTargets(args) =>
+                        self.handle_goto_targets(args)
+                            .map(|r| ResponseBody::gotoTargets(r)),
+                    RequestArguments::goto(args) =>
+                        self.handle_goto(args)
+                            .map(|r| ResponseBody::goto),
+                    RequestArguments::restartFrame(args) =>
+                        self.handle_restart_frame(args)
+                            .map(|r| ResponseBody::restartFrame),
+                    RequestArguments::dataBreakpointInfo(args) =>
+                        self.handle_data_breakpoint_info(args)
+                            .map(|r| ResponseBody::dataBreakpointInfo(r)),
+                    RequestArguments::setDataBreakpoints(args) =>
+                        self.handle_set_data_breakpoints(args)
+                            .map(|r| ResponseBody::setDataBreakpoints(r)),
+                    RequestArguments::disconnect(args) =>
+                        self.handle_disconnect(Some(args))
+                            .map(|_| ResponseBody::disconnect),
+                    RequestArguments::adapterSettings(args) =>
+                        self.handle_adapter_settings(args)
+                            .map(|_| ResponseBody::adapterSettings),
+                    _ => {
+                        Err("Not implemented.".into())
                     }
-                }
-                RequestArguments::attach(args) => {
-                    match self.handle_attach(args) {
-                        Ok(responder) => {
-                            self.on_configuration_done = Some((request.seq, responder));
-                            return; // attach responds asynchronously
-                        }
-                        Err(err) => Err(err),
-                    }
-                }
-                RequestArguments::configurationDone =>
-                    self.handle_configuration_done()
-                        .map(|r| ResponseBody::configurationDone),
-                RequestArguments::threads =>
-                    self.handle_threads()
-                        .map(|r| ResponseBody::threads(r)),
-                RequestArguments::stackTrace(args) =>
-                    self.handle_stack_trace(args)
-                        .map(|r| ResponseBody::stackTrace(r)),
-                RequestArguments::scopes(args) =>
-                    self.handle_scopes(args)
-                        .map(|r| ResponseBody::scopes(r)),
-                RequestArguments::variables(args) =>
-                    self.handle_variables(args)
-                        .map(|r| ResponseBody::variables(r)),
-                RequestArguments::evaluate(args) =>
-                    self.handle_evaluate(args)
-                        .map(|r| ResponseBody::evaluate(r)),
-                RequestArguments::setVariable(args) =>
-                    self.handle_set_variable(args)
-                        .map(|r| ResponseBody::setVariable(r)),
-                RequestArguments::pause(args) =>
-                    self.handle_pause(args)
-                        .map(|_| ResponseBody::pause),
-                RequestArguments::continue_(args) =>
-                    self.handle_continue(args)
-                        .map(|r| ResponseBody::continue_(r)),
-                RequestArguments::next(args) =>
-                    self.handle_next(args)
-                        .map(|r| ResponseBody::next),
-                RequestArguments::stepIn(args) =>
-                    self.handle_step_in(args)
-                        .map(|r| ResponseBody::stepIn),
-                RequestArguments::stepOut(args) =>
-                    self.handle_step_out(args)
-                        .map(|r| ResponseBody::stepOut),
-                RequestArguments::stepBack(args) =>
-                    self.handle_step_back(args)
-                        .map(|r| ResponseBody::stepBack),
-                RequestArguments::reverseContinue(args) =>
-                    self.handle_reverse_continue(args)
-                        .map(|r| ResponseBody::reverseContinue),
-                RequestArguments::source(args) =>
-                    self.handle_source(args)
-                        .map(|r| ResponseBody::source(r)),
-                RequestArguments::completions(args) =>
-                    self.handle_completions(args)
-                        .map(|r| ResponseBody::completions(r)),
-                RequestArguments::gotoTargets(args) =>
-                    self.handle_goto_targets(args)
-                        .map(|r| ResponseBody::gotoTargets(r)),
-                RequestArguments::goto(args) =>
-                    self.handle_goto(args)
-                        .map(|r| ResponseBody::goto),
-                RequestArguments::restartFrame(args) =>
-                    self.handle_restart_frame(args)
-                        .map(|r| ResponseBody::restartFrame),
-                RequestArguments::dataBreakpointInfo(args) =>
-                    self.handle_data_breakpoint_info(args)
-                        .map(|r| ResponseBody::dataBreakpointInfo(r)),
-                RequestArguments::setDataBreakpoints(args) =>
-                    self.handle_set_data_breakpoints(args)
-                        .map(|r| ResponseBody::setDataBreakpoints(r)),
-                RequestArguments::disconnect(args) =>
-                    self.handle_disconnect(Some(args))
-                        .map(|_| ResponseBody::disconnect),
-                RequestArguments::adapterSettings(args) =>
-                    self.handle_adapter_settings(args)
-                        .map(|_| ResponseBody::adapterSettings),
-                _ => {
-                    Err("Not implemented.".into())
                 }
             },
-            // A special case for DebugClient, which omits "disconnect" arguments.
-            Command::Unknown { ref command } if command == "disconnect" =>
-                self.handle_disconnect(None).map(|_| ResponseBody::disconnect),
             Command::Unknown { ref command } => {
-                info!("Received unknown command: {}", command);
-                Err("Not implemented.".into())
+                if command == "disconnect" { // disconnect arguments are optional, but Serde currenty doesn't support that.
+                    self.handle_disconnect(None)
+                        .map(|_| ResponseBody::disconnect)
+                } else {
+                    info!("Received unknown command: {}", command);
+                    Err("Not implemented.".into())
+                }
             }
-        };
-        self.send_response(request.seq, result);
+        }
     }
 
     fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) {
         let response = match result {
-            Ok(body) => ProtocolMessage::Response(Response {
+            Ok(body) => Response {
                 request_seq: request_seq,
                 success: true,
                 body: Some(body),
                 message: None,
                 show_user: None,
-            }),
+            },
             Err(err) => {
                 let message = if let Some(user_err) = err.downcast_ref::<UserError>() {
                     format!("{}", user_err)
@@ -387,34 +371,24 @@ impl DebugSession {
                     format!("Internal debugger error: {}", err)
                 };
                 error!("{}", message);
-                ProtocolMessage::Response(Response {
+                Response {
                     request_seq: request_seq,
                     success: false,
                     message: Some(message),
                     show_user: Some(true),
                     body: None,
-                })
+                }
             }
         };
-        self.send_message.borrow_mut().try_send(response).map_err(|err| error!("Could not send response: {}", err));
-    }
-
-    fn send_event(&self, event_body: EventBody) {
-        let event = ProtocolMessage::Event(Event {
-            seq: self.message_seq.get(),
-            body: event_body,
-        });
-        self.message_seq.set(self.message_seq.get() + 1);
-        self.send_message.borrow_mut().try_send(event).map_err(|err| error!("Could not send event: {}", err));
+        drop(self.dap_session.borrow_mut().send_response(response));
     }
 
     fn send_request(&self, args: RequestArguments) {
-        let request = ProtocolMessage::Request(Request {
-            seq: self.message_seq.get(),
-            command: Command::Known(args),
-        });
-        self.message_seq.set(self.message_seq.get() + 1);
-        self.send_message.borrow_mut().try_send(request).map_err(|err| error!("Could not send request: {}", err));
+        self.dap_session.borrow_mut().send_request_only(args).unwrap();
+    }
+
+    fn send_event(&self, event_body: EventBody) {
+        self.dap_session.borrow_mut().send_event(event_body).unwrap();
     }
 
     fn console_message(&self, output: impl Into<String>) {
@@ -625,11 +599,11 @@ impl DebugSession {
                         let file_path = le.file_spec().path();
                         Breakpoint {
                             id: Some(bp_info.id as i64),
-                            source: Some(Source {
-                                name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
-                                path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
-                                ..Default::default()
-                            }),
+                            // source: Some(Source {
+                            //     name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
+                            //     path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
+                            //     ..Default::default()
+                            // }),
                             line: Some(le.line() as i64),
                             verified: bp_info.breakpoint.num_locations() > 0,
                             message,
@@ -837,15 +811,20 @@ impl DebugSession {
 
         let hit_condition = bp_info.hit_condition.clone();
 
-        let self_ref = self.self_ref.clone();
+        let mut invoke_client = self.invoke_client.clone();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-            if let Some(self_ref) = self_ref.upgrade() {
-                let mut session = self_ref.lock().unwrap();
-                session.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition)
-            } else {
-                false // Can't upgrade weak ref to strong - the session must already be gone.  Don't stop.
-            }
+            let mut result = true;
+            let mut closure = |session: &mut DebugSession| {
+                result = session.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition);
+            };
+            // Safe to cast away lifetimes, because the current thread will be parked until invocation is complete.
+            let closure: Invocation = unsafe { mem::transmute(&mut closure as &mut (dyn FnMut(&mut DebugSession))) };
+            match invoke_client.try_send((closure, std::thread::current())) {
+                Ok(_) => std::thread::park(),
+                Err(err) => error!("Could not invoke on_breakpoint_hit()"),
+            };
+            result
         });
     }
 
@@ -963,22 +942,7 @@ impl DebugSession {
         })
     }
 
-    // Invoke f() on session's main thread
-    fn invoke_on_main_thread<F, R>(self_ref: &Arc<Mutex<Self>>, f: F) -> R
-    where
-        F: FnOnce() -> R + Send,
-        R: Send + 'static,
-    {
-        let (sender, receiver) = std::sync::mpsc::channel::<R>();
-        let cb: Box<dyn FnOnce() + Send> = Box::new(move || sender.send(f()).unwrap());
-        // Casting away cb's lifetime.
-        // This is safe, because we are blocking current thread until f() returns.
-        let cb: Box<dyn FnOnce() + Send + 'static> = unsafe { std::mem::transmute(cb) };
-        self_ref.lock().unwrap().incoming_send.send(InputEvent::Invoke(cb)).unwrap();
-        receiver.recv().unwrap()
-    }
-
-    fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
+    fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
         if let Some(true) = &args.custom {
@@ -988,10 +952,33 @@ impl DebugSession {
                 Some(program) => program,
                 None => bail!(UserError("\"program\" property is required for launch".into())),
             };
+
             self.target = Initialized(self.create_target_from_program(program)?);
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
-            Ok(Box::new(move |s: &mut DebugSession| s.complete_launch(args)))
+
+            let self_ref = self.self_ref.clone();
+            let fut = async move {
+                scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
+                self_ref.borrow_mut().complete_launch(args)
+            };
+            Err(AsyncResponse(Box::new(fut)).into())
+        }
+    }
+
+    fn wait_for_configuration_done(&self) -> impl Future<Output = Result<(), Error>> {
+        let result = self.dap_session.borrow().subscribe_requests();
+        async move {
+            let mut receiver = result?;
+            while let Some(Ok(request)) = receiver.next().await {
+                match request.command {
+                    Command::Known(RequestArguments::configurationDone) => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+            bail!("Did not receive configurationDone");
         }
     }
 
@@ -1026,7 +1013,7 @@ impl DebugSession {
         if let Some(true) = args.common.stop_on_entry {
             launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
         }
-        self.configure_stdio(&args, &mut launch_info);
+        self.configure_stdio(&args, &mut launch_info)?;
         self.target.set_launch_info(&launch_info);
 
         // Run user commands (which may modify launch info)
@@ -1123,14 +1110,20 @@ impl DebugSession {
         }
     }
 
-    fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<Box<AsyncResponder>, Error> {
+    fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
         }
         self.target = Initialized(self.debugger.selected_target());
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
-        Ok(Box::new(move |s: &mut DebugSession| s.complete_custom_launch(args)))
+
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
+            self_ref.borrow_mut().complete_custom_launch(args)
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
     }
 
     fn complete_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
@@ -1150,7 +1143,7 @@ impl DebugSession {
         Ok(ResponseBody::launch)
     }
 
-    fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<Box<AsyncResponder>, Error> {
+    fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
         if args.program.is_none() && args.pid.is_none() {
@@ -1160,7 +1153,13 @@ impl DebugSession {
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
-        Ok(Box::new(move |s: &mut DebugSession| s.complete_attach(args)))
+
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
+            self_ref.borrow_mut().complete_attach(args)
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
     }
 
     fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
@@ -1389,16 +1388,12 @@ impl DebugSession {
             &self.event_listener,
             SBTargetEvent::BroadcastBitBreakpointChanged | SBTargetEvent::BroadcastBitModulesLoaded,
         );
-        if let Some((request_seq, responder)) = self.on_configuration_done.take() {
-            let result = responder.call_once((self,));
-            self.send_response(request_seq, result);
-        }
         Ok(())
     }
 
     fn handle_threads(&mut self) -> Result<ThreadsResponseBody, Error> {
         if !self.process.is_initialized() {
-            // VSCode may send a `threads` request after a failed launch.
+            // VSCode may send `threads` request after a failed launch.
             return Ok(ThreadsResponseBody {
                 threads: vec![],
             });
@@ -2350,7 +2345,6 @@ impl DebugSession {
                 process.detach();
             }
         }
-        self.shutdown.request_cancellation();
         Ok(())
     }
 
@@ -2691,7 +2685,7 @@ impl DebugSession {
 
 impl Drop for DebugSession {
     fn drop(&mut self) {
-        debug!("### DebugSession::drop()");
+        debug!("DebugSession::drop()");
     }
 }
 
@@ -2717,6 +2711,14 @@ fn into_string_lossy(cstr: &CStr) -> String {
     cstr.to_string_lossy().into_owned()
 }
 
+fn scoped_borrow_mut<T, F, R>(ref_cell: &RefCell<T>, f: F) -> R
+where
+    F: FnOnce(&mut T) -> R,
+{
+    let mut b = ref_cell.borrow_mut();
+    f(b.deref_mut())
+}
+
 #[cfg(windows)]
 fn put_env(key: &CStr, value: &CStr) {
     use std::os::raw::{c_char, c_int};
@@ -2725,60 +2727,5 @@ fn put_env(key: &CStr, value: &CStr) {
     }
     unsafe {
         _putenv_s(key.as_ptr(), value.as_ptr());
-    }
-}
-
-// Async adapter
-
-struct AsyncDebugSession {
-    incoming_send: std::sync::mpsc::SyncSender<InputEvent>,
-    outgoing_recv: futures::sync::mpsc::Receiver<ProtocolMessage>,
-    shutdown_token: CancellationToken,
-}
-
-impl Stream for AsyncDebugSession {
-    type Item = ProtocolMessage;
-    type Error = ();
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.outgoing_recv.poll() {
-            Ok(Async::NotReady) if self.shutdown_token.is_cancelled() => {
-                error!("Stream::poll after shutdown");
-                Ok(Async::Ready(None))
-            }
-            Ok(r) => Ok(r),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-impl Sink for AsyncDebugSession {
-    type SinkItem = ProtocolMessage;
-    type SinkError = ();
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        if self.shutdown_token.is_cancelled() {
-            Err(())
-        } else {
-            match self.incoming_send.try_send(InputEvent::ProtocolMessage(item)) {
-                Ok(()) => Ok(AsyncSink::Ready),
-                Err(err) => match err {
-                    std::sync::mpsc::TrySendError::Full(input) | //.
-                    std::sync::mpsc::TrySendError::Disconnected(input) => {
-                        match input {
-                            InputEvent::ProtocolMessage(msg) => Ok(AsyncSink::NotReady(msg)),
-                            _ => unreachable!()
-                        }
-                    }
-                },
-            }
-        }
-    }
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
-    }
-}
-
-impl Drop for AsyncDebugSession {
-    fn drop(&mut self) {
-        debug!("### AsyncDebugSession::drop()");
     }
 }

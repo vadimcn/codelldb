@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as querystring from 'querystring';
 import JSON5 from 'json5';
 import stringArgv from 'string-argv';
-import * as diagnostics from './diagnostics';
+import * as async from './novsc/async';
 import * as htmlView from './htmlView';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
@@ -513,7 +513,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             succeeded = await this.checkPython(folder);
             if (succeeded) {
                 let [_, port] = await this.startDebugAdapter(folder, {});
-                await diagnostics.testAdapter(port);
+                let socket = await async.net.createConnection({ port: port, timeout: 1000 });
+                socket.destroy()
             }
         } catch (err) {
             succeeded = false;

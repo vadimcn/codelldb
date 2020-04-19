@@ -19,6 +19,7 @@ use futures::prelude::*;
 use log::{debug, error, info};
 use serde_derive::*;
 use serde_json;
+use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::dap_session::DAPSession;
@@ -31,6 +32,7 @@ use crate::fsutil::{is_same_path, normalize_path};
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use crate::pipe::{self, pipe};
 use crate::python;
 use crate::terminal::Terminal;
 
@@ -88,6 +90,9 @@ pub struct DebugSession {
     invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
     python: Option<Box<PythonInterface>>,
 
+    console_pipe: std::fs::File,
+    null_pipe: std::fs::File,
+
     debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
     process: MustInitialize<SBProcess>,
@@ -139,13 +144,19 @@ impl DebugSession {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
-        let (python, mut python_events) = match python::initialize(debugger.command_interpreter()) {
-            Ok((python, events)) => (Some(python), events.left_stream()),
-            Err(err) => {
-                error!("Initialize Python interpreter: {}", err);
-                (None, stream::pending().right_stream())
-            }
-        };
+        let (con_reader, con_writer) = pipe().unwrap();
+        debugger.set_output_stream(con_writer.try_clone().unwrap());
+
+        let (python, mut python_events) =
+            match python::initialize(debugger.command_interpreter(), con_writer.try_clone().unwrap()) {
+                Ok((python, events)) => (Some(python), events.left_stream()),
+                Err(err) => {
+                    error!("Initialize Python interpreter: {}", err);
+                    (None, stream::pending().right_stream())
+                }
+            };
+
+        let mut con_reader = tokio::fs::File::from_std(con_reader);
 
         let (invoke_client, mut invoke_server) = mpsc::channel(10);
 
@@ -155,6 +166,9 @@ impl DebugSession {
             event_listener: SBListener::new_with_name("DebugSession"),
             invoke_client: invoke_client,
             python: python,
+
+            console_pipe: con_writer,
+            null_pipe: pipe::sink().unwrap(),
 
             debugger: debugger,
             target: NotInitialized,
@@ -197,6 +211,7 @@ impl DebugSession {
         async move {
             rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
             let local = tokio::task::LocalSet::new();
+            let mut con_data = [0u8; 1024];
             local
                 .run_until(async move {
                     loop {
@@ -215,6 +230,10 @@ impl DebugSession {
                             }
                             Some(event) = python_events.next() => {
                                 rc_session.borrow_mut().send_event(event);
+                            }
+                            Ok(bytes) = con_reader.read(&mut con_data) => {
+                                let msg = String::from_utf8_lossy(&con_data[0..bytes]);
+                                scoped_borrow_mut(&rc_session, |s| s.console_message_nonl(msg));
                             }
                             Some((closure, caller)) = invoke_server.next() => {
                                 scoped_borrow_mut(&rc_session, |s| closure(s));
@@ -266,9 +285,9 @@ impl DebugSession {
                         self.handle_set_exception_breakpoints(args)
                             .map(|r| ResponseBody::setExceptionBreakpoints),
                     RequestArguments::launch(args) =>
-                        return self.handle_launch(args),
+                        self.handle_launch(args),
                     RequestArguments::attach(args) =>
-                        return self.handle_attach(args),
+                        self.handle_attach(args),
                     RequestArguments::configurationDone =>
                         self.handle_configuration_done()
                             .map(|r| ResponseBody::configurationDone),
@@ -285,8 +304,7 @@ impl DebugSession {
                         self.handle_variables(args)
                             .map(|r| ResponseBody::variables(r)),
                     RequestArguments::evaluate(args) =>
-                        self.handle_evaluate(args)
-                            .map(|r| ResponseBody::evaluate(r)),
+                        self.handle_evaluate(args),
                     RequestArguments::setVariable(args) =>
                         self.handle_set_variable(args)
                             .map(|r| ResponseBody::setVariable(r)),
@@ -391,16 +409,20 @@ impl DebugSession {
         self.dap_session.borrow_mut().send_event(event_body)
     }
 
-    fn console_message(&self, output: impl Into<String>) {
+    fn console_message(&self, output: impl std::fmt::Display) {
+        self.console_message_nonl(format!("{}\n", output));
+    }
+
+    fn console_message_nonl(&self, output: impl std::fmt::Display) {
         self.send_event(EventBody::output(OutputEventBody {
-            output: format!("{}\n", output.into()),
+            output: format!("{}", output),
             ..Default::default()
         }));
     }
 
-    fn console_error(&self, output: impl Into<String>) {
+    fn console_error(&self, output: impl std::fmt::Display) {
         self.send_event(EventBody::output(OutputEventBody {
-            output: format!("{}\n", output.into()),
+            output: format!("{}\n", output),
             category: Some("stderr".into()),
             ..Default::default()
         }));
@@ -1802,28 +1824,32 @@ impl DebugSession {
         summary
     }
 
-    fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<EvaluateResponseBody, Error> {
-        let frame = if let Some(frame_id) = args.frame_id {
-            let handle = handles::from_i64(frame_id)?;
-            let frame = match self.var_refs.get(handle) {
-                Some(Container::StackFrame(ref f)) => f.clone(),
-                _ => return Err("Invalid frameId".into()),
-            };
-            // If they used `frame select` command in after the last stop, use currently selected frame
-            // from frame's thread, instead of the frame itself.
-            if self.selected_frame_changed {
-                let thread = frame.thread();
-                Some(thread.selected_frame())
-            } else {
-                Some(frame)
+    fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<ResponseBody, Error> {
+        let frame = match args.frame_id {
+            Some(frame_id) => {
+                let handle = handles::from_i64(frame_id)?;
+                match self.var_refs.get(handle) {
+                    Some(Container::StackFrame(ref frame)) => {
+                        // If they had used `frame select` command after the last stop,
+                        // use currently selected frame from frame's thread, instead of the frame itself.
+                        if self.selected_frame_changed {
+                            Some(frame.thread().selected_frame())
+                        } else {
+                            Some(frame.clone())
+                        }
+                    }
+                    _ => {
+                        error!("Invalid frameId");
+                        None
+                    }
+                }
             }
-        } else {
-            None
+            None => None,
         };
 
         let context = args.context.as_ref().map(|s| s.as_ref());
-        if let Some("repl") = context {
-            match self.console_mode {
+        let result = match context {
+            Some("repl") => match self.console_mode {
                 ConsoleMode::Commands => {
                     if args.expression.starts_with("?") {
                         self.handle_evaluate_expression(&args.expression[1..], frame)
@@ -1840,29 +1866,35 @@ impl DebugSession {
                         self.handle_evaluate_expression(&args.expression, frame)
                     }
                 }
-            }
-        } else {
-            self.handle_evaluate_expression(&args.expression, frame)
-        }
+            },
+            _ => self.handle_evaluate_expression(&args.expression, frame),
+        };
+
+        // Return async, even though we already have the response,
+        // so that evaluator's stdout messages get displayed first.
+        let result = result.map(|r| ResponseBody::evaluate(r));
+        Err(AsyncResponse(Box::new(future::ready(result))).into())
     }
 
     fn handle_execute_command(&mut self, command: &str, frame: Option<SBFrame>) -> Result<EvaluateResponseBody, Error> {
         let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
         let interp = self.debugger.command_interpreter();
+        self.debugger.set_output_stream(self.null_pipe.try_clone()?);
         let ok = interp.handle_command_with_context(command, &context, &mut result, false);
+        self.debugger.set_output_stream(self.console_pipe.try_clone()?);
         debug!("{} -> {:?}, {:?}", command, ok, result);
         // TODO: multiline
-        let text = if result.succeeded() {
-            result.output()
+        if result.succeeded() {
+            let output = into_string_lossy(result.output()).trim_end().into();
+            Ok(EvaluateResponseBody {
+                result: output,
+                ..Default::default()
+            })
         } else {
-            result.error()
-        };
-        let response = EvaluateResponseBody {
-            result: into_string_lossy(text),
-            ..Default::default()
-        };
-        return Ok(response);
+            let message = into_string_lossy(result.error()).trim_end().into();
+            Err(UserError(message).into())
+        }
     }
 
     fn handle_evaluate_expression(

@@ -1,4 +1,6 @@
 from __future__ import print_function
+import sys
+import os
 import lldb
 import logging
 import debugger
@@ -48,35 +50,50 @@ class BoolResult(ctypes.Union):
 SUCCESS = 1
 ERROR = -1
 
+postinit_cfn = None
 shutdown_cfn = None
 evaluate_cfn = None
 evaluate_as_bool_cfn = None
 modules_loaded_cfn = None
 display_html = None
+save_stdout = None
 
 def initialize(log_level, init_callback_addr, display_html_addr, callback_context):
     logging.getLogger().setLevel(log_level)
 
-    global shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
+    global postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
+    postinit_cfn = CFUNCTYPE(c_int, c_size_t)(postinit)
     shutdown_cfn = CFUNCTYPE(c_int)(shutdown)
     evaluate_cfn = CFUNCTYPE(c_int, POINTER(ValueResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate)
     evaluate_as_bool_cfn = CFUNCTYPE(c_int, POINTER(BoolResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate_as_bool)
     modules_loaded_cfn = CFUNCTYPE(c_int, POINTER(SBModule), c_size_t)(modules_loaded)
 
-    init_callback_cfn = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(init_callback_addr)
-    init_callback_cfn(callback_context, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn)
+    init_callback_cfn = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(init_callback_addr)
+    init_callback_cfn(callback_context, postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn)
 
     display_html_cfn = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
     display_html = lambda html, title, position, reveal: display_html_cfn(
         callback_context, str_to_bytes(html), str_to_bytes(title), position if position != None else -1, reveal)
 
+def postinit(console_fd):
+    global save_stdout
+    # Can't set this from inside SBInterpreter::handle_command() context,
+    # because LLDB would restore sys.stdout to the original value.
+    if sys.platform.startswith('win32'):
+        import msvcrt
+        console_fd = msvcrt.open_osfhandle(console_fd, 0)
+    save_stdout = sys.stdout
+    sys.stdout = os.fdopen(console_fd, 'w', 1) # line-buffered
+    return SUCCESS
+
 def shutdown():
-    global shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
+    global postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
     display_html = None
     evaluate_cfn = None
     evaluate_as_bool_cfn = None
     modules_loaded_cfn = None
     shutdown_cfn = None
+    sys.stdout = save_stdout
     return SUCCESS
 
 def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
@@ -118,7 +135,7 @@ def into_swig_wrapper(cobject, ty, owned=True):
     return swig_object
 
 def from_swig_wrapper(swig_object, ty):
-    swig_object.this.disown() # We'll be moving the value out.
+    swig_object.this.disown() # We'll be moving this value out.
     addr = int(swig_object.this)
     cobject = ty()
     memmove(byref(cobject), addr, sizeof(ty))

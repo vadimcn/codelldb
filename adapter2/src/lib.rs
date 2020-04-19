@@ -11,6 +11,7 @@ use std::net;
 use std::pin::Pin;
 use tokio::io;
 use tokio::net::TcpListener;
+use tokio::time::Duration;
 use tokio_util::codec::Decoder;
 
 use crate::error::Error;
@@ -27,6 +28,7 @@ mod expressions;
 mod fsutil;
 mod handles;
 mod must_initialize;
+mod pipe;
 mod python;
 mod terminal;
 mod vec_map;
@@ -54,6 +56,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
         .build()
         .unwrap();
     rt.block_on(run_debug_server(addr, adapter_settings, multi_session));
+    rt.shutdown_timeout(Duration::from_millis(10));
 
     debug!("Exiting");
     #[cfg(not(windows))]

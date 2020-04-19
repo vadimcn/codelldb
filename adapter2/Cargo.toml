@@ -20,7 +20,7 @@ serde_json = "1.0.40"
 superslice = "1.0.0"
 
 futures = "0.3.0"
-tokio = { version = "0.2", features = ["rt-threaded", "rt-util", "stream", "macros", "io-util", "tcp", "sync", "blocking"] }
+tokio = { version = "0.2", features = ["rt-threaded", "rt-util", "stream", "macros", "io-util", "fs", "tcp", "time", "sync", "blocking"] }
 tokio-util = { version = "0.3.0", features = ["codec"] }
 
 lldb = { path = "deps/lldb" }
@@ -31,7 +31,7 @@ raw_debug_protocol = { package = "debug-protocol", path = "deps/debug-protocol" 
 termios = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.8", features = ["wincon"] }
+winapi = { version = "0.3.8", features = ["std", "wincon", "namedpipeapi"] }
 winreg = "0.6.2"
 
 [lib]

@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 
 use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
 use crate::error::Error;
+use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 
 #[repr(C)]
 union ValueResult {
@@ -28,7 +29,8 @@ union BoolResult {
 pub struct PythonInterface {
     initialized: bool,
     event_sender: mpsc::Sender<EventBody>,
-    evaluate_ptr: Option<
+    postinit_ptr: MustInitialize<extern "C" fn(console_fd: usize) -> i32>,
+    evaluate_ptr: MustInitialize<
         extern "C" fn(
             result: *mut ValueResult,
             expr: *const c_char,
@@ -37,7 +39,7 @@ pub struct PythonInterface {
             context: SBExecutionContext,
         ) -> i32,
     >,
-    evaluate_as_bool_ptr: Option<
+    evaluate_as_bool_ptr: MustInitialize<
         extern "C" fn(
             result: *mut BoolResult,
             expr: *const c_char,
@@ -46,12 +48,13 @@ pub struct PythonInterface {
             context: SBExecutionContext,
         ) -> i32,
     >,
-    modules_loaded_ptr: Option<extern "C" fn(modules: *const SBModule, modules_len: usize) -> i32>,
-    shutdown_ptr: Option<extern "C" fn() -> i32>,
+    modules_loaded_ptr: MustInitialize<extern "C" fn(modules: *const SBModule, modules_len: usize) -> i32>,
+    shutdown_ptr: MustInitialize<extern "C" fn() -> i32>,
 }
 
 pub fn initialize(
     interpreter: SBCommandInterpreter,
+    console_stream: std::fs::File,
 ) -> Result<(Box<PythonInterface>, mpsc::Receiver<EventBody>), Error> {
     let current_exe = env::current_exe()?;
     let mut command_result = SBCommandReturnObject::new();
@@ -68,23 +71,26 @@ pub fn initialize(
     let mut interface = Box::new(PythonInterface {
         initialized: false,
         event_sender: sender,
-        shutdown_ptr: None,
-        evaluate_ptr: None,
-        evaluate_as_bool_ptr: None,
-        modules_loaded_ptr: None,
+        postinit_ptr: NotInitialized,
+        shutdown_ptr: NotInitialized,
+        evaluate_ptr: NotInitialized,
+        evaluate_as_bool_ptr: NotInitialized,
+        modules_loaded_ptr: NotInitialized,
     });
 
     unsafe extern "C" fn init_callback(
         interface: *mut PythonInterface,
+        postinit_ptr: *const c_void,
         shutdown_ptr: *const c_void,
         evaluate_ptr: *const c_void,
         evaluate_as_bool_ptr: *const c_void,
         modules_loaded_ptr: *const c_void,
     ) {
-        (*interface).shutdown_ptr = Some(mem::transmute(shutdown_ptr));
-        (*interface).evaluate_ptr = Some(mem::transmute(evaluate_ptr));
-        (*interface).evaluate_as_bool_ptr = Some(mem::transmute(evaluate_as_bool_ptr));
-        (*interface).modules_loaded_ptr = Some(mem::transmute(modules_loaded_ptr));
+        (*interface).postinit_ptr = Initialized(mem::transmute(postinit_ptr));
+        (*interface).shutdown_ptr = Initialized(mem::transmute(shutdown_ptr));
+        (*interface).evaluate_ptr = Initialized(mem::transmute(evaluate_ptr));
+        (*interface).evaluate_as_bool_ptr = Initialized(mem::transmute(evaluate_as_bool_ptr));
+        (*interface).modules_loaded_ptr = Initialized(mem::transmute(modules_loaded_ptr));
         (*interface).initialized = true;
     }
 
@@ -129,13 +135,15 @@ pub fn initialize(
         bail!(format!("{:?}", command_result));
     }
 
-    // Make sure Python side has called us back.
+    // Make sure Python side had called us back.
     if !interface.initialized {
         bail!("Could not initialize Python environment.");
     }
 
+    (*interface.postinit_ptr)(get_raw_fd(console_stream));
+
     let rust_formatters = current_exe.with_file_name("rust.py");
-    let command = format!("command script import '{}'", rust_formatters.to_str().unwrap()); /*###*/
+    let command = format!("command script import '{}'", rust_formatters.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         error!("{:?}", command_result); // But carry on - Rust formatters are not critical to have.
@@ -152,8 +160,7 @@ impl PythonInterface {
             let mut result = ValueResult {
                 value: mem::MaybeUninit::uninit(),
             };
-            let status =
-                (self.evaluate_ptr.unwrap())(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
+            let status = (*self.evaluate_ptr)(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
             if status > 0 {
                 Ok(result.value.assume_init())
             } else if status < 0 {
@@ -164,7 +171,6 @@ impl PythonInterface {
         }
     }
 
-    #[allow(unused)]
     pub fn evaluate_as_bool(
         &self,
         expr: &str,
@@ -178,7 +184,7 @@ impl PythonInterface {
                 value: false,
             };
             let status =
-                (self.evaluate_as_bool_ptr.unwrap())(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
+                (*self.evaluate_as_bool_ptr)(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
             if status > 0 {
                 Ok(result.value)
             } else if status < 0 {
@@ -191,16 +197,28 @@ impl PythonInterface {
 
     pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
         let modules = modules.cloned().collect::<Vec<SBModule>>();
-        (self.modules_loaded_ptr.unwrap())(modules.as_ptr(), modules.len());
+        (*self.modules_loaded_ptr)(modules.as_ptr(), modules.len());
     }
 }
 
 impl Drop for PythonInterface {
     fn drop(&mut self) {
         if self.initialized {
-            (self.shutdown_ptr.unwrap())();
+            (*self.shutdown_ptr)();
         }
     }
+}
+
+#[cfg(unix)]
+fn get_raw_fd(stream: std::fs::File) -> usize {
+    use std::os::unix::prelude::*;
+    stream.into_raw_fd() as usize
+}
+
+#[cfg(windows)]
+fn get_raw_fd(stream: std::fs::File) -> usize {
+    use std::os::windows::prelude::*;
+    stream.into_raw_handle() as usize
 }
 
 #[test]

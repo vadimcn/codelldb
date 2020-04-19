@@ -16,6 +16,12 @@ use std::slice;
 use std::str;
 
 cpp! {{
+    #ifdef _WIN32
+        #define _CRT_NONSTDC_NO_DEPRECATE 1
+        #include <io.h>
+        #include <fcntl.h>
+    #endif
+    #include <stdio.h>
     #include <lldb/API/LLDB.h>
     using namespace lldb;
 }}

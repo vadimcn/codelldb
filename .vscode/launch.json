@@ -24,28 +24,41 @@
 			"request": "launch",
 			//"initCommands": ["set set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
-			"args": [
-				"--multi-session",
-				"--port=4711"
+			"sourceLanguages": [
+				"cpp",
+				"rust"
 			],
+			"terminal": "integrated",
 			"linux": {
 				"args": [
 					"--multi-session",
 					"--port=4711",
 					"--libpython=libpython3.6m.so",
 				],
+				"env": {
+					"RUST_LOG": "error,codelldb=debug",
+					"RUST_LOG_STYLE": "always",
+					"RUST_BACKTRACE": "full",
+				},
 			},
-			"sourceLanguages": [
-				"cpp",
-				"rust"
-			],
-			"terminal": "integrated",
-			"env": {
-				"RUST_LOG": "error,codelldb=debug",
-				"RUST_LOG_STYLE": "always",
-				"RUST_BACKTRACE": "full",
+			"osx": {
+				"args": [
+					"--multi-session",
+					"--port=4711",
+					"--libpython=libpython3.7.dylib",
+				],
+				"env": {
+					"LD_LIBRARY_PATH": "/usr/local/opt/python/Frameworks/Python.framework/Versions/3.7/lib",
+					"RUST_LOG": "error,codelldb=debug",
+					"RUST_LOG_STYLE": "always",
+					"RUST_BACKTRACE": "full",
+				},
 			},
 			"windows": {
+				"args": [
+					"--multi-session",
+					"--port=4711"
+				],
 				"env": {
 					"PATH": "${env:PATH};C:\\Python36-64;${workspaceFolder}\\build\\lldb\\bin",
 					"RUST_LOG": "error,codelldb=debug",

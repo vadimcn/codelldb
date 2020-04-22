@@ -355,7 +355,7 @@ impl DebugSession {
         }
     }
 
-    fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) {
+    fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) -> Result<(), Error> {
         let response = match result {
             Ok(body) => Response {
                 request_seq: request_seq,
@@ -380,15 +380,15 @@ impl DebugSession {
                 }
             }
         };
-        drop(self.dap_session.borrow_mut().send_response(response));
+        self.dap_session.borrow_mut().send_response(response)
     }
 
-    fn send_request(&self, args: RequestArguments) {
-        self.dap_session.borrow_mut().send_request_only(args).unwrap();
+    fn send_request(&self, args: RequestArguments) -> Result<(), Error> {
+        self.dap_session.borrow_mut().send_request_only(args)
     }
 
-    fn send_event(&self, event_body: EventBody) {
-        self.dap_session.borrow_mut().send_event(event_body).unwrap();
+    fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
+        self.dap_session.borrow_mut().send_event(event_body)
     }
 
     fn console_message(&self, output: impl Into<String>) {
@@ -2432,7 +2432,7 @@ impl DebugSession {
                     self.console_message("Detached from debuggee.");
                     self.send_event(EventBody::terminated(TerminatedEventBody {
                         restart: None,
-                    }))
+                    }));
                 }
                 _ => (),
             }

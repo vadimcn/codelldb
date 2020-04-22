@@ -778,6 +778,9 @@ class DebugTestSession extends DebugClient {
     async terminate() {
         log('Stopping adapter.');
         await super.stop();
+        // Check that adapter process exits
+        let adapterExit = new Promise((resolve) => this.adapter.on('exit', resolve));
+        await withTimeout(3000, adapterExit);
     }
 
     async launch(launchArgs: any): Promise<dp.LaunchResponse> {

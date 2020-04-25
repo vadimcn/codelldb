@@ -1834,6 +1834,8 @@ impl DebugSession {
                 ConsoleMode::Evaluate => {
                     if args.expression.starts_with('`') {
                         self.handle_execute_command(&args.expression[1..], frame)
+                    } else if args.expression.starts_with("/cmd ") {
+                        self.handle_execute_command(&args.expression[5..], frame)
                     } else {
                         self.handle_evaluate_expression(&args.expression, frame)
                     }

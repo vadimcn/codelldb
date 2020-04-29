@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
@@ -18,7 +18,11 @@ fn main() {
     if weak_linkage {
         build_config.cpp_link_stdlib(None);
     }
+
     build_config.build("src/lldb.rs");
+    for entry in fs::read_dir("src").unwrap() {
+        println!("cargo:rerun-if-changed={}", entry.unwrap().path().display());
+    }
 
     if target_os == "windows" {
         strong_linkage();

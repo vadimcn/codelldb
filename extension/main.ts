@@ -535,11 +535,11 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             let [liblldb, libpython] = await this.getAdapterDylibs(config);
             if (!libpython) {
                 let action = await window.showErrorMessage(
-                    `CodeLLDB requires Python 3.3 or later (64-bit), but looks like it is not installed on this machine.`,
+                    `CodeLLDB requires Python 3.5 or later (64-bit), but looks like it is not installed on this machine.`,
                     { modal: true },
-                    'Take me to Python website');
+                    'Setup Instructions');
                 if (action != null) {
-                    env.openExternal(Uri.parse('https://www.python.org/downloads/windows/'));
+                    env.openExternal(Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Setup-on-Windows'));
                 }
                 return false;
             }

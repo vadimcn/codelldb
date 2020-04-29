@@ -35,11 +35,10 @@ Here's a minimal debug configuration to get you started:
 ```
 
 # Links
+- [Wiki](https://github.com/vadimcn/vscode-lldb/wiki) | [Setup](https://github.com/vadimcn/vscode-lldb/Setup) | [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
 - [Users Manual](MANUAL.md)
 - [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging)
-- [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
-- [Wiki](https://github.com/vadimcn/vscode-lldb/wiki)
-- [Chat](https://gitter.im/vscode-lldb/QnA)
+- [Q & A](https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb)
 
 
 # Screenshots

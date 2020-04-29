@@ -27,7 +27,7 @@
 	"bugs": {
 		"url": "https://github.com/vadimcn/vscode-lldb/issues"
 	},
-	"qna": "https://gitter.im/vscode-lldb/QnA",
+	"qna": "https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb",
 	"engines": {
 		"vscode": "^1.31.0"
 	},

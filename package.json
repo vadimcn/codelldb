@@ -155,12 +155,6 @@
 			"type": "object",
 			"title": "LLDB",
 			"properties": {
-				"lldb.executable": {
-					"description": "Which LLDB to use.",
-					"default": "lldb",
-					"type": "string",
-					"scope": "resource"
-				},
 				"lldb.library": {
 					"markdownDescription": "Which LLDB library to use.\n\nThis can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
 					"type": "string",

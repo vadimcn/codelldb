@@ -23,11 +23,11 @@ impl<T> DAPChannel for T where
 {
 }
 
+#[derive(Clone)]
 pub struct DAPSession {
     requests_sender: Weak<broadcast::Sender<Request>>,
     events_sender: Weak<broadcast::Sender<Event>>,
     out_sender: mpsc::Sender<(ProtocolMessage, Option<oneshot::Sender<ResponseBody>>)>,
-    message_seq: u32,
 }
 
 impl DAPSession {
@@ -37,12 +37,12 @@ impl DAPSession {
         let events_sender = Arc::new(broadcast::channel::<Event>(10).0);
         let (out_sender, mut out_receiver) = mpsc::channel(100);
         let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseBody>> = HashMap::new();
+        let mut message_seq = 0;
 
         let client = DAPSession {
             requests_sender: Arc::downgrade(&requests_sender),
             events_sender: Arc::downgrade(&events_sender),
             out_sender: out_sender,
-            message_seq: 0,
         };
 
         let worker = async move {
@@ -72,14 +72,23 @@ impl DAPSession {
                             }
                         }
                     },
-                    Some((out_message, response_sender)) = out_receiver.next() => {
-                        match &out_message {
-                            ProtocolMessage::Request(request)=> {
-                                pending_requests.insert(request.seq, response_sender.unwrap());
-                            }
-                            _ => {}
+                    Some((message, response_sender)) = out_receiver.next() => {
+                        let mut message = message;
+                        match &mut message {
+                            ProtocolMessage::Request(request) => {
+                                message_seq += 1;
+                                request.seq = message_seq;
+                                if let Some(response_sender) = response_sender {
+                                     pending_requests.insert(request.seq, response_sender);
+                                }
+                            },
+                            ProtocolMessage::Event(event) => {
+                                message_seq += 1;
+                                event.seq = message_seq;
+                            },
+                            ProtocolMessage::Response(_) => {}
                         }
-                        log_send_err(channel.send(out_message).await);
+                        log_send_err(channel.send(message).await);
                     }
                 }
             }
@@ -102,26 +111,28 @@ impl DAPSession {
         }
     }
 
-    pub async fn send_request(&mut self, request_args: RequestArguments) -> Result<ResponseBody, Error> {
-        self.message_seq += 1;
+    pub fn send_request(
+        &mut self,
+        request_args: RequestArguments,
+    ) -> impl Future<Output = Result<ResponseBody, Error>> {
         let (sender, receiver) = oneshot::channel();
         let message = ProtocolMessage::Request(Request {
-            seq: self.message_seq,
             command: Command::Known(request_args),
+            seq: 0,
         });
-        self.out_sender.send((message, Some(sender))).await?;
-        let resp = receiver.await?;
-        Ok(resp)
+        let send_result = self.out_sender.try_send((message, Some(sender)));
+        async move {
+            send_result?;
+            Ok(receiver.await?)
+        }
     }
 
     pub fn send_request_only(&mut self, request_args: RequestArguments) -> Result<(), Error> {
-        self.message_seq += 1;
-        let (sender, receiver) = oneshot::channel();
         let message = ProtocolMessage::Request(Request {
-            seq: self.message_seq,
             command: Command::Known(request_args),
+            seq: 0,
         });
-        self.out_sender.try_send((message, Some(sender)))?;
+        self.out_sender.try_send((message, None))?;
         Ok(())
     }
 
@@ -132,10 +143,9 @@ impl DAPSession {
     }
 
     pub fn send_event(&mut self, event_body: EventBody) -> Result<(), Error> {
-        self.message_seq += 1;
         let message = ProtocolMessage::Event(Event {
-            seq: self.message_seq,
             body: event_body,
+            seq: 0,
         });
         self.out_sender.try_send((message, None))?;
         Ok(())

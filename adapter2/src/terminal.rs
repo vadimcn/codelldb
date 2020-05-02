@@ -1,9 +1,12 @@
-use crate::error::Error;
 use log::debug;
 use std::io::{self, BufRead};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::{Duration, Instant};
+
+use crate::dap_session::DAPSession;
+use crate::debug_protocol::*;
+use crate::error::Error;
 
 pub struct Terminal {
     connection: TcpStream,
@@ -11,18 +14,38 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn create<F>(run_in_terminal: F) -> Result<Self, Error>
-    where
-        F: FnOnce(Vec<String>) -> Result<(), Error>,
-    {
+    pub async fn create(
+        terminal_kind: impl Into<String>,
+        title: impl Into<String>,
+        mut dap_session: DAPSession,
+    ) -> Result<Terminal, Error> {
+        let terminal_kind = terminal_kind.into();
+        let title = title.into();
+
+        let req_args = RunInTerminalRequestArguments {
+            args: vec!["<<>>".into()],
+            cwd: String::new(),
+            env: None,
+            kind: Some(terminal_kind.clone()),
+            title: Some(title.clone()),
+        };
+        dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
+
         let mut listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
 
         // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
         // or its own process id (Windows), then waits till the socket gets closed from our end.
         let executable = std::env::current_exe()?.to_str().unwrap().into();
-        let cmd = vec![executable, "terminal-agent".into(), format!("--port={}", addr.port())];
-        run_in_terminal(cmd)?;
+        let args = vec![executable, "terminal-agent".into(), format!("--port={}", addr.port())];
+        let req_args = RunInTerminalRequestArguments {
+            args: args,
+            cwd: String::new(),
+            env: None,
+            kind: Some(terminal_kind),
+            title: Some(title),
+        };
+        dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
 
         let stream = accept_with_timeout(&mut listener, Duration::from_millis(5000))?;
         let stream2 = stream.try_clone()?;

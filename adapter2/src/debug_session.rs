@@ -401,8 +401,8 @@ impl DebugSession {
         self.dap_session.borrow_mut().send_response(response)
     }
 
-    fn send_request(&self, args: RequestArguments) -> Result<(), Error> {
-        self.dap_session.borrow_mut().send_request_only(args)
+    fn send_request(&self, args: RequestArguments) -> impl Future<Output = Result<ResponseBody, Error>> {
+        self.dap_session.borrow_mut().send_request(args)
     }
 
     fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
@@ -979,9 +979,11 @@ impl DebugSession {
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
 
+            let term_fut = self.create_terminal(&args);
+            let config_done_fut = self.wait_for_configuration_done();
             let self_ref = self.self_ref.clone();
             let fut = async move {
-                scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
+                tokio::join!(term_fut, config_done_fut);
                 self_ref.borrow_mut().complete_launch(args)
             };
             Err(AsyncResponse(Box::new(fut)).into())
@@ -1077,13 +1079,12 @@ impl DebugSession {
         }
 
         if args.no_debug.unwrap_or(false) {
-            // No-debug launch: start debuggee directly and terminate debug session.
+            // No-debug launch: start debuggee directly and terminate the debug session.
             launch_info.set_executable_file(&self.target.executable(), true);
             let status = match &self.debuggee_terminal {
                 Some(t) => t.attach(|| self.target.platform().launch(&launch_info)),
                 None => self.target.platform().launch(&launch_info),
             };
-            // Terminate debug session
             self.send_event(EventBody::terminated(TerminatedEventBody {
                 restart: None,
             }));
@@ -1255,36 +1256,28 @@ impl DebugSession {
         program.into()
     }
 
-    fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {
+    fn create_terminal(&mut self, args: &LaunchRequestArguments) -> impl Future {
         let terminal_kind = match args.terminal.unwrap_or(TerminalKind::Integrated) {
-            TerminalKind::Console => None,
-            TerminalKind::External => Some("external"),
-            TerminalKind::Integrated => Some("integrated"),
+            TerminalKind::Console => return future::ready(()).left_future(),
+            TerminalKind::External => "external",
+            TerminalKind::Integrated => "integrated",
         };
-
-        if let Some(terminal_kind) = terminal_kind {
-            let title = args.common.name.clone().unwrap_or_else(|| "Debug".into());
-            let result = Terminal::create(|agent_args| {
-                let req_args = RunInTerminalRequestArguments {
-                    args: agent_args,
-                    cwd: String::new(),
-                    env: None,
-                    kind: Some(terminal_kind.to_owned()),
-                    title: Some(title),
-                };
-                self.send_request(RequestArguments::runInTerminal(req_args));
-                Ok(())
-            });
-
-            match result {
-                Ok(terminal) => self.debuggee_terminal = Some(terminal),
-                Err(err) => self.console_error(format!(
+        let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
+        let fut = Terminal::create(terminal_kind, title, self.dap_session.borrow().clone());
+        let self_ref = self.self_ref.clone();
+        async move {
+            let result = fut.await;
+            scoped_borrow_mut(&self_ref, |s| match result {
+                Ok(terminal) => s.debuggee_terminal = Some(terminal),
+                Err(err) => s.console_error(format!(
                     "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
                     err
                 )),
-            }
-        }
+            })
+        }.right_future()
+    }
 
+    fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {
         let mut stdio = match args.stdio {
             None => vec![],
             Some(Either::First(ref stdio)) => vec![Some(stdio.clone())], // A single string

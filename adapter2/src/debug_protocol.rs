@@ -9,8 +9,8 @@ pub use raw_debug_protocol::{
     DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody, DisconnectArguments,
     EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
     GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
-    OutputEventBody, PauseArguments, RestartFrameArguments, ReverseContinueArguments,
-    RunInTerminalRequestArguments, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
+    OutputEventBody, PauseArguments, RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments,
+    RunInTerminalResponseBody, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
     SetBreakpointsResponseBody, SetDataBreakpointsArguments, SetDataBreakpointsResponseBody,
     SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody,
     Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
@@ -138,6 +138,8 @@ pub enum ResponseBody {
     disconnect,
     // Custom
     adapterSettings,
+    // Reverse
+    runInTerminal(RunInTerminalResponseBody),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

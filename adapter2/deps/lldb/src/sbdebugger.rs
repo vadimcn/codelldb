@@ -117,7 +117,7 @@ impl SBDebugger {
     pub fn get_variable(&mut self, var_name: &str) -> SBStringList {
         SBDebugger::get_variable_for(self.instance_name(), var_name)
     }
-    pub fn set_variable(&mut self, var_name: &str, value: &str) -> SBError {
+    pub fn set_variable(&mut self, var_name: &str, value: &str) -> Result<(), SBError> {
         SBDebugger::set_variable_for(self.instance_name(), var_name, value)
     }
     pub fn get_variable_for(debugger_instance_name: &str, var_name: &str) -> SBStringList {
@@ -129,7 +129,7 @@ impl SBDebugger {
             })
         })
     }
-    pub fn set_variable_for(debugger_instance_name: &str, var_name: &str, value: &str) -> SBError {
+    pub fn set_variable_for(debugger_instance_name: &str, var_name: &str, value: &str) -> Result<(), SBError> {
         with_cstr(debugger_instance_name, |debugger_instance_name| {
             with_cstr(var_name, |var_name| {
                 with_cstr(value, |value| {
@@ -140,6 +140,7 @@ impl SBDebugger {
                 })
             })
         })
+        .into_result()
     }
 }
 

@@ -55,25 +55,29 @@ impl SBProcess {
         })
         .check()
     }
-    pub fn resume(&self) -> SBError {
+    pub fn resume(&self) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
             return self->Continue();
         })
+        .into_result()
     }
-    pub fn stop(&self) -> SBError {
+    pub fn stop(&self) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
             return self->Stop();
         })
+        .into_result()
     }
-    pub fn kill(&self) -> SBError {
+    pub fn kill(&self) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
             return self->Kill();
         })
+        .into_result()
     }
-    pub fn detach(&self) -> SBError {
+    pub fn detach(&self) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
             return self->Detach();
         })
+        .into_result()
     }
     pub fn broadcaster(&self) -> SBBroadcaster {
         cpp!(unsafe [self as "SBProcess*"] -> SBBroadcaster as "SBBroadcaster" {

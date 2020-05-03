@@ -51,10 +51,11 @@ impl SBPlatform {
             })
         })
     }
-    pub fn launch(&self, launch_info: &SBLaunchInfo) -> SBError {
+    pub fn launch(&self, launch_info: &SBLaunchInfo) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBPlatform*", launch_info as "SBLaunchInfo*"] -> SBError as "SBError" {
             return self->Launch(*launch_info);
         })
+        .into_result()
     }
 }
 

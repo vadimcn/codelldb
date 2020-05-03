@@ -20,6 +20,13 @@ impl SBValue {
             return self->GetError().Success();
         })
     }
+    pub fn into_result(self) -> Result<SBValue, SBError> {
+        if self.is_success() {
+            Ok(self)
+        } else {
+            Err(self.error())
+        }
+    }
     pub fn type_(&self) -> SBType {
         cpp!(unsafe [self as "SBValue*"] -> SBType as "SBType" {
             return self->GetType();
@@ -61,7 +68,8 @@ impl SBValue {
     pub fn address(&self) -> Option<SBAddress> {
         cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
             return self->GetAddress();
-        }).check()
+        })
+        .check()
     }
     pub fn load_address(&self) -> Address {
         cpp!(unsafe [self as "SBValue*"] -> Address as "addr_t" {

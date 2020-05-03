@@ -1081,14 +1081,14 @@ impl DebugSession {
         if args.no_debug.unwrap_or(false) {
             // No-debug launch: start debuggee directly and terminate the debug session.
             launch_info.set_executable_file(&self.target.executable(), true);
-            let status = match &self.debuggee_terminal {
+            let result = match &self.debuggee_terminal {
                 Some(t) => t.attach(|| self.target.platform().launch(&launch_info)),
                 None => self.target.platform().launch(&launch_info),
             };
             self.send_event(EventBody::terminated(TerminatedEventBody {
                 restart: None,
             }));
-            match status.into_result() {
+            match result {
                 Ok(()) => Ok(ResponseBody::launch),
                 Err(err) => Err(UserError(err.error_string().into()))?,
             }
@@ -1950,29 +1950,18 @@ impl DebugSession {
         match (expression, self.python.as_ref()) {
             (PreparedExpression::Native(pp_expr), _) => {
                 let result = match frame {
-                    Some(frame) => frame.evaluate_expression(&pp_expr),
-                    None => self.target.evaluate_expression(&pp_expr),
+                    Some(frame) => frame.evaluate_expression(&pp_expr).into_result(),
+                    None => self.target.evaluate_expression(&pp_expr).into_result(),
                 };
-                let error = result.error();
-                if error.is_success() {
-                    Ok(result)
-                } else {
-                    Err(error.into())
-                }
+                result.map_err(|e| e.into())
             }
             (PreparedExpression::Python(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                match python.evaluate(&pp_expr, false, &context) {
-                    Ok(val) => Ok(val),
-                    Err(s) => Err(UserError(s))?,
-                }
+                python.evaluate(&pp_expr, false, &context).map_err(|s| UserError(s).into())
             }
             (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                match python.evaluate(&pp_expr, true, &context) {
-                    Ok(val) => Ok(val),
-                    Err(s) => Err(UserError(s))?,
-                }
+                python.evaluate(&pp_expr, true, &context).map_err(|s| UserError(s).into())
             }
             _ => Err(UserError("Python expressions are disabled.".into()))?,
         }
@@ -2025,10 +2014,9 @@ impl DebugSession {
     }
 
     fn handle_pause(&mut self, _args: PauseArguments) -> Result<(), Error> {
-        let error = self.process.stop();
-        if error.is_success() {
-            Ok(())
-        } else {
+        match self.process.stop() {
+            Ok(()) => Ok(()),
+            Err(error) => {
             let state = self.process.state();
             if !state.is_running() {
                 // Did we lose a 'stopped' event?
@@ -2039,15 +2027,15 @@ impl DebugSession {
             }
         }
     }
+    }
 
     fn handle_continue(&mut self, _args: ContinueArguments) -> Result<ContinueResponseBody, Error> {
         self.before_resume();
-        let error = self.process.resume();
-        if error.is_success() {
-            Ok(ContinueResponseBody {
+        match self.process.resume() {
+            Ok(()) => Ok(ContinueResponseBody {
                 all_threads_continued: Some(true),
-            })
-        } else {
+            }),
+            Err(error) => {
             if self.process.state().is_running() {
                 // Did we lose a 'running' event?
                 self.notify_process_running();
@@ -2058,6 +2046,7 @@ impl DebugSession {
                 Err(UserError(error.error_string().into()))?
             }
         }
+    }
     }
 
     fn handle_next(&mut self, args: NextArguments) -> Result<(), Error> {
@@ -2257,13 +2246,15 @@ impl DebugSession {
                         // Normal source file
                         None => {
                             let filespec = SBFileSpec::from(goto_args.source.path.as_ref().ok_or("source.path")?);
-                            let result = thread.jump_to_line(&filespec, goto_args.line as u32);
-                            if result.is_success() {
+                            match thread.jump_to_line(&filespec, goto_args.line as u32) {
+                                Ok(()) => {
                                 self.last_goto_request = None;
                                 self.refresh_client_display(Some(thread_id));
                                 Ok(())
-                            } else {
-                                bail!(UserError(result.error_string().into()));
+                                }
+                                Err(error) => {
+                                    bail!(UserError(error.error_string().into()));
+                                }
                             }
                         }
                     },

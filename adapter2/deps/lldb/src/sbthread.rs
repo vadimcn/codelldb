@@ -93,16 +93,18 @@ impl SBThread {
             self->StepInstruction(step_over);
         })
     }
-    pub fn jump_to_line(&self, file: &SBFileSpec, line: u32) -> SBError {
+    pub fn jump_to_line(&self, file: &SBFileSpec, line: u32) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBThread*", file as "SBFileSpec*", line as "uint32_t"] -> SBError as "SBError" {
             return self->JumpToLine(*file, line);
         })
+        .into_result()
     }
-    pub fn return_from_frame(&self, frame: &SBFrame) -> SBError {
+    pub fn return_from_frame(&self, frame: &SBFrame) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBThread*", frame as "SBFrame*"] -> SBError as "SBError" {
             SBValue val;
             return self->ReturnFromFrame(*frame, val);
         })
+        .into_result()
     }
     pub fn broadcaster_class_name() -> &'static str {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {

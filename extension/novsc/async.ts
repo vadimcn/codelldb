@@ -11,6 +11,8 @@ export namespace fs {
     export const writeFile = promisify(_fs.writeFile);
     export const exists = promisify(_fs.exists);
     export const stat = promisify(_fs.stat);
+    export const copyFile = promisify(_fs.copyFile);
+    export const unlink = promisify(_fs.unlink);
 }
 
 export namespace cp {

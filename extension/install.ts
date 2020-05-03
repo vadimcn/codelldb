@@ -38,8 +38,6 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
                 title: 'Acquiring CodeLLDB platform package'
             },
             async (progress) => {
-                let downloadTarget: string;
-
                 let lastPercentage = 0;
                 let reportProgress = (downloaded: number, contentLength: number) => {
                     let percentage = Math.round(downloaded / contentLength * 100);
@@ -50,16 +48,17 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
                     lastPercentage = percentage;
                 };
 
-                if (packageUrl.scheme == 'file') {
-                    downloadTarget = packageUrl.fsPath;
+                let downloadTarget = path.join(os.tmpdir(), `codelldb-${process.pid}-${getRandomInt()}.vsix`);
+
+                if (packageUrl.scheme != 'file') {
+                    await download(packageUrl, downloadTarget, reportProgress);
+                } else {
                     // Simulate download
+                    await async.fs.copyFile(packageUrl.fsPath, downloadTarget);
                     for (var i = 0; i <= 100; ++i) {
                         await async.sleep(10);
                         reportProgress(i, 100);
                     }
-                } else {
-                    downloadTarget = path.join(os.tmpdir(), 'vscode-lldb-full.vsix');
-                    await download(packageUrl, downloadTarget, reportProgress);
                 }
 
                 progress.report({
@@ -67,6 +66,7 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
                     increment: 100 - lastPercentage,
                 });
                 await installVsix(context, downloadTarget);
+                await async.fs.unlink(downloadTarget);
             }
         );
     } catch (err) {
@@ -116,7 +116,7 @@ async function download(srcUrl: Uri, destPath: string,
                 if (response.headers['content-type'] != 'application/octet-stream') {
                     reject(new Error('HTTP response does not contain an octet stream'));
                 } else {
-                    let stm = fs.createWriteStream(destPath);
+                    let stm = fs.createWriteStream(destPath, { mode: 0o600 });
                     let pipeStm = response.pipe(stm);
                     if (progress) {
                         let contentLength = response.headers['content-length'] ? Number.parseInt(response.headers['content-length']) : null;
@@ -199,4 +199,8 @@ async function ensureDirectory(dir: string) {
             else resolve();
         }));
     }
+}
+
+function getRandomInt(): number {
+    return Math.floor(Math.random() * 1e10)
 }

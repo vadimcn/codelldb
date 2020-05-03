@@ -1395,7 +1395,9 @@ impl DebugSession {
             args.push_str("\" ");
         }
         info!("Set target.source-map args: {}", args);
-        self.debugger.set_variable("target.source-map", &args);
+        if let Err(error) = self.debugger.set_variable("target.source-map", &args) {
+            self.console_error(format!("Could not set source map: {}", error.error_string()))
+        }
     }
 
     fn handle_configuration_done(&mut self) -> Result<(), Error> {
@@ -2017,16 +2019,16 @@ impl DebugSession {
         match self.process.stop() {
             Ok(()) => Ok(()),
             Err(error) => {
-            let state = self.process.state();
-            if !state.is_running() {
-                // Did we lose a 'stopped' event?
-                self.notify_process_stopped();
-                Ok(())
-            } else {
-                Err(UserError(error.error_string().into()))?
+                let state = self.process.state();
+                if !state.is_running() {
+                    // Did we lose a 'stopped' event?
+                    self.notify_process_stopped();
+                    Ok(())
+                } else {
+                    Err(UserError(error.error_string().into()))?
+                }
             }
         }
-    }
     }
 
     fn handle_continue(&mut self, _args: ContinueArguments) -> Result<ContinueResponseBody, Error> {
@@ -2036,17 +2038,17 @@ impl DebugSession {
                 all_threads_continued: Some(true),
             }),
             Err(error) => {
-            if self.process.state().is_running() {
-                // Did we lose a 'running' event?
-                self.notify_process_running();
-                Ok(ContinueResponseBody {
-                    all_threads_continued: Some(true),
-                })
-            } else {
-                Err(UserError(error.error_string().into()))?
+                if self.process.state().is_running() {
+                    // Did we lose a 'running' event?
+                    self.notify_process_running();
+                    Ok(ContinueResponseBody {
+                        all_threads_continued: Some(true),
+                    })
+                } else {
+                    Err(UserError(error.error_string().into()))?
+                }
             }
         }
-    }
     }
 
     fn handle_next(&mut self, args: NextArguments) -> Result<(), Error> {
@@ -2248,9 +2250,9 @@ impl DebugSession {
                             let filespec = SBFileSpec::from(goto_args.source.path.as_ref().ok_or("source.path")?);
                             match thread.jump_to_line(&filespec, goto_args.line as u32) {
                                 Ok(()) => {
-                                self.last_goto_request = None;
-                                self.refresh_client_display(Some(thread_id));
-                                Ok(())
+                                    self.last_goto_request = None;
+                                    self.refresh_client_display(Some(thread_id));
+                                    Ok(())
                                 }
                                 Err(error) => {
                                     bail!(UserError(error.error_string().into()));

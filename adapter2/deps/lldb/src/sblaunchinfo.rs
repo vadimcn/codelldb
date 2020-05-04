@@ -145,6 +145,12 @@ impl SBLaunchInfo {
             return self->GetResumeCount();
         })
     }
+    // Available after launch
+    pub fn process_id(&self) -> ProcessID {
+        cpp!(unsafe [self as "SBLaunchInfo*"] -> ProcessID as "lldb::pid_t" {
+            return self->GetProcessID();
+        })
+    }
 }
 
 bitflags! {

@@ -1085,6 +1085,7 @@ impl DebugSession {
                 Some(t) => t.attach(|| self.target.platform().launch(&launch_info)),
                 None => self.target.platform().launch(&launch_info),
             };
+            debug!("Launched process {}", launch_info.process_id());
             self.send_event(EventBody::terminated(TerminatedEventBody {
                 restart: None,
             }));

@@ -480,7 +480,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string, string]> {
         if (!this.adapterDylibsCache) {
             let libpython;
-            let liblldb = util.getConfigNoDefault(config, 'library');
+            let liblldb = config.get<string>('library');
             if (liblldb) {
                 liblldb = await adapter.findLibLLDB(liblldb)
                 // Don't preload libpython, because external backend will have been linked to a specific Python version.
@@ -488,7 +488,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             } else {
                 liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
                 // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
-                libpython = util.getConfigNoDefault(config, 'libpython');
+                libpython = config.get<string>('libpython');
                 if (!libpython) {
                     libpython = await adapter.findLibPython(this.context.extensionPath, config.get('adapterEnv'));
                 }

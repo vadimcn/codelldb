@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![cfg(not(feature = "test"))]
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 schemafy::schemafy!("adapter2/deps/debug-protocol/src/debugAdapterProtocol.json");
 

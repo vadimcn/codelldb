@@ -100,7 +100,8 @@ impl SBTarget {
     pub fn find_breakpoint_by_id(&self, id: BreakpointID) -> Option<SBBreakpoint> {
         cpp!(unsafe [self as "SBTarget*", id as "break_id_t"] -> SBBreakpoint as "SBBreakpoint" {
             return self->FindBreakpointByID(id);
-        }).check()
+        })
+        .check()
     }
     pub fn breakpoint_create_by_location(&self, file: &str, line: u32) -> SBBreakpoint {
         with_cstr(file, |file| {
@@ -124,7 +125,10 @@ impl SBTarget {
         })
     }
     pub fn breakpoint_create_for_exception(
-        &self, language: LanguageType, catch_bp: bool, throw_bp: bool,
+        &self,
+        language: LanguageType,
+        catch_bp: bool,
+        throw_bp: bool,
     ) -> SBBreakpoint {
         cpp!(unsafe [self as "SBTarget*", language as "lldb::LanguageType", catch_bp as "bool", throw_bp as "bool"] -> SBBreakpoint as "SBBreakpoint" {
             return self->BreakpointCreateForException(language, catch_bp, throw_bp);

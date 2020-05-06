@@ -26,11 +26,11 @@ impl SBAttachInfo {
         })
     }
     pub fn set_executable(&self, path: &str) {
-        with_cstr(path, |path|
+        with_cstr(path, |path| {
             cpp!(unsafe [self as "SBAttachInfo*", path as "const char*"] {
                 self->SetExecutable(path);
             })
-        );
+        });
     }
     /// Set attach by process name settings.
     ///
@@ -87,7 +87,13 @@ impl SBAttachInfo {
 
 impl fmt::Debug for SBAttachInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Attach info: pid = {}, wait_for = {}, ignore_existing = {}, resume_count = {}", //.
-            self.process_id(), self.wait_for_launch(), self.ignore_existing(), self.resume_count())
+        write!(
+            f,
+            "Attach info: pid = {}, wait_for = {}, ignore_existing = {}, resume_count = {}",
+            self.process_id(),
+            self.wait_for_launch(),
+            self.ignore_existing(),
+            self.resume_count()
+        )
     }
 }

@@ -6,7 +6,10 @@ unsafe impl Send for SBCommandInterpreter {}
 
 impl SBCommandInterpreter {
     pub fn handle_command(
-        &self, command: &str, result: &mut SBCommandReturnObject, add_to_history: bool,
+        &self,
+        command: &str,
+        result: &mut SBCommandReturnObject,
+        add_to_history: bool,
     ) -> ReturnStatus {
         with_cstr(command, |command| {
             cpp!(unsafe [self as "SBCommandInterpreter*", command as "const char*",
@@ -16,7 +19,11 @@ impl SBCommandInterpreter {
         })
     }
     pub fn handle_command_with_context(
-        &self, command: &str, context: &SBExecutionContext, result: &mut SBCommandReturnObject, add_to_history: bool,
+        &self,
+        command: &str,
+        context: &SBExecutionContext,
+        result: &mut SBCommandReturnObject,
+        add_to_history: bool,
     ) -> ReturnStatus {
         with_cstr(command, |command| {
             cpp!(unsafe [self as "SBCommandInterpreter*", command as "const char*", context as "SBExecutionContext*",
@@ -26,7 +33,10 @@ impl SBCommandInterpreter {
         })
     }
     pub fn handle_completions(
-        &self, current_line: &str, cursor_pos: u32, range: Option<(u32, u32)>,
+        &self,
+        current_line: &str,
+        cursor_pos: u32,
+        range: Option<(u32, u32)>,
     ) -> Option<(String, Vec<String>)> {
         unsafe {
             let line_start = if current_line.is_empty() {

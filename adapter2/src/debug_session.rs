@@ -1275,7 +1275,8 @@ impl DebugSession {
                     err
                 )),
             })
-        }.right_future()
+        }
+        .right_future()
     }
 
     fn configure_stdio(&mut self, args: &LaunchRequestArguments, launch_info: &mut SBLaunchInfo) -> Result<(), Error> {

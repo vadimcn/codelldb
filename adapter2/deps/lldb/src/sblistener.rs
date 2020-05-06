@@ -28,7 +28,12 @@ impl SBListener {
         })
     }
     // returns effective event mask
-    pub fn start_listening_for_event_class(&self, debugger: &SBDebugger, broadcaster_class: &str, event_mask: u32) -> u32 {
+    pub fn start_listening_for_event_class(
+        &self,
+        debugger: &SBDebugger,
+        broadcaster_class: &str,
+        event_mask: u32,
+    ) -> u32 {
         with_cstr(broadcaster_class, |broadcaster_class| {
             cpp!(unsafe [self as "SBListener*", debugger as "SBDebugger*",
                          broadcaster_class as "const char*", event_mask as "uint32_t"] -> u32 as "uint32_t" {
@@ -36,7 +41,12 @@ impl SBListener {
             })
         })
     }
-    pub fn stop_listening_for_event_class(&self, debugger: &SBDebugger, broadcaster_class: &str, event_mask: u32) -> bool {
+    pub fn stop_listening_for_event_class(
+        &self,
+        debugger: &SBDebugger,
+        broadcaster_class: &str,
+        event_mask: u32,
+    ) -> bool {
         with_cstr(broadcaster_class, |broadcaster_class| {
             cpp!(unsafe [self as "SBListener*", debugger as "SBDebugger*",
                          broadcaster_class as "const char*", event_mask as "uint32_t"] -> bool as "bool" {

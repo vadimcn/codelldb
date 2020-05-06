@@ -80,7 +80,10 @@ impl AddressSpace {
     }
 
     fn add(
-        &mut self, start_addr: SBAddress, end_addr: SBAddress, instructions: SBInstructionList,
+        &mut self,
+        start_addr: SBAddress,
+        end_addr: SBAddress,
+        instructions: SBInstructionList,
     ) -> Rc<DisassembledRange> {
         let handle = Handle::new((self.by_handle.len() + 1000) as u32).unwrap();
         let instruction_addrs = instructions.iter().map(|i| i.address().load_address(&self.target)).collect();

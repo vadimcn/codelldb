@@ -68,7 +68,9 @@ impl SBBreakpoint {
         F: FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send + 'static,
     {
         unsafe extern "C" fn callback_thunk(
-            _baton: *mut c_void, process: *const SBProcess, thread: *const SBThread,
+            _baton: *mut c_void,
+            process: *const SBProcess,
+            thread: *const SBThread,
             location: *const SBBreakpointLocation,
         ) -> bool {
             let bp_id = (*location).breakpoint().id();

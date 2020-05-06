@@ -172,7 +172,7 @@
     },
     {
       "type": "process",
-      "label": "rustfmt",
+      "label": "Format current file",
       "command": "rustfmt",
       "args": [
         "${file}"

@@ -9,7 +9,7 @@ unsafe impl Send for SBBreakpoint {}
 
 lazy_static! {
     static ref CALLBACKS: Mutex<HashMap<BreakpointID, Box<dyn FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send>>> =
-        { Mutex::new(HashMap::new()) };
+        Mutex::new(HashMap::new());
 }
 
 impl SBBreakpoint {

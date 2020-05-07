@@ -5,13 +5,11 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
-use std::task::{Context, Poll};
 
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::debug_protocol::*;
 use crate::error::Error;
-use crate::wire_protocol::Codec;
 
 pub trait DAPChannel:
     Stream<Item = Result<ProtocolMessage, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send
@@ -58,7 +56,7 @@ impl DAPSession {
                                         debug!("Received response without a pending request (request_seq={})", response.request_seq);
                                     }
                                     Entry::Occupied(entry) => {
-                                        let mut sender = entry.remove();
+                                        let sender = entry.remove();
                                         if let Some(body) = response.body {
                                             log_send_err(sender.send(body));
                                         }
@@ -104,6 +102,7 @@ impl DAPSession {
         }
     }
 
+    #[allow(unused)]
     pub fn subscribe_events(&self) -> Result<broadcast::Receiver<Event>, Error> {
         match self.events_sender.upgrade() {
             Some(r) => Ok(r.subscribe()),
@@ -125,15 +124,6 @@ impl DAPSession {
             send_result?;
             Ok(receiver.await?)
         }
-    }
-
-    pub fn send_request_only(&mut self, request_args: RequestArguments) -> Result<(), Error> {
-        let message = ProtocolMessage::Request(Request {
-            command: Command::Known(request_args),
-            seq: 0,
-        });
-        self.out_sender.try_send((message, None))?;
-        Ok(())
     }
 
     pub fn send_response(&mut self, response: Response) -> Result<(), Error> {

@@ -1,17 +1,15 @@
 use std;
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::CStr;
 use std::fmt::Write;
 use std::mem;
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::str;
-use std::thread;
 use std::time;
 
 use futures;
@@ -20,7 +18,7 @@ use log::{debug, error, info};
 use serde_derive::*;
 use serde_json;
 use tokio::io::AsyncReadExt;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 use crate::dap_session::DAPSession;
 use crate::debug_event_listener;
@@ -28,7 +26,7 @@ use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::error::{Error, UserError};
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
-use crate::fsutil::{is_same_path, normalize_path};
+use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
@@ -145,7 +143,7 @@ impl DebugSession {
         debugger.set_async_mode(true);
 
         let (con_reader, con_writer) = pipe().unwrap();
-        debugger.set_output_stream(con_writer.try_clone().unwrap());
+        let _ = debugger.set_output_stream(con_writer.try_clone().unwrap());
 
         let (python, mut python_events) =
             match python::initialize(debugger.command_interpreter(), con_writer.try_clone().unwrap()) {
@@ -204,10 +202,9 @@ impl DebugSession {
         debug_session.update_adapter_settings(&settings);
 
         let mut requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
-        let mut events_stream = debug_session.dap_session.borrow_mut().subscribe_events().unwrap();
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
-        let mut rc_session = Rc::new(RefCell::new(debug_session));
+        let rc_session = Rc::new(RefCell::new(debug_session));
         async move {
             rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
             let local = tokio::task::LocalSet::new();
@@ -283,14 +280,14 @@ impl DebugSession {
                             .map(|r| ResponseBody::setFunctionBreakpoints(r)),
                     RequestArguments::setExceptionBreakpoints(args) =>
                         self.handle_set_exception_breakpoints(args)
-                            .map(|r| ResponseBody::setExceptionBreakpoints),
+                            .map(|_| ResponseBody::setExceptionBreakpoints),
                     RequestArguments::launch(args) =>
                         self.handle_launch(args),
                     RequestArguments::attach(args) =>
                         self.handle_attach(args),
                     RequestArguments::configurationDone =>
                         self.handle_configuration_done()
-                            .map(|r| ResponseBody::configurationDone),
+                            .map(|_| ResponseBody::configurationDone),
                     RequestArguments::threads =>
                         self.handle_threads()
                             .map(|r| ResponseBody::threads(r)),
@@ -316,19 +313,19 @@ impl DebugSession {
                             .map(|r| ResponseBody::continue_(r)),
                     RequestArguments::next(args) =>
                         self.handle_next(args)
-                            .map(|r| ResponseBody::next),
+                            .map(|_| ResponseBody::next),
                     RequestArguments::stepIn(args) =>
                         self.handle_step_in(args)
-                            .map(|r| ResponseBody::stepIn),
+                            .map(|_| ResponseBody::stepIn),
                     RequestArguments::stepOut(args) =>
                         self.handle_step_out(args)
-                            .map(|r| ResponseBody::stepOut),
+                            .map(|_| ResponseBody::stepOut),
                     RequestArguments::stepBack(args) =>
                         self.handle_step_back(args)
-                            .map(|r| ResponseBody::stepBack),
+                            .map(|_| ResponseBody::stepBack),
                     RequestArguments::reverseContinue(args) =>
                         self.handle_reverse_continue(args)
-                            .map(|r| ResponseBody::reverseContinue),
+                            .map(|_| ResponseBody::reverseContinue),
                     RequestArguments::source(args) =>
                         self.handle_source(args)
                             .map(|r| ResponseBody::source(r)),
@@ -340,10 +337,10 @@ impl DebugSession {
                             .map(|r| ResponseBody::gotoTargets(r)),
                     RequestArguments::goto(args) =>
                         self.handle_goto(args)
-                            .map(|r| ResponseBody::goto),
+                            .map(|_| ResponseBody::goto),
                     RequestArguments::restartFrame(args) =>
                         self.handle_restart_frame(args)
-                            .map(|r| ResponseBody::restartFrame),
+                            .map(|_| ResponseBody::restartFrame),
                     RequestArguments::dataBreakpointInfo(args) =>
                         self.handle_data_breakpoint_info(args)
                             .map(|r| ResponseBody::dataBreakpointInfo(r)),
@@ -373,7 +370,7 @@ impl DebugSession {
         }
     }
 
-    fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) -> Result<(), Error> {
+    fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) {
         let response = match result {
             Ok(body) => Response {
                 request_seq: request_seq,
@@ -398,15 +395,11 @@ impl DebugSession {
                 }
             }
         };
-        self.dap_session.borrow_mut().send_response(response)
+        let _ = self.dap_session.borrow_mut().send_response(response);
     }
 
-    fn send_request(&self, args: RequestArguments) -> impl Future<Output = Result<ResponseBody, Error>> {
-        self.dap_session.borrow_mut().send_request(args)
-    }
-
-    fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
-        self.dap_session.borrow_mut().send_event(event_body)
+    fn send_event(&self, event_body: EventBody) {
+        let _ = self.dap_session.borrow_mut().send_event(event_body);
     }
 
     fn console_message(&self, output: impl std::fmt::Display) {
@@ -522,7 +515,7 @@ impl DebugSession {
                 breakpoint_infos.remove(bp_id);
             }
         }
-        mem::replace(existing_bps, new_bps);
+        drop(mem::replace(existing_bps, new_bps));
         Ok(result)
     }
 
@@ -567,7 +560,7 @@ impl DebugSession {
                 self.target.breakpoint_delete(*bp_id);
             }
         }
-        mem::replace(existing_bps, new_bps);
+        drop(mem::replace(existing_bps, new_bps));
         Ok(result)
     }
 
@@ -737,7 +730,7 @@ impl DebugSession {
                 self.target.breakpoint_delete(*bp_id);
             }
         }
-        mem::replace(function, new_bps);
+        drop(mem::replace(function, new_bps));
 
         Ok(SetBreakpointsResponseBody {
             breakpoints: result,
@@ -746,7 +739,7 @@ impl DebugSession {
 
     fn handle_set_exception_breakpoints(&mut self, args: SetExceptionBreakpointsArguments) -> Result<(), Error> {
         let mut breakpoints = self.breakpoints.borrow_mut();
-        breakpoints.breakpoint_infos.retain(|id, bp_info| {
+        breakpoints.breakpoint_infos.retain(|_id, bp_info| {
             if let BreakpointKind::Exception = bp_info.kind {
                 self.target.breakpoint_delete(bp_info.id);
                 false
@@ -844,7 +837,7 @@ impl DebugSession {
             let closure: Invocation = unsafe { mem::transmute(&mut closure as &mut (dyn FnMut(&mut DebugSession))) };
             match invoke_client.try_send((closure, std::thread::current())) {
                 Ok(_) => std::thread::park(),
-                Err(err) => error!("Could not invoke on_breakpoint_hit()"),
+                Err(_) => error!("Could not invoke on_breakpoint_hit()"),
             };
             result
         });
@@ -983,7 +976,7 @@ impl DebugSession {
             let config_done_fut = self.wait_for_configuration_done();
             let self_ref = self.self_ref.clone();
             let fut = async move {
-                tokio::join!(term_fut, config_done_fut);
+                drop(tokio::join!(term_fut, config_done_fut));
                 self_ref.borrow_mut().complete_launch(args)
             };
             Err(AsyncResponse(Box::new(fut)).into())
@@ -1045,7 +1038,7 @@ impl DebugSession {
             self.exec_commands("preRunCommands", commands)?;
         }
         // Grab updated launch info.
-        let mut launch_info = self.target.launch_info();
+        let launch_info = self.target.launch_info();
 
         // Announce the final launch command line
         let executable = self.target.executable().path().to_string_lossy().into_owned();
@@ -1108,9 +1101,8 @@ impl DebugSession {
                     let mut msg: String = err.error_string().into();
                     if let Some(work_dir) = launch_info.working_directory() {
                         if self.target.platform().get_file_permissions(work_dir) == 0 {
-                            write!(
-                                msg,
-                                "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                            #[rustfmt::skip]
+                            let _ = write!( msg, "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
                                 work_dir.display()
                             );
                         }
@@ -1217,7 +1209,7 @@ impl DebugSession {
         if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
         } else {
-            self.process.resume();
+            let _ = self.process.resume();
         }
 
         if let Some(commands) = args.common.post_run_commands {
@@ -1423,7 +1415,7 @@ impl DebugSession {
         for thread in self.process.threads() {
             let mut descr = format!("{}: tid={}", thread.index_id(), thread.thread_id());
             if let Some(name) = thread.name() {
-                write!(descr, " \"{}\"", name);
+                let _ = write!(descr, " \"{}\"", name);
             }
             response.threads.push(Thread {
                 id: thread.thread_id() as i64,
@@ -1808,7 +1800,7 @@ impl DebugSession {
                     if name.starts_with("[") {
                         summary.push_str(value);
                     } else {
-                        write!(summary, "{}:{}", name, value);
+                        let _ = write!(summary, "{}:{}", name, value);
                     }
                 }
             }
@@ -1877,9 +1869,9 @@ impl DebugSession {
         let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
         let interp = self.debugger.command_interpreter();
-        self.debugger.set_output_stream(self.null_pipe.try_clone()?);
+        drop(self.debugger.set_output_stream(self.null_pipe.try_clone()?));
         let ok = interp.handle_command_with_context(command, &context, &mut result, false);
-        self.debugger.set_output_stream(self.console_pipe.try_clone()?);
+        drop(self.debugger.set_output_stream(self.console_pipe.try_clone()?));
         debug!("{} -> {:?}, {:?}", command, ok, result);
         // TODO: multiline
         if result.succeeded() {
@@ -1904,7 +1896,7 @@ impl DebugSession {
             expressions::prepare_with_format(expression, self.default_expr_type).map_err(|err| UserError(err))?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
-            Ok(mut sbval) => {
+            Ok(sbval) => {
                 let (var, format) = match expr_format {
                     None => (sbval, self.global_format),
                     Some(FormatSpec::Format(format)) => (sbval, format),
@@ -2274,7 +2266,7 @@ impl DebugSession {
             _ => bail!("Invalid frameId"),
         };
         let thread = frame.thread();
-        thread.return_from_frame(&frame); // TODO: ?
+        thread.return_from_frame(&frame)?;
         self.send_event(EventBody::stopped(StoppedEventBody {
             thread_id: Some(thread.thread_id() as i64),
             all_threads_stopped: Some(true),
@@ -2327,7 +2319,7 @@ impl DebugSession {
             let addr = parts.next().ok_or("")?.parse::<u64>()?;
             let size = parts.next().ok_or("")?.parse::<usize>()?;
             let res = match self.target.watch_address(addr, size, false, true) {
-                Ok(wp) => Breakpoint {
+                Ok(_wp) => Breakpoint {
                     verified: true,
                     message: Some(format!("{} bytes at {:X} (", size, addr)),
                     ..Default::default()
@@ -2362,9 +2354,9 @@ impl DebugSession {
         };
         if let Initialized(ref process) = self.process {
             if terminate {
-                process.kill();
+                process.kill()?;
             } else {
-                process.detach();
+                process.detach()?;
             }
         }
         Ok(())
@@ -2650,7 +2642,7 @@ impl DebugSession {
             // Send "removed" notification only if we are tracking this breakpoint,
             // otherwise we'd notify VSCode about breakpoints that had been disabled in the UI
             // and cause them to be actually removed.
-            if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
+            if let Some(_bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "removed".into(),
                     breakpoint: Breakpoint {

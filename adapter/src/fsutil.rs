@@ -15,6 +15,7 @@ pub fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
     normalized
 }
 
+#[allow(unused)]
 pub fn is_same_path(path1: &Path, path2: &Path) -> bool {
     if path1 == path2 {
         true

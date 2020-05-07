@@ -93,6 +93,7 @@ impl<Value> HandleTree<Value> {
 }
 
 #[test]
+#[allow(unused)]
 fn test1() {
     let mut handles = HandleTree::new();
     let a1 = handles.create(None, "1", 0xa1);
@@ -129,6 +130,7 @@ fn test1() {
 
 #[test]
 #[should_panic]
+#[allow(unused)]
 fn test2() {
     let mut handles = HandleTree::new();
     let h1 = handles.create(None, "12345", 12345);

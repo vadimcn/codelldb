@@ -1,7 +1,5 @@
 use crate::debug_protocol::Expressions;
-use lldb::SBValue;
 use regex::{Captures, Regex, RegexBuilder};
-use std::borrow::Cow;
 
 #[derive(Debug)]
 pub enum PreparedExpression {
@@ -202,14 +200,6 @@ lazy_static::lazy_static! {
     static ref EXPRESSION_FORMAT: Regex = compile_regex(r", (?: ([A-Za-z]) | (?: \[ (\d+) \] ) )\z");
 }
 
-pub fn escape_variable_name<'a>(name: &'a str) -> Cow<'a, str> {
-    if MAYBE_QUALIFIED_IDENT.is_match(name) {
-        name.into()
-    } else {
-        format!("${{{}}}", name).into()
-    }
-}
-
 fn replacer(captures: &Captures) -> String {
     let mut iter = captures.iter();
     iter.next(); // Skip the full match
@@ -248,7 +238,17 @@ pub fn preprocess_python_expr(expr: &str) -> String {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
+#[cfg(test)]
+macro_rules! assert_match(($e:expr, $p:pat) => { assert!(matches!($e, $p)) });
+
+#[cfg(test)]
+pub fn escape_variable_name<'a>(name: &'a str) -> std::borrow::Cow<'a, str> {
+    if MAYBE_QUALIFIED_IDENT.is_match(name) {
+        name.into()
+    } else {
+        format!("${{{}}}", name).into()
+    }
+}
 
 #[test]
 fn test_simple() {

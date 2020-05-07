@@ -2,19 +2,16 @@
 #![feature(fn_traits)]
 #![feature(untagged_unions)]
 #![feature(box_into_pin)]
-#![allow(unused_variables, unused_imports, unused_mut, unused_macros, unused_must_use, dead_code)]
+#![allow(unused_imports)]
 
 use futures::prelude::*;
 
 use log::{debug, error, info};
 use std::net;
-use std::pin::Pin;
-use tokio::io;
 use tokio::net::TcpListener;
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
 
-use crate::error::Error;
 use lldb::*;
 
 #[macro_use]

@@ -9,6 +9,7 @@ use crate::debug_protocol::*;
 use crate::error::Error;
 
 pub struct Terminal {
+    #[allow(unused)]
     connection: TcpStream,
     data: String,
 }
@@ -105,7 +106,6 @@ impl Terminal {
 // No set_accept_timeout() in std :(
 fn accept_with_timeout(listener: &mut TcpListener, timeout: Duration) -> Result<TcpStream, Error> {
     listener.set_nonblocking(true)?;
-    let timeout = Duration::from_millis(5000);
     let started = Instant::now();
     let stream = loop {
         match listener.accept() {

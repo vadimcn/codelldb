@@ -7,7 +7,6 @@ use std::fmt::Write;
 use std::rc::Rc;
 use std::str;
 
-use crate::error::Error;
 use crate::handles::Handle;
 use lldb::*;
 use superslice::Ext;
@@ -193,8 +192,8 @@ impl DisassembledRange {
         .unwrap_or("No Symbol Info".into());
 
         let mut text = String::new();
-        writeln!(text, "; {}", description);
-        writeln!(text, "; Source location: {}", source_location);
+        let _ = writeln!(text, "; {}", description);
+        let _ = writeln!(text, "; Source location: {}", source_location);
 
         const MAX_INSTR_BYTES: usize = 8;
         let mut instr_data = vec![];
@@ -206,10 +205,10 @@ impl DisassembledRange {
             dump.clear();
             for (i, b) in instr_data.iter().enumerate() {
                 if i >= MAX_INSTR_BYTES {
-                    write!(dump, ">");
+                    let _ = write!(dump, ">");
                     break;
                 }
-                write!(dump, "{:02X} ", b);
+                let _ = write!(dump, "{:02X} ", b);
             }
             let mnemonic = instr.mnemonic(&self.target);
             let operands = instr.operands(&self.target);
@@ -219,8 +218,8 @@ impl DisassembledRange {
             } else {
                 "  ; "
             };
-            #[cfg_attr(rustfmt, rustfmt_skip)]
-            writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}",
+            #[rustfmt::skip]
+            let _ = writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}", //.
                 load_addr, dump, mnemonic, operands, comment_sep, comment,
                 dumpwidth=MAX_INSTR_BYTES * 3 + 2
             );

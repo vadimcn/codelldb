@@ -1,13 +1,10 @@
 use std::env;
 use std::ffi::CStr;
-use std::marker::Unpin;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_long, c_void};
 
 use lldb::*;
 use log::*;
-
-use futures::prelude::*;
 use tokio::sync::mpsc;
 
 use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
@@ -68,7 +65,7 @@ pub fn initialize(
         bail!(format!("{:?}", command_result));
     }
     let (sender, receiver) = mpsc::channel(10);
-    let mut interface = Box::new(PythonInterface {
+    let interface = Box::new(PythonInterface {
         initialized: false,
         event_sender: sender,
         postinit_ptr: NotInitialized,

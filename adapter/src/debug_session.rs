@@ -505,7 +505,7 @@ impl DebugSession {
             };
 
             self.init_bp_actions(&bp_info);
-            result.push(self.make_bp_response(&bp_info));
+            result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.line, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -551,7 +551,7 @@ impl DebugSession {
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
-            result.push(self.make_bp_response(&bp_info));
+            result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.line, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -596,7 +596,7 @@ impl DebugSession {
     }
 
     // Generates debug_protocol::Breakpoint message from BreakpointInfo
-    fn make_bp_response(&self, bp_info: &BreakpointInfo) -> Breakpoint {
+    fn make_bp_response(&self, bp_info: &BreakpointInfo, include_source: bool) -> Breakpoint {
         let message = Some(format!("Locations: {}", bp_info.breakpoint.num_locations()));
 
         if bp_info.breakpoint.num_locations() == 0 {
@@ -611,14 +611,20 @@ impl DebugSession {
                 BreakpointKind::Location => {
                     let address = bp_info.breakpoint.location_at_index(0).address();
                     if let Some(le) = address.line_entry() {
-                        let file_path = le.file_spec().path();
+                        let source = if include_source {
+                            let file_path = le.file_spec().path();
+                            Some(Source {
+                                name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
+                                path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
+                                ..Default::default()
+                            })
+                        } else {
+                            None
+                        };
+
                         Breakpoint {
                             id: Some(bp_info.id as i64),
-                            // source: Some(Source {
-                            //     name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
-                            //     path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
-                            //     ..Default::default()
-                            // }),
+                            source: source,
                             line: Some(le.line() as i64),
                             verified: bp_info.breakpoint.num_locations() > 0,
                             message,
@@ -721,7 +727,7 @@ impl DebugSession {
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
-            result.push(self.make_bp_response(&bp_info));
+            result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.name, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -2626,7 +2632,7 @@ impl DebugSession {
                 };
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "new".into(),
-                    breakpoint: self.make_bp_response(&bp_info),
+                    breakpoint: self.make_bp_response(&bp_info, true),
                 }));
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
@@ -2634,7 +2640,7 @@ impl DebugSession {
             if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "changed".into(),
-                    breakpoint: self.make_bp_response(bp_info),
+                    breakpoint: self.make_bp_response(bp_info, false),
                 }));
             }
         } else if event_type.intersects(BreakpointEventType::Removed) {

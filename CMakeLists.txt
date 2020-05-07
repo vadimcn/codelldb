@@ -64,7 +64,7 @@ set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
 # Adapter
 
-add_subdirectory(adapter2)
+add_subdirectory(adapter)
 add_subdirectory(lldb)
 
 # Extension package content
@@ -149,15 +149,15 @@ set(PackagedFilesPortable
 set(PackagedFilesFull
     ${PackagedFilesPortable}
     platform.ok
-    adapter2/*.py
-    adapter2/codelldb
-    adapter2/libcodelldb.so
-    adapter2/libcodelldb_python.so
-    adapter2/libcodelldb.dylib
-    adapter2/libcodelldb_python.dylib
-    adapter2/codelldb.exe
-    adapter2/codelldb.dll
-    adapter2/codelldb_python.dll
+    adapter/*.py
+    adapter/codelldb
+    adapter/libcodelldb.so
+    adapter/libcodelldb_python.so
+    adapter/libcodelldb.dylib
+    adapter/libcodelldb_python.dylib
+    adapter/codelldb.exe
+    adapter/codelldb.dll
+    adapter/codelldb_python.dll
     lldb/bin/**/*
     lldb/lib/**/*
 )
@@ -207,7 +207,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 
     add_custom_target(strip_binaries
         DEPENDS lldb codelldb
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter2 -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
         COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
         COMMENT "Stripping debug info"
         USES_TERMINAL
@@ -301,7 +301,7 @@ install(
 add_custom_target(xclean
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target clean
     COMMAND ${CMAKE_COMMAND} -E remove_directory CMakeFiles
-    COMMAND ${CMAKE_COMMAND} -E remove_directory adapter2
+    COMMAND ${CMAKE_COMMAND} -E remove_directory adapter
     COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee
     COMMAND ${CMAKE_COMMAND} -E remove_directory extension
     COMMAND ${CMAKE_COMMAND} -E remove_directory lldb

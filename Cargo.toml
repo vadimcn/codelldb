@@ -1,8 +1,8 @@
 [workspace]
-members = ["adapter2", "debuggee"]
+members = ["adapter", "debuggee"]
 
 [patch.crates-io]
-schemafy = { path = "adapter2/deps/schemafy" }
+schemafy = { path = "adapter/deps/schemafy" }
 
 [profile.release]
 debug = true

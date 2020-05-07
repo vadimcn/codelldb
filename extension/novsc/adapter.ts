@@ -20,7 +20,7 @@ export async function start(
 ): Promise<cp.ChildProcess> {
 
     let env = mergedEnvironment(options.extraEnv);
-    let executable = path.join(options.extensionRoot, 'adapter2/codelldb');
+    let executable = path.join(options.extensionRoot, 'adapter/codelldb');
     let args = ['--liblldb', liblldb];
     if (libpython) {
         args.push('--libpython', libpython);
@@ -156,7 +156,7 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
 
 // Ask codelldb to locate libpython
 export async function findLibPython(extensionRoot: string, extraEnv: Dict<string> = undefined): Promise<string> {
-    let adapter = path.join(extensionRoot, 'adapter2/codelldb');
+    let adapter = path.join(extensionRoot, 'adapter/codelldb');
     let options = extraEnv ? { env: mergedEnvironment(extraEnv) } : {};
     return async.cp.execFile(adapter, ['find-python'], options)
         .then(result => result.stdout.trim())

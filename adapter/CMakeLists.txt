@@ -26,9 +26,9 @@ if (CMAKE_VERBOSE_MAKEFILE)
 endif()
 
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
-        ${CMAKE_SOURCE_DIR}/adapter2/codelldb.py
-        ${CMAKE_SOURCE_DIR}/adapter2/value.py
-        ${CMAKE_SOURCE_DIR}/adapter2/debugger.py
+        ${CMAKE_SOURCE_DIR}/adapter/codelldb.py
+        ${CMAKE_SOURCE_DIR}/adapter/value.py
+        ${CMAKE_SOURCE_DIR}/adapter/debugger.py
         ${CMAKE_SOURCE_DIR}/formatters/rust.py
 )
 

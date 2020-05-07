@@ -23,7 +23,7 @@
 			"type": "lldb",
 			"request": "launch",
 			//"initCommands": ["set set target.disable-aslr false"],
-			"program": "${workspaceFolder}/build/adapter2/codelldb",
+			"program": "${workspaceFolder}/build/adapter/codelldb",
 			"sourceLanguages": [
 				"cpp",
 				"rust"
@@ -72,7 +72,7 @@
 			"type": "cppvsdbg",
 			"request": "launch",
 			"preLaunchTask": "make codelldb",
-			"program": "${workspaceFolder}/build/adapter2/codelldb.exe",
+			"program": "${workspaceFolder}/build/adapter/codelldb.exe",
 			"args": [
 				"--multi-session",
 				"--port=4711"
@@ -103,7 +103,7 @@
 			"type": "lldb",
 			"request": "launch",
 			"preLaunchTask": "make codelldb",
-			"program": "${workspaceFolder}/build/adapter2/codelldb",
+			"program": "${workspaceFolder}/build/adapter/codelldb",
 			"args": ["find-python"]
 		},
 		{

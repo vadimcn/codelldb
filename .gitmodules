@@ -1,3 +1,3 @@
-[submodule "adapter2/deps/schemafy"]
-	path = adapter2/deps/schemafy
+[submodule "schemafy"]
+	path = adapter/deps/schemafy
 	url = https://github.com/vadimcn/schemafy.git

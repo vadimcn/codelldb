@@ -6,6 +6,6 @@
 	],
 	"settings": {
 		"window.title": "${rootName}",
-		"git.ignoredRepositories": ["adapter2/deps/schemafy"],
+		"git.ignoredRepositories": ["adapter/deps/schemafy"],
 	}
 }

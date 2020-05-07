@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-schemafy::schemafy!("adapter2/deps/debug-protocol/src/debugAdapterProtocol.json");
+schemafy::schemafy!("adapter/deps/debug-protocol/src/debugAdapterProtocol.json");
 
 impl Default for Breakpoint {
     fn default() -> Self {

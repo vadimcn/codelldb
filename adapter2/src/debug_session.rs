@@ -1775,7 +1775,7 @@ impl DebugSession {
     fn get_container_summary(var: &SBValue) -> String {
         const MAX_LENGTH: usize = 32;
 
-        let mut summary = String::from("{");
+        let mut summary = format!("{} {{", var.display_type_name().unwrap_or(""));
         let mut empty = true;
         for child in var.children() {
             if summary.len() > MAX_LENGTH {

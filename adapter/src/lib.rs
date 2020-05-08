@@ -16,6 +16,7 @@ use lldb::*;
 
 #[macro_use]
 mod error;
+mod dap_codec;
 mod dap_session;
 mod debug_event_listener;
 mod debug_protocol;
@@ -29,7 +30,6 @@ mod pipe;
 mod python;
 mod terminal;
 mod vec_map;
-mod wire_protocol;
 
 #[no_mangle]
 pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
@@ -81,7 +81,7 @@ async fn run_debug_server(
         debug!("New debug session");
         let tcp_stream = connection.unwrap();
         tcp_stream.set_nodelay(true).unwrap();
-        let framed_stream = wire_protocol::Codec::new().framed(tcp_stream);
+        let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
         let (dap_session, dap_fut) = dap_session::DAPSession::new(Box::new(framed_stream));
         let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
         tokio::spawn(dap_fut);

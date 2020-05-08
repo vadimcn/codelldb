@@ -8,26 +8,26 @@ use tokio_util::codec;
 use crate::debug_protocol::ProtocolMessage;
 use serde_json;
 
+pub struct DAPCodec {
+    state: State,
+    content_len: usize,
+}
+
 enum State {
     ReadingHeaders,
     ReadingBody,
 }
 
-pub struct Codec {
-    state: State,
-    content_len: usize,
-}
-
-impl Codec {
-    pub fn new() -> Codec {
-        Codec {
+impl DAPCodec {
+    pub fn new() -> DAPCodec {
+        DAPCodec {
             state: State::ReadingHeaders,
             content_len: 0,
         }
     }
 }
 
-impl codec::Decoder for Codec {
+impl codec::Decoder for DAPCodec {
     type Item = ProtocolMessage;
     type Error = io::Error;
 
@@ -72,7 +72,7 @@ impl codec::Decoder for Codec {
     }
 }
 
-impl codec::Encoder<ProtocolMessage> for Codec {
+impl codec::Encoder<ProtocolMessage> for DAPCodec {
     type Error = io::Error;
 
     fn encode(&mut self, message: ProtocolMessage, buffer: &mut BytesMut) -> Result<(), Self::Error> {

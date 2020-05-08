@@ -108,6 +108,7 @@ impl Default for OutputEventBody {
             column: None,
             source: None,
             variables_reference: None,
+            group: None,
         }
     }
 }
@@ -120,6 +121,9 @@ impl Default for CompletionItem {
             start: None,
             text: None,
             type_: None,
+            sort_text: None,
+            selection_start: None,
+            selection_length: None,
         }
     }
 }

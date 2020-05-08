@@ -158,11 +158,13 @@
 				"lldb.library": {
 					"markdownDescription": "Which LLDB library to use.\n\nThis can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
 					"type": "string",
+					"default": null,
 					"scope": "resource"
 				},
 				"lldb.libpython": {
 					"markdownDescription": "Which Python library to use.",
 					"type": "string",
+					"default": null,
 					"scope": "resource"
 				},
 				"lldb.adapterEnv": {

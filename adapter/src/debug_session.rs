@@ -1226,19 +1226,19 @@ impl DebugSession {
     }
 
     fn create_target_from_program(&self, program: &str) -> Result<SBTarget, Error> {
-        let target = match self.debugger.create_target(program, None, None, false) {
-            Ok(target) => target,
+        match self.debugger.create_target(program, None, None, false) {
+            Ok(target) => Ok(target),
+            Err(err) => {
             // TODO: use selected platform instead of cfg!(windows)
-            Err(_) if cfg!(windows) && !program.ends_with(".exe") => {
+                if cfg!(windows) && !program.ends_with(".exe") {
                 let program = format!("{}.exe", program);
-                match self.debugger.create_target(&program, None, None, false) {
-                    Ok(target) => target,
-                    Err(err) => return Err(err.into()),
+                    self.debugger.create_target(&program, None, None, false)
+                } else {
+                    Err(err)
+                }
                 }
             }
-            Err(err) => return Err(err.into()),
-        };
-        Ok(target)
+        .map_err(|e| UserError(e.to_string()).into())
     }
 
     fn find_executable<'a>(&self, program: &'a str) -> Cow<'a, str> {

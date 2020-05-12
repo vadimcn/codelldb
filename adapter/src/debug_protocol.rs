@@ -190,6 +190,7 @@ pub struct LaunchRequestArguments {
     pub env: Option<VecMap<String, String>>,
     pub stdio: Option<Either<String, Vec<Option<String>>>>,
     pub terminal: Option<TerminalKind>,
+    pub console: Option<ConsoleKind>,
     pub target_create_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
     pub custom: Option<bool>,
@@ -264,6 +265,14 @@ pub enum TerminalKind {
     Integrated,
     External,
     Console,
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ConsoleKind {
+    IntegratedTerminal,
+    ExternalTerminal,
+    InternalConsole,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

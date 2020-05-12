@@ -1253,11 +1253,21 @@ impl DebugSession {
             return future::ready(()).left_future(); // Can't attach to a terminal when remote-debugging.
         }
 
-        let terminal_kind = match args.terminal.unwrap_or(TerminalKind::Integrated) {
+        let terminal_kind = match args.terminal {
+            Some(kind) => kind,
+            None => match args.console {
+                Some(ConsoleKind::InternalConsole) => TerminalKind::Console,
+                Some(ConsoleKind::ExternalTerminal) => TerminalKind::External,
+                Some(ConsoleKind::IntegratedTerminal) => TerminalKind::Integrated,
+                None => TerminalKind::Integrated,
+            },
+        };
+        let terminal_kind = match terminal_kind {
             TerminalKind::Console => return future::ready(()).left_future(),
             TerminalKind::External => "external",
             TerminalKind::Integrated => "integrated",
         };
+
         let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
         let fut = Terminal::create(terminal_kind, title, self.dap_session.borrow().clone());
         let self_ref = self.self_ref.clone();

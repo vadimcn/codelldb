@@ -481,6 +481,20 @@
 								],
 								"default": "integrated"
 							},
+							"console": {
+								"description": "Terminal type to use. (This setting is a compatibility alias of 'terminal'.)",
+								"type": "string",
+								"enum": [
+									"integratedTerminal",
+									"externalTerminal",
+									"internalConsole"
+								],
+								"enumDescriptions": [
+									"Use integrated terminal in VSCode.",
+									"Use external terminal window.",
+									"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
+								]
+							},
 							"stopOnEntry": {
 								"description": "Automatically stop debuggee after launch.",
 								"type": "boolean",

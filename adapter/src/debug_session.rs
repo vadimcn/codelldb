@@ -2153,6 +2153,8 @@ impl DebugSession {
             ConsoleMode::Evaluate => {
                 if args.text.starts_with('`') {
                     (&args.text[1..], args.column - 2)
+                } else if args.text.starts_with("/cmd ") {
+                    (&args.text[5..], args.column - 6)
                 } else {
                     // TODO: expression completions
                     return Ok(CompletionsResponseBody {

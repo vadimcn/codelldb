@@ -96,8 +96,8 @@ pub enum RequestArguments {
     setVariable(SetVariableArguments),
     dataBreakpointInfo(DataBreakpointInfoArguments),
     setDataBreakpoints(SetDataBreakpointsArguments),
-    terminate(TerminateArguments),
-    disconnect(DisconnectArguments),
+    terminate(Option<TerminateArguments>),
+    disconnect(Option<DisconnectArguments>),
     // Custom
     adapterSettings(AdapterSettings),
     // Reverse
@@ -403,7 +403,7 @@ mod tests {
         assert_match!(
             request,
             ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::disconnect(..)),
+                command: Command::Known(RequestArguments::disconnect(Some(..))),
                 ..
             })
         );
@@ -412,9 +412,7 @@ mod tests {
         assert_match!(
             request,
             ProtocolMessage::Request(Request {
-                command: Command::Unknown {
-                    ..
-                },
+                command: Command::Known(RequestArguments::disconnect(None)),
                 ..
             })
         );

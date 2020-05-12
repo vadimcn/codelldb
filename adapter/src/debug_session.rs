@@ -285,7 +285,7 @@ impl DebugSession {
                         self.handle_configuration_done()
                             .map(|_| ResponseBody::configurationDone),
                     RequestArguments::disconnect(args) =>
-                        self.handle_disconnect(Some(args))
+                        self.handle_disconnect(args)
                             .map(|_| ResponseBody::disconnect),
                     _ => {
                         if self.no_debug {
@@ -367,13 +367,8 @@ impl DebugSession {
                 }
             },
             Command::Unknown { ref command } => {
-                if command == "disconnect" { // disconnect arguments are optional, but Serde currenty doesn't support that.
-                    self.handle_disconnect(None)
-                        .map(|_| ResponseBody::disconnect)
-                } else {
-                    info!("Received unknown command: {}", command);
-                    Err("Not implemented.".into())
-                }
+                info!("Received an unknown command: {}", command);
+                Err("Not implemented.".into())
             }
         }
     }

@@ -372,27 +372,74 @@
 			}
 		},
 		"breakpoints": [
-			{ "language": "ada" },
-			{ "language": "arm" },
-			{ "language": "asm" },
-			{ "language": "c" },
-			{ "language": "cpp" },
-			{ "language": "crystal" },
-			{ "language": "d" },
-			{ "language": "fortran" },
-			{ "language": "fortran-modern" },
-			{ "language": "lldb.disassembly" },
-			{ "language": "nim" },
-			{ "language": "objective-c" },
-			{ "language": "objectpascal" },
-			{ "language": "pascal" },
-			{ "language": "rust" },
-			{ "language": "swift" }
+			{
+				"language": "ada"
+			},
+			{
+				"language": "arm"
+			},
+			{
+				"language": "asm"
+			},
+			{
+				"language": "c"
+			},
+			{
+				"language": "cpp"
+			},
+			{
+				"language": "crystal"
+			},
+			{
+				"language": "d"
+			},
+			{
+				"language": "fortran"
+			},
+			{
+				"language": "fortran-modern"
+			},
+			{
+				"language": "lldb.disassembly"
+			},
+			{
+				"language": "nim"
+			},
+			{
+				"language": "objective-c"
+			},
+			{
+				"language": "objectpascal"
+			},
+			{
+				"language": "pascal"
+			},
+			{
+				"language": "rust"
+			},
+			{
+				"language": "swift"
+			}
 		],
 		"debuggers": [
 			{
 				"type": "lldb",
 				"label": "LLDB",
+				"languages": [
+					"ada",
+					"arm",
+					"asm",
+					"c",
+					"cpp",
+					"crystal",
+					"fortran-modern",
+					"fortran",
+					"nim",
+					"objective-c",
+					"objectpascal",
+					"pascal",
+					"rust"
+				],
 				"variables": {
 					"pickProcess": "lldb.pickProcess",
 					"pickMyProcess": "lldb.pickMyProcess"

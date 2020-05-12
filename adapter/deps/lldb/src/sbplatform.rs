@@ -11,6 +11,13 @@ impl SBPlatform {
             return self->Clear();
         })
     }
+    pub fn name(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
+            return self->GetName();
+        });
+        assert!(!ptr.is_null());
+        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
     pub fn is_connected(&self) -> bool {
         cpp!(unsafe [self as "SBPlatform*"] -> bool as "bool" {
             return self->IsConnected();
@@ -54,6 +61,12 @@ impl SBPlatform {
     pub fn launch(&self, launch_info: &SBLaunchInfo) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBPlatform*", launch_info as "SBLaunchInfo*"] -> SBError as "SBError" {
             return self->Launch(*launch_info);
+        })
+        .into_result()
+    }
+    pub fn kill(&self, pid: ProcessID) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBPlatform*", pid as "lldb::pid_t"] -> SBError as "SBError" {
+            return self->Kill(pid);
         })
         .into_result()
     }

@@ -1,5 +1,7 @@
+#![allow(dead_code)]
 use crate::error::Error;
 use std::fs;
+use std::io;
 
 #[cfg(unix)]
 pub fn pipe() -> Result<(fs::File, fs::File), Error> {
@@ -48,3 +50,33 @@ pub fn sink() -> Result<fs::File, Error> {
 pub fn sink() -> Result<fs::File, Error> {
     Ok(fs::File::create(r#"\\.\NUL"#)?)
 }
+
+// #[cfg(unix)]
+// pub fn waitpid(pid: u32) -> Result<(), io::Error> {
+//     use std::ptr;
+
+//     unsafe {
+//         if libc::waitpid(pid as libc::pid_t, ptr::null_mut(), 0) < 0 {
+//             return Err(io::Error::last_os_error()).into();
+//         }
+//     }
+//     Ok(())
+// }
+
+// #[cfg(windows)]
+// pub fn waitpid(pid: u32) -> Result<(), io::Error> {
+//     use winapi::um::{
+//         errhandlingapi::GetLastError, handleapi::CloseHandle, processthreadsapi::OpenProcess,
+//         synchapi::WaitForSingleObject, winbase::INFINITE, winnt::PROCESS_QUERY_INFORMATION,
+//     };
+
+//     unsafe {
+//         let handle = OpenProcess(PROCESS_QUERY_INFORMATION, false, pid);
+//         if handle == ptr::null_mut() {
+//             return Err(io::Error::last_os_error()).into();
+//         }
+//         WaitForSingleObject(handle, INFINITE);
+//         CloseHandle(handle);
+//     }
+//     Ok(())
+// }

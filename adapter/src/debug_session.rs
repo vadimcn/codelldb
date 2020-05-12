@@ -30,7 +30,7 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::pipe::{self, pipe};
+use crate::platform::{pipe, sink};
 use crate::python;
 use crate::terminal::Terminal;
 
@@ -94,8 +94,8 @@ pub struct DebugSession {
     debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
     process: MustInitialize<SBProcess>,
-    process_was_launched: bool,
-    default_expr_type: Expressions,
+    terminate_on_disconnect: bool,
+    no_debug: bool,
 
     breakpoints: RefCell<BreakpointsState>,
     var_refs: HandleTree<Container>,
@@ -108,6 +108,7 @@ pub struct DebugSession {
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
 
+    default_expr_type: Expressions,
     global_format: Format,
     show_disassembly: ShowDisassembly,
     deref_pointers: bool,
@@ -166,13 +167,13 @@ impl DebugSession {
             python: python,
 
             console_pipe: con_writer,
-            null_pipe: pipe::sink().unwrap(),
+            null_pipe: sink().unwrap(),
 
             debugger: debugger,
             target: NotInitialized,
             process: NotInitialized,
-            process_was_launched: false,
-            default_expr_type: Expressions::Simple,
+            terminate_on_disconnect: false,
+            no_debug: false,
 
             breakpoints: RefCell::new(BreakpointsState {
                 source: HashMap::new(),
@@ -190,6 +191,7 @@ impl DebugSession {
             selected_frame_changed: false,
             last_goto_request: None,
 
+            default_expr_type: Expressions::Simple,
             global_format: Format::Default,
             show_disassembly: ShowDisassembly::Auto,
             deref_pointers: true,
@@ -269,92 +271,98 @@ impl DebugSession {
         match command {
             Command::Known(arguments) => {
                 match arguments {
+                    RequestArguments::adapterSettings(args) =>
+                        self.handle_adapter_settings(args)
+                            .map(|_| ResponseBody::adapterSettings),
                     RequestArguments::initialize(args) =>
                         self.handle_initialize(args)
                             .map(|r| ResponseBody::initialize(r)),
-                    RequestArguments::setBreakpoints(args) =>
-                        self.handle_set_breakpoints(args)
-                            .map(|r| ResponseBody::setBreakpoints(r)),
-                    RequestArguments::setFunctionBreakpoints(args) =>
-                        self.handle_set_function_breakpoints(args)
-                            .map(|r| ResponseBody::setFunctionBreakpoints(r)),
-                    RequestArguments::setExceptionBreakpoints(args) =>
-                        self.handle_set_exception_breakpoints(args)
-                            .map(|_| ResponseBody::setExceptionBreakpoints),
                     RequestArguments::launch(args) =>
-                        self.handle_launch(args),
+                            self.handle_launch(args),
                     RequestArguments::attach(args) =>
                         self.handle_attach(args),
                     RequestArguments::configurationDone =>
                         self.handle_configuration_done()
                             .map(|_| ResponseBody::configurationDone),
-                    RequestArguments::threads =>
-                        self.handle_threads()
-                            .map(|r| ResponseBody::threads(r)),
-                    RequestArguments::stackTrace(args) =>
-                        self.handle_stack_trace(args)
-                            .map(|r| ResponseBody::stackTrace(r)),
-                    RequestArguments::scopes(args) =>
-                        self.handle_scopes(args)
-                            .map(|r| ResponseBody::scopes(r)),
-                    RequestArguments::variables(args) =>
-                        self.handle_variables(args)
-                            .map(|r| ResponseBody::variables(r)),
-                    RequestArguments::evaluate(args) =>
-                        self.handle_evaluate(args),
-                    RequestArguments::setVariable(args) =>
-                        self.handle_set_variable(args)
-                            .map(|r| ResponseBody::setVariable(r)),
-                    RequestArguments::pause(args) =>
-                        self.handle_pause(args)
-                            .map(|_| ResponseBody::pause),
-                    RequestArguments::continue_(args) =>
-                        self.handle_continue(args)
-                            .map(|r| ResponseBody::continue_(r)),
-                    RequestArguments::next(args) =>
-                        self.handle_next(args)
-                            .map(|_| ResponseBody::next),
-                    RequestArguments::stepIn(args) =>
-                        self.handle_step_in(args)
-                            .map(|_| ResponseBody::stepIn),
-                    RequestArguments::stepOut(args) =>
-                        self.handle_step_out(args)
-                            .map(|_| ResponseBody::stepOut),
-                    RequestArguments::stepBack(args) =>
-                        self.handle_step_back(args)
-                            .map(|_| ResponseBody::stepBack),
-                    RequestArguments::reverseContinue(args) =>
-                        self.handle_reverse_continue(args)
-                            .map(|_| ResponseBody::reverseContinue),
-                    RequestArguments::source(args) =>
-                        self.handle_source(args)
-                            .map(|r| ResponseBody::source(r)),
-                    RequestArguments::completions(args) =>
-                        self.handle_completions(args)
-                            .map(|r| ResponseBody::completions(r)),
-                    RequestArguments::gotoTargets(args) =>
-                        self.handle_goto_targets(args)
-                            .map(|r| ResponseBody::gotoTargets(r)),
-                    RequestArguments::goto(args) =>
-                        self.handle_goto(args)
-                            .map(|_| ResponseBody::goto),
-                    RequestArguments::restartFrame(args) =>
-                        self.handle_restart_frame(args)
-                            .map(|_| ResponseBody::restartFrame),
-                    RequestArguments::dataBreakpointInfo(args) =>
-                        self.handle_data_breakpoint_info(args)
-                            .map(|r| ResponseBody::dataBreakpointInfo(r)),
-                    RequestArguments::setDataBreakpoints(args) =>
-                        self.handle_set_data_breakpoints(args)
-                            .map(|r| ResponseBody::setDataBreakpoints(r)),
                     RequestArguments::disconnect(args) =>
                         self.handle_disconnect(Some(args))
                             .map(|_| ResponseBody::disconnect),
-                    RequestArguments::adapterSettings(args) =>
-                        self.handle_adapter_settings(args)
-                            .map(|_| ResponseBody::adapterSettings),
                     _ => {
-                        Err("Not implemented.".into())
+                        if self.no_debug {
+                            Err("Not supported in noDebug mode.".into())
+                        } else {
+                            match arguments {
+                                RequestArguments::setBreakpoints(args) =>
+                                    self.handle_set_breakpoints(args)
+                                        .map(|r| ResponseBody::setBreakpoints(r)),
+                                RequestArguments::setFunctionBreakpoints(args) =>
+                                    self.handle_set_function_breakpoints(args)
+                                        .map(|r| ResponseBody::setFunctionBreakpoints(r)),
+                                RequestArguments::setExceptionBreakpoints(args) =>
+                                    self.handle_set_exception_breakpoints(args)
+                                        .map(|_| ResponseBody::setExceptionBreakpoints),
+                                RequestArguments::threads =>
+                                    self.handle_threads()
+                                        .map(|r| ResponseBody::threads(r)),
+                                RequestArguments::stackTrace(args) =>
+                                    self.handle_stack_trace(args)
+                                        .map(|r| ResponseBody::stackTrace(r)),
+                                RequestArguments::scopes(args) =>
+                                    self.handle_scopes(args)
+                                        .map(|r| ResponseBody::scopes(r)),
+                                RequestArguments::variables(args) =>
+                                    self.handle_variables(args)
+                                        .map(|r| ResponseBody::variables(r)),
+                                RequestArguments::evaluate(args) =>
+                                    self.handle_evaluate(args),
+                                RequestArguments::setVariable(args) =>
+                                    self.handle_set_variable(args)
+                                        .map(|r| ResponseBody::setVariable(r)),
+                                RequestArguments::pause(args) =>
+                                    self.handle_pause(args)
+                                        .map(|_| ResponseBody::pause),
+                                RequestArguments::continue_(args) =>
+                                    self.handle_continue(args)
+                                        .map(|r| ResponseBody::continue_(r)),
+                                RequestArguments::next(args) =>
+                                    self.handle_next(args)
+                                        .map(|_| ResponseBody::next),
+                                RequestArguments::stepIn(args) =>
+                                    self.handle_step_in(args)
+                                        .map(|_| ResponseBody::stepIn),
+                                RequestArguments::stepOut(args) =>
+                                    self.handle_step_out(args)
+                                        .map(|_| ResponseBody::stepOut),
+                                RequestArguments::stepBack(args) =>
+                                    self.handle_step_back(args)
+                                        .map(|_| ResponseBody::stepBack),
+                                RequestArguments::reverseContinue(args) =>
+                                    self.handle_reverse_continue(args)
+                                        .map(|_| ResponseBody::reverseContinue),
+                                RequestArguments::source(args) =>
+                                    self.handle_source(args)
+                                        .map(|r| ResponseBody::source(r)),
+                                RequestArguments::completions(args) =>
+                                    self.handle_completions(args)
+                                        .map(|r| ResponseBody::completions(r)),
+                                RequestArguments::gotoTargets(args) =>
+                                    self.handle_goto_targets(args)
+                                        .map(|r| ResponseBody::gotoTargets(r)),
+                                RequestArguments::goto(args) =>
+                                    self.handle_goto(args)
+                                        .map(|_| ResponseBody::goto),
+                                RequestArguments::restartFrame(args) =>
+                                    self.handle_restart_frame(args)
+                                        .map(|_| ResponseBody::restartFrame),
+                                RequestArguments::dataBreakpointInfo(args) =>
+                                    self.handle_data_breakpoint_info(args)
+                                        .map(|r| ResponseBody::dataBreakpointInfo(r)),
+                                RequestArguments::setDataBreakpoints(args) =>
+                                    self.handle_set_data_breakpoints(args)
+                                        .map(|r| ResponseBody::setDataBreakpoints(r)),
+                                _=> Err("Not implemented.".into())
+                            }
+                        }
                     }
                 }
             },
@@ -974,6 +982,7 @@ impl DebugSession {
                 None => bail!(UserError("\"program\" property is required for launch".into())),
             };
 
+            self.no_debug = args.no_debug.unwrap_or(false);
             self.target = Initialized(self.create_target_from_program(program)?);
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
@@ -1077,59 +1086,42 @@ impl DebugSession {
             }
         }
 
-        if args.no_debug.unwrap_or(false) {
-            // No-debug launch: start debuggee directly and terminate the debug session.
-            launch_info.set_executable_file(&self.target.executable(), true);
-            let result = match &self.debuggee_terminal {
-                Some(t) => t.attach(|| self.target.platform().launch(&launch_info)),
-                None => self.target.platform().launch(&launch_info),
-            };
-            debug!("Launched process {}", launch_info.process_id());
-            self.send_event(EventBody::terminated(TerminatedEventBody {
-                restart: None,
-            }));
-            match result {
-                Ok(()) => Ok(ResponseBody::launch),
-                Err(err) => Err(UserError(err.error_string().into()))?,
-            }
-        } else {
-            // Normal launch
-            launch_info.set_listener(&self.event_listener);
+        launch_info.set_listener(&self.event_listener);
 
-            let result = match &self.debuggee_terminal {
-                Some(t) => t.attach(|| self.target.launch(&launch_info)),
-                None => self.target.launch(&launch_info),
-            };
+        let result = match &self.debuggee_terminal {
+            Some(t) => t.attach(|| self.target.launch(&launch_info)),
+            None => self.target.launch(&launch_info),
+        };
 
-            let process = match result {
-                Ok(process) => process,
-                Err(err) => {
-                    let mut msg: String = err.error_string().into();
-                    if let Some(work_dir) = launch_info.working_directory() {
-                        if self.target.platform().get_file_permissions(work_dir) == 0 {
-                            #[rustfmt::skip]
+        let process = match result {
+            Ok(process) => process,
+            Err(err) => {
+                let mut msg: String = err.error_string().into();
+                if let Some(work_dir) = launch_info.working_directory() {
+                    if self.target.platform().get_file_permissions(work_dir) == 0 {
+                        #[rustfmt::skip]
                             let _ = write!( msg, "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
                                 work_dir.display()
                             );
-                        }
                     }
-                    return Err(UserError(msg))?;
                 }
-            };
-            self.process = Initialized(process);
-            self.process_was_launched = true;
-
-            // LLDB sometimes loses the initial stop event.
-            if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
-                self.notify_process_stopped();
+                return Err(UserError(msg))?;
             }
+        };
+        self.console_message(format!("Launched process {}", process.process_id()));
+        self.process = Initialized(process);
+        self.terminate_on_disconnect = true;
 
-            if let Some(commands) = args.common.post_run_commands {
-                self.exec_commands("postRunCommands", &commands)?;
-            }
-            self.exit_commands = args.common.exit_commands;
-            Ok(ResponseBody::launch)
+        // LLDB sometimes loses the initial stop event.
+        if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+            self.notify_process_stopped();
         }
+
+        if let Some(commands) = args.common.post_run_commands {
+            self.exec_commands("postRunCommands", &commands)?;
+        }
+        self.exit_commands = args.common.exit_commands;
+        Ok(ResponseBody::launch)
     }
 
     fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
@@ -1154,7 +1146,7 @@ impl DebugSession {
         }
         self.process = Initialized(self.target.process());
         self.process.broadcaster().add_listener(&self.event_listener, !0);
-        self.process_was_launched = true;
+        self.terminate_on_disconnect = true;
 
         // This is succeptible to race conditions, but probably the best we can do.
         if self.process.state().is_stopped() {
@@ -1209,8 +1201,9 @@ impl DebugSession {
             Ok(process) => process,
             Err(err) => return Err(UserError(err.error_string().into()))?,
         };
+        self.console_message(format!("Attached to process {}", process.process_id()));
         self.process = Initialized(process);
-        self.process_was_launched = false;
+        self.terminate_on_disconnect = false;
 
         if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
@@ -1229,15 +1222,15 @@ impl DebugSession {
         match self.debugger.create_target(program, None, None, false) {
             Ok(target) => Ok(target),
             Err(err) => {
-            // TODO: use selected platform instead of cfg!(windows)
+                // TODO: use selected platform instead of cfg!(windows)
                 if cfg!(windows) && !program.ends_with(".exe") {
-                let program = format!("{}.exe", program);
+                    let program = format!("{}.exe", program);
                     self.debugger.create_target(&program, None, None, false)
                 } else {
                     Err(err)
                 }
-                }
             }
+        }
         .map_err(|e| UserError(e.to_string()).into())
     }
 
@@ -2352,12 +2345,13 @@ impl DebugSession {
         self.debuggee_terminal = None;
 
         let terminate = match args {
-            None => self.process_was_launched,
+            None => self.terminate_on_disconnect,
             Some(args) => match args.terminate_debuggee {
-                None => self.process_was_launched,
+                None => self.terminate_on_disconnect,
                 Some(terminate) => terminate,
             },
         };
+
         if let Initialized(ref process) = self.process {
             if terminate {
                 process.kill()?;
@@ -2365,6 +2359,7 @@ impl DebugSession {
                 process.detach()?;
             }
         }
+
         Ok(())
     }
 

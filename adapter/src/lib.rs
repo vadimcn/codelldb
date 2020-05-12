@@ -26,7 +26,7 @@ mod expressions;
 mod fsutil;
 mod handles;
 mod must_initialize;
-mod pipe;
+mod platform;
 mod python;
 mod terminal;
 mod vec_map;

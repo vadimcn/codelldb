@@ -14,7 +14,7 @@ pub use raw_debug_protocol::{
     SetBreakpointsResponseBody, SetDataBreakpointsArguments, SetDataBreakpointsResponseBody,
     SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody,
     Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
-    StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody,
+    StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments,
     TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
     VariablesResponseBody,
 };
@@ -96,6 +96,7 @@ pub enum RequestArguments {
     setVariable(SetVariableArguments),
     dataBreakpointInfo(DataBreakpointInfoArguments),
     setDataBreakpoints(SetDataBreakpointsArguments),
+    terminate(TerminateArguments),
     disconnect(DisconnectArguments),
     // Custom
     adapterSettings(AdapterSettings),
@@ -135,6 +136,7 @@ pub enum ResponseBody {
     setVariable(SetVariableResponseBody),
     dataBreakpointInfo(DataBreakpointInfoResponseBody),
     setDataBreakpoints(SetDataBreakpointsResponseBody),
+    terminate,
     disconnect,
     // Custom
     adapterSettings,

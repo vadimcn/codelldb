@@ -5,6 +5,11 @@ cpp_class!(pub unsafe struct SBProcess as "SBProcess");
 unsafe impl Send for SBProcess {}
 
 impl SBProcess {
+    pub fn process_id(&self) -> ProcessID {
+        cpp!(unsafe [self as "SBProcess*"] -> ProcessID as "lldb::pid_t" {
+            return self->GetProcessID();
+        })
+    }
     pub fn target(&self) -> SBTarget {
         cpp!(unsafe [self as "SBProcess*"] -> SBTarget as "SBTarget" {
                 return self->GetTarget();

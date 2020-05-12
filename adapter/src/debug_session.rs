@@ -1249,6 +1249,10 @@ impl DebugSession {
     }
 
     fn create_terminal(&mut self, args: &LaunchRequestArguments) -> impl Future {
+        if self.target.platform().name() != "host" {
+            return future::ready(()).left_future(); // Can't attach to a terminal when remote-debugging.
+        }
+
         let terminal_kind = match args.terminal.unwrap_or(TerminalKind::Integrated) {
             TerminalKind::Console => return future::ready(()).left_future(),
             TerminalKind::External => "external",

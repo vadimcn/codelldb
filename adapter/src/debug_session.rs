@@ -1383,6 +1383,7 @@ impl DebugSession {
         fn escape(s: &str) -> String {
             s.replace("\\", "\\\\").replace("\"", "\\\"")
         }
+
         let mut args = String::new();
         for (remote, local) in source_map.into_iter() {
             let remote_escaped = escape(remote.as_ref());
@@ -1396,9 +1397,12 @@ impl DebugSession {
             args.push_str(&local_escaped);
             args.push_str("\" ");
         }
-        info!("Set target.source-map args: {}", args);
-        if let Err(error) = self.debugger.set_variable("target.source-map", &args) {
-            self.console_error(format!("Could not set source map: {}", error.error_string()))
+
+        if !args.is_empty() {
+            info!("Set target.source-map args: {}", args);
+            if let Err(error) = self.debugger.set_variable("target.source-map", &args) {
+                self.console_error(format!("Could not set source map: {}", error.error_string()))
+            }
         }
     }
 

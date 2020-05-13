@@ -95,6 +95,155 @@ function generateSuite(triple: string) {
                 await ds.terminate();
             });
 
+            test('set breakpoint (absolute path)', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLineSource = findMarker(debuggeeSource, '#BP1');
+                let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
+
+                let stopAsync = ds.waitForEvent('stopped');
+                await ds.launch({ name: 'set breakpoint (absolute path)', program: debuggee, cwd: path.dirname(debuggee) });
+
+                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncSource;
+                assert.deepEqual(breakPointResponse.body.breakpoints, [
+                  {
+                    id: 1,
+                    line: 242,
+                    message: "Locations: 1",
+                    source: {
+                      name: path.basename(debuggeeSource),
+                      path: debuggeeSource,
+                    },
+                    verified: true,
+                  },
+                ]);
+
+                log('Waiting for stop');
+                await stopAsync;
+                log('Terminating');
+                await ds.terminate();
+            });
+
+            test('set breakpoint (relative path)', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
+                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+
+                let stopAsync = ds.waitForEvent('stopped');
+                await ds.launch({
+                  name: "set breakpoint (relative path)", program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                  sourceMap: {
+                      ['.']: path.join(sourceDir, 'debuggee'),
+                  },
+                  relativePathBase: path.join(sourceDir, "debuggee"),
+                });
+
+                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
+                assert.deepEqual(breakPointResponse.body.breakpoints, [
+                  {
+                    id: 1,
+                    line: 5,
+                    message: "Locations: 1",
+                    source: {
+                      name: path.basename(debuggeeRelative),
+                      path: debuggeeRelative,
+                    },
+                    verified: true,
+                  },
+                ]);
+
+                log('Waiting for stop');
+                await stopAsync;
+                log('Terminating');
+                await ds.terminate();
+            });
+
+            test('set breakpoint (relative path with relative mappings)', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
+                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+
+                let stopAsync = ds.waitForEvent('stopped');
+                await ds.launch({
+                  name: "set breakpoint (relative path with relative mappings)", program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                  sourceMap: {
+                      ['.']: path.dirname(debuggeeRelative) + path.sep + "..",
+                  },
+                  relativePathBase: path.dirname(debuggeeRelative) + path.sep + "..",
+                });
+
+                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
+                assert.deepEqual(breakPointResponse.body.breakpoints, [
+                  {
+                    id: 1,
+                    line: 5,
+                    message: "Locations: 1",
+                    source: {
+                      name: path.basename(debuggeeRelative),
+                      path: debuggeeRelative,
+                    },
+                    verified: true,
+                  },
+                ]);
+
+                log('Waiting for stop');
+                await stopAsync;
+                log('Terminating');
+                await ds.terminate();
+            });
+
+            test('set breakpoint (relative path with no relativePathBase)', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
+                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+
+                let stopAsync = ds.waitForEvent('stopped');
+                await ds.launch({
+                  name: "set breakpoint (relative path with no relativePathBase)", program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                  sourceMap: {
+                      ['.']: path.join(sourceDir, 'debuggee'),
+                  },
+                });
+
+                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
+                assert.deepEqual(breakPointResponse.body.breakpoints, [
+                  {
+                    id: 1,
+                    line: 5,
+                    message: "Locations: 1",
+                    source: {
+                      name: path.basename(debuggeeRelative),
+                      path: path.relative(path.join(sourceDir, 'debuggee'), debuggeeRelative),
+                    },
+                    verified: true,
+                  },
+                ]);
+
+                log('Waiting for stop');
+                await stopAsync;
+                log('Terminating');
+                await ds.terminate();
+            });
+
+            test('set breakpoint (relative path with no mappings)', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
+                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+
+                await ds.launch({ name: 'set breakpoint (relative path with no mappings)', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee) });
+
+                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
+                assert.deepEqual(breakPointResponse.body.breakpoints, [
+                  {
+                    id: 1,
+                    message: "Locations: 0",
+                    verified: false,
+                  },
+                ]);
+
+                log('Terminating');
+                await ds.terminate();
+            });
+
             test('stop on entry', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let stopAsync = ds.waitForEvent('stopped');

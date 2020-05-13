@@ -622,7 +622,15 @@ impl DebugSession {
                 BreakpointKind::Location => {
                     let address = bp_info.breakpoint.location_at_index(0).address();
                     if let Some(le) = address.line_entry() {
-                        let file_path = le.file_spec().path();
+                        let fs = le.file_spec();
+                        // Try to map to local file path, otherwise when the path is relative VSCode will assume it is
+                        // relative to the workspace folder (and if not breakpoints will dissapear). This will fail when
+                        // `relative_path_base` is not the base of the relative path, but return the breakpoint with the
+                        // relative path since it was set correctly on lldb (and may be relative to the workspace).
+                        let file_path = match self.map_filespec_to_local(&fs) {
+                            Some(local_path) => local_path,
+                            None => Rc::new(fs.path()),
+                        };
                         Breakpoint {
                             id: Some(bp_info.id as i64),
                             source: Some(Source {
@@ -2654,7 +2662,7 @@ impl DebugSession {
         }
     }
 
-    // Maps remote file path to local file path.
+    // Maps remote file path to canonical local file path.
     // The bulk of this work is done by LLDB itself (via target.source-map), in addition to which:
     // - if `filespec` contains a relative path, we convert it to an absolute one using relative_path_base
     //   (which is normally initialized to ${workspaceFolder}) as a base.
@@ -2674,11 +2682,11 @@ impl DebugSession {
                     if path.is_relative() {
                         path = self.relative_path_base.join(path);
                     }
-                    // Check if the file exists.
-                    let mapped_path = if self.suppress_missing_files && !path.is_file() {
-                        None
-                    } else {
-                        Some(Rc::new(path))
+                    // Canonicalize the path (VSCode doesn't handle paths with `..` correctly), and suppress it when
+                    // `suppress_missing_files` is true and local file doesn't exist (canonicalize will fail).
+                    let mapped_path = match path.canonicalize() {
+                        Ok(canonical_path) => Some(Rc::new(canonical_path)),
+                        Err(_) => if self.suppress_missing_files { None } else { Some(Rc::new(path)) },
                     };
                     // Cache the result, so we don't have to probe file system again for the same path.
                     source_map_cache.insert(source_path, mapped_path.clone());

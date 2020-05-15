@@ -123,6 +123,41 @@ function generateSuite(triple: string) {
                 await ds.terminate();
             });
 
+            test('set breakpoint (mapped path)', async function () {
+              let ds = await DebugTestSession.start(adapterLog);
+              let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
+              let setBreakpointAsyncRemote1 = ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
+
+              let stopAsync = ds.waitForEvent('stopped');
+              // On Windows, LLDB adds current drive letter to drive-less paths.
+              let drive = process.platform == 'win32' ? 'C:' : '';
+              await ds.launch({
+                name: "set breakpoint (relative path)", program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
+                sourceMap: {
+                    [`${drive}/remote1`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
+                },
+              });
+
+              const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRemote1;
+              assert.deepEqual(breakPointResponse.body.breakpoints, [
+                {
+                  id: 1,
+                  line: 5,
+                  message: "Locations: 1",
+                  source: {
+                    name: path.basename(debuggeeRemote1),
+                    path: debuggeeRemote1,
+                  },
+                  verified: true,
+                },
+              ]);
+
+              log('Waiting for stop');
+              await stopAsync;
+              log('Terminating');
+              await ds.terminate();
+          });
+
             test('set breakpoint (relative path)', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
@@ -134,7 +169,6 @@ function generateSuite(triple: string) {
                   sourceMap: {
                       ['.']: path.join(sourceDir, 'debuggee'),
                   },
-                  relativePathBase: path.join(sourceDir, "debuggee"),
                 });
 
                 const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
@@ -168,7 +202,6 @@ function generateSuite(triple: string) {
                   sourceMap: {
                       ['.']: path.dirname(debuggeeRelative) + path.sep + "..",
                   },
-                  relativePathBase: path.dirname(debuggeeRelative) + path.sep + "..",
                 });
 
                 const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
@@ -180,39 +213,6 @@ function generateSuite(triple: string) {
                     source: {
                       name: path.basename(debuggeeRelative),
                       path: debuggeeRelative,
-                    },
-                    verified: true,
-                  },
-                ]);
-
-                log('Waiting for stop');
-                await stopAsync;
-                log('Terminating');
-                await ds.terminate();
-            });
-
-            test('set breakpoint (relative path with no relativePathBase)', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
-                let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
-                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
-
-                let stopAsync = ds.waitForEvent('stopped');
-                await ds.launch({
-                  name: "set breakpoint (relative path with no relativePathBase)", program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
-                  sourceMap: {
-                      ['.']: path.join(sourceDir, 'debuggee'),
-                  },
-                });
-
-                const breakPointResponse: dp.SetBreakpointsResponse = await setBreakpointAsyncRelative;
-                assert.deepEqual(breakPointResponse.body.breakpoints, [
-                  {
-                    id: 1,
-                    line: 5,
-                    message: "Locations: 1",
-                    source: {
-                      name: path.basename(debuggeeRelative),
-                      path: path.relative(path.join(sourceDir, 'debuggee'), debuggeeRelative),
                     },
                     verified: true,
                   },

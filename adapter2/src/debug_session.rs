@@ -29,6 +29,7 @@ use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::python;
 use crate::terminal::Terminal;
+use crate::vec_map::VecMap;
 
 use python::PythonInterface;
 
@@ -101,6 +102,7 @@ pub struct DebugSession {
     disassembly: MustInitialize<disassembly::AddressSpace>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     loaded_modules: Vec<SBModule>,
+    source_map: Option<VecMap<String, Option<String>>>,
     relative_path_base: MustInitialize<PathBuf>,
     exit_commands: Option<Vec<String>>,
     debuggee_terminal: Option<Terminal>,
@@ -204,6 +206,7 @@ impl DebugSession {
             disassembly: NotInitialized,
             source_map_cache: RefCell::new(HashMap::new()),
             loaded_modules: Vec::new(),
+            source_map: None,
             relative_path_base: NotInitialized,
             exit_commands: None,
             debuggee_terminal: None,
@@ -623,10 +626,9 @@ impl DebugSession {
                     let address = bp_info.breakpoint.location_at_index(0).address();
                     if let Some(le) = address.line_entry() {
                         let fs = le.file_spec();
-                        // Try to map to local file path, otherwise when the path is relative VSCode will assume it is
-                        // relative to the workspace folder (and if not breakpoints will dissapear). This will fail when
-                        // `relative_path_base` is not the base of the relative path, but return the breakpoint with the
-                        // relative path since it was set correctly on lldb (and may be relative to the workspace).
+                        // Do not use `le.file_spec().path()` to get the file path, as lldb returns the unmapped path
+                        // (without resolving `target.source-map` matches), so it may not work locally. Instead try to
+                        // map to local file path and use `le.file_spec().path()` if we fail.
                         let file_path = match self.map_filespec_to_local(&fs) {
                             Some(local_path) => local_path,
                             None => Rc::new(fs.path()),
@@ -1319,6 +1321,7 @@ impl DebugSession {
         }
 
         if let Some(source_map) = &args_common.source_map {
+            self.source_map = Some(source_map.to_owned());
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
 
@@ -2664,6 +2667,7 @@ impl DebugSession {
 
     // Maps remote file path to canonical local file path.
     // The bulk of this work is done by LLDB itself (via target.source-map), in addition to which:
+    // - if LLDB didn't map the path (like with breakpoint responses), we perform the mapping.
     // - if `filespec` contains a relative path, we convert it to an absolute one using relative_path_base
     //   (which is normally initialized to ${workspaceFolder}) as a base.
     // - we check whether the local file actually exists, and suppress it (if `suppress_missing_files` is true),
@@ -2678,6 +2682,20 @@ impl DebugSession {
                 Some(mapped_path) => mapped_path.clone(),
                 None => {
                     let mut path = filespec.path();
+                    // Perform path mapping in case LLDB didn't (like with breakpoint responses).
+                    // See https://github.com/llvm/llvm-project/blob/aedb6615a8d08d7dfeba17bf22ff4c6fd104cadc/lldb/source/Target/PathMappingList.cpp#L157
+                    if let Some(source_map) = &self.source_map {
+                        for (remote_prefix, local_prefix) in source_map.iter() {
+                            let local_prefix_path = PathBuf::from(local_prefix.as_ref().unwrap_or(&String::new()));
+                            if let Ok(stripped_path) = path.strip_prefix(remote_prefix) {
+                                path = local_prefix_path.join(stripped_path);
+                                break;
+                            } else if (remote_prefix == "." && path.is_relative()) {
+                                path = local_prefix_path.join(path);
+                                break;
+                            }
+                        }
+                    }
                     // Make sure the path is absolute.
                     if path.is_relative() {
                         path = self.relative_path_base.join(path);

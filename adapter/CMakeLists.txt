@@ -1,11 +1,9 @@
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}m" CACHE STRING "" FORCE)
-elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}" CACHE STRING "" FORCE)
-elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(LLDB_LinkDylib "liblldb" CACHE STRING "" FORCE)
 else()
-    message(FATAL_ERROR "Unsupported platform")
+    get_filename_component(LibPython ${Python3_LIBRARY_RELEASE} NAME_WLE)
+    string(SUBSTRING ${LibPython} 3 -1 LibPython) # strip "lib" prefix
+    set(LLDB_LinkDylib "lldb;${LibPython}" CACHE STRING "" FORCE)
 endif()
 
 get_filename_component(LibPythonDir ${Python3_LIBRARY_RELEASE} DIRECTORY)

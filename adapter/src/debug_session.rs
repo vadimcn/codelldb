@@ -1319,7 +1319,7 @@ impl DebugSession {
         if let None = self.python {
             match self.default_expr_type {
                 Expressions::Simple | Expressions::Python => self.console_error(
-                    "Could not initialize Python interpreter - only native expressions will be available.",
+                    "Could not initialize Python interpreter - some features will be unavailable (e.g. debug visualizers).",
                 ),
                 Expressions::Native => (),
             }

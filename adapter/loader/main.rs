@@ -55,8 +55,12 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
 
         // Try loading libpython
         // This must be done before loading liblldb, because the latter is weak-linked to libpython.
-        if let Some(libpython) = matches.value_of("libpython") {
-            match load_library(&Path::new(&libpython), true) {
+        let libpython = matches //
+            .value_of("libpython")
+            .map(|v| v.into())
+            .or_else(|| find_python::find_python().ok());
+        if let Some(libpython) = libpython {
+            match load_library(&libpython, true) {
                 Ok(_) => (),
                 Err(err) => eprintln!("{}", err),
             }

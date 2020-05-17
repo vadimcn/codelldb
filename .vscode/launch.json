@@ -29,12 +29,11 @@
 				"rust"
 			],
 			"terminal": "integrated",
+			"args": [
+				"--multi-session",
+				"--port=4711"
+			],
 			"linux": {
-				"args": [
-					"--multi-session",
-					"--port=4711",
-					"--libpython=libpython3.6m.so",
-				],
 				"env": {
 					"RUST_LOG": "error,codelldb=debug",
 					"RUST_LOG_STYLE": "always",
@@ -42,11 +41,6 @@
 				},
 			},
 			"osx": {
-				"args": [
-					"--multi-session",
-					"--port=4711",
-					"--libpython=libpython3.7.dylib",
-				],
 				"env": {
 					"LD_LIBRARY_PATH": "/usr/local/opt/python/Frameworks/Python.framework/Versions/3.7/lib",
 					"RUST_LOG": "error,codelldb=debug",
@@ -55,10 +49,6 @@
 				},
 			},
 			"windows": {
-				"args": [
-					"--multi-session",
-					"--port=4711"
-				],
 				"env": {
 					"PATH": "${env:PATH};C:\\Python36-64;${workspaceFolder}\\build\\lldb\\bin",
 					"RUST_LOG": "error,codelldb=debug",

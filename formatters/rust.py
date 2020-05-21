@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import sys
 import logging
 import re
@@ -6,21 +7,20 @@ import lldb
 if sys.version_info[0] == 2:
     # python2-based LLDB accepts utf8-encoded ascii strings only.
     to_lldb_str = lambda s: s.encode('utf8', 'backslashreplace') if isinstance(s, unicode) else s
-    xrange = xrange
+    range = xrange
 else:
     to_lldb_str = str
-    xrange = range
 
 log = logging.getLogger('rust')
 
 module = sys.modules[__name__]
-serial = 0
+rust_category = None
 
 def initialize_category(debugger):
-    global module
+    global module, rust_category
     log.info('Initializing, module name=%s', __name__)
 
-    module.rust_category = debugger.CreateCategory('Rust')
+    rust_category = debugger.CreateCategory('Rust')
     #rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
@@ -62,32 +62,10 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdHashMapSynthProvider, r'^std::collections::hash::map::HashMap<.+>$', True)
     attach_synthetic_to_type(StdHashSetSynthProvider, r'^std::collections::hash::set::HashSet<.+>$', True)
 
-# Enums and tuples cannot be recognized based on type name.
-# These require deeper runtime analysis to tease them apart.
-ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
-ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
+    attach_synthetic_to_type(StdOptionSynthProvider, r'^core::option::Option<.+>$', True)
+    attach_synthetic_to_type(StdResultSynthProvider, r'^core::result::Result<.+>$', True)
+    attach_synthetic_to_type(StdCowSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
 
-def analyze_type(obj_type):
-    num_fields = obj_type.GetNumberOfFields()
-    if num_fields == 0:
-        return
-    type_class = obj_type.GetTypeClass()
-    if type_class == lldb.eTypeClassUnion:
-        if num_fields == 1:
-            first_variant_name = obj_type.GetFieldAtIndex(0).GetName()
-            if first_variant_name is None: # Singleton
-                attach_summary_to_type(get_singleton_enum_summary, obj_type.GetDisplayTypeName())
-            elif first_variant_name.startswith(ENCODED_ENUM_PREFIX): # Zero-optimized enum
-                provider_class = make_encoded_enum_provider_class(first_variant_name)
-                attach_synthetic_to_type(provider_class, obj_type.GetDisplayTypeName())
-        else: # Regular enum
-            attach_synthetic_to_type(RegularEnumProvider, obj_type.GetDisplayTypeName())
-    elif type_class == lldb.eTypeClassStruct:
-        first_field_name = obj_type.GetFieldAtIndex(0).GetName()
-        if first_field_name == ENUM_DISCRIMINANT: # Enum variant
-            attach_summary_to_type(get_enum_variant_summary, obj_type.GetDisplayTypeName())
-        elif first_field_name in ['0', '__0']: # Tuple variant or tuple struct
-            attach_summary_to_type(get_tuple_summary, obj_type.GetDisplayTypeName())
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global module, rust_category
@@ -102,21 +80,23 @@ def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     setattr(module, summary_fn.__name__, summary_fn)
     attach_summary_to_type(summary_fn, type_name, is_regex)
 
+
 def attach_summary_to_type(summary_fn, type_name, is_regex=False):
-    global rust_category
+    global module, rust_category
     log.debug('attaching summary %s to "%s", is_regex=%s', summary_fn.__name__, type_name, is_regex)
     summary = lldb.SBTypeSummary.CreateWithFunctionName(__name__ + '.' + summary_fn.__name__)
     summary.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
 
+\
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
-# This trick allows us to share data extraction logic between synth providers and their
-# sibling summary providers.
+# This trick allows us to share data extraction logic between synth providers and their sibling summary providers.
 def get_synth_summary(synth_class, valobj, dict):
     synth = synth_class(valobj.GetNonSyntheticValue(), dict)
     synth.update()
     summary = synth.get_summary()
     return to_lldb_str(summary)
+
 
 # Chained GetChildMemberWithName lookups
 def gcm(valobj, *chain):
@@ -136,6 +116,7 @@ def read_unique_ptr(valobj):
         return child
     return pointer # pointer no longer contains NonZero since Rust 1.33
 
+
 def string_from_ptr(pointer, length):
     if length <= 0:
         return u''
@@ -147,6 +128,7 @@ def string_from_ptr(pointer, length):
     else:
         log.error('ReadMemory error: %s', error.GetCString())
 
+
 def get_obj_summary(valobj, unavailable='{...}'):
     summary = valobj.GetSummary()
     if summary is not None:
@@ -155,6 +137,7 @@ def get_obj_summary(valobj, unavailable='{...}'):
     if summary is not None:
         return summary
     return unavailable
+
 
 def sequence_summary(childern, maxsize=32):
     s = ''
@@ -165,6 +148,7 @@ def sequence_summary(childern, maxsize=32):
             s += ', ...'
             break
     return s
+
 
 def get_unqualified_type_name(type_name):
     if type_name[0] in unqual_type_markers:
@@ -178,23 +162,6 @@ def dump_type(ty):
     log.info('type %s: size=%d', ty.GetName(), ty.GetByteSize())
 
 # ----- Summaries -----
-
-def get_singleton_enum_summary(valobj, dict):
-    return get_obj_summary(valobj.GetChildAtIndex(0))
-
-def get_enum_variant_summary(valobj, dict):
-    obj_type = valobj.GetType()
-    num_fields = obj_type.GetNumberOfFields()
-    unqual_type_name = get_unqualified_type_name(obj_type.GetName())
-    if num_fields == 1:
-        return unqual_type_name
-    elif obj_type.GetFieldAtIndex(1).GetName().startswith('__'): # tuple variant
-        fields = ', '.join([get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(1, num_fields)])
-        return '%s(%s)' % (unqual_type_name, fields)
-    else: # struct variant
-        fields = [valobj.GetChildAtIndex(i) for i in range(1, num_fields)]
-        fields = ', '.join(['%s:%s' % (f.GetName(), get_obj_summary(f)) for f in fields])
-        return '%s{%s}' % (unqual_type_name, fields)
 
 def get_tuple_summary(valobj, dict):
     fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
@@ -221,7 +188,7 @@ class RustSynthProvider(object):
 
     class Uninitialized(object):
         def __do_init(self, update=False):
-            self.__class__ = self._real_class
+            self.__class__ = self._real_class # type: ignore
             try:
                 if not update:
                     log.warning('Synth provider method has been called before update()')
@@ -230,6 +197,8 @@ class RustSynthProvider(object):
                 log.error('Error during RustSynthProvider initialization: %s', e)
                 self.__class__ = RustSynthProvider # This object is in a broken state, so fall back to default impls.
             return self
+        def initialize(self):
+            pass # abstract
         def update(self):
             return self.__do_init(True).update()
         def num_children(self):
@@ -243,65 +212,12 @@ class RustSynthProvider(object):
         def get_summary(self):
             return self.__do_init().get_summary()
 
-
-def make_encoded_enum_provider_class(variant_name):
-    # 'Encoded' enums always have two variants, of which one contains no data,
-    # and the other one contains a field (not necessarily at the top level) that implements
-    # Zeroable.  This field is then used as a two-state discriminant.
-    last_separator_index = variant_name.rfind("$")
-    start_index = len(ENCODED_ENUM_PREFIX)
-    indices_substring = variant_name[start_index:last_separator_index].split("$")
-
-    class EncodedEnumProvider(RustSynthProvider):
-        disr_field_indices = [int(index) for index in indices_substring]
-        null_variant_name = variant_name[last_separator_index + 1:]
-
-        def initialize(self):
-            discriminant = self.valobj.GetChildAtIndex(0)
-            for disr_field_index in self.disr_field_indices:
-                discriminant = discriminant.GetChildAtIndex(disr_field_index)
-            # Recurse down the first field of the discriminant till we reach a non-struct type,
-            for i in xrange(20): # ... but limit the depth, just in case.
-                if discriminant.GetType().GetTypeClass() != lldb.eTypeClassStruct:
-                    break
-                discriminant = discriminant.GetChildAtIndex(0)
-            self.is_null_variant = discriminant.GetValueAsUnsigned() == 0
-            if not self.is_null_variant:
-                self.variant = self.valobj.GetChildAtIndex(0)
-            return True
-
-        def num_children(self):
-            return 0 if self.is_null_variant else self.variant.GetNumChildren()
-
-        def has_children(self):
-            return False if self.is_null_variant else self.variant.MightHaveChildren()
-
-        def get_child_at_index(self, index):
-            return self.variant.GetChildAtIndex(index)
-
-        def get_child_index(self, name):
-            return self.variant.GetIndexOfChildWithName(name)
-
-        def get_summary(self):
-            if self.is_null_variant:
-                return self.null_variant_name
-            else:
-                unqual_type_name = get_unqualified_type_name(self.valobj.GetChildAtIndex(0).GetType().GetName())
-                return '%s%s' % (unqual_type_name, get_obj_summary(self.variant))
-
-    global serial
-    EncodedEnumProvider.__name__ += str(serial)
-    serial += 1
-    setattr(module, EncodedEnumProvider.__name__, EncodedEnumProvider)
-    return EncodedEnumProvider
-
 class RegularEnumProvider(RustSynthProvider):
     def initialize(self):
         # Regular enums are represented as unions of structs, containing discriminant in the
         # first field.
         discriminant = self.valobj.GetChildAtIndex(0).GetChildAtIndex(0).GetValueAsUnsigned()
         self.variant = self.valobj.GetChildAtIndex(discriminant)
-        return True
 
     def num_children(self):
         return max(0, self.variant.GetNumChildren() - 1)
@@ -321,15 +237,14 @@ class RegularEnumProvider(RustSynthProvider):
 # Base class for providers that represent array-like objects
 class ArrayLikeSynthProvider(RustSynthProvider):
     def initialize(self):
-        ptr, len = self.ptr_and_len(self.valobj)
+        ptr, len = self.ptr_and_len(self.valobj) # type: ignore
         self.ptr = ptr
         self.len = len
         self.item_type = self.ptr.GetType().GetPointeeType()
         self.item_size = self.item_type.GetByteSize()
-        return True
 
-    def ptr_and_len(self):
-        raise Error('ptr_and_len must be overridden')
+    def ptr_and_len(self, obj):
+        pass # abstract
 
     def num_children(self):
         return self.len
@@ -365,7 +280,7 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
         )
     def get_summary(self):
         try:
-            return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in xrange(self.len))))
+            return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
         except Exception as e:
             log.error('%s', e)
             raise
@@ -379,7 +294,7 @@ class SliceSynthProvider(ArrayLikeSynthProvider):
             gcm(vec, 'length').GetValueAsUnsigned()
         )
     def get_summary(self):
-        return '(%d) &[%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in xrange(self.len))))
+        return '(%d) &[%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
 # Base class for *String providers
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
@@ -456,6 +371,8 @@ class StdPathSynthProvider(FFISliceSynthProvider):
 ##################################################################################################################
 
 class DerefSynthProvider(RustSynthProvider):
+    deref = lldb.SBValue()
+
     def num_children(self):
         return self.deref.GetNumChildren()
 
@@ -473,6 +390,9 @@ class DerefSynthProvider(RustSynthProvider):
 
 # Base for Rc and Arc
 class StdRefCountedSynthProvider(DerefSynthProvider):
+    weak = 0
+    strong = 0
+
     def get_summary(self):
         if self.weak != 0:
             s = '(refs:%d,weak:%d) ' % (self.strong, self.weak)
@@ -494,6 +414,7 @@ class StdRcSynthProvider(StdRefCountedSynthProvider):
             self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
         else:
             self.deref = lldb.SBValue()
+        self.deref.SetPreferSyntheticValue(True)
 
 class StdArcSynthProvider(StdRefCountedSynthProvider):
     def initialize(self):
@@ -505,18 +426,22 @@ class StdArcSynthProvider(StdRefCountedSynthProvider):
             self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
         else:
             self.deref = lldb.SBValue()
+        self.deref.SetPreferSyntheticValue(True)
 
 class StdMutexSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'data', 'value')
+        self.deref.SetPreferSyntheticValue(True)
 
 class StdCellSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value', 'value')
+        self.deref.SetPreferSyntheticValue(True)
 
 class StdRefCellSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value', 'value')
+        self.deref.SetPreferSyntheticValue(True)
 
     def get_summary(self):
         borrow = gcm(self.valobj, 'borrow', 'value', 'value').GetValueAsSigned()
@@ -530,6 +455,79 @@ class StdRefCellSynthProvider(DerefSynthProvider):
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value').Dereference()
+        self.deref.SetPreferSyntheticValue(True)
+
+##################################################################################################################
+
+ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
+ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
+
+class EnumSynthProvider(DerefSynthProvider):
+    def initialize(self):
+        obj_type = self.valobj.GetType()
+        first_field_name = obj_type.GetFieldAtIndex(0).GetName()
+
+        # The first two branches are for the sake of windows-*-msvc targets and non-rust-enabled liblldb.
+        # Normally, we should be calling the initialize_enum().
+        if first_field_name.startswith(ENCODED_ENUM_PREFIX): # Niche-optimized enum
+            *discr_indices, null_variant = first_field_name[len(ENCODED_ENUM_PREFIX):].split("$")
+            discr_indices = [int(index) for index in discr_indices]
+
+            discriminant = self.valobj.GetChildAtIndex(0)
+            for discr_index in discr_indices:
+                discriminant = discriminant.GetChildAtIndex(discr_index)
+
+            # Recurse down the first field of the discriminant till we reach a non-struct type,
+            for i in range(20): # ... but limit the depth, just in case.
+                if discriminant.GetType().GetTypeClass() != lldb.eTypeClassStruct:
+                    break
+                discriminant = discriminant.GetChildAtIndex(0)
+            if discriminant.GetValueAsUnsigned() == 0:
+                self.variant = null_variant
+                self.deref = lldb.SBValue()
+            else:
+                self.deref = self.valobj.GetChildAtIndex(0)
+        elif first_field_name == ENUM_DISCRIMINANT: # Regular enum
+            self.variant = self.valobj.GetChildAtIndex(0).GetValue()
+            self.deref = self.valobj.GetChildAtIndex(1)
+        else:
+            self.initialize_enum()
+        self.deref.SetPreferSyntheticValue(True)
+
+    def initialize_enum(self):
+        pass
+
+    def get_summary(self):
+        if self.deref.IsValid():
+            return self.variant + '(' + get_obj_summary(self.deref) + ')'
+        else:
+            return self.variant
+
+
+class StdOptionSynthProvider(EnumSynthProvider):
+    def initialize_enum(self):
+        if self.valobj.GetTypeName().endswith('::Some'):
+            self.variant = 'Some'
+            self.deref = gcm(self.valobj, '0')
+        else:
+            self.variant = 'None'
+            self.deref = lldb.SBValue()
+
+class StdResultSynthProvider(EnumSynthProvider):
+    def initialize_enum(self):
+        if self.valobj.GetTypeName().endswith('::Ok'):
+            self.variant = 'Ok'
+        else:
+            self.variant = 'Err'
+        self.deref = gcm(self.valobj, '0')
+
+class StdCowSynthProvider(EnumSynthProvider):
+    def initialize_enum(self):
+        if self.valobj.GetTypeName().endswith('::Owned'):
+            self.variant = 'Owned'
+        else:
+            self.variant = 'Borrowed'
+        self.deref = gcm(self.valobj, '0')
 
 ##################################################################################################################
 
@@ -554,7 +552,6 @@ class StdHashMapSynthProvider(RustSynthProvider):
         data = gcm(table, 'data', 'pointer')
         data_arr_ty = data.GetType().GetPointeeType().GetArrayType(self.num_buckets)
         self.data = data.Dereference().Cast(data_arr_ty)
-        return None
 
     def update(self):
         return True

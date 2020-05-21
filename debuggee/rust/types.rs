@@ -119,6 +119,9 @@ fn main() {
     let opt_reg_struct1 = Some(reg_struct.clone());
     let opt_reg_struct2: Option<RegularStruct> = None;
 
+    let result_ok: Result<&str, String> = Ok("ok");
+    let result_err: Result<&str, String> = Err("err".into());
+
     reg_struct.print();
 
     let array = [1, 2, 3, 4, 5];
@@ -140,7 +143,10 @@ fn main() {
     let osstring = std::ffi::OsString::from("OS String");
     let osstr = &osstring[..];
 
-    let boxed = Box::new(reg_struct.clone());
+    let cow1 = Cow::Borrowed("their cow");
+    let cow2 = Cow::<str>::Owned("my cow".into());
+
+    let boxed = Box::new("boxed");
     let rc_box = rc::Rc::new(reg_struct.clone());
     let rc_box2 = rc::Rc::new(reg_struct.clone());
     let rc_box2c = rc_box2.clone();
@@ -190,9 +196,6 @@ fn main() {
         lambda: 3,
         raise: 4,
     };
-
-    let cow1 = Cow::Borrowed("foo");
-    let cow2 = Cow::<str>::Owned("bar".into());
 
     println!("---"); // #BP1
     println!("---");

@@ -602,9 +602,10 @@ function generateSuite(triple: string) {
                     wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
                     cstring: '"C String"',
                     osstring: '"OS String"',
+
                     path_buf: foo_bar,
                     class: { finally: 1, import: 2, lambda: 3, raise: 4 },
-                    boxed: { a: 1, b: '"b"', c: 12 },
+                    boxed: { $: '"boxed"' },
                     rc_box: { $: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
                     rc_box2: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
                     rc_box2c: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
@@ -642,6 +643,13 @@ function generateSuite(triple: string) {
                             '6': foo_bar,
                             '7': foo_bar,
                         },
+
+                        opt_str1: 'Some("string")',
+                        opt_str2: 'None',
+                        result_ok: { $: 'Ok("ok")', '[0]': charCode('o'), '[1]': charCode('k') },
+                        result_err: { $: 'Err("err")', '[0]': charCode('e'), '[1]': charCode('r'), '[2]': charCode('r') },
+                        cow1: 'Borrowed("their cow")',
+                        cow2: 'Owned("my cow")',
                     });
 
                     let expected1 = [

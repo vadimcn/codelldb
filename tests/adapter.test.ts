@@ -3,22 +3,13 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import * as net from 'net';
-import * as stream from 'stream';
-import { inspect } from 'util';
-import { DebugClient } from 'vscode-debugadapter-testsupport';
-import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import { WritableStream } from 'memory-streams';
-
-import { Dict } from 'extension/novsc/commonTypes';
-import * as adapter from 'extension/novsc/adapter';
+import { DebugTestSession, findMarker, charCode, log, dumpLogs, globals as testUtilGlobals } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
 const sourceDir = process.env.SOURCE_DIR || path.dirname(buildDir); // assume $sourceDir is the parent of $buildDir
 const dumpLogsWhen = (process.env.DUMP_LOGS || 'onerror').toLowerCase();
-
-const extensionRoot = buildDir;
 
 let debuggeeDir = path.join(buildDir, 'debuggee');
 if (triple.endsWith('pc-windows-gnu'))
@@ -37,10 +28,6 @@ const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 
 const rustDebuggee = path.join(debuggeeDir, 'rust-debuggee');
 const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
 
-var testLog: stream.Writable;
-var testDataLog: stream.Writable;
-var adapterLog: stream.Writable;
-
 generateSuite(triple);
 
 function generateSuite(triple: string) {
@@ -48,9 +35,10 @@ function generateSuite(triple: string) {
 
         setup(function () {
             const maxMessage = 1024 * 1024;
-            testLog = new WritableStream({ highWaterMark: maxMessage });
-            //testDataLog = new WritableStream({ highWaterMark: maxMessage });
-            adapterLog = new WritableStream({ highWaterMark: maxMessage });
+            testUtilGlobals.extensionRoot = buildDir;
+            testUtilGlobals.testLog = new WritableStream({ highWaterMark: maxMessage });
+            //testUtils.testDataLog = new WritableStream({ highWaterMark: maxMessage });
+            testUtilGlobals.adapterLog = new WritableStream({ highWaterMark: maxMessage });
         });
 
         teardown(async function () {
@@ -61,7 +49,7 @@ function generateSuite(triple: string) {
         suite('Basic', () => {
 
             test('check python', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 await ds.launch({ name: 'check python', custom: true });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
@@ -73,7 +61,7 @@ function generateSuite(triple: string) {
             });
 
             test('run program to the end', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let terminatedAsync = ds.waitForEvent('terminated');
                 await ds.launch({ name: 'run program to the end', program: debuggee });
                 await terminatedAsync;
@@ -81,7 +69,7 @@ function generateSuite(triple: string) {
             });
 
             test('run program with modified environment', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let waitExitedAsync = ds.waitForEvent('exited');
                 await ds.launch({
                     name: 'run program with modified environment',
@@ -96,7 +84,7 @@ function generateSuite(triple: string) {
             });
 
             test('stop on entry', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let stopAsync = ds.waitForEvent('stopped');
                 await ds.launch({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
                 log('Waiting for stop');
@@ -106,7 +94,7 @@ function generateSuite(triple: string) {
             });
 
             test('stop on a breakpoint (basic)', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
 
@@ -128,7 +116,7 @@ function generateSuite(triple: string) {
             });
 
             test('stop on a breakpoint (same file name)', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
                 let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
@@ -169,7 +157,7 @@ function generateSuite(triple: string) {
             test('path mapping', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
                 let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
                 let bpLineRemote2 = findMarker(debuggeeRemote2, '#BP1')
@@ -237,7 +225,7 @@ function generateSuite(triple: string) {
             });
 
             test('page stack', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP2');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
                 let waitForStopAsync = ds.waitForStopEvent();
@@ -258,7 +246,7 @@ function generateSuite(triple: string) {
             test('variables', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] });
@@ -336,7 +324,7 @@ function generateSuite(triple: string) {
             test('expressions', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
@@ -384,7 +372,7 @@ function generateSuite(triple: string) {
             });
 
             test('conditional breakpoint /se', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/se i == 5');
 
@@ -399,7 +387,7 @@ function generateSuite(triple: string) {
             });
 
             test('conditional breakpoint /py', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py $i == 5');
 
@@ -414,7 +402,7 @@ function generateSuite(triple: string) {
             });
 
             test('conditional breakpoint /nat', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/nat i == 5');
 
@@ -432,7 +420,7 @@ function generateSuite(triple: string) {
                 //if (triple.endsWith('pc-windows-msvc')) this.skip();
                 if (/windows/.test(triple)) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let setBreakpointAsync = ds.setFnBreakpoint('/re disassembly1');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] });
                 let stackTrace = await ds.stackTraceRequest({
@@ -463,7 +451,7 @@ function generateSuite(triple: string) {
             test('debugger api', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
@@ -488,7 +476,7 @@ function generateSuite(triple: string) {
             });
 
             test('display_html', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP1');
                 let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
                 let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
@@ -530,7 +518,7 @@ function generateSuite(triple: string) {
             test('attach by pid', async function () {
                 if (ptraceLocked) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
                 assert.ok(attachResp.success);
@@ -541,7 +529,7 @@ function generateSuite(triple: string) {
             test('attach by pid / nostop', async function () {
                 if (ptraceLocked) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let stopCount = 0;
                 ds.addListener('stopped', () => stopCount += 1);
                 ds.addListener('continued', () => stopCount -= 1);
@@ -554,7 +542,7 @@ function generateSuite(triple: string) {
             test('attach by name', async function () {
                 if (ptraceLocked) this.skip();
 
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
                 assert.ok(attachResp.success);
@@ -565,7 +553,7 @@ function generateSuite(triple: string) {
 
         suite('Rust tests', () => {
             test('rust_variables', async function () {
-                let ds = await DebugTestSession.start(adapterLog);
+                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP1');
                 let setBreakpointAsync = ds.setBreakpoint(rustDebuggeeSource, bpLine);
                 let waitForStopAsync = ds.waitForStopEvent();
@@ -690,8 +678,6 @@ function generateSuite(triple: string) {
                 // reg_enum1: 'A',
                 // enc_enum1: 'Some("string")',
                 // enc_enum2: 'Nothing',
-                // opt_str1: 'Some("string")',
-                // opt_str2: 'None',
                 // opt_reg_struct1: 'Some({...})',
                 // opt_reg_struct2: 'None',
                 // tuple_struct: '(3, "xxx", -3)',
@@ -709,7 +695,7 @@ function generateSuite(triple: string) {
                 await ds.compareVariables(response2.body.variablesReference,
                     triple.endsWith('pc-windows-msvc') ?
                         { '[0]': `'A'`, '[7]': `'g'` } :
-                        { '[0]': 65, '[7]': 103 }
+                        { '[0]': charCode('A'), '[7]': charCode('g') }
                 );
 
                 // Check format-as-array.
@@ -725,271 +711,4 @@ function generateSuite(triple: string) {
             });
         });
     });
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////
-
-class DebugTestSession extends DebugClient {
-    adapter: cp.ChildProcess;
-    port: number;
-
-    static async start(logStream: stream.Writable): Promise<DebugTestSession> {
-        let session = new DebugTestSession('', '', 'lldb');
-
-        if (process.env.DEBUG_SERVER) {
-            session.port = parseInt(process.env.DEBUG_SERVER)
-        } else {
-            let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
-            let libpython = await adapter.findLibPython(extensionRoot);
-            session.adapter = await adapter.start(liblldb, libpython, {
-                extensionRoot: extensionRoot,
-                extraEnv: { RUST_LOG: 'error,codelldb=debug' },
-                adapterParameters: {},
-                workDir: undefined,
-                verboseLogging: true,
-            });
-
-            session.adapter.on('error', (err) => log(`Adapter error: ${err} `));
-            session.adapter.on('exit', (code, signal) => {
-                if (code != 0)
-                    log(`Adapter exited with code ${code}, signal = ${signal} `);
-            });
-
-            session.adapter.stdout.pipe(logStream);
-            session.adapter.stderr.pipe(logStream);
-            session.port = await adapter.getDebugServerPort(session.adapter);
-        }
-
-        let logger = (event: dp.Event) => log(`Received event: ${inspect(event, { breakLength: Infinity })}`);
-        session.addListener('breakpoint', logger);
-        session.addListener('stopped', logger);
-        session.addListener('continued', logger);
-        await session.start(session.port);
-
-        if (testDataLog) {
-            let socket = <net.Socket>((<any>session)._socket);
-            socket.on('data', buffer => {
-                testDataLog.write(`[${timestamp()}] --> ${buffer} \n`)
-            });
-        }
-        return session;
-    }
-
-    async terminate() {
-        log('Stopping adapter.');
-        await super.stop();
-        // Check that adapter process exits
-        let adapterExit = new Promise((resolve) => this.adapter.on('exit', resolve));
-        await withTimeout(3000, adapterExit);
-    }
-
-    async launch(launchArgs: any): Promise<dp.LaunchResponse> {
-        launchArgs.terminal = 'console';
-        let waitForInit = this.waitForEvent('initialized');
-        await this.initializeRequest()
-        let launchResp = this.launchRequest(launchArgs);
-        await waitForInit;
-        this.configurationDoneRequest();
-        return launchResp;
-    }
-
-    async attach(attachArgs: any): Promise<dp.AttachResponse> {
-        let waitForInit = this.waitForEvent('initialized');
-        await this.initializeRequest()
-        let attachResp = this.attachRequest(attachArgs);
-        await waitForInit;
-        this.configurationDoneRequest();
-        return attachResp;
-    }
-
-    async setBreakpoint(file: string, line: number, condition?: string): Promise<dp.SetBreakpointsResponse> {
-        await this.waitForEvent('initialized');
-        let breakpointResp = await this.setBreakpointsRequest({
-            source: { path: file },
-            breakpoints: [{ line: line, column: 0, condition: condition }],
-        });
-        let bp = breakpointResp.body.breakpoints[0];
-        log(`Received setBreakpoint response: ${inspect(bp, { breakLength: Infinity })}`);
-        // assert.ok(bp.verified);
-        // assert.equal(bp.line, line);
-        return breakpointResp;
-    }
-
-    async setFnBreakpoint(name: string, condition?: string): Promise<dp.SetFunctionBreakpointsResponse> {
-        await this.waitForEvent('initialized');
-        let breakpointResp = await this.setFunctionBreakpointsRequest({
-            breakpoints: [{ name: name, condition: condition }]
-        });
-        return breakpointResp;
-    }
-
-    async verifyLocation(threadId: number, file: string, line: number) {
-        let stackResp = await this.stackTraceRequest({ threadId: threadId });
-        let topFrame = stackResp.body.stackFrames[0];
-        assert.equal(topFrame.line, line);
-    }
-
-    async readVariables(variablesReference: number): Promise<Dict<dp.Variable>> {
-        let response = await this.variablesRequest({ variablesReference: variablesReference });
-        let vars: Dict<dp.Variable> = {};
-        for (let v of response.body.variables) {
-            vars[v.name] = v;
-        }
-        return vars;
-    }
-
-    async compareVariables(
-        vars: number | Dict<dp.Variable>,
-        expected: Dict<string | number | boolean | ValidatorFn | Dict<any>>,
-        prefix: string = ''
-    ) {
-        if (typeof vars == 'number') {
-            assert.notEqual(vars, 0, 'Expected non-zero.');
-            vars = await this.readVariables(vars);
-        }
-
-        for (let key of Object.keys(expected)) {
-            if (key == '$')
-                continue; // Summary will have been checked by the caller.
-
-            let keyPath = prefix.length > 0 ? prefix + '.' + key : key;
-            let expectedValue = expected[key];
-            let variable = vars[key];
-            assert.notEqual(variable, undefined, 'Did not find variable "' + keyPath + '"');
-
-            if (typeof expectedValue == 'object') {
-                let summary = expectedValue['$'];
-                if (summary != undefined) {
-                    this.compareToExpected(variable, summary, keyPath);
-                }
-                await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
-            } else {
-                this.compareToExpected(variable, expectedValue, keyPath);
-            }
-        }
-    }
-
-    compareToExpected(variable: dp.Variable, expectedValue: string | number | boolean | ValidatorFn, keyPath: string) {
-        if (typeof expectedValue == 'string') {
-            assert.equal(variable.value, expectedValue,
-                `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
-        } else if (typeof expectedValue == 'boolean') {
-            let boolValue = variable.value == 'true' ? true : variable.value == 'false' ? false : null;
-            assert.equal(boolValue, expectedValue,
-                `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
-        } else if (typeof expectedValue == 'number') {
-            if (Number.isSafeInteger(expectedValue)) {
-                let numValue = parseInt(variable.value);
-                assert.equal(numValue, expectedValue,
-                    `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
-            } else { // approximate comparison for floats
-                let numValue = parseFloat(variable.value);
-                let delta = Math.abs(numValue - expectedValue);
-                assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
-                    `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
-            }
-        } else if (typeof expectedValue == 'function') {
-            assert.ok(expectedValue(variable),
-                `"${keyPath}": validator returned false`);
-        } else {
-            assert.ok(false, 'Unreachable');
-        }
-    }
-
-    waitForStopEvent(): Promise<dp.StoppedEvent> {
-        let session = this;
-        return new Promise<dp.StoppedEvent>(resolve => {
-            let handler = (event: dp.StoppedEvent) => {
-                if (event.body.reason != 'initial') {
-                    session.removeListener('stopped', handler);
-                    resolve(event);
-                } else {
-                    log('Ignored "initial" event');
-                }
-            };
-            session.addListener('stopped', handler);
-        });
-    }
-
-    async launchAndWaitForStop(launchArgs: any): Promise<dp.StoppedEvent> {
-        let waitForStopAsync = this.waitForStopEvent();
-        log('launchAndWaitForStop: launching');
-        await this.launch(launchArgs);
-        log('launchAndWaitForStop: waiting to stop');
-        let stoppedEvent = await waitForStopAsync;
-        return <dp.StoppedEvent>stoppedEvent;
-    }
-
-    async getTopFrameId(threadId: number): Promise<number> {
-        let frames = await this.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });
-        return frames.body.stackFrames[0].id;
-    }
-
-    async getFrameLocalsRef(frameId: number): Promise<number> {
-        let scopes = await this.scopesRequest({ frameId: frameId });
-        let localsRef = scopes.body.scopes[0].variablesReference;
-        return localsRef;
-    }
-}
-
-type ValidatorFn = (v: dp.Variable) => boolean;
-
-function findMarker(file: string, marker: string): number {
-    let data = fs.readFileSync(file, 'utf8');
-    let lines = data.split('\n');
-    for (let i = 0; i < lines.length; ++i) {
-        let pos = lines[i].indexOf(marker);
-        if (pos >= 0) return i + 1;
-    }
-    throw Error('Marker not found');
-}
-
-function asyncTimer(timeoutMillis: number): Promise<void> {
-    return new Promise<void>((resolve) => setTimeout(resolve));
-}
-
-function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
-    let error = new Error('Timed out');
-    return new Promise<T>((resolve, reject) => {
-        let timer = setTimeout(() => {
-            log('withTimeout: timed out');
-            (<any>error).code = 'Timeout';
-            reject(error);
-        }, timeoutMillis);
-        promise.then(result => {
-            clearTimeout(timer);
-            resolve(result);
-        });
-    });
-}
-
-function leftPad(s: string, p: string, n: number): string {
-    if (s.length < n)
-        s = p.repeat(n - s.length) + s;
-    return s;
-}
-
-function timestamp(): string {
-    let d = new Date();
-    let hh = leftPad(d.getHours().toString(), '0', 2);
-    let mm = leftPad(d.getMinutes().toString(), '0', 2);
-    let ss = leftPad(d.getSeconds().toString(), '0', 2);
-    let fff = leftPad(d.getMilliseconds().toString(), '0', 3);
-    return `${hh}:${mm}:${ss}.${fff}`;
-}
-
-function log(message: string) {
-    testLog.write(`[${timestamp()}] ${message}\n`);
-}
-
-function dumpLogs(dest: stream.Writable) {
-    dest.write('\n=== Test log ==============\n');
-    dest.write(testLog.toString());
-    if (testDataLog) {
-        dest.write('\n=== Received data log ====\n');
-        dest.write(testDataLog.toString());
-    }
-    dest.write('\n=== Adapter log ===========\n');
-    dest.write(adapterLog.toString());
-    dest.write('\n===========================\n');
 }

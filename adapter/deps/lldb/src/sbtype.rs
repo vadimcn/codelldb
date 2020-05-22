@@ -15,9 +15,66 @@ impl SBType {
             return self->GetTypeClass();
         })
     }
+    pub fn type_flags(&self) -> TypeFlags {
+        cpp!(unsafe [self as "SBType*"] -> TypeFlags as "uint32_t" {
+            return self->GetTypeFlags();
+        })
+    }
+    pub fn is_pointer_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsPointerType();
+        })
+    }
+    pub fn is_reference_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsReferenceType();
+        })
+    }
+    pub fn is_function_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsFunctionType();
+        })
+    }
+    pub fn is_polymorphic_class(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsPolymorphicClass();
+        })
+    }
+    pub fn is_array_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsArrayType();
+        })
+    }
+    pub fn is_vector_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsVectorType();
+        })
+    }
+    pub fn is_typedef_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsTypedefType();
+        })
+    }
+    pub fn is_anonymous_type(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsAnonymousType();
+        })
+    }
+    pub fn is_type_complete(&self) -> bool {
+        cpp!(unsafe [self as "SBType*"] -> bool as "bool" {
+            return self->IsTypeComplete();
+        })
+    }
     pub fn name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBType*"] -> *const c_char as "const char*" {
             return self->GetName();
+        });
+        assert!(!ptr.is_null());
+        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+    }
+    pub fn display_name(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBType*"] -> *const c_char as "const char*" {
+            return self->GetDisplayTypeName();
         });
         assert!(!ptr.is_null());
         unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
@@ -77,13 +134,6 @@ impl SBType {
             return self->GetBasicType();
         })
     }
-    pub fn display_name(&self) -> &str {
-        let ptr = cpp!(unsafe [self as "SBType*"] -> *const c_char as "const char*" {
-            return self->GetDisplayTypeName();
-        });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
-    }
 }
 
 impl IsValid for SBType {
@@ -129,6 +179,34 @@ bitflags! {
         const Other = (1 << 31);
         // Define a mask that can be used for any type when finding types
         const Any = !0;
+    }
+}
+
+bitflags! {
+    pub struct TypeFlags : u32 {
+        const HasChildren = (1 << 0);
+        const HasValue = (1 << 1);
+        const IsArray = (1 << 2);
+        const IsBlock = (1 << 3);
+        const IsBuiltIn = (1 << 4);
+        const IsClass = (1 << 5);
+        const IsCPlusPlus = (1 << 6);
+        const IsEnumeration = (1 << 7);
+        const IsFuncPrototype = (1 << 8);
+        const IsMember = (1 << 9);
+        const IsObjC = (1 << 10);
+        const IsPointer = (1 << 11);
+        const IsReference = (1 << 12);
+        const IsStructUnion = (1 << 13);
+        const IsTemplate = (1 << 14);
+        const IsTypedef = (1 << 15);
+        const IsVector = (1 << 16);
+        const IsScalar = (1 << 17);
+        const IsInteger = (1 << 18);
+        const IsFloat = (1 << 19);
+        const IsComplex = (1 << 20);
+        const IsSigned = (1 << 21);
+        const InstanceIsPointer = (1 << 22);
     }
 }
 

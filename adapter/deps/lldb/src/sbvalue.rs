@@ -101,6 +101,11 @@ impl SBValue {
             return self->GetFrame();
         })
     }
+    pub fn is_dynamic(&self) -> bool {
+        cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
+            return self->IsDynamic();
+        })
+    }
     pub fn is_synthetic(&self) -> bool {
         cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
             return self->IsSynthetic();

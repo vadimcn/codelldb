@@ -93,8 +93,7 @@ impl SBProcess {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBProcess::GetBroadcasterClassName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn put_stdin(&self, buffer: &[u8]) -> usize {
         let ptr = buffer.as_ptr();

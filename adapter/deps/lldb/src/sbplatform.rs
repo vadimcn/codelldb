@@ -15,8 +15,7 @@ impl SBPlatform {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn is_connected(&self) -> bool {
         cpp!(unsafe [self as "SBPlatform*"] -> bool as "bool" {
@@ -27,29 +26,25 @@ impl SBPlatform {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetTriple();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn hostname(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetHostname();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn os_build(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetOSBuild();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn os_description(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBPlatform*"] -> *const c_char as "const char*" {
             return self->GetOSDescription();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn get_file_permissions(&self, path: &Path) -> u32 {
         with_cstr(path.to_str().unwrap(), |path| {

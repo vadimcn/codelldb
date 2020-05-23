@@ -22,7 +22,7 @@ impl SBThread {
         if ptr.is_null() {
             None
         } else {
-            unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
+            unsafe { Some(get_str(ptr)) }
         }
     }
     pub fn process(&self) -> SBProcess {
@@ -110,8 +110,7 @@ impl SBThread {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBThread::GetBroadcasterClassName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
 }
 

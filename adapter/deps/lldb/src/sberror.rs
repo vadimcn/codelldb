@@ -22,10 +22,7 @@ impl SBError {
         let cs_ptr = cpp!(unsafe [self as "SBError*"] -> *const c_char as "const char*" {
             return self->GetCString();
         });
-        match unsafe { CStr::from_ptr(cs_ptr) }.to_str() {
-            Ok(s) => s,
-            _ => panic!("Error strig is not valid utf8."),
-        }
+        unsafe { get_str(cs_ptr) }
     }
     pub fn set_error_string(&self, string: &str) {
         with_cstr(string, |string| {

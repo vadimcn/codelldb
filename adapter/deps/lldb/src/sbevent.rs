@@ -11,15 +11,13 @@ impl SBEvent {
         })
     }
     pub fn get_cstring_from_event(event: &SBEvent) -> Option<&CStr> {
-        unsafe {
-            let ptr = cpp!([event as "SBEvent*"] -> *const c_char as "const char*" {
-                return SBEvent::GetCStringFromEvent(*event);
-            });
-            if ptr.is_null() {
-                None
-            } else {
-                Some(CStr::from_ptr(ptr))
-            }
+        let ptr = cpp!(unsafe [event as "SBEvent*"] -> *const c_char as "const char*" {
+            return SBEvent::GetCStringFromEvent(*event);
+        });
+        if ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(CStr::from_ptr(ptr)) }
         }
     }
     pub fn flags(&self) -> u32 {

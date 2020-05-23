@@ -15,24 +15,21 @@ impl SBInstruction {
         let ptr = cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> *const c_char as "const char*" {
             return self->GetMnemonic(target);
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn operands(&self, target: &SBTarget) -> &str {
         let target = target.clone();
         let ptr = cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> *const c_char as "const char*" {
             return self->GetOperands(target);
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn comment(&self, target: &SBTarget) -> &str {
         let target = target.clone();
         let ptr = cpp!(unsafe [self as "SBInstruction*", target as "SBTarget"] -> *const c_char as "const char*" {
             return self->GetComment(target);
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn byte_size(&self) -> usize {
         cpp!(unsafe [self as "SBInstruction*"] -> usize as "size_t" {

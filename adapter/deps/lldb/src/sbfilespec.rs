@@ -10,15 +10,13 @@ impl SBFileSpec {
         let ptr = cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
             return self->GetFilename();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap().as_ref() }
+        unsafe { get_str(ptr).as_ref() }
     }
     pub fn directory(&self) -> &Path {
         let ptr = cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
             return self->GetDirectory();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap().as_ref() }
+        unsafe { get_str(ptr).as_ref() }
     }
     pub fn path(&self) -> PathBuf {
         get_cstring(|ptr, size| {

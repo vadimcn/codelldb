@@ -12,7 +12,7 @@ impl SBModule {
         if ptr.is_null() {
             None
         } else {
-            unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
+            unsafe { Some(get_str(ptr)) }
         }
     }
     pub fn filespec(&self) -> SBFileSpec {

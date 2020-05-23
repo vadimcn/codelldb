@@ -2,7 +2,7 @@ use super::*;
 
 use std::mem;
 
-pub fn with_cstr<R, F>(s: &str, f: F) -> R
+pub(crate) fn with_cstr<R, F>(s: &str, f: F) -> R
 where
     F: FnOnce(*const c_char) -> R,
 {
@@ -19,7 +19,7 @@ where
     f(ptr)
 }
 
-pub fn with_opt_cstr<R, F>(s: Option<&str>, f: F) -> R
+pub(crate) fn with_opt_cstr<R, F>(s: Option<&str>, f: F) -> R
 where
     F: FnOnce(*const c_char) -> R,
 {
@@ -29,7 +29,7 @@ where
     }
 }
 
-pub fn get_cstring<F>(f: F) -> CString
+pub(crate) fn get_cstring<F>(f: F) -> CString
 where
     F: Fn(*mut c_char, usize) -> usize,
 {
@@ -70,6 +70,14 @@ where
         }
         let capacity = buffer.capacity() * 2;
         buffer.reserve(capacity);
+    }
+}
+
+pub(crate) unsafe fn get_str<'a>(ptr: *const c_char) -> &'a str {
+    if ptr.is_null() {
+        ""
+    } else {
+        CStr::from_ptr(ptr).to_str().unwrap()
     }
 }
 

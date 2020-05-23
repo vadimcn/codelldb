@@ -243,8 +243,7 @@ impl SBTarget {
         let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
             return SBTarget::GetBroadcasterClassName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn platform(&self) -> SBPlatform {
         cpp!(unsafe [self as "SBTarget*"] -> SBPlatform as "SBPlatform" {

@@ -12,7 +12,7 @@ impl SBFrame {
         if ptr.is_null() {
             None
         } else {
-            unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
+            unsafe { Some(get_str(ptr)) }
         }
     }
     pub fn display_function_name(&self) -> Option<&str> {
@@ -22,7 +22,7 @@ impl SBFrame {
         if ptr.is_null() {
             None
         } else {
-            unsafe { Some(CStr::from_ptr(ptr).to_str().unwrap()) }
+            unsafe { Some(get_str(ptr)) }
         }
     }
     pub fn line_entry(&self) -> Option<SBLineEntry> {

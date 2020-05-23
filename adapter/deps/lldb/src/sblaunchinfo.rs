@@ -44,8 +44,7 @@ impl SBLaunchInfo {
         let ptr = cpp!(unsafe [self as "SBLaunchInfo*", index as "uint32_t"] -> *const c_char as "const char*" {
             return self->GetArgumentAtIndex(index);
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn arguments<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
         SBIterator::new(self.num_arguments(), move |index| self.argument_at_index(index))
@@ -68,8 +67,7 @@ impl SBLaunchInfo {
         let ptr = cpp!(unsafe [self as "SBLaunchInfo*", index as "uint32_t"] -> *const c_char as "const char*" {
             return self->GetEnvironmentEntryAtIndex(index);
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn environment_entries<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
         SBIterator::new(self.num_environment_entries(), move |index| self.environment_entry_at_index(index))

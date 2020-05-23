@@ -69,15 +69,13 @@ impl SBType {
         let ptr = cpp!(unsafe [self as "SBType*"] -> *const c_char as "const char*" {
             return self->GetName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn display_name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBType*"] -> *const c_char as "const char*" {
             return self->GetDisplayTypeName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn pointer_type(&self) -> SBType {
         cpp!(unsafe [self as "SBType*"] -> SBType as "SBType" {

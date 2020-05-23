@@ -111,8 +111,7 @@ impl SBDebugger {
         let ptr = cpp!(unsafe [self as "SBDebugger*"] ->  *const c_char as "const char*" {
             return self->GetInstanceName();
         });
-        assert!(!ptr.is_null());
-        unsafe { CStr::from_ptr(ptr).to_str().unwrap() }
+        unsafe { get_str(ptr) }
     }
     pub fn get_variable(&mut self, var_name: &str) -> SBStringList {
         SBDebugger::get_variable_for(self.instance_name(), var_name)

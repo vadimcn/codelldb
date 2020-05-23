@@ -2748,14 +2748,3 @@ where
     let mut b = ref_cell.borrow_mut();
     f(b.deref_mut())
 }
-
-#[cfg(windows)]
-fn put_env(key: &CStr, value: &CStr) {
-    use std::os::raw::{c_char, c_int};
-    extern "C" {
-        fn _putenv_s(key: *const c_char, value: *const c_char) -> c_int;
-    }
-    unsafe {
-        _putenv_s(key.as_ptr(), value.as_ptr());
-    }
-}

@@ -22,11 +22,10 @@ pub fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
     let port: u16 = matches.value_of("port").unwrap().parse().unwrap();
     let addr = net::SocketAddr::new(net::Ipv4Addr::new(127, 0, 0, 1).into(), port);
     let mut stream = net::TcpStream::connect(addr)?;
-    write!(stream, "{}", data)?;
+    writeln!(stream, "{}", data)?;
 
     clear_screen();
 
-    stream.shutdown(net::Shutdown::Write)?;
     // Wait for the other end to close connection (which will be maintained till the end of
     // the debug session; this prevents terminal shell from stealing debuggee's input form stdin).
     for b in stream.bytes() {

@@ -646,8 +646,8 @@ function generateSuite(triple: string) {
 
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', '[0]': charCode('o'), '[1]': charCode('k') },
-                        result_err: { $: 'Err("err")', '[0]': charCode('e'), '[1]': charCode('r'), '[2]': charCode('r') },
+                        result_ok: { $: 'Ok("ok")', '[0]': "'o'", '[1]': "'k'" },
+                        result_err: { $: 'Err("err")', '[0]': "'e'", '[1]': "'r'", '[2]': "'r'" },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                     });
@@ -700,11 +700,7 @@ function generateSuite(triple: string) {
                     expression: 'string', context: 'watch',
                     frameId: frames.body.stackFrames[0].id
                 });
-                await ds.compareVariables(response2.body.variablesReference,
-                    triple.endsWith('pc-windows-msvc') ?
-                        { '[0]': `'A'`, '[7]': `'g'` } :
-                        { '[0]': charCode('A'), '[7]': charCode('g') }
-                );
+                await ds.compareVariables(response2.body.variablesReference, { '[0]': "'A'", '[7]': "'g'" });
 
                 // Check format-as-array.
                 let response3 = await ds.evaluateRequest({

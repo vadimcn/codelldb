@@ -298,6 +298,11 @@ class SliceSynthProvider(ArrayLikeSynthProvider):
 
 # Base class for *String providers
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
+    def get_child_at_index(self, index):
+        ch = ArrayLikeSynthProvider.get_child_at_index(self, index)
+        ch.SetFormat(lldb.eFormatChar)
+        return ch
+
     def get_summary(self):
         # Limit string length to 1000 characters to cope with uninitialized values whose
         # length field contains garbage.

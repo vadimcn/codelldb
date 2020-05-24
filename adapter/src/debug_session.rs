@@ -1734,7 +1734,9 @@ impl DebugSession {
         }
 
         let mut var = Cow::Borrowed(var);
-        var.set_format(format);
+        if format != Format::Default {
+            var.set_format(format);
+        }
 
         if self.deref_pointers && format == Format::Default {
             // Rather than showing pointer's numeric value, which is rather uninteresting,

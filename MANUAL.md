@@ -408,6 +408,7 @@ will display the value of `var` formatted as hex.
 
 |suffix |format |
 |:-----:|-------|
+|**c**  | Character
 |**x**  | Hex
 |**o**  | Octal
 |**d**  | Decimal

@@ -94,6 +94,7 @@ fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, Option<FormatSpe
 
         if let Some(m) = captures.get(1) {
             let format = match m.as_str() {
+                "c" => lldb::Format::Char,
                 "h" => lldb::Format::Hex,
                 "x" => lldb::Format::Hex,
                 "o" => lldb::Format::Octal,

@@ -2,12 +2,19 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.4.5)
+set(VERSION 1.5.0)
 
 include(cmake/CopyFiles.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
+
+set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
+if (LLDB_ROOT)
+    message("Using LLDB from ${LLDB_ROOT}")
+else()
+    message(FATAL_ERROR "LLDB_ROOT not set." )
+endif()
 
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -19,12 +26,14 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
+    set(SymSuffix .dSYM)
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
+    set(SymSuffix .pdb)
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
@@ -32,26 +41,13 @@ else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
+
 if (NOT LLVM_TRIPLE)
-    set(LLVM_TRIPLE ${DefaultTarget})
+set(LLVM_TRIPLE ${DefaultTarget})
 endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
-set(CopyFile ${CMAKE_COMMAND} -E copy_if_different)
-
-set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
-if (LLDB_ROOT)
-    message("Using LLDB from ${LLDB_ROOT}")
-else()
-    set(LLDB_BUILD 957)
-    set(ArtifactUrl "https://dev.azure.com/vadimcn/llvm/_apis/build/builds/${LLDB_BUILD}/artifacts?api-version=4.1&artifactName=lldb--x86_64-unknown-linux-gnu")
-    message("Using LLDB from ${ArtifactUrl}")
-    file(DOWNLOAD ${ArtifactUrl} ${CMAKE_BINARY_DIR}/artifact.json)
-    file(READ ${CMAKE_BINARY_DIR}/artifact.json Artifact)
-    string(REGEX MATCH "\"downloadUrl\" *: *\"([^\"]*)\"" _ ${Artifact})
-    message("Downloading ${CMAKE_MATCH_1}")
-    file(DOWNLOAD "${CMAKE_MATCH_1}" ${CMAKE_BINARY_DIR}/lldb.zip SHOW_PROGRESS)
-endif()
+set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
 add_subdirectory(adapter2)
 add_subdirectory(lldb)
@@ -77,9 +73,9 @@ endif()
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_custom_target(update_lockfiles
-    COMMAND ${CopyFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
     COMMAND ${NPM} update
-    COMMAND ${CopyFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
     COMMAND cargo update
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
@@ -118,28 +114,10 @@ add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/checked.svg ${CMAK
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/unchecked.svg ${CMAKE_CURRENT_BINARY_DIR}/images/unchecked.svg)
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json)
 
-# Classic adapter
-
-file(GLOB_RECURSE Files
-    LIST_DIRECTORIES false
-    ${CMAKE_SOURCE_DIR}/adapter/*.py
-)
-add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/adapter ${Files})
-
-file(GLOB_RECURSE Files
-    LIST_DIRECTORIES false
-    ${CMAKE_SOURCE_DIR}/formatters/*.py
-)
-add_copy_files_to(AdapterFiles ${CMAKE_BINARY_DIR}/formatters ${Files})
-
-add_custom_target(adapter ALL
-    DEPENDS lldb ${AdapterFiles}
-)
-
 # For extension debugging
 
 add_custom_target(dev_debugging
-    DEPENDS adapter codelldb debuggee extension ${PackageFiles}
+    DEPENDS codelldb debuggee extension ${PackageFiles}
 )
 
 # VSIX packages
@@ -148,7 +126,6 @@ set(PackagedFilesPortable
     README.md
     CHANGELOG.md
     extension.js
-    adapter/**/*.py
     formatters/*
     images/*
     syntaxes/*
@@ -156,6 +133,7 @@ set(PackagedFilesPortable
 
 set(PackagedFilesFull
     ${PackagedFilesPortable}
+    platform.ok
     adapter2/*.py
     adapter2/codelldb
     adapter2/libcodelldb.so
@@ -168,6 +146,9 @@ set(PackagedFilesFull
     lldb/bin/**/*
     lldb/lib/**/*
 )
+
+# Indicator file used to determine whether we have the platform package.
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/platform.ok "")
 
 set(Content **)
 foreach(Line ${PackagedFilesPortable})
@@ -187,17 +168,17 @@ set(VsceOptions
 )
 
 add_custom_target(vsix_portable
-    DEPENDS adapter extension ${PackageFiles}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-portable.vsix
+    DEPENDS extension ${PackageFiles}
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-portable.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
 
 add_custom_target(vsix_full
-    DEPENDS adapter extension lldb codelldb ${PackageFiles}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix
+    DEPENDS extension lldb codelldb ${PackageFiles}
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -219,13 +200,13 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_dependencies(vsix_full strip_binaries)
 endif()
 
-# Build both VSIX pacakges, then extract vsix_portable to build/extracted
+# Build both VSIX packages, then extract vsix_portable to build/extracted
 
 add_custom_target(vsix_extracted
     DEPENDS vsix_portable vsix_full
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
-    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/vscode-lldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
+    COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension
 )
 
 # Debuggee
@@ -262,49 +243,39 @@ endif()
 set(MochaTest ${NPM} run mocha --
     -u tdd --timeout 30000 --exit
     --require source-map-support/register
-    #-g "stop on a breakpoint 3"
+    #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js
 )
 
 # Build everything for testing
-add_dependencies(tests adapter codelldb debuggee)
+add_dependencies(tests codelldb debuggee)
 
 # Tests and test targets
-add_custom_target(check)
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(TestAdapters native)
     set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(TestAdapters classic native)
     set(TestTriples x86_64-apple-darwin)
 else()
-    set(TestAdapters classic native)
     set(TestTriples x86_64-unknown-linux-gnu)
 endif()
 
-foreach(AdapterType ${TestAdapters})
-    foreach(TestTriple ${TestTriples})
-        set(TestName ${AdapterType}:${TestTriple})
-        add_test(NAME ${TestName}
-            COMMAND ${WithEnv} ADAPTER_TYPE=${AdapterType} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} BUILD_DIR=${CMAKE_BINARY_DIR} SOURCE_DIR=${CMAKE_SOURCE_DIR} ${MochaTest}
-            WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-        set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
-    endforeach(TestTriple)
+foreach(TestTriple ${TestTriples})
+    set(TestName adapter:${TestTriple})
+    add_test(NAME ${TestName}
+        COMMAND ${WithEnv} TARGET_TRIPLE=${TestTriple} NODE_PATH=${CMAKE_BINARY_DIR} BUILD_DIR=${CMAKE_BINARY_DIR} SOURCE_DIR=${CMAKE_SOURCE_DIR} ${MochaTest}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+    set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
+endforeach(TestTriple)
 
-    add_custom_target(check_${AdapterType} DEPENDS tests
-        COMMAND ${CMAKE_CTEST_COMMAND} -R ${AdapterType} --output-on-failure --verbose
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        USES_TERMINAL
-    )
-    add_dependencies(check check_${AdapterType})
-endforeach(AdapterType)
-
-add_dependencies(check_native cargo_test)
+add_custom_target(check
+    DEPENDS tests cargo_test
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+)
 
 # Install
 
-install(CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/vscode-lldb\")")
+install(CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/codelldb\")")
 install(
     DIRECTORY ${ExtensionRoot}
     DESTINATION .
@@ -315,7 +286,6 @@ install(
 add_custom_target(xclean
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target clean
     COMMAND ${CMAKE_COMMAND} -E remove_directory CMakeFiles
-    COMMAND ${CMAKE_COMMAND} -E remove_directory adapter
     COMMAND ${CMAKE_COMMAND} -E remove_directory adapter2
     COMMAND ${CMAKE_COMMAND} -E remove_directory debuggee
     COMMAND ${CMAKE_COMMAND} -E remove_directory extension

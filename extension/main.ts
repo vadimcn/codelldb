@@ -17,7 +17,7 @@ import * as adapter from './novsc/adapter';
 import * as install from './install';
 import { Cargo, expandCargo } from './cargo';
 import { pickProcess } from './pickProcess';
-import { Dict, AdapterType, toAdapterType } from './novsc/commonTypes';
+import { Dict } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
@@ -255,14 +255,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
             }
         }
-
         this.propagateDisplaySettings();
-
-        let config = this.getExtensionConfig();
-        let adapterType = this.getAdapterType(config);
-        if (adapterType == 'native') {
-            install.ensurePlatformPackage(this.context, output);
-        }
+        install.ensurePlatformPackage(this.context, output, false);
     }
 
     async provideDebugConfigurations(
@@ -448,36 +442,25 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         adapterParams: Dict<string>
     ): Promise<[ChildProcess, number]> {
         let config = this.getExtensionConfig(folder);
-        let adapterType = this.getAdapterType(config);
         let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
-        let adapterProcess;
-        if (adapterType == 'classic') {
-            adapterProcess = await adapter.startClassic(config.get('executable', 'lldb'), {
-                extensionRoot: this.context.extensionPath,
-                extraEnv: adapterEnv,
-                adapterParameters: adapterParams,
-                workDir: workspace.rootPath,
-                verboseLogging: verboseLogging,
-            });
-        } else {
-            let [liblldb, libpython] = await this.getAdapterDylibs(config);
+        let [liblldb, libpython] = await this.getAdapterDylibs(config);
 
-            if (verboseLogging) {
-                output.appendLine(`liblldb: ${liblldb}`);
-                output.appendLine(`libpython: ${libpython}`);
-                output.appendLine(`environment: ${inspect(adapterEnv)}`);
-                output.appendLine(`params: ${inspect(adapterParams)}`);
-            }
-
-            adapterProcess = await adapter.startNative(liblldb, libpython, {
-                extensionRoot: this.context.extensionPath,
-                extraEnv: adapterEnv,
-                workDir: workspace.rootPath,
-                adapterParameters: adapterParams,
-                verboseLogging: verboseLogging
-            });
+        if (verboseLogging) {
+            output.appendLine(`liblldb: ${liblldb}`);
+            output.appendLine(`libpython: ${libpython}`);
+            output.appendLine(`environment: ${inspect(adapterEnv)}`);
+            output.appendLine(`params: ${inspect(adapterParams)}`);
         }
+
+        let adapterProcess = await adapter.start(liblldb, libpython, {
+            extensionRoot: this.context.extensionPath,
+            extraEnv: adapterEnv,
+            workDir: workspace.rootPath,
+            adapterParameters: adapterParams,
+            verboseLogging: verboseLogging
+        });
+
         util.logProcessOutput(adapterProcess, output);
         let port = await adapter.getDebugServerPort(adapterProcess);
 
@@ -497,7 +480,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string, string]> {
         if (!this.adapterDylibsCache) {
             let libpython;
-            let liblldb = util.getConfigNoDefault(config, 'library');
+            let liblldb = config.get<string>('library');
             if (liblldb) {
                 liblldb = await adapter.findLibLLDB(liblldb)
                 // Don't preload libpython, because external backend will have been linked to a specific Python version.
@@ -505,7 +488,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             } else {
                 liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
                 // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
-                libpython = util.getConfigNoDefault(config, 'libpython');
+                libpython = config.get<string>('libpython');
                 if (!libpython) {
                     libpython = await adapter.findLibPython(this.context.extensionPath, config.get('adapterEnv'));
                 }
@@ -517,39 +500,20 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     adapterDylibsCache: [string, string] = null;
 
     async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
-        let config = this.getExtensionConfig(folder);
-        if (this.getAdapterType(config) == 'classic') {
-            if (!this.context.globalState.get('lldb_works')) {
-                window.showInformationMessage("Since this is the first time you are starting LLDB, I'm going to run some quick diagnostics...");
-                if (!await diagnostics.diagnoseExternalLLDB(this.context, output))
-                    return false;
-                this.context.globalState.update('lldb_works', true);
-            }
-        } else {
-            if (!await this.checkPython(folder))
-                return false;
-            if (!await install.ensurePlatformPackage(this.context, output))
-                return false;
-        }
+        if (!await this.checkPython(folder))
+            return false;
+        if (!await install.ensurePlatformPackage(this.context, output, true))
+            return false;
         return true;
     }
 
     async runDiagnostics(folder?: WorkspaceFolder) {
-        let config = this.getExtensionConfig(folder);
-        let adapterType = this.getAdapterType(config);
         let succeeded;
         try {
-            switch (adapterType) {
-                case 'classic':
-                    succeeded = await diagnostics.diagnoseExternalLLDB(this.context, output);
-                    break;
-                case 'native':
-                    succeeded = await this.checkPython(folder);
-                    if (succeeded) {
-                        let [_, port] = await this.startDebugAdapter(folder, {});
-                        await diagnostics.testAdapter(port);
-                    }
-                    break;
+            succeeded = await this.checkPython(folder);
+            if (succeeded) {
+                let [_, port] = await this.startDebugAdapter(folder, {});
+                await diagnostics.testAdapter(port);
             }
         } catch (err) {
             succeeded = false;
@@ -621,10 +585,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         });
         box.show();
-    }
-
-    getAdapterType(config: WorkspaceConfiguration) {
-        return toAdapterType(config.get<string>('adapterType'));
     }
 
     getExtensionConfig(folder?: WorkspaceFolder, key: string = 'lldb'): WorkspaceConfiguration {

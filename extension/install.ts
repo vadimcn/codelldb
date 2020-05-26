@@ -1,4 +1,4 @@
-import { ExtensionContext, window, OutputChannel, Uri, extensions, env } from 'vscode';
+import { ExtensionContext, window, OutputChannel, Uri, extensions, env, ProgressLocation } from 'vscode';
 import * as zip from 'yauzl';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -8,55 +8,86 @@ import * as async from './novsc/async';
 
 const MaxRedirects = 10;
 
-export async function ensurePlatformPackage(context: ExtensionContext, output: OutputChannel): Promise<boolean> {
+let activeInstallation: Promise<boolean> = null;
 
-    if (await async.fs.exists(path.join(context.extensionPath, 'lldb/bin')))
+export async function ensurePlatformPackage(context: ExtensionContext, output: OutputChannel, modal: boolean): Promise<boolean> {
+
+    if (await async.fs.exists(path.join(context.extensionPath, 'platform.ok')))
         return true;
 
-    output.show();
-    output.appendLine('Acquiring platform package for CodeLLDB.');
+    // Just wait if installation is already in progress.
+    if (activeInstallation != null)
+        return activeInstallation;
+
+    activeInstallation = doEnsurePlatformPackage(context, output, modal);
+    let result = await activeInstallation;
+    activeInstallation = null;
+    return result;
+}
+
+async function doEnsurePlatformPackage(context: ExtensionContext, output: OutputChannel, modal: boolean): Promise<boolean> {
+
+    let packageUrl = await getPlatformPackageUrl();
+    output.appendLine(`Installing platform package from ${packageUrl}`);
 
     try {
-        let packageUrl = await getPlatformPackageUrl();
-        output.appendLine('Package is located at ' + packageUrl);
+        await window.withProgress(
+            {
+                location: ProgressLocation.Notification,
+                cancellable: false,
+                title: 'Acquiring CodeLLDB platform package'
+            },
+            async (progress) => {
+                let downloadTarget: string;
 
-        let downloadTarget;
-        if (packageUrl.scheme != 'file') {
-            downloadTarget = path.join(os.tmpdir(), 'vscode-lldb-full.vsix');
-            output.appendLine('Downloading...');
-            try {
-                let lastPercent = -100;
-                await download(packageUrl, downloadTarget, (downloaded, contentLength) => {
-                    let percent = Math.round(100 * downloaded / contentLength);
-                    if (percent >= lastPercent + 5) {
-                        output.appendLine(`Downloaded ${percent}%`);
-                        lastPercent = percent;
+                let lastPercentage = 0;
+                let reportProgress = (downloaded: number, contentLength: number) => {
+                    let percentage = Math.round(downloaded / contentLength * 100);
+                    progress.report({
+                        message: `${percentage}%`,
+                        increment: percentage - lastPercentage
+                    });
+                    lastPercentage = percentage;
+                };
+
+                if (packageUrl.scheme == 'file') {
+                    downloadTarget = packageUrl.fsPath;
+                    // Simulate download
+                    for (var i = 0; i <= 100; ++i) {
+                        await async.sleep(10);
+                        reportProgress(i, 100);
                     }
-                });
-            } catch (err) {
-                let choice = await window.showErrorMessage(
-                    `Download of the platform package has failed:\n${err}.\n\n` +
-                    `You can try downloading it manually.  Once downloaded, please use the "Install from VSIX..." command to install.`,
-                    { modal: true },
-                    'Open download URL in a browser'
-                );
-                if (choice != undefined) {
-                    env.openExternal(packageUrl);
+                } else {
+                    downloadTarget = path.join(os.tmpdir(), 'vscode-lldb-full.vsix');
+                    await download(packageUrl, downloadTarget, reportProgress);
                 }
-                return false;
-            }
-        } else {
-            downloadTarget = packageUrl.fsPath;
-        }
 
-        output.appendLine('Installing...')
-        await installVsix(context, downloadTarget);
-        output.appendLine('Done.')
-        return true;
+                progress.report({
+                    message: 'installing',
+                    increment: 100 - lastPercentage,
+                });
+                await installVsix(context, downloadTarget);
+            }
+        );
     } catch (err) {
-        window.showErrorMessage(err.toString());
+        output.append(`Error: ${err}`);
+        output.show();
+        // Show error message, but don't block on it.
+        window.showErrorMessage(
+            `Platform package installation failed: ${err}.\n\n` +
+            'You can try downloading the package manually.\n' +
+            'Once done, use "Install from VSIX..." command to install.',
+            { modal: modal },
+            `Open download URL in a browser`
+        ).then(choice => {
+            if (choice != undefined)
+                env.openExternal(packageUrl);
+        });
         return false;
     }
+
+    output.appendLine('Done')
+    return true;
 }
 
 async function getPlatformPackageUrl(): Promise<Uri> {
@@ -107,20 +138,21 @@ async function download(srcUrl: Uri, destPath: string,
 async function installVsix(context: ExtensionContext, vsixPath: string) {
     let destDir = context.extensionPath;
     await extractZip(vsixPath, async (entry) => {
-        if (entry.fileName.startsWith('extension/')) {
-            let destPath = path.join(destDir, entry.fileName.substr(10));
-            await ensureDirectory(path.dirname(destPath));
-            let stream = fs.createWriteStream(destPath);
-            stream.on('finish', () => {
-                let attrs = (entry.externalFileAttributes >> 16) & 0o7777;
-                fs.chmod(destPath, attrs, (err) => { });
-            });
-            return stream;
-        }
-        else {
-            return null;
-        }
+        if (!entry.fileName.startsWith('extension/'))
+            return null; // Skip metadata files.
+        if (entry.fileName.endsWith('/platform.ok'))
+            return null; // Skip success indicator, we'll create it at the end.
+
+        let destPath = path.join(destDir, entry.fileName.substr(10));
+        await ensureDirectory(path.dirname(destPath));
+        let stream = fs.createWriteStream(destPath);
+        stream.on('finish', () => {
+            let attrs = (entry.externalFileAttributes >> 16) & 0o7777;
+            fs.chmod(destPath, attrs, (err) => { });
+        });
+        return stream;
     });
+    await async.fs.writeFile(path.join(destDir, 'platform.ok'), '');
 }
 
 function extractZip(zipPath: string, callback: (entry: zip.Entry) => Promise<Writable> | null): Promise<void> {

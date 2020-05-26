@@ -10,11 +10,10 @@ import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 import { WritableStream } from 'memory-streams';
 
-import { AdapterType, toAdapterType, Dict } from 'extension/novsc/commonTypes';
+import { Dict } from 'extension/novsc/commonTypes';
 import * as adapter from 'extension/novsc/adapter';
 
 const triple = process.env.TARGET_TRIPLE || '';
-const adapterType = toAdapterType(process.env.ADAPTER_TYPE);
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
 const sourceDir = process.env.SOURCE_DIR || path.dirname(buildDir); // assume $sourceDir is the parent of $buildDir
 const dumpLogsWhen = (process.env.DUMP_LOGS || 'onerror').toLowerCase();
@@ -42,10 +41,10 @@ var testLog: stream.Writable;
 var testDataLog: stream.Writable;
 var adapterLog: stream.Writable;
 
-generateSuite(adapterType, triple);
+generateSuite(triple);
 
-function generateSuite(adapterType: AdapterType, triple: string) {
-    suite(`${adapterType}:${triple}`, () => {
+function generateSuite(triple: string) {
+    suite(`adapter:${triple}`, () => {
 
         setup(function () {
             const maxMessage = 1024 * 1024;
@@ -60,6 +59,18 @@ function generateSuite(adapterType: AdapterType, triple: string) {
         });
 
         suite('Basic', () => {
+
+            test('check python', async function () {
+                let ds = await DebugTestSession.start(adapterLog);
+                await ds.launch({ name: 'check python', custom: true });
+                let result = await ds.evaluateRequest({
+                    expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
+                    context: 'repl'
+                });
+                assert.ok(result.body.result.startsWith('lldb version'));
+                assert.ok(result.body.result.indexOf('rust-enabled') >= 0);
+                await ds.terminate();
+            });
 
             test('run program to the end', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
@@ -87,7 +98,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
             test('stop on entry', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let stopAsync = ds.waitForEvent('stopped');
-                await ds.launch({ name: "stop on entry", program: debuggee, args: ['inf_loop'], stopOnEntry: true });
+                await ds.launch({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
                 log('Waiting for stop');
                 await stopAsync;
                 log('Terminating');
@@ -166,10 +177,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let setBreakpointAsyncDenorm = ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
                 let setBreakpointAsyncRemote1 = ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
                 let setBreakpointAsyncRemote2 = ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
-                let setBreakpointAsyncRelative;
-                if (adapterType == 'native') {
-                    setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
-                }
+                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
 
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let waitForStopAsync = ds.waitForStopEvent();
@@ -196,10 +204,8 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 await setBreakpointAsyncRemote1;
                 log('Set breakpoint 3');
                 await setBreakpointAsyncRemote2;
-                if (adapterType == 'native') {
-                    log('Set breakpoint 4');
-                    await setBreakpointAsyncRelative;
-                }
+                log('Set breakpoint 4');
+                await setBreakpointAsyncRelative;
 
                 // Wait for stops and verify stop locations.
                 log('Wait for stop 1');
@@ -218,13 +224,11 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let stopEvent3 = await waitForStopAsync3;
                 await ds.verifyLocation(stopEvent3.body.threadId, debuggeeRemote2, bpLineRemote2);
 
-                if (adapterType == 'native') {
-                    let waitForStopAsync4 = ds.waitForStopEvent();
-                    await ds.continueRequest({ threadId: 0 });
-                    log('Wait for stop 4');
-                    let stopEvent4 = await waitForStopAsync4;
-                    await ds.verifyLocation(stopEvent4.body.threadId, debuggeeRelative, bpLineRelative);
-                }
+                let waitForStopAsync4 = ds.waitForStopEvent();
+                await ds.continueRequest({ threadId: 0 });
+                log('Wait for stop 4');
+                let stopEvent4 = await waitForStopAsync4;
+                await ds.verifyLocation(stopEvent4.body.threadId, debuggeeRelative, bpLineRelative);
 
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
@@ -262,10 +266,6 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
 
-                let invalid_utf8 = '"ABC\uFFFD\\x01\uFFFDXYZ';
-                if (/windows/.test(triple) && adapterType != 'native')
-                    invalid_utf8 = '"ABC\uDCFF\\x01\uDCFEXYZ';
-
                 await ds.compareVariables(localsRef, {
                     a: 30,
                     b: 40,
@@ -273,7 +273,15 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     array_int: {
                         '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
                     },
-                    s1: { a: 1, b: "'a'", c: 3 },
+
+                    s1: {
+                        $: "{a:1, b:'a', c:3}",
+                        a: 1, b: "'a'", c: 3
+                    },
+                    s_ptr: { a: 1, b: "'a'", c: 3 },
+                    s_ptr_ptr: v => v.value.startsWith('{0x'),
+
+                    s2: { a: 10, b: "'b'", c: 999 },
                     cstr: '"The quick brown fox"',
                     wcstr: 'L"The quick brown fox"',
                     str1: '"The quick brown fox"',
@@ -283,12 +291,13 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     wstr1: 'L"Превед йожэг!"',
                     wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
 
-                    invalid_utf8: invalid_utf8,
+                    invalid_utf8: '"ABC\uFFFD\\x01\uFFFDXYZ',
                     anon_union: {
                         '': { x: 4, y: 4 }
                     },
 
                     null_s_ptr: '<null>',
+                    null_s_ptr_ptr: v => v.value.startsWith('{0x'),
                     invalid_s_ptr: '<invalid address>',
                     void_ptr: v => v.value.startsWith('0x'),
                 });
@@ -361,17 +370,15 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     await ds.compareVariables(response1.body.variablesReference, { '[0]': i, '[1]': i, '[2]': i, '[3]': i });
                     await ds.compareVariables(response2.body.variablesReference, { '[0]': i * 10, '[1]': i * 10, '[2]': i * 10, '[3]': i * 10 });
 
-                    if (adapterType == 'native') {
-                        log(`${i}: evaluate as array`);
-                        let response3 = await ds.evaluateRequest({ expression: 'array_struct_p,[5]', frameId: frameId, context: 'watch' });
+                    log(`${i}: evaluate as array`);
+                    let response3 = await ds.evaluateRequest({ expression: 'array_struct_p,[5]', frameId: frameId, context: 'watch' });
 
-                        log(`${i}: compareVariables`);
-                        await ds.compareVariables(response3.body.variablesReference, {
-                            '[0]': { a: i * 2, b: "'a'", c: 0 },
-                            '[2]': { a: i * 2 + 2, b: "'c'", c: 2 },
-                            '[4]': { a: i * 2 + 4, b: "'e'", c: 4 }
-                        });
-                    }
+                    log(`${i}: compareVariables`);
+                    await ds.compareVariables(response3.body.variablesReference, {
+                        '[0]': { a: i * 2, b: "'a'", c: 0 },
+                        '[2]': { a: i * 2 + 2, b: "'c'", c: 2 },
+                        '[4]': { a: i * 2 + 4, b: "'e'", c: 4 }
+                    });
                 }
                 await ds.terminate();
             });
@@ -530,7 +537,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
         })
 
         suite('Rust tests', () => {
-            test('variables', async function () {
+            test('rust_variables', async function () {
                 let ds = await DebugTestSession.start(adapterLog);
                 let bpLine = findMarker(rustDebuggeeSource, '#BP1');
                 let setBreakpointAsync = ds.setBreakpoint(rustDebuggeeSource, bpLine);
@@ -547,8 +554,20 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                 let localVars = await ds.readVariables(scopes.body.scopes[0].variablesReference);
 
                 await ds.compareVariables(localVars, {
-                    int: 17,
-                    float: 3.14159274,
+                    bool_: true,
+                    i16_: -16,
+                    u16_: 16,
+                    i32_: -32,
+                    u32_: 32,
+                    i64_: -64,
+                    u64_: 64,
+                    i128_: -128,
+                    u128_: 128,
+                    isize_: -2,
+                    usize_: 2,
+                    f32_: 3.1415926535,
+                    f64_: 3.1415926535 * 2.0,
+
                     tuple: '(1, "a", 42)',
                     tuple_ref: '(1, "a", 42)',
                     reg_struct: '{a:1, c:12}',
@@ -585,8 +604,13 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     ref_cell3_borrow: 12,
                 });
 
-                if (adapterType != 'classic' && !triple.endsWith('pc-windows-msvc')) {
+                if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
+                        char_: "'A'",
+                        i8_: -8,
+                        u8_: 8,
+                        unit: '()',
+
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',
@@ -656,7 +680,7 @@ function generateSuite(adapterType: AdapterType, triple: string) {
                     frameId: frames.body.stackFrames[0].id
                 });
                 await ds.compareVariables(response2.body.variablesReference,
-                    (adapterType == 'classic' || triple.endsWith('pc-windows-msvc')) ?
+                    triple.endsWith('pc-windows-msvc') ?
                         { '[0]': `'A'`, '[7]': `'g'` } :
                         { '[0]': 65, '[7]': 103 }
                 );
@@ -688,29 +712,15 @@ class DebugTestSession extends DebugClient {
         if (process.env.DEBUG_SERVER) {
             session.port = parseInt(process.env.DEBUG_SERVER)
         } else {
-            if (adapterType == 'classic') {
-                let lldb = 'lldb';
-                if (process.env.LLDB_EXECUTABLE) {
-                    lldb = process.env.LLDB_EXECUTABLE;
-                }
-                session.adapter = await adapter.startClassic(lldb, {
-                    extensionRoot: extensionRoot,
-                    extraEnv: {},
-                    adapterParameters: {},
-                    workDir: undefined,
-                    verboseLogging: true,
-                });
-            } else if (adapterType == 'native') {
-                let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
-                let libpython = await adapter.findLibPython(extensionRoot);
-                session.adapter = await adapter.startNative(liblldb, libpython, {
-                    extensionRoot: extensionRoot,
-                    extraEnv: { RUST_LOG: 'error,codelldb=debug' },
-                    adapterParameters: {},
-                    workDir: undefined,
-                    verboseLogging: true,
-                });
-            }
+            let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
+            let libpython = await adapter.findLibPython(extensionRoot);
+            session.adapter = await adapter.start(liblldb, libpython, {
+                extensionRoot: extensionRoot,
+                extraEnv: { RUST_LOG: 'error,codelldb=debug' },
+                adapterParameters: {},
+                workDir: undefined,
+                verboseLogging: true,
+            });
 
             session.adapter.on('error', (err) => log(`Adapter error: ${err} `));
             session.adapter.on('exit', (code, signal) => {
@@ -800,7 +810,7 @@ class DebugTestSession extends DebugClient {
 
     async compareVariables(
         vars: number | Dict<dp.Variable>,
-        expected: Dict<string | number | ValidatorFn | Dict<any>>,
+        expected: Dict<string | number | boolean | ValidatorFn | Dict<any>>,
         prefix: string = ''
     ) {
         if (typeof vars == 'number') {
@@ -829,15 +839,25 @@ class DebugTestSession extends DebugClient {
         }
     }
 
-    compareToExpected(variable: dp.Variable, expectedValue: string | number | ValidatorFn, keyPath: string) {
+    compareToExpected(variable: dp.Variable, expectedValue: string | number | boolean | ValidatorFn, keyPath: string) {
         if (typeof expectedValue == 'string') {
             assert.equal(variable.value, expectedValue,
                 `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
+        } else if (typeof expectedValue == 'boolean') {
+            let boolValue = variable.value == 'true' ? true : variable.value == 'false' ? false : null;
+            assert.equal(boolValue, expectedValue,
+                `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
         } else if (typeof expectedValue == 'number') {
-            let numValue = parseFloat(variable.value);
-            let delta = Math.abs(numValue - expectedValue);
-            assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
-                `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
+            if (Number.isSafeInteger(expectedValue)) {
+                let numValue = parseInt(variable.value);
+                assert.equal(numValue, expectedValue,
+                    `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
+            } else { // approximate comparison for floats
+                let numValue = parseFloat(variable.value);
+                let delta = Math.abs(numValue - expectedValue);
+                assert.ok(delta < 1e-6 || delta / expectedValue < 1e-6,
+                    `"${keyPath}": expected: ${expectedValue}, actual: ${numValue} `);
+            }
         } else if (typeof expectedValue == 'function') {
             assert.ok(expectedValue(variable),
                 `"${keyPath}": validator returned false`);

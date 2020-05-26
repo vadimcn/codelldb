@@ -3,3 +3,6 @@ members = ["adapter2", "debuggee"]
 
 [patch.crates-io]
 schemafy = { path = "adapter2/deps/schemafy" }
+
+[profile.release]
+debug = true

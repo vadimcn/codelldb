@@ -8,6 +8,7 @@ import { promisify } from 'util';
 export namespace fs {
     export const readdir = promisify(_fs.readdir);
     export const readFile = promisify(_fs.readFile);
+    export const writeFile = promisify(_fs.writeFile);
     export const exists = promisify(_fs.exists);
     export const stat = promisify(_fs.stat);
 }
@@ -33,4 +34,8 @@ export namespace net {
             socket.on('connect', () => resolve(socket));
         });
     }
+}
+
+export async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }

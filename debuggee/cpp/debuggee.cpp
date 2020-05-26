@@ -10,12 +10,17 @@
 #include <complex>
 #include <thread>
 #include <exception>
+
 #if !defined(_WIN32)
-#include <unistd.h>
-#include <dlfcn.h>
+ #include <unistd.h>
+ #include <dlfcn.h>
+ #if defined(__APPLE__)
+  #include <crt_externs.h>
+  #define environ (*_NSGetEnviron())
+ #endif
 #else
-#include <windows.h>
-void sleep(unsigned secs) { Sleep(secs * 1000); }
+ #include <windows.h>
+ void sleep(unsigned secs) { Sleep(secs * 1000); }
 #endif
 
 #include "dir1/debuggee.h"
@@ -74,6 +79,18 @@ void threads(int num_threads, int linger_time = 1)
 #else
     sleep(1);
 #endif
+}
+
+void dump_env()
+{
+    char** pval = environ;
+    if (pval)
+    {
+        while (pval && *pval)
+        {
+            puts(*pval++);
+        }
+    }
 }
 
 bool check_env(const char *env_name, const char *expected)
@@ -146,7 +163,9 @@ void vars()
         Struct s1 = {i + 1, 'a', 3.0f, {i, i, i, i}};
         Struct s2 = {i + 10, 'b', 999.0f, {i * 10, i * 10, i * 10, i * 10}};
         Struct* s_ptr = &s1;
+        Struct** s_ptr_ptr = &s_ptr;
         Struct* null_s_ptr = nullptr;
+        Struct** null_s_ptr_ptr = &null_s_ptr;
         Struct* invalid_s_ptr = (Struct *)1;
         void* void_ptr = &s1;
         AnonUnion anon_union = { 4 };
@@ -246,6 +265,10 @@ int main(int argc, char *argv[])
     else if (testcase == "threads_long")
     {
         threads(15, 10000);
+    }
+    else if (testcase == "dump_env")
+    {
+        dump_env();
     }
     else if (testcase == "check_env")
     {

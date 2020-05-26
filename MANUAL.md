@@ -202,7 +202,13 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
 
 ### Connecting to lldb-server agent
 - Run `lldb-server platform --server --listen *:<port>` on the remote machine.
-- Create launch configuration similar to this:
+- Create launch configuration similar to the one below.
+- Start debugging as usual.  The executable identified by the `program` property will
+be automatically copied to `lldb-server`'s current directory on the remote machine.
+If you require additional configuration of the remote system, you may use `preRunCommands` sequence
+to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
+(See `help platform` for a list of available platform commands).
+
 ```javascript
 {
     "name": "Remote launch",
@@ -210,25 +216,27 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
     "request": "launch",
     "program": "${workspaceFolder}/build/debuggee", // Local path.
     "initCommands": [
-        "platform select <platform>",
-        "platform connect connect://<remote_host>:<port>"
+        "platform select <platform>", // Execute `platform list` for a list of available remote platform plugins.
+        "platform connect connect://<remote_host>:<port>",
+        "settings set target.inherit-env false", // See the note below.
     ],
+    "env": {
+        "PATH": "...", // See the note below.
+    }
 }
 ```
-See `platform list` for a list of available remote platform plugins.
-
-- Start debugging as usual.  The executable identified by the `program` property will
-be automatically copied to `lldb-server`'s current directory on the remote machine.
-If you require additional configuration of the remote system, you may use `preRunCommands` sequence
-to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
-(See `help platform` for a list of available platform commands).
+Note: By default, debuggee will inherit environment from the debugger.  However, this environment  will be of your
+**local** machine.  In most cases these values will not be suiteble on the remote
+system, so you should consider disabling environment inheritance with `settings set target.inherit-env false` and
+initializing them as appropriate, starting with `PATH`.
 
 ### Connecting to a gdbserver-style agent
 This includes not just gdbserver itself, but also execution environments that implement the gdbserver protocol,
 such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others.
 
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
-- Create a custom launch configuration:
+- Create a custom launch configuration.
+- Start debugging.
 ```javascript
 {
     "name": "Remote attach",
@@ -238,13 +246,13 @@ such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](http
     "processCreateCommands": ["gdb-remote <remote_host>:<port>"]
 }
 ```
-- Start debugging.
+
 
 Please note that depending on protocol features implemented by the remote stub, there may be more setup needed.
 For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may not be aware of memory locations
 of the debuggee modules; you may need to specify this manually:
 ```
-target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>
+target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>`
 ```
 
 ## Reverse Debugging
@@ -368,7 +376,7 @@ For example, on x86_64 the restrictions are as follows:
 - There may be at most 4 data watchpoints.
 
 
-## Hit conditions (native adapter only)
+## Hit conditions
 Syntax:
 ```
     operator :: = '<' | '<=' | '=' | '>=' | '>' | '%'
@@ -472,11 +480,7 @@ debugger's main script context).
 |**wrap(obj: `lldb.SBValue`) -> `Value`**| Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
 |**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
 
-# Adapter types
-Please see [this announcement](CHANGELOG.md#heads-up-codelldb-is-moving-to-native-code).
-
 # Alternate LLDB backends
-*(native adapter only)*<br>
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging
 Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
 In order to use alternate backend, you will need to provide location of the corresponding liblldb&#46;so/.dylib/.dll
@@ -541,9 +545,7 @@ configurations when there is no existing `launch.json`.
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.adapterType**   |Type of debug adapter to use:<li>native - Native implementation, requires one-time download of platform-specific binaries (default),<li>classic - the original Python-based debug adapter running in externally provided LLDB.
-|**lldb.executable**    |Which LLDB executable to use. (default="lldb")
-|**lldb.library**       |Which LLDB library to use (native adapter only). This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.library**       |Which LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in the "LLDB" output panel.
 

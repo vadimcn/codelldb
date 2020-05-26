@@ -12,88 +12,47 @@
 				"${workspaceFolder}/debuggee"
 			],
 			"stopOnEntry": false,
+			"outFiles": [
+				"${workspaceFolder}/build/*.js"
+			],
 			"sourceMaps": true,
 		},
 		{
-			"name": "classic adapter",
-			"type": "python",
-			"request": "attach",
-			"preLaunchTask": "debug launch classic adapter",
-			"port": 3000,
-			"host": "127.0.0.1",
-		},
-		{
-			"name": "codelldb on Linux",
+			"name": "codelldb",
 			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
 			//"initCommands": ["set set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter2/codelldb",
 			"args": [
-				"--libpython=libpython3.6m.so",
 				"--multi-session",
 				"--port=4711"
 			],
-			"env": {
-				"RUST_LOG": "error",//,codelldb=debug",
-				"RUST_LOG_STYLE": "always",
-				"RUST_BACKTRACE": "1",
-				// "LLDB_DISABLE_PYTHON": "1",
-				// "LD_DEBUG": "all",
-				// "LD_DEBUG_OUTPUT": "/tmp/codelldb.log"
+			"linux": {
+				"args": [
+					"--multi-session",
+					"--port=4711",
+					"--libpython=libpython3.6m.so",
+				],
 			},
 			"sourceLanguages": [
 				"cpp",
 				"rust"
 			],
 			"terminal": "integrated",
-			"sourceMap": {
-				"/workspace/source": "${env:HOME}/NW/llvm-project",
-				"/workspace/build": "${env:HOME}/NW/llvm-project/build",
-			}
-		},
-		{
-			"name": "codelldb on OSX",
-			"preLaunchTask": "make codelldb",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceFolder}/build/adapter2/codelldb",
-			"args": [
-				"--multi-session",
-				"--port=4711"
-			],
 			"env": {
 				"RUST_LOG": "error,codelldb=debug",
 				"RUST_LOG_STYLE": "always",
 				"RUST_BACKTRACE": "full",
 			},
-			"sourceLanguages": [
-				"cpp",
-				"rust"
-			],
-			"terminal": "integrated"
-		},
-		{
-			"name": "codelldb on Windows",
-			"preLaunchTask": "make codelldb",
-			"type": "lldb",
-			"request": "launch",
-			"program": "${workspaceFolder}/build/adapter2/codelldb",
-			"args": [
-				"--multi-session",
-				"--port=4711"
-			],
-			"env": {
-				"PATH": "${env:PATH};C:\\Python36-64;${workspaceFolder}\\build\\lldb\\bin",
-				"RUST_LOG": "error,codelldb=debug",
-				"RUST_LOG_STYLE": "always",
-				"RUST_BACKTRACE": "full",
+			"windows": {
+				"env": {
+					"PATH": "${env:PATH};C:\\Python36-64;${workspaceFolder}\\build\\lldb\\bin",
+					"RUST_LOG": "error,codelldb=debug",
+					"RUST_LOG_STYLE": "always",
+					"RUST_BACKTRACE": "full",
+				},
 			},
-			"sourceLanguages": [
-				"cpp",
-				"rust"
-			],
-			"terminal": "integrated"
 		},
 		{
 			"name": "codelldb on Windows+cppvsdbg",
@@ -125,10 +84,6 @@
 					"value": "full"
 				},
 			],
-			//"externalConsole": true,
-			"sourceFileMap": {
-				"C:\\_work\\4\\s": "c:\\NW\\cpython"
-			}
 		},
 		{
 			"name": "codelldb find-python",
@@ -186,7 +141,7 @@
 			"type": "node",
 			"request": "launch",
 			"cwd": "${workspaceRoot}/build",
-			"program": "${workspaceRoot}/build/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceRoot}/build/node_modules/mocha/bin/mocha",
 			"args": [
 				"-u",
 				"tdd",
@@ -198,7 +153,6 @@
 				"tests"
 			],
 			"env": {
-				"ADAPTER_TYPE": "native",
 				"TARGET_TRIPLE": "x86_64-unknown-linux-gnu",
 				"NODE_PATH": "${workspaceRoot}/build",
 				"BUILD_DIR": "${workspaceRoot}/build",
@@ -208,6 +162,9 @@
 				"RUST_BACKTRACE": "full",
 				//"DEBUG_SERVER": "4711"
 			},
+			"outFiles": [
+				"${workspaceFolder}/build/*.js"
+			],
 			"sourceMaps": true
 		},
 		{
@@ -229,6 +186,5 @@
 				"target modules load --file ${env:HOME}/tmp/echo -s 0x4000000000"
 			]
 		},
-
 	]
 }

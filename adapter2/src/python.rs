@@ -61,7 +61,7 @@ impl PythonInterface {
         let command = format!("command script import '{}'", init_script.to_str().unwrap());
         interpreter.handle_command(&command, &mut command_result, false);
         if !command_result.succeeded() {
-            return Err(Error::Internal(format!("{:?}", command_result)));
+            bail!(format!("{:?}", command_result));
         }
 
         let mut interface = Box::new(PythonInterface {
@@ -122,12 +122,12 @@ impl PythonInterface {
         );
         interpreter.handle_command(&command, &mut command_result, false);
         if !command_result.succeeded() {
-            return Err(Error::Internal(format!("{:?}", command_result)));
+            bail!(format!("{:?}", command_result));
         }
 
         // Make sure Python side has called us back.
         if !interface.initialized {
-            return Err(Error::Internal("Could not initialize Python environment.".into()));
+            bail!("Could not initialize Python environment.");
         }
 
         let rust_formatters = current_exe.with_file_name("rust.py");

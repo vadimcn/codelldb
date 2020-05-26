@@ -1,12 +1,17 @@
 find_package(Python3 COMPONENTS Interpreter Development)
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}m" CACHE STRING "" FORCE)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}" CACHE STRING "" FORCE)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(LLDB_LinkDylib "liblldb" CACHE STRING "" FORCE)
 else()
-    set(LLDB_LinkDylib "lldb;python3.${Python3_VERSION_MINOR}" CACHE STRING "" FORCE)
+    message(FATAL_ERROR "Unsupported platform")
 endif()
 
-set(LLDB_LinkSearch "${LLDB_ROOT}/lib;${Python3_LIBRARY_DIRS}" CACHE STRING "" FORCE)
+get_filename_component(LibPythonDir ${Python3_LIBRARY_RELEASE} DIRECTORY)
+set(LLDB_LinkSearch "${LLDB_ROOT}/lib;${LibPythonDir}" CACHE STRING "" FORCE)
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
                              --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target
@@ -35,7 +40,7 @@ add_custom_target(codelldb ALL
 
 add_custom_target(codelldb_bin
     COMMAND cargo build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
-    COMMAND ${CopyFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_bin"
     USES_TERMINAL
 )
@@ -43,30 +48,40 @@ add_custom_target(codelldb_bin
 add_custom_target(codelldb_lib
     DEPENDS lldb ${PythonFiles}
     COMMAND cargo build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
-    COMMAND ${CopyFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"
     USES_TERMINAL
 )
 
+add_custom_target(codelldb_syms
+    DEPENDS codelldb_bin codelldb_lib
+    COMMAND ${UpdateFile} ${CargoOutDir}/deps/${DylibPrefix}codelldb${DylibSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Updating codelldb symbols"
+    USES_TERMINAL
+)
+
 set(PATH $ENV{PATH})
-string(JOIN ${PathSep} PATH ${PATH} ${LLDB_ROOT}/bin ${Python3_LIBRARY_DIRS})
+get_filename_component(PythonRuntimeDir "${Python3_RUNTIME_LIBRARY_RELEASE}" DIRECTORY)
+string(JOIN ${PathSep} PATH ${PATH} ${LLDB_ROOT}/bin ${PythonRuntimeDir})
 string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
 
 add_custom_target(cargo_test
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
             cargo test --lib --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )
 
 # Check that binaries don't depend on liblldb and libpython.
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    add_test(NAME native:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME native:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
-    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
+    add_test(NAME adapter:deps:codelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME adapter:deps:libcodelldb COMMAND ldd ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.so)
+    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;liblldb;libxml;libstdc\\+\\+")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    add_test(NAME native:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
-    add_test(NAME native:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
-    set_tests_properties(native:deps:codelldb native:deps:libcodelldb
+    add_test(NAME adapter:deps:codelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/codelldb)
+    add_test(NAME adapter:deps:libcodelldb COMMAND otool -L ${CMAKE_CURRENT_BINARY_DIR}/libcodelldb.dylib)
+    set_tests_properties(adapter:deps:codelldb adapter:deps:libcodelldb
                          PROPERTIES FAIL_REGULAR_EXPRESSION "libpython;Python;liblldb;libxml")
 endif()

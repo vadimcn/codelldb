@@ -1,17 +1,16 @@
 variables:
-  lldbBuildId: 1152
+  lldbBuildId: 1211
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
-  rustcVersion: 'nightly-2019-10-15'
+  rustcVersion: 'nightly-2020-01-15'
   cacheDiscr: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
 
   setenvLinux: |
-      true
+      export PATH=$HOME/.cargo/bin:$PATH
   setenvOSX: |
       export PATH=$HOME/.cargo/bin:$PATH
-      export PYTHON_SYS_EXECUTABLE=/usr/bin/python2.7
   setenvWindows: |
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
@@ -27,16 +26,19 @@ jobs:
   strategy:
     matrix:
       x86_64:
-        Triple: 'x86_64-linux-gnu'
         PlatformId: 'x86_64-linux'
+        Triple: 'x86_64-linux-gnu'
+        RustTarget: 'x86_64-unknown-linux-gnu'
         CrossBuilding: false
       arm:
-        Triple: 'arm-linux-gnueabihf'
         PlatformId: 'arm-linux'
+        Triple: 'arm-linux-gnueabihf'
+        RustTarget: 'armv7-unknown-linux-gnueabihf'
         CrossBuilding: true
       aarch64:
-        Triple: 'aarch64-linux-gnu'
         PlatformId: 'aarch64-linux'
+        Triple: 'aarch64-linux-gnu'
+        RustTarget: 'aarch64-unknown-linux-gnu'
         CrossBuilding: true
 
   variables:
@@ -47,6 +49,14 @@ jobs:
     options: --privileged
 
   steps:
+
+  - script: |
+      rustup self update
+      rustup toolchain install $(rustcVersion)
+      rustup default $(rustcVersion)
+      rustup target add $(RustTarget)
+      rustup show
+    displayName: 'Install Rust'
 
   - task: DownloadBuildArtifacts@0
     inputs:
@@ -72,17 +82,6 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  # - task: CacheBeta@0
-  #   inputs:
-  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #     restoreKeys: |
-  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #       $(cachePrefix) | cargo_target
-  #     path: $(Build.SourcesDirectory)/build/target
-  #     continueOnError: true
-  #   displayName: Cache cargo_target
-  #   condition: always()
-
   - script: |
       $(setenvLinux)
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
@@ -94,32 +93,32 @@ jobs:
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
+      cat CMakeCache.txt
     displayName: 'Configure'
 
   - script: |
       $(setenvLinux)
       cmake --build build --target vsix_portable
-      cmake -E copy build/vscode-lldb-portable.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-portable.vsix
+      cmake -E copy build/codelldb-portable.vsix $(Build.ArtifactStagingDirectory)/codelldb-portable.vsix
+      cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
     displayName: 'Build portable package'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
+      $(setenvLinux)
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-$(PlatformId).vsix
-      cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
+      cmake -E copy build/codelldb-full.vsix $(Build.ArtifactStagingDirectory)/codelldb-$(PlatformId).vsix
     displayName: 'Build'
 
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      artifactName: 'vscode-lldb'
+      artifactName: 'codelldb-$(PlatformId)'
 
   - script: |
       $(setenvLinux)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
@@ -138,6 +137,7 @@ jobs:
 
   variables:
     cachePrefix: $(cacheDiscr) | x86_64-apple-darwin
+    PlatformId: 'x86_64-darwin'
 
   steps:
 
@@ -165,17 +165,6 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  # - task: CacheBeta@0
-  #   inputs:
-  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #     restoreKeys: |
-  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #       $(cachePrefix) | cargo_target
-  #     path: $(Build.SourcesDirectory)/build/target
-  #     continueOnError: true
-  #   displayName: Cache cargo_target
-  #   condition: always()
-
   - task: NodeTool@0
     inputs:
       versionSpec: '10.x'
@@ -184,7 +173,7 @@ jobs:
   - script: |
       curl https://sh.rustup.rs -sSf | sh -s -- -v -y --profile minimal --default-toolchain none
       source $HOME/.cargo/env
-      rustup toolchain install $(rustcVersion)-x86_64-apple-darwin
+      rustup toolchain install $(rustcVersion)
       rustup default $(rustcVersion)
       rustup show
     displayName: 'Install Rust'
@@ -198,25 +187,24 @@ jobs:
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
             ..
-    displayName: 'CMake configure'
+      cat CMakeCache.txt
+    displayName: 'Configure'
 
   - script: |
       $(setenvOSX)
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-darwin.vsix
+      cmake -E copy build/codelldb-full.vsix $(Build.ArtifactStagingDirectory)/codelldb-$(PlatformId).vsix
     displayName: 'Build'
 
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      artifactName: 'vscode-lldb'
+      artifactName: 'codelldb-$(PlatformId)'
 
   - script: |
       $(setenvOSX)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
 
   - script: |
       echo - env ------------------
@@ -234,6 +222,7 @@ jobs:
 
   variables:
     cachePrefix: $(cacheDiscr) | x86_64-windows
+    PlatformId: 'x86_64-windows'
 
   steps:
 
@@ -272,17 +261,6 @@ jobs:
     displayName: Cache node_modules
     condition: always()
 
-  # - task: CacheBeta@0
-  #   inputs:
-  #     key: $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #     restoreKeys: |
-  #       $(cachePrefix) | cargo_target | $(Build.BuildId)
-  #       $(cachePrefix) | cargo_target
-  #     path: $(Build.SourcesDirectory)/build/target
-  #     continueOnError: true
-  #   displayName: Cache cargo_target
-  #   condition: always()
-
   - task: BatchScript@1
     inputs:
       filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat"
@@ -314,25 +292,24 @@ jobs:
             -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
             ..
-    displayName: 'CMake configure'
+      type CMakeCache.txt
+    displayName: 'Configure'
 
   - script: |
       $(setenvWindows)
       cmake --build build --target vsix_full
-      cmake -E copy build/vscode-lldb-full.vsix $(Build.ArtifactStagingDirectory)/vscode-lldb-x86_64-windows.vsix
+      cmake -E copy build/codelldb-full.vsix $(Build.ArtifactStagingDirectory)/codelldb-$(PlatformId).vsix
     displayName: 'Build'
 
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      artifactName: 'vscode-lldb'
+      artifactName: 'codelldb-$(PlatformId)'
 
   - script: |
       $(setenvWindows)
-      cmake --build build --target tests
-      cd build
-      ctest --output-on-failure -R "native"
-    displayName: 'Test native'
+      cmake --build build --target check
+    displayName: 'Test'
 
   - script: |
       echo - env ------------------

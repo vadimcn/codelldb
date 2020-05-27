@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Writable } from 'stream';
+import { exec } from 'child_process';
 import * as async from './novsc/async';
 
 const MaxRedirects = 10;
@@ -152,6 +153,11 @@ async function installVsix(context: ExtensionContext, vsixPath: string) {
         });
         return stream;
     });
+
+    // Patching executable if that's NixOS.
+    if (await fs.stat("/etc/nixos").then(_ => true).catch(_ => false)) {
+        await patchelf(path.join(destDir, "vscode-lldb"));
+    }
     await async.fs.writeFile(path.join(destDir, 'platform.ok'), '');
 }
 
@@ -199,4 +205,44 @@ async function ensureDirectory(dir: string) {
             else resolve();
         }));
     }
+}
+
+async function patchelf(dest: fs.PathLike): Promise<void> {
+    await window.withProgress(
+        {
+            location: ProgressLocation.Notification,
+            title: "Patching rust-analyzer for NixOS"
+        },
+        async (progress, _) => {
+            const expression = `
+            {src, pkgs ? import <nixpkgs> {}}:
+                pkgs.stdenv.mkDerivation {
+                    name = "lldb-vscode";
+                    inherit src;
+                    phases = [ "installPhase" "fixupPhase" ];
+                    installPhase = "cp $src $out";
+                    fixupPhase = ''
+                        chmod 755 $out
+                        patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" $out
+                    '';
+                }
+            `;
+            const origFile = dest + "-orig";
+            await fs.rename(dest, origFile);
+            progress.report({ message: "Patching executable", increment: 20 });
+            await new Promise((resolve, reject) => {
+                const handle = exec(`nix-build -E - --arg src '${origFile}' -o ${dest}`,
+                    (err, stdout, stderr) => {
+                        if (err != null) {
+                            reject(Error(stderr));
+                        } else {
+                            resolve(stdout);
+                        }
+                    });
+                handle.stdin?.write(expression);
+                handle.stdin?.end();
+            });
+            await fs.unlink(origFile);
+        }
+    );
 }

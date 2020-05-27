@@ -211,7 +211,7 @@ async function patchelf(dest: fs.PathLike): Promise<void> {
     await window.withProgress(
         {
             location: ProgressLocation.Notification,
-            title: "Patching rust-analyzer for NixOS"
+            title: "Patching lldb-vscode for NixOS"
         },
         async (progress, _) => {
             const expression = `

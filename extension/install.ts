@@ -156,7 +156,7 @@ async function installVsix(context: ExtensionContext, vsixPath: string) {
 
     // Patching executable if that's NixOS.
     if (await fs.stat("/etc/nixos").then(_ => true).catch(_ => false)) {
-        await patchelf(path.join(destDir, "vscode-lldb"));
+        await patchelf(path.join(destDir, "lldb-vscode"));
     }
     await async.fs.writeFile(path.join(destDir, 'platform.ok'), '');
 }

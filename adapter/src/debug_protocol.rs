@@ -74,7 +74,7 @@ pub enum RequestArguments {
     setBreakpoints(SetBreakpointsArguments),
     setFunctionBreakpoints(SetFunctionBreakpointsArguments),
     setExceptionBreakpoints(SetExceptionBreakpointsArguments),
-    configurationDone,
+    configurationDone(Option<NoArguments>),
     pause(PauseArguments),
     #[serde(rename = "continue")]
     continue_(ContinueArguments),
@@ -83,7 +83,7 @@ pub enum RequestArguments {
     stepOut(StepOutArguments),
     stepBack(StepBackArguments),
     reverseContinue(ReverseContinueArguments),
-    threads,
+    threads(Option<NoArguments>),
     stackTrace(StackTraceArguments),
     scopes(ScopesArguments),
     source(SourceArguments),
@@ -160,6 +160,10 @@ pub enum EventBody {
     // Custom
     displayHtml(DisplayHtmlEventBody),
 }
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NoArguments {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -391,6 +395,29 @@ mod tests {
             response,
             ProtocolMessage::Response(Response {
                 body: Some(ResponseBody::scopes(..)),
+                ..
+            })
+        );
+    }
+
+    #[test]
+    fn test_configuration_done() {
+        let request = parse(br#"{"type":"request", "seq":12, "command":"configurationDone"}"#);
+        println!("{:?}", request);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::configurationDone(None)),
+                ..
+            })
+        );
+        let request =
+            parse(br#"{"type":"request", "seq":12, "command":"configurationDone", "arguments": {"foo": "bar"}}"#);
+        println!("{:?}", request);
+        assert_match!(
+            request,
+            ProtocolMessage::Request(Request {
+                command: Command::Known(RequestArguments::configurationDone(Some(_))),
                 ..
             })
         );

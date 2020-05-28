@@ -281,7 +281,7 @@ impl DebugSession {
                             self.handle_launch(args),
                     RequestArguments::attach(args) =>
                         self.handle_attach(args),
-                    RequestArguments::configurationDone =>
+                    RequestArguments::configurationDone(_) =>
                         self.handle_configuration_done()
                             .map(|_| ResponseBody::configurationDone),
                     RequestArguments::disconnect(args) =>
@@ -301,7 +301,7 @@ impl DebugSession {
                                 RequestArguments::setExceptionBreakpoints(args) =>
                                     self.handle_set_exception_breakpoints(args)
                                         .map(|_| ResponseBody::setExceptionBreakpoints),
-                                RequestArguments::threads =>
+                                RequestArguments::threads(_) =>
                                     self.handle_threads()
                                         .map(|r| ResponseBody::threads(r)),
                                 RequestArguments::stackTrace(args) =>
@@ -999,7 +999,7 @@ impl DebugSession {
             let mut receiver = result?;
             while let Some(Ok(request)) = receiver.next().await {
                 match request.command {
-                    Command::Known(RequestArguments::configurationDone) => {
+                    Command::Known(RequestArguments::configurationDone(_)) => {
                         return Ok(());
                     }
                     _ => {}

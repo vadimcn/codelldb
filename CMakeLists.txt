@@ -125,8 +125,8 @@ add_custom_target(tests
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_BINARY_DIR}/README.md)
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/CHANGELOG.md ${CMAKE_CURRENT_BINARY_DIR}/CHANGELOG.md)
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/lldb.png ${CMAKE_CURRENT_BINARY_DIR}/images/lldb.png)
-add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/checked.svg ${CMAKE_CURRENT_BINARY_DIR}/images/checked.svg)
-add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/unchecked.svg ${CMAKE_CURRENT_BINARY_DIR}/images/unchecked.svg)
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/user.svg ${CMAKE_CURRENT_BINARY_DIR}/images/user.svg)
+add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/images/users.svg ${CMAKE_CURRENT_BINARY_DIR}/images/users.svg)
 add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/syntaxes/disassembly.json ${CMAKE_CURRENT_BINARY_DIR}/syntaxes/disassembly.json)
 
 # For extension debugging

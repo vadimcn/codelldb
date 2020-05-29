@@ -532,36 +532,37 @@ configurations when there is no existing `launch.json`.
 
 # Workspace Configuration
 
+## Default launch configuration settings
+|                                |                                                         |
+|--------------------------------|---------------------------------------------------------|
+|**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.
+|**lldb.launch.preRunCommands**  |Commands executed *before* preRunCommands of individual launch configurations.
+|**lldb.launch.postRunCommands** |Commands executed *before* postRunCommands of individual launch configurations.
+|**lldb.launch.exitCommands**    |Commands executed *after* exitCommands of individual launch configurations.
+|**lldb.launch.env**             |Additional environment variables that will be merged with 'env' of individual launch configurations.
+|**lldb.launch.cwd**             |Default program working directory.
+|**lldb.launch.stdio**           |Default stdio destination.
+|**lldb.launch.expressions**     |Default expression evaluator.
+|**lldb.launch.terminal**        |Default terminal type.
+|**lldb.launch.sourceMap**       |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
+|**lldb.launch.relativePathBase**|Default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**lldb.launch.sourceLanguages** |A list of source languages used in the program.  This is used to enable language-specific debugger features.
+
 ## General
-|                       |                                                         |
-|-----------------------|---------------------------------------------------------|
-|**lldb.dbgconfig**     |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
-|**lldb.evaluationTimeout**|Timeout for expression evaluation, in seconds (default=5s).
-|**lldb.displayFormat**|The default format for variable and expression values.
-|**lldb.showDisassembly**|When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
-|**lldb.dereferencePointers**|Whether to show a summary of the pointee, or a numeric value for pointers.
+|                                   |                                                         |
+|-----------------------------------|---------------------------------------------------------|
+|**lldb.dbgconfig**                 |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
+|**lldb.evaluationTimeout**         |Timeout for expression evaluation, in seconds (default=5s).
+|**lldb.displayFormat**             |The default format for variable and expression values.
+|**lldb.showDisassembly**           |When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
+|**lldb.dereferencePointers**       |Whether to show the numeric value of pointers, or a summary of the pointee.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
-|**lldb.consoleMode**|Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).
+|**lldb.consoleMode**               |Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or with '`' (backtick).
 
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
 |**lldb.library**       |Which LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
-|**lldb.adapterEnv**|Environment variables to pass to the debug adapter.
-|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in the "LLDB" output panel.
-
-## Default launch configuration settings
-|                       |                                                         |
-|-----------------------|---------------------------------------------------------|
-|**lldb.launch.initCommands** |Commands executed *before* initCommands of individual launch configurations.
-|**lldb.launch.preRunCommands** |Commands executed *before* preRunCommands of individual launch configurations.
-|**lldb.launch.postRunCommands**|Commands executed *before* postRunCommands of individual launch configurations.
-|**lldb.launch.exitCommands** |Commands executed *after* exitCommands of individual launch configurations.
-|**lldb.launch.env** |Additional environment variables that will be merged with 'env' of individual launch configurations.
-|**lldb.launch.cwd** |Default program working directory.
-|**lldb.launch.stdio** |Default stdio destination.
-|**lldb.launch.expressions** |Default expression evaluator.
-|**lldb.launch.terminal** |Default terminal type.
-|**lldb.launch.sourceMap** |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
-|**lldb.launch.relativePathBase**|string| | Default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**lldb.launch.sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**lldb.libpython**     |Which Python library to use.  This setting overrides automatic Python location logic.
+|**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
+|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.

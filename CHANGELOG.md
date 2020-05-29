@@ -1,5 +1,25 @@
 # Release Notes
 
+
+# 1.5.2
+
+## Fixed
+- Bug #276: Running lldb python scripts only outputs to OUTPUT(lldb) tab.
+- Bug #286: "Run Without Debugging" doesn't wait for process to finish.
+- Bug #297: Breakpoints disappear when debug symbols have relative path outside ${workspaceFolder}, or paths that need mapping.
+- Fixed compatibility with Eclipse Theia IDE (thanks @dschafhauser!)
+
+## Changed
+- Updated bundled LLDB to v10.0.1
+
+## New
+- Added '/cmd ' prefix (in addition to backtick) for executing lldb commands when debug console is set to `evaluate` mode.
+
+# 1.5.1
+
+## Fixed
+- Bug 270: CodeLLDB requires too new liblzma on OSX
+
 # 1.5.0
 
 ## Fixed

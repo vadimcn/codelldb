@@ -13,14 +13,14 @@
 
 <sup>\*</sup> DWARF debug info format recommended, limited support for MS PDB.
 
-For full details please see the [Users Manual](MANUAL.md).
+For full details please see [the User's Manual](MANUAL.md).
 
-# Requirements
+# Minimal System Requirements
 - 64-bit OS
-    - Linux: glibc 2.18 (available by default in Debian 8, Ubuntu 14.04, Centos 8)
+    - Linux: glibc 2.18 (Debian 8, Ubuntu 14.04, Centos 8)
     - Mac: OS X 10.10 Yosemite
     - Windows: 10.0
-- 64-bit Python 3.5 or later (optional, except on Windows).
+- 64-bit Python 3.5 (optional, except on Windows).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:
@@ -35,10 +35,11 @@ Here's a minimal debug configuration to get you started:
 ```
 
 # Links
-- [Wiki](https://github.com/vadimcn/vscode-lldb/wiki) | [Setup](https://github.com/vadimcn/vscode-lldb/Setup) | [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting)
-- [Users Manual](MANUAL.md)
-- [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging)
-- [Q & A](https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb)
+- [Initial Setup](https://github.com/vadimcn/vscode-lldb/wiki/Setup)
+- [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging) - if you are new to VSCode debugging.
+- [CodeLLDB User's Manual](MANUAL.md) - about this specific extension.
+- [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting) - known problems and solutions.
+- [Q & A](https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb) - for when you are stuck.
 
 
 # Screenshots

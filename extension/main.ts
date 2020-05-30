@@ -7,6 +7,7 @@ import {
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
 import * as querystring from 'querystring';
 import JSON5 from 'json5';
 import stringArgv from 'string-argv';
@@ -21,7 +22,6 @@ import { Dict } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
-
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -183,7 +183,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             suppressMissingSourceFiles: config.get('suppressMissingSourceFiles'),
             evaluationTimeout: config.get('evaluationTimeout'),
             consoleMode: config.get('consoleMode'),
-            sourceLanguages: null
+            sourceLanguages: null,
+            terminalPromptClear: config.get('terminalPromptClear'),
         };
         return settings;
     }
@@ -529,7 +530,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async checkPython(folder?: WorkspaceFolder): Promise<boolean> {
-        if (process.platform == 'win32') {
+        if (os.platform() == 'win32') {
             // On Windows libpython is required.
             let config = this.getExtensionConfig(folder);
             let [liblldb, libpython] = await this.getAdapterDylibs(config);

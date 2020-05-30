@@ -241,6 +241,20 @@
 					],
 					"scope": "resource"
 				},
+				"lldb.terminalPromptClear": {
+					"description": "A sequence of strings sent to the terminal in order to clear its command prompt.",
+					"type": [
+						"array",
+						"null"
+					],
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"\n"
+					],
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

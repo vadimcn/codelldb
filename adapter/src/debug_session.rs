@@ -116,6 +116,7 @@ pub struct DebugSession {
     suppress_missing_files: bool,
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
+    terminal_prompt_clear: Option<Vec<String>>,
 }
 
 // AsyncResponse is used to "smuggle" futures out of request handlers
@@ -196,9 +197,10 @@ impl DebugSession {
             show_disassembly: ShowDisassembly::Auto,
             deref_pointers: true,
             console_mode: ConsoleMode::Commands,
-            source_languages: vec!["cpp".into()],
             suppress_missing_files: true,
             evaluation_timeout: time::Duration::from_secs(5),
+            source_languages: vec!["cpp".into()],
+            terminal_prompt_clear: None,
         };
 
         debug_session.update_adapter_settings(&settings);
@@ -1264,7 +1266,12 @@ impl DebugSession {
         };
 
         let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
-        let fut = Terminal::create(terminal_kind, title, self.dap_session.borrow().clone());
+        let fut = Terminal::create(
+            terminal_kind,
+            title,
+            self.terminal_prompt_clear.clone(),
+            self.dap_session.borrow().clone(),
+        );
         let self_ref = self.self_ref.clone();
         async move {
             let result = fut.await;
@@ -1346,6 +1353,7 @@ impl DebugSession {
 
         if let Some(ref settings) = args_common.adapter_settings {
             self.update_adapter_settings(settings);
+            self.terminal_prompt_clear = settings.terminal_prompt_clear.clone();
         }
 
         if let Some(commands) = &args_common.init_commands {
@@ -2404,7 +2412,7 @@ impl DebugSession {
             self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
         }
         if let Some(ref source_languages) = args.source_languages {
-            self.source_languages = source_languages.clone()
+            self.source_languages = source_languages.clone();
         }
     }
 
@@ -2659,7 +2667,7 @@ impl DebugSession {
             bp.clear_callback();
             // Send "removed" notification only if we are tracking this breakpoint,
             // otherwise we'd notify VSCode about breakpoints that had been disabled in the UI
-            // and cause them to be actually removed.
+            // and cause them to be removed from VSCode UI altogether.
             if let Some(_bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "removed".into(),

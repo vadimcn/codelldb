@@ -8,6 +8,7 @@ export class AdapterSettings {
     suppressMissingSourceFiles: boolean;
     consoleMode: 'commands' | 'expressions';
     sourceLanguages: string[];
+    terminalPromptClear: string[];
 };
 
 export interface DisplayHtmlRequest {

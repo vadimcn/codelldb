@@ -237,6 +237,7 @@ pub struct AdapterSettings {
     pub suppress_missing_source_files: Option<bool>,
     pub console_mode: Option<ConsoleMode>,
     pub source_languages: Option<Vec<String>>,
+    pub terminal_prompt_clear: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

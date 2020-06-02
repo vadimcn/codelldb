@@ -1,7 +1,5 @@
-#![allow(dead_code)]
-use crate::error::Error;
+use crate::prelude::*;
 use std::fs;
-use std::io;
 
 #[cfg(unix)]
 pub fn pipe() -> Result<(fs::File, fs::File), Error> {

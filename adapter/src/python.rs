@@ -1,15 +1,13 @@
+use crate::prelude::*;
+
+use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
+use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use lldb::*;
 use std::env;
 use std::ffi::CStr;
 use std::mem;
-use std::os::raw::{c_char, c_int, c_long, c_void};
-
-use lldb::*;
-use log::*;
+use std::os::raw::{c_char, c_int, c_void};
 use tokio::sync::mpsc;
-
-use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
-use crate::error::Error;
-use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 
 #[repr(C)]
 union ValueResult {

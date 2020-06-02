@@ -1,12 +1,10 @@
+use crate::Error;
+use loading::*;
+use log::{error, info};
 use std::ffi::CStr;
 use std::mem::transmute;
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
-
-use loading::*;
-use log::{error, info};
-
-use crate::Error;
 
 type CandidateLocations = Vec<Box<dyn FnOnce() -> Result<Vec<PathBuf>, Error>>>;
 

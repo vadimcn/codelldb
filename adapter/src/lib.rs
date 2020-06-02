@@ -2,17 +2,20 @@
 #![feature(fn_traits)]
 #![feature(untagged_unions)]
 #![feature(box_into_pin)]
-#![allow(unused_imports)]
 
+use crate::prelude::*;
 use futures::prelude::*;
-
-use log::{debug, error, info};
+use lldb::*;
 use std::net;
 use tokio::net::TcpListener;
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
 
-use lldb::*;
+#[allow(unused_imports)]
+mod prelude {
+    pub use crate::error::{Error, UserError};
+    pub use log::{debug, error, info};
+}
 
 #[macro_use]
 mod error;

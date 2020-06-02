@@ -1,15 +1,12 @@
-use futures::prelude::*;
+use crate::prelude::*;
 
-use log::*;
+use crate::debug_protocol::*;
+use futures::prelude::*;
 use std::collections::{hash_map::Entry, HashMap};
 use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
-
 use tokio::sync::{broadcast, mpsc, oneshot};
-
-use crate::debug_protocol::*;
-use crate::error::Error;
 
 pub trait DAPChannel:
     Stream<Item = Result<ProtocolMessage, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send

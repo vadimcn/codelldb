@@ -1,6 +1,6 @@
+use crate::prelude::*;
 use futures::prelude::*;
 use lldb::{IsValid, SBEvent, SBListener};
-use log::{debug, error};
 use tokio::sync::mpsc::{self, error::TrySendError};
 
 pub fn start_polling(event_listener: &SBListener) -> impl Stream<Item = SBEvent> {

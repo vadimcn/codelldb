@@ -1,12 +1,12 @@
+use crate::prelude::*;
+
+use crate::debug_protocol::ProtocolMessage;
 use bytes::BytesMut;
-use log::{debug, error, info};
+use serde_json;
 use std::fmt::Write;
 use std::io;
 use std::str;
 use tokio_util::codec;
-
-use crate::debug_protocol::ProtocolMessage;
-use serde_json;
 
 pub struct DAPCodec {
     state: State,

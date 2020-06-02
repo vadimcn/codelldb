@@ -1,3 +1,22 @@
+use crate::prelude::*;
+
+use crate::dap_session::DAPSession;
+use crate::debug_event_listener;
+use crate::debug_protocol::*;
+use crate::disassembly;
+use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
+use crate::fsutil::normalize_path;
+use crate::future;
+use crate::handles::{self, Handle, HandleTree};
+use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use crate::platform::{pipe, sink};
+use crate::python::{self, PythonInterface};
+use crate::terminal::Terminal;
+use futures;
+use futures::prelude::*;
+use lldb::*;
+use serde_derive::*;
+use serde_json;
 use std;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -11,32 +30,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
 use std::time;
-
-use futures;
-use futures::prelude::*;
-use log::{debug, error, info};
-use serde_derive::*;
-use serde_json;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
-
-use crate::dap_session::DAPSession;
-use crate::debug_event_listener;
-use crate::debug_protocol::*;
-use crate::disassembly;
-use crate::error::{Error, UserError};
-use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
-use crate::fsutil::normalize_path;
-use crate::future;
-use crate::handles::{self, Handle, HandleTree};
-use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{pipe, sink};
-use crate::python;
-use crate::terminal::Terminal;
-
-use python::PythonInterface;
-
-use lldb::*;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

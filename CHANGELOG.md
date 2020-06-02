@@ -1,5 +1,15 @@
 # Release Notes
 
+# 1.5.3
+
+## Fixed
+- Bugs #312, #318: In v1.5.2 a new method of clearing the terminal prompt had been introduced; unfortunately, it seems
+to have caused problems for some shells (fish, zsh).  This should be resolved now.  If you still experience problems,
+you can use the newly added `lldb.terminalPromptClear` setting to override string sequence used to clear the prompt,
+or to disable prompt clearing altogether.
+
+## New
+- Added `lldb.terminalPromptClear` setting.
 
 # 1.5.2
 

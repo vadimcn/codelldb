@@ -552,7 +552,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let debugConfig: DebugConfiguration = {
             type: 'lldb',
             request: 'attach',
-            name: '',
+            name: 'Attach',
             pid: '${command:pickMyProcess}',
         };
         await debug.startDebugging(undefined, debugConfig);

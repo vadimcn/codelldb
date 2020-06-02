@@ -49,7 +49,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     let mut rt = tokio::runtime::Builder::new() //
         .threaded_scheduler()
         .core_threads(2)
-        .enable_io()
+        .enable_all()
         .build()
         .unwrap();
     rt.block_on(run_debug_server(addr, adapter_settings, multi_session));

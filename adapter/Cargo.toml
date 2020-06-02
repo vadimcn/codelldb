@@ -20,7 +20,7 @@ serde_json = "1.0.40"
 superslice = "1.0.0"
 
 futures = "0.3.0"
-tokio = { version = "0.2", features = ["rt-threaded", "rt-util", "stream", "macros", "io-util", "fs", "tcp", "time", "sync", "blocking"] }
+tokio = { version = "0.2", features = ["rt-threaded", "rt-util", "stream", "macros", "io-util", "fs", "tcp", "dns", "time", "sync", "blocking"] }
 tokio-util = { version = "0.3.0", features = ["codec"] }
 
 lldb = { path = "deps/lldb" }

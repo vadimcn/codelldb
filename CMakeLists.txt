@@ -137,7 +137,7 @@ add_custom_target(dev_debugging
 
 # VSIX packages
 
-set(PackagedFilesPortable
+set(PackagedFilesBootstrap
     README.md
     CHANGELOG.md
     extension.js
@@ -147,7 +147,7 @@ set(PackagedFilesPortable
 )
 
 set(PackagedFilesFull
-    ${PackagedFilesPortable}
+    ${PackagedFilesBootstrap}
     platform.ok
     adapter/*.py
     adapter/codelldb
@@ -166,10 +166,10 @@ set(PackagedFilesFull
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/platform.ok "")
 
 set(Content **)
-foreach(Line ${PackagedFilesPortable})
+foreach(Line ${PackagedFilesBootstrap})
     set(Content ${Content}\n!${Line})
 endforeach()
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${Content})
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-bootstrap ${Content})
 
 set(Content **)
 foreach(Line ${PackagedFilesFull})
@@ -182,10 +182,10 @@ set(VsceOptions
     --baseImagesUrl https://github.com/vadimcn/vscode-lldb/raw/v${VERSION}
 )
 
-add_custom_target(vsix_portable
+add_custom_target(vsix_bootstrap
     DEPENDS extension ${PackageFiles}
-    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-portable ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-portable.vsix
+    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-bootstrap ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-bootstrap.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -215,10 +215,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     add_dependencies(vsix_full strip_binaries)
 endif()
 
-# Build both VSIX packages, then extract vsix_portable to build/extracted
+# Build both VSIX packages, then extract vsix_bootstrap to build/extracted
 
 add_custom_target(vsix_extracted
-    DEPENDS vsix_portable vsix_full
+    DEPENDS vsix_bootstrap vsix_full
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/extracted
     COMMAND unzip -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix -d ${CMAKE_CURRENT_BINARY_DIR}/extracted
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/extension/*.map ${CMAKE_CURRENT_BINARY_DIR}/extracted/extension/extension

@@ -49,6 +49,6 @@ cmake .. -DLLDB_ROOT=<path to LLDB directory>
 - `dev_debugging` - build extension, adapter, debuggee and other stuff needed for debugging extension directly out of the build directory.
 After building this target you can run `code --extensionDevelopmentPath=${workspaceFolder}/build` to try out the extension.
 - `check` - build adapter and run all tests.
-- `vsix_portable` - build VSIX package containing only the VSCode extension.
+- `vsix_bootstrap` - build VSIX package containing only the VSCode extension.
 - `vsix_full` - build VSIX package including all required native binaries (for the current platform).
 - `xclean` - extra-thorough cleaning.  Useful in cases of build problems caused by stale dependencies.

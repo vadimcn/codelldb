@@ -98,10 +98,10 @@ jobs:
 
   - script: |
       $(setenvLinux)
-      cmake --build build --target vsix_portable
-      cmake -E copy build/codelldb-portable.vsix $(Build.ArtifactStagingDirectory)/codelldb-portable.vsix
+      cmake --build build --target vsix_bootstrap
+      cmake -E copy build/codelldb-bootstrap.vsix $(Build.ArtifactStagingDirectory)/codelldb-bootstrap.vsix
       cmake -E copy build/package.json $(Build.ArtifactStagingDirectory)/package.json
-    displayName: 'Build portable package'
+    displayName: 'Build bootstrap package'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |

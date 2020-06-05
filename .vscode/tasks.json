@@ -80,9 +80,9 @@
       ]
     },
     {
-      "label": "make vsix_portable",
+      "label": "make vsix_bootstrap",
       "args": [
-        "vsix_portable"
+        "vsix_bootstrap"
       ]
     },
     {

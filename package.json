@@ -420,6 +420,9 @@
 				"language": "objective-c"
 			},
 			{
+				"language": "objective-cpp"
+			},
+			{
 				"language": "objectpascal"
 			},
 			{
@@ -450,6 +453,7 @@
 					"fortran",
 					"nim",
 					"objective-c",
+					"objective-cpp",
 					"objectpascal",
 					"pascal",
 					"rust"

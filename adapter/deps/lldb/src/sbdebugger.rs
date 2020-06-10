@@ -82,6 +82,11 @@ impl SBDebugger {
             })
         })
     }
+    pub fn dummy_target(&self) -> SBTarget {
+        cpp!(unsafe [self as "SBDebugger*"] -> SBTarget as "SBTarget" {
+            return self->GetDummyTarget();
+        })
+    }
     pub fn selected_target(&self) -> SBTarget {
         cpp!(unsafe [self as "SBDebugger*"] -> SBTarget as "SBTarget" {
             return self->GetSelectedTarget();

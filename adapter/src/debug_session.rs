@@ -141,15 +141,19 @@ impl DebugSession {
 
         let (con_reader, con_writer) = pipe().unwrap();
         let _ = debugger.set_output_stream(con_writer.try_clone().unwrap());
+        let current_exe = env::current_exe().unwrap();
 
-        let (python, mut python_events) =
-            match python::initialize(debugger.command_interpreter(), con_writer.try_clone().unwrap()) {
-                Ok((python, events)) => (Some(python), events.left_stream()),
-                Err(err) => {
-                    error!("Initialize Python interpreter: {}", err);
-                    (None, stream::pending().right_stream())
-                }
-            };
+        let (python, mut python_events) = match python::initialize(
+            debugger.command_interpreter(),
+            current_exe.parent().unwrap(),
+            Some(con_writer.try_clone().unwrap()),
+        ) {
+            Ok((python, events)) => (Some(python), events.left_stream()),
+            Err(err) => {
+                error!("Initialize Python interpreter: {}", err);
+                (None, stream::pending().right_stream())
+            }
+        };
 
         let mut con_reader = tokio::fs::File::from_std(con_reader);
 

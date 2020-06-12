@@ -10,7 +10,7 @@ use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::platform::{pipe, sink};
-use crate::python::{self, PythonInterface};
+use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 use futures;
 use futures::prelude::*;
@@ -813,19 +813,35 @@ impl DebugSession {
     }
 
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
-        // Determine conditional expression type:
-        let py_condition = if let Some(ref condition) = bp_info.condition {
+        // Determine the conditional expression type.
+        let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
             let condition = condition.trim();
             if !condition.is_empty() {
                 let pp_expr = expressions::prepare(condition, self.default_expr_type);
-                match pp_expr {
+                match &pp_expr {
                     // if native, use that directly,
                     PreparedExpression::Native(expr) => {
                         bp_info.breakpoint.set_condition(&expr);
                         None
                     }
                     // otherwise, we'll need to evaluate it ourselves in the breakpoint callback.
-                    _ => Some(pp_expr),
+                    PreparedExpression::Simple(expr) | //.
+                    PreparedExpression::Python(expr) => {
+                        if let Some(python) = &self.python {
+                            match python.compile_code(&expr, "<breakpoint condition>") {
+                                Ok(pycode) => {
+                                    let is_simple_expr = matches!(pp_expr, PreparedExpression::Simple(_));
+                                    Some((pycode, is_simple_expr))
+                                }
+                                Err(err) => {
+                                    self.console_error(err.to_string());
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        }
+                    }
                 }
             } else {
                 None
@@ -858,23 +874,18 @@ impl DebugSession {
         _process: &SBProcess,
         thread: &SBThread,
         location: &SBBreakpointLocation,
-        py_condition: &Option<PreparedExpression>,
+        py_condition: &Option<(PyObject, bool)>,
         hit_condition: &Option<HitCondition>,
     ) -> bool {
         let mut breakpoints = self.breakpoints.borrow_mut();
         let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
 
-        if let Some(pp_expr) = py_condition {
-            let (pycode, is_simple_expr) = match pp_expr {
-                PreparedExpression::Simple(expr) => (expr, true),
-                PreparedExpression::Python(expr) => (expr, false),
-                PreparedExpression::Native(_) => unreachable!(),
-            };
+        if let Some((pycode, is_simple_expr)) = py_condition {
             let frame = thread.frame_at_index(0);
             let context = self.context_from_frame(Some(&frame));
             // TODO: pass bpno
             let should_stop = match &self.python {
-                Some(python) => match python.evaluate_as_bool(&pycode, is_simple_expr, &context) {
+                Some(python) => match python.evaluate_as_bool(&pycode, *is_simple_expr, &context) {
                     Ok(val) => val,
                     Err(err) => {
                         self.console_error(err.to_string());
@@ -1972,13 +1983,13 @@ impl DebugSession {
                 };
                 result.map_err(|e| e.into())
             }
-            (PreparedExpression::Python(pp_expr), Some(python)) => {
-                let context = self.context_from_frame(frame);
-                python.evaluate(&pp_expr, false, &context).map_err(|s| UserError(s).into())
-            }
+            (PreparedExpression::Python(pp_expr), Some(python)) | //.
             (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                python.evaluate(&pp_expr, true, &context).map_err(|s| UserError(s).into())
+                let pycode = python.compile_code(pp_expr, "<input>").map_err(|s| UserError(s))?;
+                let is_simple_expr = matches!(expression, PreparedExpression::Simple(_));
+                let result = python.evaluate(&pycode, is_simple_expr, &context).map_err(|s| UserError(s))?;
+                Ok(result)
             }
             _ => Err(UserError("Python expressions are disabled.".into()))?,
         }

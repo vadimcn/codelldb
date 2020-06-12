@@ -41,7 +41,7 @@ class SBModule(ctypes.Structure):
     swig_type = lldb.SBModule
 
 # Generates a FFI type compatible with Rust #[repr(C, i32)] enum
-def RustEnum(*variants):
+def RustEnum(enum_name, *variants):
     # type: ( List[Tuple[str,type]] ) -> type
     class V(ctypes.Union):
         _fields_ = variants
@@ -58,14 +58,15 @@ def RustEnum(*variants):
             setattr(e.var, name, value)
             return e
         setattr(Enum, name, constructor)
+    Enum.__name__ = enum_name
     return Enum
 
-def PyResult(T):
-    return RustEnum(('Invalid', c_char), ('Ok', T), ('Err', SBError))
+def PyResult(name, T):
+    return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', SBError))
 
-ValueResult = PyResult(SBValue)
-BoolResult = PyResult(c_bool)
-PyObjectResult = PyResult(py_object)
+ValueResult = PyResult('ValueResult', SBValue)
+BoolResult = PyResult('BoolResult', c_bool)
+PyObjectResult = PyResult('PyObjectResult', py_object)
 
 
 display_html = None
@@ -76,11 +77,12 @@ def initialize(log_level, init_callback_addr, display_html_addr, callback_contex
 
     logging.getLogger().setLevel(log_level)
 
-    init_callback_cfn = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(init_callback_addr)
-    init_callback_cfn(callback_context, postinit, shutdown, evaluate, evaluate_as_bool, modules_loaded)
+    args = [callback_context, postinit, shutdown, compile_code, evaluate, evaluate_as_bool, modules_loaded, drop_pyobject]
+    init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
+    init_callback(*args)
 
-    display_html_cfn = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
-    display_html = lambda html, title, position, reveal: display_html_cfn(
+    display_html_raw = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
+    display_html = lambda html, title, position, reveal: display_html_raw(
         callback_context, str_to_bytes(html), str_to_bytes(title), position if position != None else -1, reveal)
 
 @CFUNCTYPE(c_bool, c_size_t)
@@ -103,12 +105,30 @@ def shutdown():
     save_stdout = None
     return True
 
-@CFUNCTYPE(c_bool, POINTER(ValueResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)
-def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(PyObjectResult), POINTER(c_char), c_size_t, POINTER(c_char), c_size_t)
+def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
     try:
         expr = ctypes.string_at(expr_ptr, expr_len)
+        filename = ctypes.string_at(filename_ptr, filename_len)
+        try:
+            pycode = compile(expr, filename, 'eval')
+        except SyntaxError:
+            pycode = compile(expr, filename, 'exec')
+        incref(pycode)
+        result[0] = PyObjectResult.Ok(pycode)
+    except Exception as err:
+        traceback.print_exc()
+        error = lldb.SBError()
+        error.SetErrorString(str(err))
+        error = from_swig_wrapper(error, SBError)
+        result[0] = PyObjectResult.Err(error)
+    return True
+
+@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, c_bool, SBExecutionContext)
+def evaluate(result, pycode, is_simple_expr, context):
+    try:
         context = into_swig_wrapper(context, SBExecutionContext)
-        value = evaluate_in_context(expr, is_simple_expr, context)
+        value = evaluate_in_context(pycode, is_simple_expr, context)
         value = to_sbvalue(value, context.target)
         result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
     except Exception as err:
@@ -119,12 +139,11 @@ def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
         result[0] = ValueResult.Err(error)
     return True
 
-@CFUNCTYPE(c_bool, POINTER(BoolResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)
-def evaluate_as_bool(result, expr_ptr, expr_len, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, c_bool, SBExecutionContext)
+def evaluate_as_bool(result, code, is_simple_expr, context):
     try:
-        expr = ctypes.string_at(expr_ptr, expr_len)
         context = into_swig_wrapper(context, SBExecutionContext)
-        value = bool(evaluate_in_context(expr, is_simple_expr, context))
+        value = bool(evaluate_in_context(code, is_simple_expr, context))
         result[0] = BoolResult.Ok(value)
     except Exception as err:
         traceback.print_exc()
@@ -139,8 +158,16 @@ def modules_loaded(modules_ptr, modules_len):
     return True
 
 @CFUNCTYPE(c_bool, py_object)
-def drop_py_object(obj):
+def drop_pyobject(obj):
+    decref(obj)
     return True
+
+
+incref = ctypes.pythonapi.Py_IncRef
+incref.argtypes = [ctypes.py_object]
+
+decref = ctypes.pythonapi.Py_DecRef
+decref.argtypes = [ctypes.py_object]
 
 def into_swig_wrapper(cobject, ty, owned=True):
     swig_object = ty.swig_type()
@@ -205,9 +232,9 @@ def find_var_in_frame(sbframe, name):
     val = sbframe.FindVariable(name)
     if not val.IsValid():
         for val_type in [lldb.eValueTypeVariableGlobal,
-                        lldb.eValueTypeVariableStatic,
-                        lldb.eValueTypeRegister,
-                        lldb.eValueTypeConstResult]:
+                         lldb.eValueTypeVariableStatic,
+                         lldb.eValueTypeRegister,
+                         lldb.eValueTypeConstResult]:
             val = sbframe.FindValue(name, val_type)
             if val.IsValid():
                 break
@@ -229,7 +256,7 @@ class PyEvalContext(dict):
         else:
             raise KeyError(name)
 
-def evaluate_in_context(script, simple_expr, execution_context):
+def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()
     debugger = execution_context.GetTarget().GetDebugger()
     if simple_expr:
@@ -246,4 +273,4 @@ def evaluate_in_context(script, simple_expr, execution_context):
         lldb.process = lldb.thread.GetProcess()
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
-    return eval(script, eval_globals, eval_locals)
+    return eval(code, eval_globals, eval_locals)

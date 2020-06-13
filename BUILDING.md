@@ -17,28 +17,18 @@ make lldb lldb-server
 ```
 Please note that on Windows, LLDB is expected to have been built with the MSVC compiler.
 
-CodeLLDB build scripts expect to find the following files under ${LLDB_ROOT}:
-```
-bin/
-  lldb[.exe]
-  lldb-server[.exe]
-  liblldb.dll            (Windows)
-lib/
-  liblldb.so.<version>   (Linux)
-  liblldb<version>.dylib (OSX)
-  python3/               (Linux and OSX)
-  site-packages/         (Windows)
-    <python files>
-```
+Package liblldb and its dependencies into a zip archive.
+(This gets rather tricky if you want to obtain a self-contained package, however for local testing just zipping
+bin/ and lib/ directories will do.)
 
 # Configure CodeLLDB:
 ```
 npm install
 mkdir build  # (directory can be changed, but tasks.json assumes it's "build")
 cd build
-cmake .. -DLLDB_ROOT=<path to LLDB directory>
+cmake .. -LLDB_PACKAGE=<path>
 ```
-- `LLDB_ROOT` specifies the directory where required LLDB components will be pulled from.
+- `LLDB_PACKAGE` specifies zip archive containing LLDB files.
 
 3. Useful targets:
 - `extension` - build VSCode extension.

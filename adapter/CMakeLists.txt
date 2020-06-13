@@ -1,13 +1,9 @@
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(LLDB_LinkDylib "liblldb" CACHE STRING "" FORCE)
 else()
-    get_filename_component(LibPython ${Python3_LIBRARY_RELEASE} NAME_WLE)
-    string(SUBSTRING ${LibPython} 3 -1 LibPython) # strip "lib" prefix
-    set(LLDB_LinkDylib "lldb;${LibPython}" CACHE STRING "" FORCE)
+    set(LLDB_LinkDylib "lldb" CACHE STRING "" FORCE)
 endif()
-
-get_filename_component(LibPythonDir ${Python3_LIBRARY_RELEASE} DIRECTORY)
-set(LLDB_LinkSearch "${LLDB_ROOT}/lib;${LibPythonDir}" CACHE STRING "" FORCE)
+set(LLDB_LinkSearch "${CMAKE_BINARY_DIR}/lldb/lib" CACHE STRING "" FORCE)
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
                              --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target
@@ -57,14 +53,11 @@ add_custom_target(codelldb_syms
     USES_TERMINAL
 )
 
-set(PATH $ENV{PATH})
-get_filename_component(PythonRuntimeDir "${Python3_RUNTIME_LIBRARY_RELEASE}" DIRECTORY)
-string(JOIN ${PathSep} PATH ${PATH} ${LLDB_ROOT}/bin ${PythonRuntimeDir})
-string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_ROOT}/lib)
-
+string(JOIN ${PathSep} PATH $ENV{PATH} ${LLDB_ROOT}/bin)
+string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_LinkSearch})
 add_custom_target(cargo_test
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --lib --target=${LLVM_TRIPLE} -p=lldb -p=debug-protocol -p=codelldb
+            cargo test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )

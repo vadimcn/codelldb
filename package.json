@@ -165,11 +165,6 @@
 					"type": "string",
 					"scope": "resource"
 				},
-				"lldb.libpython": {
-					"markdownDescription": "Which Python library to use.",
-					"type": "string",
-					"scope": "resource"
-				},
 				"lldb.adapterEnv": {
 					"description": "Extra environment variables for the debug adapter.",
 					"type": "object",

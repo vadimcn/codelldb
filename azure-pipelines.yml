@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 1297
+  lldbBuildId: 1343
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: 'nightly-2020-05-04'
@@ -85,12 +85,11 @@ jobs:
   - script: |
       $(setenvLinux)
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-      unzip $(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip -d $(Agent.BuildDirectory)/D/lldb
 
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
+            -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
       cat CMakeCache.txt
@@ -138,6 +137,7 @@ jobs:
   variables:
     cachePrefix: $(cacheDiscr) | x86_64-apple-darwin
     PlatformId: 'x86_64-darwin'
+    Triple: 'x86_64-apple-darwin'
 
   steps:
 
@@ -149,8 +149,8 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb--x86_64-apple-darwin'
-      itemPattern: 'lldb--x86_64-apple-darwin/lldb--x86_64-apple-darwin.zip'
+      artifactName: 'lldb--$(Triple)'
+      itemPattern: 'lldb--$(Triple)/lldb--$(Triple).zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
@@ -180,12 +180,11 @@ jobs:
 
   - script: |
       $(setenvOSX)
-      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-apple-darwin/lldb--x86_64-apple-darwin.zip -d $(Agent.BuildDirectory)/D/lldb
 
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
-            -DLLDB_ROOT=$(Agent.BuildDirectory)/D/lldb\
+            -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             ..
       cat CMakeCache.txt
     displayName: 'Configure'
@@ -223,6 +222,7 @@ jobs:
   variables:
     cachePrefix: $(cacheDiscr) | x86_64-windows
     PlatformId: 'x86_64-windows'
+    Triple: 'x86_64-windows-msvc'
 
   steps:
 
@@ -245,8 +245,8 @@ jobs:
       buildId:  $(lldbBuildId)
       buildVersionToDownload: specific
       downloadType: single
-      artifactName: 'lldb--x86_64-windows-msvc'
-      itemPattern: 'lldb--x86_64-windows-msvc/lldb--x86_64-windows-msvc.zip'
+      artifactName: 'lldb--$(Triple)'
+      itemPattern: 'lldb--$(Triple)/lldb--$(Triple).zip'
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
@@ -280,7 +280,6 @@ jobs:
   - script: |
       choco install ninja
       choco install zip
-      unzip $(Agent.BuildDirectory)/D/lldb--x86_64-windows-msvc/lldb--x86_64-windows-msvc.zip -d $(Agent.BuildDirectory)/D/lldb
     displayName: 'Install other'
 
   - script: |
@@ -289,7 +288,7 @@ jobs:
       cd build
       cmake -GNinja^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
-            -DLLDB_ROOT=$(Agent.BuildDirectory)\D\lldb^
+            -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
             -DPython3_ROOT_DIR=%USEPYTHONVERSION_PYTHONLOCATION%^
             ..

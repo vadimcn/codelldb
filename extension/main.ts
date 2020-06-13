@@ -65,8 +65,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 event.affectsConfiguration('lldb.consoleMode')) {
                 this.propagateDisplaySettings();
             }
-            if (event.affectsConfiguration('lldb.library') ||
-                event.affectsConfiguration('lldb.libpython')) {
+            if (event.affectsConfiguration('lldb.library')) {
                 this.adapterDylibsCache = null;
             }
         }));
@@ -447,16 +446,15 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let config = this.getExtensionConfig(folder);
         let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
-        let [liblldb, libpython] = await this.getAdapterDylibs(config);
+        let [liblldb] = await this.getAdapterDylibs(config);
 
         if (verboseLogging) {
             output.appendLine(`liblldb: ${liblldb}`);
-            output.appendLine(`libpython: ${libpython}`);
             output.appendLine(`environment: ${inspect(adapterEnv)}`);
             output.appendLine(`params: ${inspect(adapterParams)}`);
         }
 
-        let adapterProcess = await adapter.start(liblldb, libpython, {
+        let adapterProcess = await adapter.start(liblldb, {
             extensionRoot: this.context.extensionPath,
             extraEnv: adapterEnv,
             workDir: workspace.rootPath,
@@ -480,31 +478,21 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     // Resolve paths of the native adapter libraries and cache them.
-    async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string, string]> {
+    async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string]> {
         if (!this.adapterDylibsCache) {
-            let libpython;
             let liblldb = config.get<string>('library');
             if (liblldb) {
                 liblldb = await adapter.findLibLLDB(liblldb)
-                // Don't preload libpython, because external backend will have been linked to a specific Python version.
-                libpython = null;
             } else {
                 liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
-                // Bundled liblldb is weak-linked, so we need to locate some version of Python 3.x.
-                libpython = config.get<string>('libpython');
-                if (!libpython) {
-                    libpython = await adapter.findLibPython(this.context.extensionPath, config.get('adapterEnv'));
-                }
             }
-            this.adapterDylibsCache = [liblldb, libpython];
+            this.adapterDylibsCache = [liblldb];
         }
         return this.adapterDylibsCache;
     }
-    adapterDylibsCache: [string, string] = null;
+    adapterDylibsCache: [string] = null;
 
     async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
-        if (!await this.checkPython(folder))
-            return false;
         if (!await install.ensurePlatformPackage(this.context, output, true))
             return false;
         return true;
@@ -513,12 +501,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async runDiagnostics(folder?: WorkspaceFolder) {
         let succeeded;
         try {
-            succeeded = await this.checkPython(folder);
-            if (succeeded) {
-                let [_, port] = await this.startDebugAdapter(folder, {});
-                let socket = await async.net.createConnection({ port: port, timeout: 1000 });
-                socket.destroy()
-            }
+            let [_, port] = await this.startDebugAdapter(folder, {});
+            let socket = await async.net.createConnection({ port: port, timeout: 1000 });
+            socket.destroy()
         } catch (err) {
             succeeded = false;
         }
@@ -529,25 +514,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             window.showErrorMessage('LLDB self-test has failed.  Please check log output.');
             output.show();
         }
-    }
-
-    async checkPython(folder?: WorkspaceFolder): Promise<boolean> {
-        if (os.platform() == 'win32') {
-            // On Windows libpython is required.
-            let config = this.getExtensionConfig(folder);
-            let [liblldb, libpython] = await this.getAdapterDylibs(config);
-            if (!libpython) {
-                let action = await window.showErrorMessage(
-                    `CodeLLDB requires Python 3.5 or later (64-bit), but looks like it is not installed on this machine.`,
-                    { modal: true },
-                    'Setup Instructions');
-                if (action != null) {
-                    env.openExternal(Uri.parse('https://github.com/vadimcn/vscode-lldb/wiki/Setup-on-Windows'));
-                }
-                return false;
-            }
-        }
-        return true;
     }
 
     async attach() {

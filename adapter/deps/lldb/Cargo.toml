@@ -16,4 +16,4 @@ cpp_build = "0.5"
 regex = "1.3.1"
 
 [features]
-weak-linkage = [] # weak-link to libpython
+weak-linkage = [] # weak-link to liblldb

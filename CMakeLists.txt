@@ -9,11 +9,11 @@ include(cmake/CopyFiles.cmake)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
 
-set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
-if (LLDB_ROOT)
-    message("Using LLDB from ${LLDB_ROOT}")
+set(LLDB_PACKAGE $ENV{LLDB_PACKAGE} CACHE PATH "Zip archive containing LLDB files")
+if (LLDB_PACKAGE)
+    message("Using LLDB_PACKAGE=${LLDB_PACKAGE}")
 else()
-    message(FATAL_ERROR "LLDB_ROOT not set." )
+    message(FATAL_ERROR "LLDB_PACKAGE not set." )
 endif()
 
 # General OS-specific definitions
@@ -52,7 +52,7 @@ endif()
 
 string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
 
-find_package(Python3 COMPONENTS Interpreter Development)
+find_package(Python3 COMPONENTS Interpreter)
 
 if (NOT LLVM_TRIPLE)
 set(LLVM_TRIPLE ${DefaultTarget})

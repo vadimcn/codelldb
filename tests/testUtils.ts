@@ -28,8 +28,7 @@ export class DebugTestSession extends DebugClient {
             session.port = parseInt(process.env.DEBUG_SERVER)
         } else {
             let liblldb = await adapter.findLibLLDB(path.join(globals.extensionRoot, 'lldb'));
-            let libpython = await adapter.findLibPython(globals.extensionRoot);
-            session.adapter = await adapter.start(liblldb, libpython, {
+            session.adapter = await adapter.start(liblldb, {
                 extensionRoot: globals.extensionRoot,
                 extraEnv: { RUST_LOG: 'error,codelldb=debug' },
                 adapterParameters: {},

@@ -17,3 +17,18 @@ export interface DisplayHtmlRequest {
     html: string;
     reveal: boolean;
 }
+
+export class Symbol {
+    name: string;
+    type: string;
+    address: string;
+}
+
+export interface SymbolsRequest {
+    continuationToken: object;
+}
+
+export interface SymbolsResponse {
+    symbols: Symbol[];
+    continuationToken: object;
+}

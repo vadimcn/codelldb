@@ -22,6 +22,7 @@ import { Dict } from './novsc/commonTypes';
 import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
+import { pickSymbol } from './symbols';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -53,6 +54,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
         subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
+        subscriptions.push(commands.registerCommand('lldb.symbols', () => pickSymbol(debug.activeDebugSession)));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
@@ -209,7 +211,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             `Deref: ${settings.dereferencePointers ? 'on' : 'off'}`;
 
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
-            await debug.activeDebugSession.customRequest('adapterSettings', settings);
+            await debug.activeDebugSession.customRequest('_adapterSettings', settings);
         }
     }
 

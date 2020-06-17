@@ -234,6 +234,19 @@ impl SBTarget {
             return self->ResolveSymbolContextForAddress(*addr, scope);
         })
     }
+    pub fn num_modules(&self) -> u32 {
+        cpp!(unsafe [self as "SBTarget*"] -> u32 as "uint32_t" {
+                return self->GetNumModules();
+        })
+    }
+    pub fn module_at_index(&self, index: u32) -> SBModule {
+        cpp!(unsafe [self as "SBTarget*", index as "uint32_t"] -> SBModule as "SBModule" {
+            return self->GetModuleAtIndex(index);
+        })
+    }
+    pub fn modules<'a>(&'a self) -> impl Iterator<Item = SBModule> + 'a {
+        SBIterator::new(self.num_modules(), move |index| self.module_at_index(index))
+    }
     pub fn broadcaster(&self) -> SBBroadcaster {
         cpp!(unsafe [self as "SBTarget*"] -> SBBroadcaster as "SBBroadcaster" {
             return self->GetBroadcaster();

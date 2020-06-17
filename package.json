@@ -114,6 +114,12 @@
 				"category": "LLDB",
 				"title": "Attach to Process...",
 				"command": "lldb.attach"
+			},
+			{
+				"category": "LLDB",
+				"title": "Symbols...",
+				"command": "lldb.symbols",
+				"enablement": "debugType == 'lldb'"
 			}
 		],
 		"languages": [

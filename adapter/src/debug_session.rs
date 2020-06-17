@@ -272,9 +272,9 @@ impl DebugSession {
         match command {
             Command::Known(arguments) => {
                 match arguments {
-                    RequestArguments::adapterSettings(args) =>
+                    RequestArguments::_adapterSettings(args) =>
                         self.handle_adapter_settings(args)
-                            .map(|_| ResponseBody::adapterSettings),
+                            .map(|_| ResponseBody::_adapterSettings),
                     RequestArguments::initialize(args) =>
                         self.handle_initialize(args)
                             .map(|r| ResponseBody::initialize(r)),
@@ -361,6 +361,9 @@ impl DebugSession {
                                 RequestArguments::setDataBreakpoints(args) =>
                                     self.handle_set_data_breakpoints(args)
                                         .map(|r| ResponseBody::setDataBreakpoints(r)),
+                                RequestArguments::_symbols(args) =>
+                                    self.handle_symbols(args)
+                                        .map(|r| ResponseBody::_symbols(r)),
                                 _=> Err("Not implemented.".into())
                             }
                         }
@@ -2396,6 +2399,52 @@ impl DebugSession {
         }
 
         Ok(())
+    }
+
+    fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {
+        let (mut next_module, mut next_symbol) = match args.continuation_token {
+            Some(token) => (token.next_module, token.next_symbol),
+            None => (0, 0),
+        };
+        let num_modules = self.target.num_modules();
+        let mut symbols = vec![];
+        while next_module < num_modules {
+            let module = self.target.module_at_index(next_module);
+            let num_symbols = module.num_symbols();
+            while next_symbol < num_symbols {
+                let symbol = module.symbol_at_index(next_symbol);
+                let ty = symbol.type_();
+                match ty {
+                    SymbolType::Code | SymbolType::Data => {
+                        let start_addr = symbol.start_address().load_address(&self.target);
+                        symbols.push(Symbol {
+                            name: symbol.display_name().into(),
+                            type_: format!("{:?}", ty),
+                            address: format!("0x{:X}", start_addr),
+                        });
+                    }
+                    _ => {}
+                }
+                next_symbol += 1;
+
+                if symbols.len() > 1000 {
+                    return Ok(SymbolsResponse {
+                        symbols,
+                        continuation_token: Some(SymbolsContinuation {
+                            next_module,
+                            next_symbol,
+                        }),
+                    });
+                }
+            }
+            next_symbol = 0;
+            next_module += 1;
+        }
+
+        Ok(SymbolsResponse {
+            symbols,
+            continuation_token: None,
+        })
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {

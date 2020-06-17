@@ -98,10 +98,11 @@ pub enum RequestArguments {
     setDataBreakpoints(SetDataBreakpointsArguments),
     terminate(Option<TerminateArguments>),
     disconnect(Option<DisconnectArguments>),
-    // Custom
-    adapterSettings(AdapterSettings),
     // Reverse
     runInTerminal(RunInTerminalRequestArguments),
+    // Custom
+    _adapterSettings(AdapterSettings),
+    _symbols(SymbolsRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -138,10 +139,11 @@ pub enum ResponseBody {
     setDataBreakpoints(SetDataBreakpointsResponseBody),
     terminate,
     disconnect,
-    // Custom
-    adapterSettings,
     // Reverse
     runInTerminal(RunInTerminalResponseBody),
+    // Custom
+    _adapterSettings,
+    _symbols(SymbolsResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -293,6 +295,34 @@ pub enum Expressions {
 pub enum Either<T1, T2> {
     First(T1),
     Second(T2),
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsContinuation {
+    pub next_module: u32,
+    pub next_symbol: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Symbol {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub address : String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsRequest {
+    pub continuation_token: Option<SymbolsContinuation>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsResponse {
+    pub symbols: Vec<Symbol>,
+    pub continuation_token: Option<SymbolsContinuation>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

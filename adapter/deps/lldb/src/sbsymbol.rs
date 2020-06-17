@@ -23,6 +23,11 @@ impl SBSymbol {
         });
         unsafe { get_str(ptr) }
     }
+    pub fn type_(&self) -> SymbolType {
+        cpp!(unsafe [self as "SBSymbol*"] -> SymbolType as "lldb::SymbolType" {
+            return self->GetType();
+        })
+    }
     pub fn start_address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBSymbol*"] -> SBAddress as "SBAddress" {
             return self->GetStartAddress();

@@ -1,6 +1,9 @@
 import lldb
 import operator
 
+# python3 support.
+xrange = range
+
 # A wrapper around SBValue that overloads Python operators to do the right thing (well, mostly).
 class Value(object):
     __slots__ = ['__sbvalue']

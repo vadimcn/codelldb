@@ -430,6 +430,9 @@
 			},
 			{
 				"language": "swift"
+			},
+			{
+				"language": "zig"
 			}
 		],
 		"debuggers": [

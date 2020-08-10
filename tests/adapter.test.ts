@@ -279,7 +279,7 @@ function generateSuite(triple: string) {
                     wstr1: 'L"Превед йожэг!"',
                     wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
 
-                    invalid_utf8: '"ABC\uFFFD\\x01\uFFFDXYZ',
+                    invalid_utf8: '"ABC\\xff\\U00000001\\xfeXYZ"',
                     anon_union: {
                         '': { x: 4, y: 4 }
                     },

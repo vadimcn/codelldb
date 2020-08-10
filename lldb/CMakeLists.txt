@@ -3,7 +3,9 @@ add_custom_target(lldb ALL
 )
 
 # Create dependency check tests
-foreach (Binary ${CheckBinaries})
-    add_test(NAME dependencies:${Binary}
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${Binary} ${AllowedDependencies})
-endforeach()
+add_test(NAME dependencies:lldb:bin}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR}/bin ${AllowedDependencies}
+)
+add_test(NAME dependencies:lldb:lib}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR}/lib ${AllowedDependencies}
+)

@@ -23,8 +23,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-unknown-linux-gnu)
-    set(AllowedDependencies linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
-                            libm.so.6 libc.so.6 /lib64/ld-linux-x86-64.so.2)
+    set(AllowedDependencies liblldb.so libpython3.* linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
+                            libm.so.6 libc.so.6 libexpat.so.1 libz.so.1 libutil.so.1
+                            /lib64/ld-linux-x86-64.so.2)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
@@ -285,7 +286,7 @@ endforeach(TestTriple)
 
 add_custom_target(check
     DEPENDS tests cargo_test
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
 )
 
 # Install

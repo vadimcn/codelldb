@@ -63,7 +63,6 @@ add_custom_target(cargo_test
 )
 
 # Create dependency check tests
-foreach (Binary codelldb${ExeSuffix} ${DylibPrefix}codelldb${DylibSuffix})
-    add_test(NAME dependencies:${Binary}
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR}/${Binary} ${AllowedDependencies})
-endforeach()
+add_test(NAME dependencies:adapter}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR} ${AllowedDependencies}
+)

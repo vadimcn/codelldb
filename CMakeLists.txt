@@ -284,9 +284,18 @@ foreach(TestTriple ${TestTriples})
     set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
 endforeach(TestTriple)
 
+# Run adapter tests
+add_custom_target(check_adapter
+    DEPENDS tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "adapter:" --verbose
+    USES_TERMINAL
+)
+
+# Run all tests
 add_custom_target(check
     DEPENDS tests cargo_test
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+    USES_TERMINAL
 )
 
 # Install

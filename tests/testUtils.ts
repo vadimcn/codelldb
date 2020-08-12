@@ -6,16 +6,97 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as assert from 'assert';
 import { inspect } from 'util';
+import { WritableStream } from 'memory-streams';
 import { Dict } from 'extension/novsc/commonTypes';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
 
-export var globals = {
-    extensionRoot: <string>null,
-    testLog: <stream.Writable>null,
-    testDataLog: <stream.Writable>null,
-    adapterLog: <stream.Writable>null,
-};
+let extensionRoot: string = null;
+let testLog: stream.Writable = null;
+let testDataLog: stream.Writable = null;
+let adapterLog: stream.Writable = null;
+
+export function initUtils(extensionRoot_: string) {
+    const maxMessage = 1024 * 1024;
+    extensionRoot = extensionRoot_;
+    testLog = new WritableStream({ highWaterMark: maxMessage });
+    //testDataLog = new WritableStream({ highWaterMark: maxMessage });
+    adapterLog = new WritableStream({ highWaterMark: maxMessage });
+}
+
+export function findMarker(file: string, marker: string): number {
+    let data = fs.readFileSync(file, 'utf8');
+    let lines = data.split('\n');
+    for (let i = 0; i < lines.length; ++i) {
+        let pos = lines[i].indexOf(marker);
+        if (pos >= 0) return i + 1;
+    }
+    throw Error('Marker not found');
+}
+
+export function charCode(ch: string): number {
+    return ch.charCodeAt(0);
+}
+
+function asyncTimer(timeoutMillis: number): Promise<void> {
+    return new Promise<void>((resolve) => setTimeout(resolve));
+}
+
+function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
+    let error = new Error('Timed out');
+    return new Promise<T>((resolve, reject) => {
+        let timer = setTimeout(() => {
+            log('withTimeout: timed out');
+            (<any>error).code = 'Timeout';
+            reject(error);
+        }, timeoutMillis);
+        promise.then(result => {
+            clearTimeout(timer);
+            resolve(result);
+        });
+    });
+}
+
+function leftPad(s: string, p: string, n: number): string {
+    if (s.length < n)
+        s = p.repeat(n - s.length) + s;
+    return s;
+}
+
+function timestamp(): string {
+    let d = new Date();
+    let hh = leftPad(d.getHours().toString(), '0', 2);
+    let mm = leftPad(d.getMinutes().toString(), '0', 2);
+    let ss = leftPad(d.getSeconds().toString(), '0', 2);
+    let fff = leftPad(d.getMilliseconds().toString(), '0', 3);
+    return `${hh}:${mm}:${ss}.${fff}`;
+}
+
+export function log(message: string) {
+    testLog.write(`[${timestamp()}] ${message}\n`);
+}
+
+export function logWithStack(message: string) {
+    log(message);
+    let stack = Error().stack;
+    let lines = stack.split('\n');
+    for (let i = 2; i < lines.length; ++i)
+        testLog.write(`${lines[i]}\n`);
+}
+
+export function dumpLogs(dest: stream.Writable) {
+    dest.write('\n=== Test log ===\n');
+    dest.write(testLog.toString());
+    if (testDataLog) {
+        dest.write('\n=== Received data log ===\n');
+        dest.write(testDataLog.toString());
+    }
+    dest.write('\n=== Adapter log ===\n');
+    dest.write(adapterLog.toString());
+    dest.write('\n===================\n');
+}
+
+type ValidatorFn = (v: dp.Variable) => boolean;
 
 export class DebugTestSession extends DebugClient {
     adapter: cp.ChildProcess;
@@ -27,9 +108,9 @@ export class DebugTestSession extends DebugClient {
         if (process.env.DEBUG_SERVER) {
             session.port = parseInt(process.env.DEBUG_SERVER)
         } else {
-            let liblldb = await adapter.findLibLLDB(path.join(globals.extensionRoot, 'lldb'));
+            let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
             session.adapter = await adapter.start(liblldb, {
-                extensionRoot: globals.extensionRoot,
+                extensionRoot: extensionRoot,
                 extraEnv: { RUST_LOG: 'error,codelldb=debug' },
                 adapterParameters: {},
                 workDir: undefined,
@@ -42,8 +123,8 @@ export class DebugTestSession extends DebugClient {
                     log(`Adapter exited with code ${code}, signal = ${signal} `);
             });
 
-            session.adapter.stdout.pipe(globals.adapterLog);
-            session.adapter.stderr.pipe(globals.adapterLog);
+            session.adapter.stdout.pipe(adapterLog);
+            session.adapter.stderr.pipe(adapterLog);
             session.port = await adapter.getDebugServerPort(session.adapter);
         }
 
@@ -53,10 +134,10 @@ export class DebugTestSession extends DebugClient {
         session.addListener('continued', logger);
         await session.start(session.port);
 
-        if (globals.testDataLog) {
+        if (testDataLog) {
             let socket = <net.Socket>((<any>session)._socket);
             socket.on('data', buffer => {
-                globals.testDataLog.write(`[${timestamp()}] --> ${buffer} \n`)
+                testDataLog.write(`[${timestamp()}] --> ${buffer} \n`)
             });
         }
         return session;
@@ -117,6 +198,7 @@ export class DebugTestSession extends DebugClient {
     }
 
     async readVariables(variablesReference: number): Promise<Dict<dp.Variable>> {
+        logWithStack('Awaiting variables');
         let response = await this.variablesRequest({ variablesReference: variablesReference });
         let vars: Dict<dp.Variable> = {};
         for (let v of response.body.variables) {
@@ -149,6 +231,7 @@ export class DebugTestSession extends DebugClient {
                 if (summary != undefined) {
                     this.compareToExpected(variable, summary, keyPath);
                 }
+                logWithStack('Awaiting compareVariables');
                 await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
             } else {
                 this.compareToExpected(variable, expectedValue, keyPath);
@@ -185,10 +268,12 @@ export class DebugTestSession extends DebugClient {
 
     waitForStopEvent(): Promise<dp.StoppedEvent> {
         let session = this;
+        logWithStack('Listening for stop event');
         return new Promise<dp.StoppedEvent>(resolve => {
             let handler = (event: dp.StoppedEvent) => {
                 if (event.body.reason != 'initial') {
                     session.removeListener('stopped', handler);
+                    log('Resolving stop event')
                     resolve(event);
                 } else {
                     log('Ignored "initial" event');
@@ -200,88 +285,23 @@ export class DebugTestSession extends DebugClient {
 
     async launchAndWaitForStop(launchArgs: any): Promise<dp.StoppedEvent> {
         let waitForStopAsync = this.waitForStopEvent();
-        log('launchAndWaitForStop: launching');
+        logWithStack('Awaiting launch');
         await this.launch(launchArgs);
-        log('launchAndWaitForStop: waiting to stop');
+        logWithStack('Awaiting stop');
         let stoppedEvent = await waitForStopAsync;
         return <dp.StoppedEvent>stoppedEvent;
     }
 
     async getTopFrameId(threadId: number): Promise<number> {
+        logWithStack('Awaiting stack trace');
         let frames = await this.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });
         return frames.body.stackFrames[0].id;
     }
 
     async getFrameLocalsRef(frameId: number): Promise<number> {
+        logWithStack('Awaiting scopes');
         let scopes = await this.scopesRequest({ frameId: frameId });
         let localsRef = scopes.body.scopes[0].variablesReference;
         return localsRef;
     }
-}
-
-type ValidatorFn = (v: dp.Variable) => boolean;
-
-
-export function findMarker(file: string, marker: string): number {
-    let data = fs.readFileSync(file, 'utf8');
-    let lines = data.split('\n');
-    for (let i = 0; i < lines.length; ++i) {
-        let pos = lines[i].indexOf(marker);
-        if (pos >= 0) return i + 1;
-    }
-    throw Error('Marker not found');
-}
-
-export function charCode(ch: string): number {
-    return ch.charCodeAt(0);
-}
-
-function asyncTimer(timeoutMillis: number): Promise<void> {
-    return new Promise<void>((resolve) => setTimeout(resolve));
-}
-
-function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
-    let error = new Error('Timed out');
-    return new Promise<T>((resolve, reject) => {
-        let timer = setTimeout(() => {
-            log('withTimeout: timed out');
-            (<any>error).code = 'Timeout';
-            reject(error);
-        }, timeoutMillis);
-        promise.then(result => {
-            clearTimeout(timer);
-            resolve(result);
-        });
-    });
-}
-
-function leftPad(s: string, p: string, n: number): string {
-    if (s.length < n)
-        s = p.repeat(n - s.length) + s;
-    return s;
-}
-
-function timestamp(): string {
-    let d = new Date();
-    let hh = leftPad(d.getHours().toString(), '0', 2);
-    let mm = leftPad(d.getMinutes().toString(), '0', 2);
-    let ss = leftPad(d.getSeconds().toString(), '0', 2);
-    let fff = leftPad(d.getMilliseconds().toString(), '0', 3);
-    return `${hh}:${mm}:${ss}.${fff}`;
-}
-
-export function log(message: string) {
-    globals.testLog.write(`[${timestamp()}] ${message}\n`);
-}
-
-export function dumpLogs(dest: stream.Writable) {
-    dest.write('\n=== Test log ==============\n');
-    dest.write(globals.testLog.toString());
-    if (globals.testDataLog) {
-        dest.write('\n=== Received data log ====\n');
-        dest.write(globals.testDataLog.toString());
-    }
-    dest.write('\n=== Adapter log ===========\n');
-    dest.write(globals.adapterLog.toString());
-    dest.write('\n===========================\n');
 }

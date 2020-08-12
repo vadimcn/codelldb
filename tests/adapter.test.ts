@@ -3,8 +3,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import { WritableStream } from 'memory-streams';
-import { DebugTestSession, findMarker, charCode, log, dumpLogs, globals as testUtilGlobals } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
@@ -34,14 +33,12 @@ function generateSuite(triple: string) {
     suite(`adapter:${triple}`, () => {
 
         setup(function () {
-            const maxMessage = 1024 * 1024;
-            testUtilGlobals.extensionRoot = buildDir;
-            testUtilGlobals.testLog = new WritableStream({ highWaterMark: maxMessage });
-            //testUtils.testDataLog = new WritableStream({ highWaterMark: maxMessage });
-            testUtilGlobals.adapterLog = new WritableStream({ highWaterMark: maxMessage });
+            initUtils(buildDir);
         });
 
         teardown(async function () {
+            if (this.currentTest.state == 'failed')
+                process.stderr.write(`*** Test FAILED: ${this.currentTest.title}\n${this.currentTest.err.stack}\n`);
             if (dumpLogsWhen != 'never' && (this.currentTest.state == 'failed' || dumpLogsWhen == 'always'))
                 dumpLogs(process.stderr);
         });
@@ -168,7 +165,7 @@ function generateSuite(triple: string) {
                 let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
 
                 let waitForExitAsync = ds.waitForEvent('exited');
-                let waitForStopAsync = ds.waitForStopEvent();
+                let waitForStopAsync1 = ds.waitForStopEvent();
 
                 // On Windows, LLDB adds current drive letter to drive-less paths.
                 let drive = process.platform == 'win32' ? 'C:' : '';
@@ -196,30 +193,30 @@ function generateSuite(triple: string) {
                 await setBreakpointAsyncRelative;
 
                 // Wait for stops and verify stop locations.
-                log('Wait for stop 1');
-                let stopEvent1 = await waitForStopAsync;
+                logWithStack('Wait for stop 1');
+                let stopEvent1 = await waitForStopAsync1;
                 await ds.verifyLocation(stopEvent1.body.threadId, debuggeeDenorm, bpLineDenorm);
 
                 let waitForStopAsync2 = ds.waitForStopEvent();
                 await ds.continueRequest({ threadId: 0 });
-                log('Wait for stop 2');
+                logWithStack('Wait for stop 2');
                 let stopEvent2 = await waitForStopAsync2;
                 await ds.verifyLocation(stopEvent2.body.threadId, debuggeeRemote1, bpLineRemote1);
 
                 let waitForStopAsync3 = ds.waitForStopEvent();
                 await ds.continueRequest({ threadId: 0 });
-                log('Wait for stop 3');
+                logWithStack('Wait for stop 3');
                 let stopEvent3 = await waitForStopAsync3;
                 await ds.verifyLocation(stopEvent3.body.threadId, debuggeeRemote2, bpLineRemote2);
 
                 let waitForStopAsync4 = ds.waitForStopEvent();
                 await ds.continueRequest({ threadId: 0 });
-                log('Wait for stop 4');
+                logWithStack('Wait for stop 4');
                 let stopEvent4 = await waitForStopAsync4;
                 await ds.verifyLocation(stopEvent4.body.threadId, debuggeeRelative, bpLineRelative);
 
                 await ds.continueRequest({ threadId: 0 });
-                log('Wait for exit');
+                logWithStack('Wait for exit');
                 await waitForExitAsync;
                 await ds.terminate();
             });

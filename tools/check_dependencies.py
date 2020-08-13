@@ -31,8 +31,7 @@ def get_dependencies(binary):
         regex = re.compile(r'Image has the following dependencies:\s*\r\n\r\n((.+\r\n)*)\s*\r\n')
         match = regex.search(output)
         if not match:
-            print('Could not parse dumpbin output:', output)
-            sys.exit(1)
+            return []
         regex = re.compile(r'^\s+([^\s]+)', re.MULTILINE)
         libraries = [match.group(1) for match in regex.finditer(match.group(1))]
         libraries = [os.path.basename(f) for f in libraries]

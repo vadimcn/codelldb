@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.5.3)
+set(VERSION 1.6.0-pre)
 
 include(cmake/CopyFiles.cmake)
 
@@ -45,8 +45,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
     set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll ADVAPI32.dll VCRUNTIME140.dll MSVCP140.dll RPCRT4.dll
-                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll
-                            python3.dll liblldb.dll)
+                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll SHLWAPI.dll
+                            python3.*.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
@@ -152,15 +152,14 @@ set(PackagedFilesFull
     platform.ok
     adapter/*.py
     adapter/codelldb
-    adapter/libcodelldb.so
-    adapter/libcodelldb_python.so
-    adapter/libcodelldb.dylib
-    adapter/libcodelldb_python.dylib
     adapter/codelldb.exe
+    adapter/libcodelldb.so
+    adapter/libcodelldb.dylib
     adapter/codelldb.dll
     adapter/codelldb_python.dll
     lldb/bin/**/*
     lldb/lib/**/*
+    lldb/DLLs/**/*
 )
 
 # Indicator file used to determine whether we have the platform package.

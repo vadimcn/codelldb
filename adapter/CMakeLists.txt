@@ -58,7 +58,7 @@ string(JOIN ${PathSep} PATH ${PATH} ${CMAKE_BINARY_DIR}/lldb/bin)
 string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_LinkSearch})
 add_custom_target(cargo_test
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags}
+            cargo test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )

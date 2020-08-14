@@ -18,16 +18,23 @@ export async function start(
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergedEnvironment(options.extraEnv);
     let executable = path.join(options.extensionRoot, 'adapter/codelldb');
     let args = ['--liblldb', liblldb];
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
     }
+
+    let env = mergedEnvironment(options.extraEnv);
+    // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
+    for (let name of ['PYTHONHOME', 'PYTHONPATH']) {
+        if (options.extraEnv[name] === undefined)
+            delete env[name];
+    }
     env['RUST_TRACEBACK'] = '1';
     if (options.verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
     }
+
     return spawnDebugAdapter(executable, args, env, options.workDir);
 }
 

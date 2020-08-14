@@ -269,20 +269,35 @@ fn test_sizeof() {
     assert_eq!(mem::size_of::<PyObject>(), 16);
 }
 
+lazy_static::lazy_static! {
+    static ref DEBUGGER: SBDebugger = {
+        use lldb::*;
+        std::env::remove_var("PYTHONHOME");
+        std::env::remove_var("PYTHONPATH");
+        SBDebugger::initialize();
+        SBDebugger::create(false)
+    };
+}
+
+#[test]
+fn pypath() {
+    use lldb::*;
+    let interp = DEBUGGER.command_interpreter();
+    let mut result = SBCommandReturnObject::new();
+    let status = interp.handle_command("script import sys; print(sys.path)", &mut result, false);
+    println!("result = {:?}", result.output());
+    assert_eq!(status, ReturnStatus::SuccessFinishNoResult);
+}
+
 #[test]
 fn evaluate() {
     use lldb::*;
-    SBDebugger::initialize();
-    {
-        let debugger = SBDebugger::create(false);
-        let interp = debugger.command_interpreter();
-        let (python, _) = initialize(interp, Path::new("."), None).unwrap();
-        let context = SBExecutionContext::from_target(&debugger.dummy_target());
-        let pycode = python.compile_code("2+2", "<string>").unwrap();
-        let result = python.evaluate(&pycode, true, &context);
-        println!("result = {:?}", result);
-        let value = result.unwrap().value_as_signed(0);
-        assert_eq!(value, 4);
-    }
-    SBDebugger::terminate();
+    let interp = DEBUGGER.command_interpreter();
+    let (python, _) = initialize(interp, Path::new("."), None).unwrap();
+    let context = SBExecutionContext::from_target(&DEBUGGER.dummy_target());
+    let pycode = python.compile_code("2+2", "<string>").unwrap();
+    let result = python.evaluate(&pycode, true, &context);
+    println!("result = {:?}", result);
+    let value = result.unwrap().value_as_signed(0);
+    assert_eq!(value, 4);
 }

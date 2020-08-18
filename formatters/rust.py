@@ -475,8 +475,9 @@ class EnumSynthProvider(DerefSynthProvider):
         # The first two branches are for the sake of windows-*-msvc targets and non-rust-enabled liblldb.
         # Normally, we should be calling the initialize_enum().
         if first_field_name.startswith(ENCODED_ENUM_PREFIX): # Niche-optimized enum
-            *discr_indices, null_variant = first_field_name[len(ENCODED_ENUM_PREFIX):].split("$")
-            discr_indices = [int(index) for index in discr_indices]
+            tokens = first_field_name[len(ENCODED_ENUM_PREFIX):].split("$")
+            discr_indices = [int(index) for index in tokens[:-1]]
+            null_variant = tokens[-1]
 
             discriminant = self.valobj.GetChildAtIndex(0)
             for discr_index in discr_indices:

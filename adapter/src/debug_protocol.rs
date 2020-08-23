@@ -9,14 +9,14 @@ pub use raw_debug_protocol::{
     DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody, DisconnectArguments,
     EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
     GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
-    OutputEventBody, PauseArguments, RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments,
-    RunInTerminalResponseBody, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
-    SetBreakpointsResponseBody, SetDataBreakpointsArguments, SetDataBreakpointsResponseBody,
-    SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody,
-    Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
-    StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments,
-    TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
-    VariablesResponseBody,
+    OutputEventBody, PauseArguments, ReadMemoryArguments, ReadMemoryResponseBody, RestartFrameArguments,
+    ReverseContinueArguments, RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope, ScopesArguments,
+    ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetDataBreakpointsArguments,
+    SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
+    SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
+    StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
+    StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable,
+    VariablesArguments, VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -96,6 +96,7 @@ pub enum RequestArguments {
     setVariable(SetVariableArguments),
     dataBreakpointInfo(DataBreakpointInfoArguments),
     setDataBreakpoints(SetDataBreakpointsArguments),
+    readMemory(ReadMemoryArguments),
     terminate(Option<TerminateArguments>),
     disconnect(Option<DisconnectArguments>),
     // Reverse
@@ -137,6 +138,7 @@ pub enum ResponseBody {
     setVariable(SetVariableResponseBody),
     dataBreakpointInfo(DataBreakpointInfoResponseBody),
     setDataBreakpoints(SetDataBreakpointsResponseBody),
+    readMemory(ReadMemoryResponseBody),
     terminate,
     disconnect,
     // Reverse
@@ -309,7 +311,7 @@ pub struct Symbol {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: String,
-    pub address : String,
+    pub address: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

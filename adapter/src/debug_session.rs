@@ -361,6 +361,9 @@ impl DebugSession {
                                 RequestArguments::setDataBreakpoints(args) =>
                                     self.handle_set_data_breakpoints(args)
                                         .map(|r| ResponseBody::setDataBreakpoints(r)),
+                                RequestArguments::readMemory(args) =>
+                                    self.handle_read_memory(args)
+                                        .map(|r| ResponseBody::readMemory(r)),
                                 RequestArguments::_symbols(args) =>
                                     self.handle_symbols(args)
                                         .map(|r| ResponseBody::_symbols(r)),
@@ -445,6 +448,7 @@ impl DebugSession {
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
             supports_restart_frame: Some(true),
+            supports_read_memory_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
         };
@@ -2399,6 +2403,21 @@ impl DebugSession {
         }
 
         Ok(())
+    }
+
+    fn handle_read_memory(&mut self, args: ReadMemoryArguments) -> Result<ReadMemoryResponseBody, Error> {
+        let address = args.memory_reference.parse::<lldb::Address>()?;
+        let offset = args.offset.unwrap_or(0) as lldb::Address;
+        let count = args.count as usize;
+        let mut buffer = Vec::with_capacity(count);
+        buffer.resize(count, 0);
+        let bytes_read = self.process.read_memory(address + offset, buffer.as_mut_slice())?;
+        buffer.truncate(bytes_read);
+        Ok(ReadMemoryResponseBody {
+            address: format!("0x{:x}", address + offset),
+            unreadable_bytes: Some((count - bytes_read) as i64),
+            data: Some(base64::encode(buffer)),
+        })
     }
 
     fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {

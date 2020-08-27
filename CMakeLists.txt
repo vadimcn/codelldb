@@ -16,6 +16,8 @@ else()
     message(FATAL_ERROR "LLDB_PACKAGE not set." )
 endif()
 
+set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
+
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(DylibPrefix lib)
@@ -256,7 +258,7 @@ endif()
 # Tests
 
 set(MochaTest ${NPM} run mocha --
-    -u tdd --timeout 30000 --exit
+    -u tdd --timeout ${TEST_TIMEOUT} --exit
     --require source-map-support/register
     #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js

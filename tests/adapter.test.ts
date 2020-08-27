@@ -82,29 +82,19 @@ function generateSuite(triple: string) {
 
             test('stop on entry', async function () {
                 let ds = await DebugTestSession.start();
-                let stopAsync = ds.waitForEvent('stopped');
-                await ds.launch({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
-                log('Waiting for stop');
-                await stopAsync;
-                log('Terminating');
+                await ds.launchAndWaitForStop({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
                 await ds.terminate();
             });
 
             test('stop on a breakpoint (basic)', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLineSource = findMarker(debuggeeSource, '#BP1');
-                let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
-
                 let waitForExitAsync = ds.waitForEvent('exited');
-                let waitForStopAsync = ds.waitForStopEvent();
-
-                await ds.launch({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) });
-                await setBreakpointAsyncSource;
-
-                log('Wait for stop');
-                let stopEvent = await waitForStopAsync;
+                let bpLineSource = findMarker(debuggeeSource, '#BP1');
+                let stopEvent = await ds.launchAndWaitForStop({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLineSource);
+                    });
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
-
                 log('Continue');
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
@@ -114,27 +104,22 @@ function generateSuite(triple: string) {
 
             test('stop on a breakpoint (same file name)', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLineSource = findMarker(debuggeeSource, '#BP1');
-                let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
-                let setBreakpointAsyncSource = ds.setBreakpoint(debuggeeSource, bpLineSource);
-                let setBreakpointAsyncHeader = ds.setBreakpoint(debuggeeHeader, bpLineHeader);
 
                 let waitForExitAsync = ds.waitForEvent('exited');
-                let waitForStopAsync = ds.waitForStopEvent();
 
                 // let testcase = triple.endsWith('windows-gnu') ?
                 //     'header_nodylib' : // FIXME: loading dylib triggers a weird access violation on windows-gnu
                 //     'header';
                 let testcase = 'header_nodylib';
 
-                await ds.launch({ name: 'stop on a breakpoint (same file name)', program: debuggee, args: [testcase], cwd: path.dirname(debuggee) });
-                log('Set breakpoint 1');
-                await setBreakpointAsyncSource;
-                log('Set breakpoint 2');
-                await setBreakpointAsyncHeader;
-
-                log('Wait for stop 1');
-                let stopEvent = await waitForStopAsync;
+                let bpLineSource = findMarker(debuggeeSource, '#BP1');
+                let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
+                let stopEvent = await ds.launchAndWaitForStop(
+                    { name: 'stop on a breakpoint (same file name)', program: debuggee, args: [testcase], cwd: path.dirname(debuggee) },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLineSource);
+                        await ds.setBreakpoint(debuggeeHeader, bpLineHeader);
+                    });
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
 
                 let waitForStopAsync2 = ds.waitForStopEvent();
@@ -155,21 +140,16 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let ds = await DebugTestSession.start();
+                let waitForExitAsync = ds.waitForEvent('exited');
+
                 let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
                 let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
                 let bpLineRemote2 = findMarker(debuggeeRemote2, '#BP1')
                 let bpLineRelative = findMarker(debuggeeRelative, '#BP1')
-                let setBreakpointAsyncDenorm = ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
-                let setBreakpointAsyncRemote1 = ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
-                let setBreakpointAsyncRemote2 = ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
-                let setBreakpointAsyncRelative = ds.setBreakpoint(debuggeeRelative, bpLineRelative);
-
-                let waitForExitAsync = ds.waitForEvent('exited');
-                let waitForStopAsync1 = ds.waitForStopEvent();
 
                 // On Windows, LLDB adds current drive letter to drive-less paths.
                 let drive = process.platform == 'win32' ? 'C:' : '';
-                await ds.launch({
+                let stopEvent1 = await ds.launchAndWaitForStop({
                     name: 'stop on a breakpoint (mapt remapping)', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
                     sourceMap: {
                         [`${drive}/remote1`]: path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
@@ -180,21 +160,12 @@ function generateSuite(triple: string) {
                     preRunCommands: [
                         `set show target.source-map`
                     ]
+                }, async () => {
+                    await ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
+                    await ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
+                    await ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
+                    await ds.setBreakpoint(debuggeeRelative, bpLineRelative);
                 });
-
-                // Wait for breakpoints to be resolved and verify locations.
-                log('Set breakpoint 1');
-                await setBreakpointAsyncDenorm;
-                log('Set breakpoint 2');
-                await setBreakpointAsyncRemote1;
-                log('Set breakpoint 3');
-                await setBreakpointAsyncRemote2;
-                log('Set breakpoint 4');
-                await setBreakpointAsyncRelative;
-
-                // Wait for stops and verify stop locations.
-                logWithStack('Wait for stop 1');
-                let stopEvent1 = await waitForStopAsync1;
                 await ds.verifyLocation(stopEvent1.body.threadId, debuggeeDenorm, bpLineDenorm);
 
                 let waitForStopAsync2 = ds.waitForStopEvent();
@@ -224,13 +195,10 @@ function generateSuite(triple: string) {
             test('page stack', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP2');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
-                let waitForStopAsync = ds.waitForStopEvent();
-                await ds.launch({ name: 'page stack', program: debuggee, args: ['deepstack'] });
-                log('Wait for setBreakpoint');
-                await setBreakpointAsync;
-                log('Wait for stop');
-                let stoppedEvent = await waitForStopAsync;
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'page stack', program: debuggee, args: ['deepstack'] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    });
                 let response2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
                 assert.equal(response2.body.stackFrames.length, 10)
                 let response3 = await ds.scopesRequest({ frameId: response2.body.stackFrames[0].id });
@@ -245,8 +213,10 @@ function generateSuite(triple: string) {
 
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] });
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    });
                 await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -323,8 +293,10 @@ function generateSuite(triple: string) {
 
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 log('Waiting a+b');
@@ -371,11 +343,11 @@ function generateSuite(triple: string) {
             test('conditional breakpoint /se', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/se i == 5');
-
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /se',
                     program: debuggee, args: ['vars']
+                }, async () => {
+                    await ds.setBreakpoint(debuggeeSource, bpLine, '/se i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -386,11 +358,11 @@ function generateSuite(triple: string) {
             test('conditional breakpoint /py', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py $i == 5');
-
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /py',
                     program: debuggee, args: ['vars']
+                }, async () => {
+                    await ds.setBreakpoint(debuggeeSource, bpLine, '/py $i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -401,11 +373,11 @@ function generateSuite(triple: string) {
             test('conditional breakpoint /nat', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/nat i == 5');
-
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /nat',
                     program: debuggee, args: ['vars']
+                }, async () => {
+                    await ds.setBreakpoint(debuggeeSource, bpLine, '/nat i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -414,12 +386,13 @@ function generateSuite(triple: string) {
             });
 
             test('disassembly', async function () {
-                //if (triple.endsWith('pc-windows-msvc')) this.skip();
-                if (/windows/.test(triple)) this.skip();
+                if (triple.endsWith('pc-windows-msvc')) this.skip(); // With MSVC, we can't suppress debug info per-file.
 
                 let ds = await DebugTestSession.start();
-                let setBreakpointAsync = ds.setFnBreakpoint('/re disassembly1');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] });
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] },
+                    async () => {
+                        await ds.setFnBreakpoint('/re disassembly1');
+                    });
                 let stackTrace = await ds.stackTraceRequest({
                     threadId: stoppedEvent.body.threadId,
                     startFrame: 0, levels: 5
@@ -446,12 +419,12 @@ function generateSuite(triple: string) {
             });
 
             test('debugger api', async function () {
-                if (triple.endsWith('pc-windows-msvc')) this.skip();
-
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP3');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine);
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] });
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 let response1 = await ds.evaluateRequest({
@@ -475,10 +448,11 @@ function generateSuite(triple: string) {
             test('display_html', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP1');
-                let setBreakpointAsync = ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
                 let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
-                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"] });
-                await setBreakpointAsync;
+                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
+                    });
                 let ev = await waitForDisplayHtmlAsync;
                 assert.equal(ev.body.html, "<html>");
                 assert.equal(ev.body.title, 'title');
@@ -552,11 +526,10 @@ function generateSuite(triple: string) {
             test('rust_variables', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP1');
-                let setBreakpointAsync = ds.setBreakpoint(rustDebuggeeSource, bpLine);
-                let waitForStopAsync = ds.waitForStopEvent();
-                await ds.launch({ name: 'rust variables', program: rustDebuggee });
-                await setBreakpointAsync;
-                let stoppedEvent = await waitForStopAsync;
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'rust variables', program: rustDebuggee },
+                    async () => {
+                        await ds.setBreakpoint(rustDebuggeeSource, bpLine);
+                    });
                 await ds.verifyLocation(stoppedEvent.body.threadId, rustDebuggeeSource, bpLine);
                 let frames = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
                 let scopes = await ds.scopesRequest({ frameId: frames.body.stackFrames[0].id });

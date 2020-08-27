@@ -96,6 +96,7 @@ export function dumpLogs(dest: stream.Writable) {
     dest.write('\n===================\n');
 }
 
+type ConfiguratorFn = () => Promise<any>;
 type ValidatorFn = (v: dp.Variable) => boolean;
 
 export class DebugTestSession extends DebugClient {
@@ -132,6 +133,7 @@ export class DebugTestSession extends DebugClient {
         session.addListener('breakpoint', logger);
         session.addListener('stopped', logger);
         session.addListener('continued', logger);
+        session.addListener('exited', logger);
         await session.start(session.port);
 
         if (testDataLog) {
@@ -151,40 +153,40 @@ export class DebugTestSession extends DebugClient {
         await withTimeout(3000, adapterExit);
     }
 
-    async launch(launchArgs: any): Promise<dp.LaunchResponse> {
+    async launch(launchArgs: any, configurator: ConfiguratorFn = null): Promise<dp.LaunchResponse> {
         launchArgs.terminal = 'console';
-        let waitForInit = this.waitForEvent('initialized');
+        let waitForInitialized = this.waitForEvent('initialized');
         await this.initializeRequest()
         let launchResp = this.launchRequest(launchArgs);
-        await waitForInit;
+        await waitForInitialized;
+        if (configurator)
+            await configurator();
         this.configurationDoneRequest();
         return launchResp;
     }
 
-    async attach(attachArgs: any): Promise<dp.AttachResponse> {
-        let waitForInit = this.waitForEvent('initialized');
+    async attach(attachArgs: any, configurator: ConfiguratorFn = null): Promise<dp.AttachResponse> {
+        let waitForInitialized = this.waitForEvent('initialized');
         await this.initializeRequest()
         let attachResp = this.attachRequest(attachArgs);
-        await waitForInit;
+        await waitForInitialized;
+        if (configurator)
+            await configurator();
         this.configurationDoneRequest();
         return attachResp;
     }
 
     async setBreakpoint(file: string, line: number, condition?: string): Promise<dp.SetBreakpointsResponse> {
-        await this.waitForEvent('initialized');
         let breakpointResp = await this.setBreakpointsRequest({
             source: { path: file },
             breakpoints: [{ line: line, column: 0, condition: condition }],
         });
         let bp = breakpointResp.body.breakpoints[0];
         log(`Received setBreakpoint response: ${inspect(bp, { breakLength: Infinity })}`);
-        // assert.ok(bp.verified);
-        // assert.equal(bp.line, line);
         return breakpointResp;
     }
 
     async setFnBreakpoint(name: string, condition?: string): Promise<dp.SetFunctionBreakpointsResponse> {
-        await this.waitForEvent('initialized');
         let breakpointResp = await this.setFunctionBreakpointsRequest({
             breakpoints: [{ name: name, condition: condition }]
         });
@@ -283,10 +285,10 @@ export class DebugTestSession extends DebugClient {
         });
     }
 
-    async launchAndWaitForStop(launchArgs: any): Promise<dp.StoppedEvent> {
+    async launchAndWaitForStop(launchArgs: any, configurator: ConfiguratorFn = null): Promise<dp.StoppedEvent> {
         let waitForStopAsync = this.waitForStopEvent();
         logWithStack('Awaiting launch');
-        await this.launch(launchArgs);
+        await this.launch(launchArgs, configurator);
         logWithStack('Awaiting stop');
         let stoppedEvent = await waitForStopAsync;
         return <dp.StoppedEvent>stoppedEvent;

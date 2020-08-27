@@ -89,6 +89,7 @@ jobs:
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+            -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
@@ -184,6 +185,7 @@ jobs:
       mkdir build
       cd build
       cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+            -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             ..
       cat CMakeCache.txt
@@ -288,6 +290,7 @@ jobs:
       cd build
       cmake -GNinja^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
+            -DTEST_TIMEOUT=30000^
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
             -DPython3_ROOT_DIR=%USEPYTHONVERSION_PYTHONLOCATION%^

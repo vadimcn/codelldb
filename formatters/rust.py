@@ -69,7 +69,7 @@ def initialize_category(debugger):
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global module, rust_category
-    log.debug('attaching synthetic %s to "%s", is_regex=%s', synth_class.__name__, type_name, is_regex)
+    #log.debug('attaching synthetic %s to "%s", is_regex=%s', synth_class.__name__, type_name, is_regex)
     synth = lldb.SBTypeSynthetic.CreateWithClassName(__name__ + '.' + synth_class.__name__)
     synth.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
@@ -83,7 +83,7 @@ def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
 
 def attach_summary_to_type(summary_fn, type_name, is_regex=False):
     global module, rust_category
-    log.debug('attaching summary %s to "%s", is_regex=%s', summary_fn.__name__, type_name, is_regex)
+    #log.debug('attaching summary %s to "%s", is_regex=%s', summary_fn.__name__, type_name, is_regex)
     summary = lldb.SBTypeSummary.CreateWithFunctionName(__name__ + '.' + summary_fn.__name__)
     summary.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)

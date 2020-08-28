@@ -251,9 +251,7 @@
 					"items": {
 						"type": "string"
 					},
-					"default": [
-						"\n"
-					],
+					"default": null,
 					"scope": "resource"
 				},
 				"lldb.launch.initCommands": {

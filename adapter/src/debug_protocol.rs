@@ -4,19 +4,19 @@ use crate::vec_map::VecMap;
 use serde_derive::*;
 
 pub use raw_debug_protocol::{
-    Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
-    CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DataBreakpoint,
-    DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody, DisconnectArguments,
-    EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
-    GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
-    OutputEventBody, PauseArguments, ReadMemoryArguments, ReadMemoryResponseBody, RestartFrameArguments,
-    ReverseContinueArguments, RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope, ScopesArguments,
-    ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody, SetDataBreakpointsArguments,
-    SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments,
-    SetVariableArguments, SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody,
-    StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments,
-    StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable,
-    VariablesArguments, VariablesResponseBody,
+    Breakpoint, BreakpointEventBody, CancelArguments, Capabilities, CapabilitiesEventBody, CompletionItem,
+    CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
+    DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
+    DisconnectArguments, EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody,
+    GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module,
+    ModuleEventBody, NextArguments, OutputEventBody, PauseArguments, ReadMemoryArguments, ReadMemoryResponseBody,
+    RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope,
+    ScopesArguments, ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody,
+    SetDataBreakpointsArguments, SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments,
+    SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
+    SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
+    StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread,
+    ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -69,6 +69,7 @@ pub enum Command {
 #[serde(tag = "command", content = "arguments")]
 pub enum RequestArguments {
     initialize(InitializeRequestArguments),
+    cancel(CancelArguments),
     launch(LaunchRequestArguments),
     attach(AttachRequestArguments),
     setBreakpoints(SetBreakpointsArguments),
@@ -111,6 +112,7 @@ pub enum RequestArguments {
 pub enum ResponseBody {
     Async,
     initialize(Capabilities),
+    cancel,
     launch,
     attach,
     setBreakpoints(SetBreakpointsResponseBody),

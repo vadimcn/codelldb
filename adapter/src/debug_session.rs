@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use crate::cancellation;
 use crate::dap_session::DAPSession;
 use crate::debug_event_listener;
 use crate::debug_protocol::*;
@@ -82,6 +83,7 @@ pub struct DebugSession {
     event_listener: SBListener,
     invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
     python: Option<Box<PythonInterface>>,
+    current_cancellation: cancellation::Receiver, // Cancellation associated with currently processed request
 
     console_pipe: std::fs::File,
     null_pipe: std::fs::File,
@@ -165,6 +167,7 @@ impl DebugSession {
             event_listener: SBListener::new_with_name("DebugSession"),
             invoke_client: invoke_client,
             python: python,
+            current_cancellation: cancellation::dummy(),
 
             console_pipe: con_writer,
             null_pipe: sink().unwrap(),
@@ -204,9 +207,64 @@ impl DebugSession {
 
         debug_session.update_adapter_settings(&settings);
 
-        let mut requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
+        // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
+        let mut raw_requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
+        let (mut requests_sender, mut requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+        let filter = async move {
+            let mut pending_requests: HashMap<u32, cancellation::Sender> = HashMap::new();
+            let mut cancellable_requests: Vec<cancellation::Sender> = Vec::new();
+
+            while let Some(Ok(request)) = raw_requests_stream.next().await {
+                let sender = cancellation::Sender::new();
+                let receiver = sender.subscribe();
+
+                match &request.command {
+                    Command::Known(request_args) => match request_args {
+                        RequestArguments::cancel(args) => {
+                            info!("Cancellation {:?}", args);
+                            if let Some(id) = args.request_id {
+                                if let Some(sender) = pending_requests.remove(&(id as u32)) {
+                                    let _ = sender.send();
+                                }
+                            }
+                            continue; // Dont forward to the main event loop.
+                        }
+                        // Requests that may be canceled.
+                        RequestArguments::scopes(_)
+                        | RequestArguments::variables(_)
+                        | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
+                        // Requests that will cancel the above.
+                        RequestArguments::continue_(_)
+                        | RequestArguments::pause(_)
+                        | RequestArguments::next(_)
+                        | RequestArguments::stepIn(_)
+                        | RequestArguments::stepOut(_)
+                        | RequestArguments::stepBack(_)
+                        | RequestArguments::reverseContinue(_)
+                        | RequestArguments::terminate(_)
+                        | RequestArguments::disconnect(_) => {
+                            for sender in &mut cancellable_requests {
+                                sender.send();
+                            }
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+
+                pending_requests.insert(request.seq, sender);
+                requests_sender.send((request, receiver)).await.unwrap();
+
+                // Clean out entries which don't have any receivers.
+                pending_requests.retain(|_k, v| v.receiver_count() > 0);
+                cancellable_requests.retain(|v| v.receiver_count() > 0);
+            }
+        };
+        tokio::spawn(filter);
+
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
+        // The main event loop, where we react to incoming events from different sources.
         let rc_session = Rc::new(RefCell::new(debug_session));
         async move {
             rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
@@ -216,10 +274,10 @@ impl DebugSession {
                 .run_until(async move {
                     loop {
                         tokio::select! {
-                            request = requests_stream.recv() => {
+                            request = requests_receiver.recv() => {
                                 match request {
-                                    Ok(request) => rc_session.borrow_mut().handle_request(request),
-                                    Err(_) => {
+                                    Some((request, cancellation)) => rc_session.borrow_mut().handle_request(request, cancellation),
+                                    None => {
                                         debug!("End of the requests stream");
                                         break;
                                     }
@@ -247,22 +305,28 @@ impl DebugSession {
         }
     }
 
-    fn handle_request(&mut self, request: Request) {
+    fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {
         let seq = request.seq;
-        let result = self.handle_command(request.command);
-        match result {
-            // Spawn async responses as tasks
-            Err(err) if err.is::<AsyncResponse>() => {
-                let self_ref = self.self_ref.clone();
-                tokio::task::spawn_local(async move {
-                    let fut = Box::into_pin(err.downcast::<AsyncResponse>().unwrap().0);
-                    let result = fut.await;
-                    self_ref.borrow().send_response(seq, result);
-                });
-            }
-            // Send synchronous results immediately
-            _ => {
-                self.send_response(seq, result);
+        if cancellation.is_cancelled() {
+            self.send_response(seq, Err("canceled".into()));
+        } else {
+            self.current_cancellation = cancellation;
+            let result = self.handle_command(request.command);
+            self.current_cancellation = cancellation::dummy();
+            match result {
+                // Spawn async responses as tasks
+                Err(err) if err.is::<AsyncResponse>() => {
+                    let self_ref = self.self_ref.clone();
+                    tokio::task::spawn_local(async move {
+                        let fut = Box::into_pin(err.downcast::<AsyncResponse>().unwrap().0);
+                        let result = fut.await;
+                        self_ref.borrow().send_response(seq, result);
+                    });
+                }
+                // Send synchronous results immediately
+                _ => {
+                    self.send_response(seq, result);
+                }
             }
         }
     }
@@ -448,6 +512,7 @@ impl DebugSession {
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
             supports_restart_frame: Some(true),
+            supports_cancel_request: Some(true),
             supports_read_memory_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
@@ -1595,7 +1660,7 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter();
-                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle));
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?;
                     // Prepend last function return value, if any.
                     if let Some(ret_val) = ret_val {
                         let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
@@ -1612,7 +1677,7 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableStatic);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::Globals(frame) => {
                     let variables = frame.variables(&VariableOptions {
@@ -1622,19 +1687,19 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter(); //.filter(|v| v.value_type() != ValueType::VariableGlobal);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::Registers(frame) => {
                     let list = frame.registers();
                     let mut vars_iter = list.iter();
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::SBValue(var) => {
                     let container_eval_name = self.compose_container_eval_name(container_handle);
                     let var = var.clone();
                     let mut vars_iter = var.children();
                     let mut variables =
-                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle));
+                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle))?;
                     // If synthetic, add [raw] view.
                     if var.is_synthetic() {
                         let raw_var = var.non_synthetic_value();
@@ -1680,7 +1745,7 @@ impl DebugSession {
         vars_iter: &mut dyn Iterator<Item = SBValue>,
         container_eval_name: &str,
         container_handle: Option<Handle>,
-    ) -> Vec<Variable> {
+    ) -> Result<Vec<Variable>, Error> {
         let mut variables = vec![];
         let mut variables_idx = HashMap::new();
 
@@ -1696,6 +1761,10 @@ impl DebugSession {
                 variables.push(variable);
             }
 
+            if self.current_cancellation.is_cancelled() {
+                bail!("cancelled");
+            }
+
             // Bail out if timeout has expired.
             if start.elapsed().unwrap_or_default() > self.evaluation_timeout {
                 self.console_error("Child list expansion has timed out.");
@@ -1707,7 +1776,7 @@ impl DebugSession {
                 break;
             }
         }
-        variables
+        Ok(variables)
     }
 
     // SBValue to VSCode Variable
@@ -2792,9 +2861,9 @@ impl DebugSession {
                         Ok(path) if path.is_file() => Some(Rc::new(path)),
                         _ => {
                             if self.suppress_missing_files {
-                        None
-                    } else {
-                        Some(Rc::new(path))
+                                None
+                            } else {
+                                Some(Rc::new(path))
                             }
                         }
                     };

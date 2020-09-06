@@ -19,6 +19,7 @@ mod prelude {
 
 #[macro_use]
 mod error;
+mod cancellation;
 mod dap_codec;
 mod dap_session;
 mod debug_event_listener;

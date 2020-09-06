@@ -2,12 +2,19 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.6.0-pre)
+set(VERSION "1.6.0") # Base version
 
 include(cmake/CopyFiles.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
+
+set(VERSION_SUFFIX "-" CACHE INTERNAL "Version suffix")
+if (VERSION_SUFFIX STREQUAL "-")
+    string(TIMESTAMP VERSION_SUFFIX "-dev.%y%m%d%H%M" UTC)
+endif()
+set(VERSION "${VERSION}${VERSION_SUFFIX}")
+message("Version ${VERSION}")
 
 set(LLDB_PACKAGE $ENV{LLDB_PACKAGE} CACHE PATH "Zip archive containing LLDB files")
 if (LLDB_PACKAGE)

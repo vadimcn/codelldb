@@ -9,12 +9,15 @@ variables:
 
   setenvLinux: |
       export PATH=$HOME/.cargo/bin:$PATH
+      echo "$(publicRelease)"
   setenvOSX: |
       export PATH=$HOME/.cargo/bin:$PATH
+      echo "$(publicRelease)"
   setenvWindows: |
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
       set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
+      echo "$(publicRelease)"
 
 ########################################################################################################################
 
@@ -88,7 +91,8 @@ jobs:
 
       mkdir build
       cd build
-      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+      cmake -DVERSION_SUFFIX=$(versionSuffix)\
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
@@ -184,7 +188,8 @@ jobs:
 
       mkdir build
       cd build
-      cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo\
+      cmake -DVERSION_SUFFIX=$(versionSuffix)\
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             ..
@@ -289,6 +294,7 @@ jobs:
       mkdir build
       cd build
       cmake -GNinja^
+            -DVERSION_SUFFIX=$(versionSuffix)^
             -DCMAKE_BUILD_TYPE=RelWithDebInfo^
             -DTEST_TIMEOUT=30000^
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip^

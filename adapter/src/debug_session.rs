@@ -9,7 +9,7 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{pipe, sink};
+use crate::platform::{pipe, sink, get_fs_path_case};
 use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 use futures;
@@ -2786,11 +2786,17 @@ impl DebugSession {
                     if path.is_relative() {
                         path = self.relative_path_base.join(path);
                     }
-                    // Check if the file exists.
-                    let mapped_path = if self.suppress_missing_files && !path.is_file() {
+                    path = normalize_path(path);
+                    // VSCode sometimes fails to compare equal paths that differ in casing.
+                    let mapped_path = match get_fs_path_case(&path) {
+                        Ok(path) if path.is_file() => Some(Rc::new(path)),
+                        _ => {
+                            if self.suppress_missing_files {
                         None
                     } else {
                         Some(Rc::new(path))
+                            }
+                        }
                     };
                     // Cache the result, so we don't have to probe file system again for the same path.
                     source_map_cache.insert(source_path, mapped_path.clone());

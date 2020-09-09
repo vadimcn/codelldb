@@ -20,7 +20,6 @@ For full details please see [the User's Manual](MANUAL.md).
     - Linux: glibc 2.18 (Debian 8, Ubuntu 14.04, Centos 8)
     - Mac: OS X 10.10 Yosemite
     - Windows: 10.0
-- 64-bit Python 3.5 (optional, except on Windows).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:
@@ -39,7 +38,7 @@ Here's a minimal debug configuration to get you started:
 - [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging) - if you are new to VSCode debugging.
 - [CodeLLDB User's Manual](MANUAL.md) - about this specific extension.
 - [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting) - known problems and solutions.
-- [Q & A](https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb) - for when you are stuck.
+- [Mailing list](https://groups.google.com/g/codelldb-users) - for questions and discussion.
 
 
 # Screenshots

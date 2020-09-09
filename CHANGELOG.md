@@ -1,5 +1,24 @@
 # Release Notes
 
+# 1.6.0
+
+## Changed
+- I've decided to stop trying to use external Python installations with CodeLLDB.  Bugs keep coming in, and it seems
+  that the diversity of Python variants out there is just too big.<br>
+  As of this version, a minimal Python installation will be bundled with CodeLLDB (courtesy of PyOxidizer project!), so
+  users won't have to worry about installing it separately.
+- The bundled LLDB is now based on version 11.0.   This fixes a number of problems in parsing C++ debug info, including
+  returning wrong template parameters for some types and crashes during expression evaluation.
+- Due to problems it causes for some shells, the terminal prompt clearing feature will now be disabled by default.
+  Those who wish to keep using it, can re-enable it by adding `"lldb.terminalPromptClear": ["\n"]` to their
+  user/workspace configuration files.
+- Added Objective C++ and Zig to the list of supported languages.
+
+## Fixed
+- Source file paths on Windows will now follow casing of the file system.  This should fix a number of issues where
+  VSCode would not display the current execution location in the editor.
+- Updated Rust HashMap/HashSet formatter to account for the recent memory layout change.
+
 # 1.5.3
 
 ## Fixed

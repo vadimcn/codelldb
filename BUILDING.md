@@ -28,7 +28,8 @@ mkdir build  # (directory can be changed, but tasks.json assumes it's "build")
 cd build
 cmake .. -LLDB_PACKAGE=<path>
 ```
-- `LLDB_PACKAGE` specifies zip archive containing LLDB files.
+- `LLDB_PACKAGE` specifies path to a zip archive containing LLDB files.   Creating one from scratch is... non-trivial.
+   If you'd like to build CodeLLDB from source, just zip up the contents of the `<extension`>/lldb directory and use that.
 
 3. Useful targets:
 - `extension` - build VSCode extension.

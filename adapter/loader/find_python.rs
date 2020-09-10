@@ -63,14 +63,16 @@ fn get_candidate_locations() -> CandidateLocations {
         info!("Querying python sysconfig");
         let result = std::process::Command::new("python3")
             .arg("-c")
-            .arg("import sysconfig; print(sysconfig.get_config_var('INSTSONAME'))")
+            .arg("import sysconfig; print(sysconfig.get_config_var('LIBDIR')); print(sysconfig.get_config_var('INSTSONAME'))")
             .output()?;
         if !result.status.success() {
             return Err(format!("python exit code: {:?}", result.status.code()).into());
         }
         let stdout = BufReader::new(&result.stdout[..]);
         let mut lines = stdout.lines();
-        let path = PathBuf::from(lines.next().unwrap()?);
+        let lib_dir = lines.next().unwrap()?;
+        let so_name = lines.next().unwrap()?;
+        let path = PathBuf::from(lib_dir).join(so_name);
         Ok(vec![path])
     };
 

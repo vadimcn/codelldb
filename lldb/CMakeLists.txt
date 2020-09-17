@@ -8,7 +8,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     endif()
 endif()
 
-add_custom_target(lldb ALL DEPENDS ${LLDBFiles}
+add_custom_target(lldb ALL DEPENDS ${LLDB_PACKAGE} ${LLDBFiles}
     COMMAND unzip -o -u ${LLDB_PACKAGE} -d ${CMAKE_CURRENT_BINARY_DIR}
 )
 

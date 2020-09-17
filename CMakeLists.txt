@@ -42,10 +42,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
-    set(AllowedDependencies Foundation CoreFoundation CoreServices Security
-                            libcompression.dylib libxml2.2.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
-                            libresolv.9.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib
-                            libcodelldb.dylib liblldb.dylib Python)
+    set(AllowedDependencies Foundation CoreFoundation CoreServices Security SystemConfiguration
+                            libcompression.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
+                            libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib
+                            libcodelldb.dylib liblldb.dylib libpython3.*.dylib)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)

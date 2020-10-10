@@ -76,6 +76,7 @@ set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
 add_subdirectory(adapter)
 add_subdirectory(lldb)
+add_subdirectory(formatters)
 
 # Extension package content
 
@@ -151,7 +152,6 @@ set(PackagedFilesBootstrap
     README.md
     CHANGELOG.md
     extension.js
-    formatters/*
     images/*
     syntaxes/*
 )
@@ -169,6 +169,7 @@ set(PackagedFilesFull
     lldb/bin/**/*
     lldb/lib/**/*
     lldb/DLLs/**/*
+    formatters/**/*.py
 )
 
 # Indicator file used to determine whether we have the platform package.
@@ -294,14 +295,14 @@ endforeach(TestTriple)
 
 # Run adapter tests
 add_custom_target(check_adapter
-    DEPENDS tests
+    DEPENDS codelldb debuggee tests
     COMMAND ${CMAKE_CTEST_COMMAND} -R "adapter:" --verbose
     USES_TERMINAL
 )
 
 # Run all tests
 add_custom_target(check
-    DEPENDS tests cargo_test
+    DEPENDS codelldb debuggee tests cargo_test
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose
     USES_TERMINAL
 )

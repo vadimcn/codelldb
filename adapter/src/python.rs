@@ -165,11 +165,12 @@ pub fn initialize(
         }
     }
 
-    let rust_formatters = adapter_dir.join("rust.py");
-    let command = format!("command script import '{}'", rust_formatters.to_str().unwrap());
+    // Init formatters
+    let formatters = adapter_dir.parent().unwrap().join("formatters");
+    let command = format!("command script import '{}'", formatters.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
-        error!("{:?}", command_result); // But carry on - Rust formatters are not critical to have.
+        error!("{:?}", command_result);
     }
 
     Ok((interface, receiver))

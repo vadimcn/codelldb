@@ -11,14 +11,13 @@ if sys.version_info[0] == 2:
 else:
     to_lldb_str = str
 
-log = logging.getLogger('rust')
+log = logging.getLogger(__name__)
 
 module = sys.modules[__name__]
 rust_category = None
 
 def initialize_category(debugger):
     global module, rust_category
-    log.info('Initializing, module name=%s', __name__)
 
     rust_category = debugger.CreateCategory('Rust')
     #rust_category.AddLanguage(lldb.eLanguageTypeRust)
@@ -618,4 +617,5 @@ class StdHashSetSynthProvider(RustSynthProvider):
 ##################################################################################################################
 
 def __lldb_init_module(debugger_obj, internal_dict):
+    log.info('Initializing')
     initialize_category(debugger_obj)

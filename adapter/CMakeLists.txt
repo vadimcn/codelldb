@@ -19,6 +19,8 @@ if (CMAKE_VERBOSE_MAKEFILE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 
+set(Cargo ${WithEnv} RUSTC_BOOTSTRAP=1 cargo)
+
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/adapter/codelldb.py
         ${CMAKE_SOURCE_DIR}/adapter/value.py
@@ -30,7 +32,7 @@ add_custom_target(codelldb ALL
 )
 
 add_custom_target(codelldb_bin
-    COMMAND cargo build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
+    COMMAND ${Cargo} build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
     COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_bin"
     USES_TERMINAL
@@ -38,7 +40,7 @@ add_custom_target(codelldb_bin
 
 add_custom_target(codelldb_lib
     DEPENDS lldb ${PythonFiles}
-    COMMAND cargo build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
+    COMMAND ${Cargo} build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
     COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"
     USES_TERMINAL
@@ -57,7 +59,7 @@ string(JOIN ${PathSep} PATH ${PATH} ${CMAKE_BINARY_DIR}/lldb/bin)
 string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_LinkSearch})
 add_custom_target(cargo_test
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            cargo test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
+            ${Cargo} test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )

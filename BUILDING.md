@@ -2,7 +2,7 @@
 - Node.js and npm, v8 or later.
 - Python 3.5 or later.
 - C++ compiler (GCC, clang or MSVC).
-- Rust nightly 2020-05-04 or later.  Be sure to add an override for CodeLLDB directory so it uses the nightly.
+- Rust 1.45 or later.
 - (Windows only) mingw-w64 toolchain (used for tests).
 
 # Install LLDB or build it from source.

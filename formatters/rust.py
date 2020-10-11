@@ -536,27 +536,32 @@ class StdCowSynthProvider(EnumSynthProvider):
 
 ##################################################################################################################
 
-def compute_valid_indices(ctrl):
-    error = lldb.SBError()
-    valid_indices = []
-    for i in range(ctrl.GetByteSize()):
-        c = ctrl.GetUnsignedInt8(error, i)
-        if c & 0x80 == 0:
-            valid_indices.append(i)
-    return valid_indices
-
 class StdHashMapSynthProvider(RustSynthProvider):
     def initialize(self):
         table = gcm(self.valobj, 'base', 'table')
-        items = gcm(table, 'items').GetValueAsUnsigned()
         self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
 
-        ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
-        self.valid_indices = compute_valid_indices(ctrl)
+        ctrl_ptr = gcm(table, 'ctrl', 'pointer')
+        ctrl = ctrl_ptr.GetPointeeData(0, self.num_buckets)
 
-        data = gcm(table, 'data', 'pointer')
-        data_arr_ty = data.GetType().GetPointeeType().GetArrayType(self.num_buckets)
-        self.data = data.Dereference().Cast(data_arr_ty)
+        item_ty = table.type.template_args[0];
+        buckets_ty = item_ty.GetArrayType(self.num_buckets)
+        data = gcm(table, 'data')
+        new_layout = not data.IsValid()
+        if new_layout: # buckets are located above `ctrl`, in reverse order.
+            start_addr = ctrl_ptr.GetValueAsUnsigned() - item_ty.GetByteSize() * self.num_buckets
+            self.buckets = self.valobj.CreateValueFromAddress('data', start_addr, buckets_ty)
+        else:
+            self.buckets = gcm(data, 'pointer').Dereference().Cast(buckets_ty)
+
+        error = lldb.SBError()
+        self.valid_indices = []
+        for i in range(self.num_buckets):
+            if ctrl.GetUnsignedInt8(error, i) & 0x80 == 0:
+                if new_layout:
+                    self.valid_indices.append(self.num_buckets - 1 - i)
+                else:
+                    self.valid_indices.append(i)
 
     def update(self):
         return True
@@ -568,51 +573,29 @@ class StdHashMapSynthProvider(RustSynthProvider):
         return len(self.valid_indices)
 
     def get_child_at_index(self, index):
-        return self.data.GetChildAtIndex(self.valid_indices[index])
+        bucket_idx = self.valid_indices[index]
+        item = self.buckets.GetChildAtIndex(bucket_idx)
+        return item.CreateChildAtOffset('[%d]' % index, 0, item.GetType())
 
     def get_child_index(self, name):
-        return None
+        try:
+            return int(name.lstrip('[').rstrip(']'))
+        except Exception as e:
+            log.error('%s', e)
+            raise
 
     def get_summary(self):
         return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
 
-
-class StdHashSetSynthProvider(RustSynthProvider):
+class StdHashSetSynthProvider(StdHashMapSynthProvider):
     def initialize(self):
-        table = gcm(self.valobj, 'map', 'base', 'table')
-        items = gcm(table, 'items').GetValueAsUnsigned()
-        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
-
-        ctrl = gcm(table, 'ctrl', 'pointer').GetPointeeData(0, self.num_buckets)
-        self.valid_indices = compute_valid_indices(ctrl)
-
-        data = gcm(table, 'data', 'pointer')
-        data_arr_ty = data.GetType().GetPointeeType().GetArrayType(self.num_buckets)
-        self.data = data.Dereference().Cast(data_arr_ty)
-        return None
-
-    def update(self):
-        return True
-
-    def has_children(self):
-        return True
-
-    def num_children(self):
-        return len(self.valid_indices)
+        self.valobj = gcm(self.valobj, 'map')
+        StdHashMapSynthProvider.initialize(self)
 
     def get_child_at_index(self, index):
-        child = self.data.GetChildAtIndex(self.valid_indices[index])
-        # child is a tuple (K, ()).  We want return just the K, while keeping name of the parent tuple.
-        name = child.GetName()
-        child = child.GetChildAtIndex(0)
-        return child.CreateChildAtOffset(name, 0, child.GetType())
-
-    def get_child_index(self, name):
-        return None
-
-    def get_summary(self):
-        return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
-
+        bucket_idx = self.valid_indices[index]
+        item = self.buckets.GetChildAtIndex(bucket_idx).GetChildAtIndex(0)
+        return item.CreateChildAtOffset('[%d]' % index, 0, item.GetType())
 
 ##################################################################################################################
 

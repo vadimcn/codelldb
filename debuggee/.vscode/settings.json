@@ -1,6 +1,6 @@
 {
     "lldb.launch.initCommands": [
-        "set set target.x86-disassembly-flavor intel"
+        "settings set target.x86-disassembly-flavor intel"
     ],
     "lldb.dbgconfig": {
         "targetDir": "${workspaceFolder}/../build/debuggee"

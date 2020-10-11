@@ -22,7 +22,7 @@
 			"preLaunchTask": "make codelldb",
 			"type": "lldb",
 			"request": "launch",
-			//"initCommands": ["set set target.disable-aslr false"],
+			//"initCommands": ["settings set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter/codelldb",
 			"sourceLanguages": [
 				"cpp",

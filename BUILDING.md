@@ -8,14 +8,14 @@
 # Install LLDB or build it from source.
 
 If you are building from source, clone [LLVM](https://github.com/llvm/llvm-project).  To save on build time, you may
-restrict built components to just these: clang, libcxx, lldb.
+want to restrict the built components to just these: clang, libcxx, lldb.
 ```
 mkdir build
 cd build
 cmake ../llvm -DLLVM_ENABLE_PROJECTS="clang;libcxx;lldb"
 make lldb lldb-server
 ```
-Please note that on Windows, LLDB is expected to have been build with MSVC compiler.
+Please note that on Windows, LLDB is expected to have been built with the MSVC compiler.
 
 CodeLLDB build scripts expect to find the following files under ${LLDB_ROOT}:
 ```

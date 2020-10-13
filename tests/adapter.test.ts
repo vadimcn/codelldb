@@ -449,9 +449,9 @@ function generateSuite(triple: string) {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP1');
                 let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
-                await ds.launch({ name: 'display_html', program: debuggee, args: ["mandelbrot"] },
+                await ds.launchAndWaitForStop({ name: 'display_html', program: debuggee, args: ["mandelbrot"] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) and False');
+                        await ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) or True');
                     });
                 let ev = await waitForDisplayHtmlAsync;
                 assert.equal(ev.body.html, "<html>");

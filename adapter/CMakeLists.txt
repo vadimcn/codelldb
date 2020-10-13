@@ -39,7 +39,7 @@ add_custom_target(codelldb_bin
 )
 
 add_custom_target(codelldb_lib
-    DEPENDS lldb ${PythonFiles}
+    DEPENDS ${PythonFiles}
     COMMAND ${Cargo} build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
     COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"

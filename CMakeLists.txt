@@ -78,6 +78,8 @@ add_subdirectory(adapter)
 add_subdirectory(lldb)
 add_subdirectory(formatters)
 
+add_dependencies(codelldb_lib lldb formatters)
+
 # Extension package content
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")

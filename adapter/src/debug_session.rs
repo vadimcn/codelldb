@@ -251,7 +251,7 @@ impl DebugSession {
             Err(err) if err.is::<AsyncResponse>() => {
                 let self_ref = self.self_ref.clone();
                 tokio::task::spawn_local(async move {
-                    let fut = Box::into_pin(err.downcast::<AsyncResponse>().unwrap().0);
+                    let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
                     let result = fut.await;
                     self_ref.borrow().send_response(seq, result);
                 });

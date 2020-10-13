@@ -25,15 +25,16 @@ def initialize_category(debugger):
 
     #attach_summary_to_type(get_array_summary, r'^.*\[[0-9]+\]$', True)
     attach_summary_to_type(get_tuple_summary, r'^\(.*\)$', True)
+    attach_summary_to_type(get_tuple_summary, r'^tuple<.+>$', True) # *-windows-msvc uses this name since 1.47
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
 
-    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String')
-    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String')
+    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String') # Before 1.20
+    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String') # Since 1.20
 
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True) # Before 1.20
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True) # Since 1.20
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut\s*)?\[.*\]$', True)
     attach_synthetic_to_type(SliceSynthProvider, r'^slice<.+>.*$', True)

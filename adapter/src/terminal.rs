@@ -38,6 +38,8 @@ impl Terminal {
             let mut listener = TcpListener::bind("127.0.0.1:0").await?;
             let addr = listener.local_addr()?;
 
+            let accept_fut = listener.accept();
+
             // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
             // or its own process id (Windows), then waits till the socket gets closed from our end.
             let executable = std::env::current_exe()?.to_str().unwrap().into();
@@ -51,7 +53,7 @@ impl Terminal {
             };
             let _resp = dap_session.send_request(RequestArguments::runInTerminal(req_args));
 
-            let (stream, _remote_addr) = listener.accept().await?;
+            let (stream, _remote_addr) = accept_fut.await?;
 
             let mut reader = BufReader::new(stream);
             let mut data = String::new();

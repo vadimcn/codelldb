@@ -111,8 +111,7 @@
 			]
 		},
 		{
-			"name": "test codelldb",
-			"preLaunchTask": "make dev_debugging",
+			"name": "cargo test codelldb",
 			"type": "lldb",
 			"request": "launch",
 			"cargo": {
@@ -124,6 +123,7 @@
 					"codelldb"
 				]
 			},
+			"cwd": "${workspaceFolder}/adapter",
 			"args": [
 				"--nocapture",
 				"--test-threads=1"
@@ -139,7 +139,7 @@
 			"terminal": "integrated"
 		},
 		{
-			"name": "tests",
+			"name": "adapter tests",
 			"preLaunchTask": "make tests",
 			"type": "node",
 			"request": "launch",

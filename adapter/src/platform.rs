@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 pub fn pipe() -> Result<(fs::File, fs::File), Error> {
@@ -47,6 +48,38 @@ pub fn sink() -> Result<fs::File, Error> {
 #[cfg(windows)]
 pub fn sink() -> Result<fs::File, Error> {
     Ok(fs::File::create(r#"\\.\NUL"#)?)
+}
+
+/// Returns file path with the actual casing, as stored on disk.
+#[cfg(windows)]
+pub fn get_fs_path_case(path: &Path) -> Result<PathBuf, std::io::Error> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use winapi::um::fileapi::GetLongPathNameW;
+    let mut wpath: Vec<u16> = path.as_os_str().encode_wide().collect();
+    wpath.push(0);
+    let mut buffer: Vec<u16> = Vec::with_capacity(256);
+    unsafe {
+        let mut size = GetLongPathNameW(wpath.as_ptr(), buffer.as_mut_ptr(), buffer.capacity() as u32) as usize;
+        if size == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if size > buffer.capacity() {
+            buffer.reserve(size - buffer.capacity());
+            size = GetLongPathNameW(wpath.as_ptr(), buffer.as_mut_ptr(), buffer.capacity() as u32) as usize;
+            if size == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            assert!(size <= buffer.capacity());
+        }
+        buffer.set_len(size as usize);
+    }
+    Ok(PathBuf::from(OsString::from_wide(&buffer)))
+}
+
+#[cfg(unix)]
+pub fn get_fs_path_case(path: &Path) -> Result<PathBuf, std::io::Error> {
+    Ok(path.into())
 }
 
 // #[cfg(unix)]

@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use crate::cancellation;
 use crate::dap_session::DAPSession;
 use crate::debug_event_listener;
 use crate::debug_protocol::*;
@@ -9,8 +10,8 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{pipe, sink};
-use crate::python::{self, PythonInterface};
+use crate::platform::{pipe, sink, get_fs_path_case};
+use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 use futures;
 use futures::prelude::*;
@@ -82,6 +83,7 @@ pub struct DebugSession {
     event_listener: SBListener,
     invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
     python: Option<Box<PythonInterface>>,
+    current_cancellation: cancellation::Receiver, // Cancellation associated with currently processed request
 
     console_pipe: std::fs::File,
     null_pipe: std::fs::File,
@@ -141,15 +143,19 @@ impl DebugSession {
 
         let (con_reader, con_writer) = pipe().unwrap();
         let _ = debugger.set_output_stream(con_writer.try_clone().unwrap());
+        let current_exe = env::current_exe().unwrap();
 
-        let (python, mut python_events) =
-            match python::initialize(debugger.command_interpreter(), con_writer.try_clone().unwrap()) {
-                Ok((python, events)) => (Some(python), events.left_stream()),
-                Err(err) => {
-                    error!("Initialize Python interpreter: {}", err);
-                    (None, stream::pending().right_stream())
-                }
-            };
+        let (python, mut python_events) = match python::initialize(
+            debugger.command_interpreter(),
+            current_exe.parent().unwrap(),
+            Some(con_writer.try_clone().unwrap()),
+        ) {
+            Ok((python, events)) => (Some(python), events.left_stream()),
+            Err(err) => {
+                error!("Initialize Python interpreter: {}", err);
+                (None, stream::pending().right_stream())
+            }
+        };
 
         let mut con_reader = tokio::fs::File::from_std(con_reader);
 
@@ -161,6 +167,7 @@ impl DebugSession {
             event_listener: SBListener::new_with_name("DebugSession"),
             invoke_client: invoke_client,
             python: python,
+            current_cancellation: cancellation::dummy(),
 
             console_pipe: con_writer,
             null_pipe: sink().unwrap(),
@@ -200,9 +207,64 @@ impl DebugSession {
 
         debug_session.update_adapter_settings(&settings);
 
-        let mut requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
+        // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
+        let mut raw_requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
+        let (mut requests_sender, mut requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+        let filter = async move {
+            let mut pending_requests: HashMap<u32, cancellation::Sender> = HashMap::new();
+            let mut cancellable_requests: Vec<cancellation::Sender> = Vec::new();
+
+            while let Some(Ok(request)) = raw_requests_stream.next().await {
+                let sender = cancellation::Sender::new();
+                let receiver = sender.subscribe();
+
+                match &request.command {
+                    Command::Known(request_args) => match request_args {
+                        RequestArguments::cancel(args) => {
+                            info!("Cancellation {:?}", args);
+                            if let Some(id) = args.request_id {
+                                if let Some(sender) = pending_requests.remove(&(id as u32)) {
+                                    let _ = sender.send();
+                                }
+                            }
+                            continue; // Dont forward to the main event loop.
+                        }
+                        // Requests that may be canceled.
+                        RequestArguments::scopes(_)
+                        | RequestArguments::variables(_)
+                        | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
+                        // Requests that will cancel the above.
+                        RequestArguments::continue_(_)
+                        | RequestArguments::pause(_)
+                        | RequestArguments::next(_)
+                        | RequestArguments::stepIn(_)
+                        | RequestArguments::stepOut(_)
+                        | RequestArguments::stepBack(_)
+                        | RequestArguments::reverseContinue(_)
+                        | RequestArguments::terminate(_)
+                        | RequestArguments::disconnect(_) => {
+                            for sender in &mut cancellable_requests {
+                                sender.send();
+                            }
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+
+                pending_requests.insert(request.seq, sender);
+                requests_sender.send((request, receiver)).await.unwrap();
+
+                // Clean out entries which don't have any receivers.
+                pending_requests.retain(|_k, v| v.receiver_count() > 0);
+                cancellable_requests.retain(|v| v.receiver_count() > 0);
+            }
+        };
+        tokio::spawn(filter);
+
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
+        // The main event loop, where we react to incoming events from different sources.
         let rc_session = Rc::new(RefCell::new(debug_session));
         async move {
             rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
@@ -212,10 +274,10 @@ impl DebugSession {
                 .run_until(async move {
                     loop {
                         tokio::select! {
-                            request = requests_stream.recv() => {
+                            request = requests_receiver.recv() => {
                                 match request {
-                                    Ok(request) => rc_session.borrow_mut().handle_request(request),
-                                    Err(_) => {
+                                    Some((request, cancellation)) => rc_session.borrow_mut().handle_request(request, cancellation),
+                                    None => {
                                         debug!("End of the requests stream");
                                         break;
                                     }
@@ -243,22 +305,28 @@ impl DebugSession {
         }
     }
 
-    fn handle_request(&mut self, request: Request) {
+    fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {
         let seq = request.seq;
-        let result = self.handle_command(request.command);
-        match result {
-            // Spawn async responses as tasks
-            Err(err) if err.is::<AsyncResponse>() => {
-                let self_ref = self.self_ref.clone();
-                tokio::task::spawn_local(async move {
-                    let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
-                    let result = fut.await;
-                    self_ref.borrow().send_response(seq, result);
-                });
-            }
-            // Send synchronous results immediately
-            _ => {
-                self.send_response(seq, result);
+        if cancellation.is_cancelled() {
+            self.send_response(seq, Err("canceled".into()));
+        } else {
+            self.current_cancellation = cancellation;
+            let result = self.handle_command(request.command);
+            self.current_cancellation = cancellation::dummy();
+            match result {
+                // Spawn async responses as tasks
+                Err(err) if err.is::<AsyncResponse>() => {
+                    let self_ref = self.self_ref.clone();
+                    tokio::task::spawn_local(async move {
+                        let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
+                        let result = fut.await;
+                        self_ref.borrow().send_response(seq, result);
+                    });
+                }
+                // Send synchronous results immediately
+                _ => {
+                    self.send_response(seq, result);
+                }
             }
         }
     }
@@ -268,9 +336,9 @@ impl DebugSession {
         match command {
             Command::Known(arguments) => {
                 match arguments {
-                    RequestArguments::adapterSettings(args) =>
+                    RequestArguments::_adapterSettings(args) =>
                         self.handle_adapter_settings(args)
-                            .map(|_| ResponseBody::adapterSettings),
+                            .map(|_| ResponseBody::_adapterSettings),
                     RequestArguments::initialize(args) =>
                         self.handle_initialize(args)
                             .map(|r| ResponseBody::initialize(r)),
@@ -357,6 +425,12 @@ impl DebugSession {
                                 RequestArguments::setDataBreakpoints(args) =>
                                     self.handle_set_data_breakpoints(args)
                                         .map(|r| ResponseBody::setDataBreakpoints(r)),
+                                RequestArguments::readMemory(args) =>
+                                    self.handle_read_memory(args)
+                                        .map(|r| ResponseBody::readMemory(r)),
+                                RequestArguments::_symbols(args) =>
+                                    self.handle_symbols(args)
+                                        .map(|r| ResponseBody::_symbols(r)),
                                 _=> Err("Not implemented.".into())
                             }
                         }
@@ -438,6 +512,8 @@ impl DebugSession {
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
             supports_restart_frame: Some(true),
+            supports_cancel_request: Some(true),
+            supports_read_memory_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
         };
@@ -809,19 +885,35 @@ impl DebugSession {
     }
 
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
-        // Determine conditional expression type:
-        let py_condition = if let Some(ref condition) = bp_info.condition {
+        // Determine the conditional expression type.
+        let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
             let condition = condition.trim();
             if !condition.is_empty() {
                 let pp_expr = expressions::prepare(condition, self.default_expr_type);
-                match pp_expr {
+                match &pp_expr {
                     // if native, use that directly,
                     PreparedExpression::Native(expr) => {
                         bp_info.breakpoint.set_condition(&expr);
                         None
                     }
                     // otherwise, we'll need to evaluate it ourselves in the breakpoint callback.
-                    _ => Some(pp_expr),
+                    PreparedExpression::Simple(expr) | //.
+                    PreparedExpression::Python(expr) => {
+                        if let Some(python) = &self.python {
+                            match python.compile_code(&expr, "<breakpoint condition>") {
+                                Ok(pycode) => {
+                                    let is_simple_expr = matches!(pp_expr, PreparedExpression::Simple(_));
+                                    Some((pycode, is_simple_expr))
+                                }
+                                Err(err) => {
+                                    self.console_error(err.to_string());
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        }
+                    }
                 }
             } else {
                 None
@@ -854,23 +946,18 @@ impl DebugSession {
         _process: &SBProcess,
         thread: &SBThread,
         location: &SBBreakpointLocation,
-        py_condition: &Option<PreparedExpression>,
+        py_condition: &Option<(PyObject, bool)>,
         hit_condition: &Option<HitCondition>,
     ) -> bool {
         let mut breakpoints = self.breakpoints.borrow_mut();
         let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
 
-        if let Some(pp_expr) = py_condition {
-            let (pycode, is_simple_expr) = match pp_expr {
-                PreparedExpression::Simple(expr) => (expr, true),
-                PreparedExpression::Python(expr) => (expr, false),
-                PreparedExpression::Native(_) => unreachable!(),
-            };
+        if let Some((pycode, is_simple_expr)) = py_condition {
             let frame = thread.frame_at_index(0);
             let context = self.context_from_frame(Some(&frame));
             // TODO: pass bpno
             let should_stop = match &self.python {
-                Some(python) => match python.evaluate_as_bool(&pycode, is_simple_expr, &context) {
+                Some(python) => match python.evaluate_as_bool(&pycode, *is_simple_expr, &context) {
                     Ok(val) => val,
                     Err(err) => {
                         self.console_error(err.to_string());
@@ -1573,7 +1660,7 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter();
-                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle));
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?;
                     // Prepend last function return value, if any.
                     if let Some(ret_val) = ret_val {
                         let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
@@ -1590,7 +1677,7 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableStatic);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::Globals(frame) => {
                     let variables = frame.variables(&VariableOptions {
@@ -1600,19 +1687,19 @@ impl DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter(); //.filter(|v| v.value_type() != ValueType::VariableGlobal);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::Registers(frame) => {
                     let list = frame.registers();
                     let mut vars_iter = list.iter();
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
                 }
                 Container::SBValue(var) => {
                     let container_eval_name = self.compose_container_eval_name(container_handle);
                     let var = var.clone();
                     let mut vars_iter = var.children();
                     let mut variables =
-                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle));
+                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle))?;
                     // If synthetic, add [raw] view.
                     if var.is_synthetic() {
                         let raw_var = var.non_synthetic_value();
@@ -1658,7 +1745,7 @@ impl DebugSession {
         vars_iter: &mut dyn Iterator<Item = SBValue>,
         container_eval_name: &str,
         container_handle: Option<Handle>,
-    ) -> Vec<Variable> {
+    ) -> Result<Vec<Variable>, Error> {
         let mut variables = vec![];
         let mut variables_idx = HashMap::new();
 
@@ -1674,6 +1761,10 @@ impl DebugSession {
                 variables.push(variable);
             }
 
+            if self.current_cancellation.is_cancelled() {
+                bail!("cancelled");
+            }
+
             // Bail out if timeout has expired.
             if start.elapsed().unwrap_or_default() > self.evaluation_timeout {
                 self.console_error("Child list expansion has timed out.");
@@ -1685,7 +1776,7 @@ impl DebugSession {
                 break;
             }
         }
-        variables
+        Ok(variables)
     }
 
     // SBValue to VSCode Variable
@@ -1968,13 +2059,13 @@ impl DebugSession {
                 };
                 result.map_err(|e| e.into())
             }
-            (PreparedExpression::Python(pp_expr), Some(python)) => {
-                let context = self.context_from_frame(frame);
-                python.evaluate(&pp_expr, false, &context).map_err(|s| UserError(s).into())
-            }
+            (PreparedExpression::Python(pp_expr), Some(python)) | //.
             (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                python.evaluate(&pp_expr, true, &context).map_err(|s| UserError(s).into())
+                let pycode = python.compile_code(pp_expr, "<input>").map_err(|s| UserError(s))?;
+                let is_simple_expr = matches!(expression, PreparedExpression::Simple(_));
+                let result = python.evaluate(&pycode, is_simple_expr, &context).map_err(|s| UserError(s))?;
+                Ok(result)
             }
             _ => Err(UserError("Python expressions are disabled.".into()))?,
         }
@@ -2383,6 +2474,67 @@ impl DebugSession {
         Ok(())
     }
 
+    fn handle_read_memory(&mut self, args: ReadMemoryArguments) -> Result<ReadMemoryResponseBody, Error> {
+        let address = args.memory_reference.parse::<lldb::Address>()?;
+        let offset = args.offset.unwrap_or(0) as lldb::Address;
+        let count = args.count as usize;
+        let mut buffer = Vec::with_capacity(count);
+        buffer.resize(count, 0);
+        let bytes_read = self.process.read_memory(address + offset, buffer.as_mut_slice())?;
+        buffer.truncate(bytes_read);
+        Ok(ReadMemoryResponseBody {
+            address: format!("0x{:x}", address + offset),
+            unreadable_bytes: Some((count - bytes_read) as i64),
+            data: Some(base64::encode(buffer)),
+        })
+    }
+
+    fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {
+        let (mut next_module, mut next_symbol) = match args.continuation_token {
+            Some(token) => (token.next_module, token.next_symbol),
+            None => (0, 0),
+        };
+        let num_modules = self.target.num_modules();
+        let mut symbols = vec![];
+        while next_module < num_modules {
+            let module = self.target.module_at_index(next_module);
+            let num_symbols = module.num_symbols();
+            while next_symbol < num_symbols {
+                let symbol = module.symbol_at_index(next_symbol);
+                let ty = symbol.type_();
+                match ty {
+                    SymbolType::Code | SymbolType::Data => {
+                        let start_addr = symbol.start_address().load_address(&self.target);
+                        symbols.push(Symbol {
+                            name: symbol.display_name().into(),
+                            type_: format!("{:?}", ty),
+                            address: format!("0x{:X}", start_addr),
+                        });
+                    }
+                    _ => {}
+                }
+                next_symbol += 1;
+
+                if symbols.len() > 1000 {
+                    return Ok(SymbolsResponse {
+                        symbols,
+                        continuation_token: Some(SymbolsContinuation {
+                            next_module,
+                            next_symbol,
+                        }),
+                    });
+                }
+            }
+            next_symbol = 0;
+            next_module += 1;
+        }
+
+        Ok(SymbolsResponse {
+            symbols,
+            continuation_token: None,
+        })
+    }
+
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
         self.update_adapter_settings(&args);
         if self.process.state().is_stopped() {
@@ -2703,11 +2855,17 @@ impl DebugSession {
                     if path.is_relative() {
                         path = self.relative_path_base.join(path);
                     }
-                    // Check if the file exists.
-                    let mapped_path = if self.suppress_missing_files && !path.is_file() {
-                        None
-                    } else {
-                        Some(Rc::new(path))
+                    path = normalize_path(path);
+                    // VSCode sometimes fails to compare equal paths that differ in casing.
+                    let mapped_path = match get_fs_path_case(&path) {
+                        Ok(path) if path.is_file() => Some(Rc::new(path)),
+                        _ => {
+                            if self.suppress_missing_files {
+                                None
+                            } else {
+                                Some(Rc::new(path))
+                            }
+                        }
                     };
                     // Cache the result, so we don't have to probe file system again for the same path.
                     source_map_cache.insert(source_path, mapped_path.clone());

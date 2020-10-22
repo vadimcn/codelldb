@@ -3,60 +3,78 @@ use crate::prelude::*;
 use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use lldb::*;
-use std::env;
 use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
+use std::path::Path;
 use tokio::sync::mpsc;
 
-#[repr(C)]
-union ValueResult {
-    value: mem::MaybeUninit<SBValue>,
-    error: mem::MaybeUninit<SBError>,
+#[repr(C, i32)]
+#[allow(dead_code)]
+enum PyResult<T> {
+    Invalid,
+    Ok(T),
+    Err(SBError),
 }
 
 #[repr(C)]
-union BoolResult {
-    value: bool,
-    error: mem::MaybeUninit<SBError>,
+pub struct PyObject {
+    object: *mut c_void,
+    destructor: unsafe extern "C" fn(*mut c_void),
 }
+
+impl Drop for PyObject {
+    fn drop(&mut self) {
+        unsafe { (self.destructor)(self.object) }
+    }
+}
+
+unsafe impl Send for PyObject {}
 
 pub struct PythonInterface {
     initialized: bool,
     event_sender: mpsc::Sender<EventBody>,
-    postinit_ptr: MustInitialize<extern "C" fn(console_fd: usize) -> i32>,
-    evaluate_ptr: MustInitialize<
-        extern "C" fn(
-            result: *mut ValueResult,
+    postinit_ptr: MustInitialize<unsafe extern "C" fn(console_fd: usize) -> bool>,
+    compile_code_ptr: MustInitialize<
+        unsafe extern "C" fn(
+            result: *mut PyResult<*mut c_void>,
             expr: *const c_char,
             expr_len: usize,
+            filename: *const c_char,
+            filename_len: usize,
+        ) -> bool,
+    >,
+    evaluate_ptr: MustInitialize<
+        unsafe extern "C" fn(
+            result: *mut PyResult<SBValue>,
+            code: *mut c_void,
             is_simple_expr: bool,
             context: SBExecutionContext,
-        ) -> i32,
+        ) -> bool,
     >,
     evaluate_as_bool_ptr: MustInitialize<
-        extern "C" fn(
-            result: *mut BoolResult,
-            expr: *const c_char,
-            expr_len: usize,
+        unsafe extern "C" fn(
+            result: *mut PyResult<bool>,
+            pycode: *mut c_void,
             is_simple_expr: bool,
             context: SBExecutionContext,
-        ) -> i32,
+        ) -> bool,
     >,
-    modules_loaded_ptr: MustInitialize<extern "C" fn(modules: *const SBModule, modules_len: usize) -> i32>,
-    shutdown_ptr: MustInitialize<extern "C" fn() -> i32>,
+    modules_loaded_ptr: MustInitialize<unsafe extern "C" fn(modules: *const SBModule, modules_len: usize) -> bool>,
+    drop_pyobject_ptr: MustInitialize<unsafe extern "C" fn(obj: *mut c_void)>,
+    shutdown_ptr: MustInitialize<unsafe extern "C" fn() -> bool>,
 }
 
 pub fn initialize(
     interpreter: SBCommandInterpreter,
-    console_stream: std::fs::File,
+    adapter_dir: &Path,
+    console_stream: Option<std::fs::File>,
 ) -> Result<(Box<PythonInterface>, mpsc::Receiver<EventBody>), Error> {
-    let current_exe = env::current_exe()?;
     let mut command_result = SBCommandReturnObject::new();
 
     // Import debugger.py into script interpreter's namespace.
     // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
-    let init_script = current_exe.with_file_name("debugger.py");
+    let init_script = adapter_dir.join("debugger.py");
     let command = format!("command script import '{}'", init_script.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
@@ -67,25 +85,31 @@ pub fn initialize(
         initialized: false,
         event_sender: sender,
         postinit_ptr: NotInitialized,
+        compile_code_ptr: NotInitialized,
         shutdown_ptr: NotInitialized,
         evaluate_ptr: NotInitialized,
         evaluate_as_bool_ptr: NotInitialized,
         modules_loaded_ptr: NotInitialized,
+        drop_pyobject_ptr: NotInitialized,
     });
 
     unsafe extern "C" fn init_callback(
         interface: *mut PythonInterface,
         postinit_ptr: *const c_void,
         shutdown_ptr: *const c_void,
+        compile_code_ptr: *const c_void,
         evaluate_ptr: *const c_void,
         evaluate_as_bool_ptr: *const c_void,
         modules_loaded_ptr: *const c_void,
+        drop_pyobject_ptr: *const c_void,
     ) {
         (*interface).postinit_ptr = Initialized(mem::transmute(postinit_ptr));
         (*interface).shutdown_ptr = Initialized(mem::transmute(shutdown_ptr));
+        (*interface).compile_code_ptr = Initialized(mem::transmute(compile_code_ptr));
         (*interface).evaluate_ptr = Initialized(mem::transmute(evaluate_ptr));
         (*interface).evaluate_as_bool_ptr = Initialized(mem::transmute(evaluate_as_bool_ptr));
         (*interface).modules_loaded_ptr = Initialized(mem::transmute(modules_loaded_ptr));
+        (*interface).drop_pyobject_ptr = Initialized(mem::transmute(drop_pyobject_ptr));
         (*interface).initialized = true;
     }
 
@@ -135,71 +159,91 @@ pub fn initialize(
         bail!("Could not initialize Python environment.");
     }
 
-    (*interface.postinit_ptr)(get_raw_fd(console_stream));
+    if let Some(console_stream) = console_stream {
+        unsafe {
+            (*interface.postinit_ptr)(get_raw_fd(console_stream));
+        }
+    }
 
-    let rust_formatters = current_exe.with_file_name("rust.py");
-    let command = format!("command script import '{}'", rust_formatters.to_str().unwrap());
+    // Init formatters
+    let formatters = adapter_dir.parent().unwrap().join("formatters");
+    let command = format!("command script import '{}'", formatters.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
-        error!("{:?}", command_result); // But carry on - Rust formatters are not critical to have.
+        error!("{:?}", command_result);
     }
 
     Ok((interface, receiver))
 }
 
 impl PythonInterface {
-    pub fn evaluate(&self, expr: &str, is_simple_expr: bool, context: &SBExecutionContext) -> Result<SBValue, String> {
+    pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, String> {
+        let expt_ptr = expr.as_ptr() as *const c_char;
+        let expr_size = expr.len();
+        let filename_ptr = filename.as_ptr() as *const c_char;
+        let filename_size = filename.len();
+        let mut result = PyResult::Invalid;
         unsafe {
-            let expt_ptr = expr.as_ptr() as *const c_char;
-            let expr_size = expr.len();
-            let mut result = ValueResult {
-                value: mem::MaybeUninit::uninit(),
-            };
-            let status = (*self.evaluate_ptr)(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
-            if status > 0 {
-                Ok(result.value.assume_init())
-            } else if status < 0 {
-                Err(result.error.assume_init().to_string())
-            } else {
-                Err("Evaluation failed".into())
-            }
+            (*self.compile_code_ptr)(&mut result, expt_ptr, expr_size, filename_ptr, filename_size);
+        }
+        match result {
+            PyResult::Ok(object) => Ok(PyObject {
+                object: object,
+                destructor: *self.drop_pyobject_ptr.unwrap(),
+            }),
+            PyResult::Err(error) => Err(error.to_string()),
+            _ => Err("Evaluation failed".into()),
+        }
+    }
+
+    pub fn evaluate(
+        &self,
+        code: &PyObject,
+        is_simple_expr: bool,
+        context: &SBExecutionContext,
+    ) -> Result<SBValue, String> {
+        let mut result = PyResult::Invalid;
+        unsafe {
+            (*self.evaluate_ptr)(&mut result, code.object, is_simple_expr, context.clone());
+        }
+        match result {
+            PyResult::Ok(value) => Ok(value),
+            PyResult::Err(error) => Err(error.to_string()),
+            _ => Err("Evaluation failed".into()),
         }
     }
 
     pub fn evaluate_as_bool(
         &self,
-        expr: &str,
+        code: &PyObject,
         is_simple_expr: bool,
         context: &SBExecutionContext,
     ) -> Result<bool, String> {
+        let mut result = PyResult::Invalid;
         unsafe {
-            let expt_ptr = expr.as_ptr() as *const c_char;
-            let expr_size = expr.len();
-            let mut result = BoolResult {
-                value: false,
-            };
-            let status =
-                (*self.evaluate_as_bool_ptr)(&mut result, expt_ptr, expr_size, is_simple_expr, context.clone());
-            if status > 0 {
-                Ok(result.value)
-            } else if status < 0 {
-                Err(result.error.assume_init().to_string())
-            } else {
-                Err("Evaluation failed".into())
-            }
+            (*self.evaluate_as_bool_ptr)(&mut result, code.object, is_simple_expr, context.clone());
+        }
+        match result {
+            PyResult::Ok(value) => Ok(value),
+            PyResult::Err(error) => Err(error.to_string()),
+            _ => Err("Evaluation failed".into()),
         }
     }
 
     pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
         let modules = modules.cloned().collect::<Vec<SBModule>>();
-        (*self.modules_loaded_ptr)(modules.as_ptr(), modules.len());
+        unsafe {
+            (*self.modules_loaded_ptr)(modules.as_ptr(), modules.len());
+        }
     }
 }
 
 impl Drop for PythonInterface {
     fn drop(&mut self) {
         if self.initialized {
-            (*self.shutdown_ptr)();
+            unsafe {
+                (*self.shutdown_ptr)();
+            }
         }
     }
 }
@@ -223,4 +267,38 @@ fn test_sizeof() {
     assert_eq!(mem::size_of::<SBExecutionContext>(), 16);
     assert_eq!(mem::size_of::<SBValue>(), 16);
     assert_eq!(mem::size_of::<SBModule>(), 16);
+    assert_eq!(mem::size_of::<PyObject>(), 16);
+}
+
+lazy_static::lazy_static! {
+    static ref DEBUGGER: SBDebugger = {
+        use lldb::*;
+        std::env::remove_var("PYTHONHOME");
+        std::env::remove_var("PYTHONPATH");
+        SBDebugger::initialize();
+        SBDebugger::create(false)
+    };
+}
+
+#[test]
+fn pypath() {
+    use lldb::*;
+    let interp = DEBUGGER.command_interpreter();
+    let mut result = SBCommandReturnObject::new();
+    let status = interp.handle_command("script import sys; print(sys.path)", &mut result, false);
+    println!("result = {:?}", result.output());
+    assert_eq!(status, ReturnStatus::SuccessFinishNoResult);
+}
+
+#[test]
+fn evaluate() {
+    use lldb::*;
+    let interp = DEBUGGER.command_interpreter();
+    let (python, _) = initialize(interp, Path::new("."), None).unwrap();
+    let context = SBExecutionContext::from_target(&DEBUGGER.dummy_target());
+    let pycode = python.compile_code("2+2", "<string>").unwrap();
+    let result = python.evaluate(&pycode, true, &context);
+    println!("result = {:?}", result);
+    let value = result.unwrap().value_as_signed(0);
+    assert_eq!(value, 4);
 }

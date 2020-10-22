@@ -1,3 +1,4 @@
+use ops::{Deref, DerefMut};
 use std::ops;
 
 #[derive(Debug)]
@@ -16,9 +17,12 @@ impl<T> MustInitialize<T> {
             NotInitialized => false,
         }
     }
+    pub fn unwrap(&self) -> &T {
+        self.deref()
+    }
 }
 
-impl<T> ops::Deref for MustInitialize<T> {
+impl<T> Deref for MustInitialize<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -31,7 +35,7 @@ impl<T> ops::Deref for MustInitialize<T> {
     }
 }
 
-impl<T> ops::DerefMut for MustInitialize<T> {
+impl<T> DerefMut for MustInitialize<T> {
     fn deref_mut(&mut self) -> &mut T {
         match self {
             Initialized(ref mut r) => r,

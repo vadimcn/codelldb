@@ -563,7 +563,6 @@ configurations when there is no existing `launch.json`.
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
 |**lldb.library**       |Which LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
-|**lldb.libpython**     |Which Python library to use.  This setting overrides automatic Python location logic.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.

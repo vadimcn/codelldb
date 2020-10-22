@@ -2,7 +2,7 @@
 - Node.js and npm, v8 or later.
 - Python 3.5 or later.
 - C++ compiler (GCC, clang or MSVC).
-- Rust nightly 2020-05-04 or later.  Be sure to add an override for CodeLLDB directory so it uses the nightly.
+- Rust 1.45 or later.
 - (Windows only) mingw-w64 toolchain (used for tests).
 
 # Install LLDB or build it from source.
@@ -17,28 +17,19 @@ make lldb lldb-server
 ```
 Please note that on Windows, LLDB is expected to have been built with the MSVC compiler.
 
-CodeLLDB build scripts expect to find the following files under ${LLDB_ROOT}:
-```
-bin/
-  lldb[.exe]
-  lldb-server[.exe]
-  liblldb.dll            (Windows)
-lib/
-  liblldb.so.<version>   (Linux)
-  liblldb<version>.dylib (OSX)
-  python3/               (Linux and OSX)
-  site-packages/         (Windows)
-    <python files>
-```
+Package liblldb and its dependencies into a zip archive.
+(This gets rather tricky if you want to obtain a self-contained package, however for local testing just zipping
+bin/ and lib/ directories will do.)
 
 # Configure CodeLLDB:
 ```
 npm install
 mkdir build  # (directory can be changed, but tasks.json assumes it's "build")
 cd build
-cmake .. -DLLDB_ROOT=<path to LLDB directory>
+cmake .. -LLDB_PACKAGE=<path>
 ```
-- `LLDB_ROOT` specifies the directory where required LLDB components will be pulled from.
+- `LLDB_PACKAGE` specifies path to a zip archive containing LLDB files.   Creating one from scratch is... non-trivial.
+   If you'd like to build CodeLLDB from source, just zip up the contents of the `<extension`>/lldb directory and use that.
 
 3. Useful targets:
 - `extension` - build VSCode extension.

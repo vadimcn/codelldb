@@ -16,5 +16,14 @@ fn main() {
             println!("cargo:rustc-cdylib-link-arg=-undefined");
             println!("cargo:rustc-cdylib-link-arg=dynamic_lookup");
         }
+    } else {
+        if target_os == "linux" || target_os == "macos" {
+            #[rustfmt::skip]
+            let origin = if target_os == "linux" { "$ORIGIN" } else { "@loader_path" };
+            // Relative to adapter/
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-rpath,{}/../lldb/lib", origin);
+            // Relative to target/debug/deps/ - for `cargo test`
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-rpath,{}/../../../lldb/lib", origin);
+        }
     }
 }

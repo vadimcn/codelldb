@@ -6,7 +6,8 @@ import logging
 import debugger
 import traceback
 import ctypes
-from ctypes import CFUNCTYPE, POINTER, pointer, sizeof, byref, memmove, c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p
+from ctypes import CFUNCTYPE, POINTER, pointer, py_object, sizeof, byref, memmove,\
+                   c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p, py_object
 from value import Value
 
 logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
@@ -24,57 +25,67 @@ log = logging.getLogger('codelldb')
 #============================================================================================
 
 class SBError(ctypes.Structure):
-    _fields_ = [("_opaque", c_int64)]
+    _fields_ = [('_opaque', c_int64)]
     swig_type = lldb.SBError
 
 class SBExecutionContext(ctypes.Structure):
-    _fields_ = [("_opaque", c_int64 * 2)]
+    _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBExecutionContext
 
 class SBValue(ctypes.Structure):
-    _fields_ = [("_opaque", c_int64 * 2)]
+    _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBValue
 
 class SBModule(ctypes.Structure):
-    _fields_ = [("_opaque", c_int64 * 2)]
+    _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBModule
 
-class ValueResult(ctypes.Union):
-    _fields_ = [('value', SBValue),
-                ('error', SBError)]
+# Generates a FFI type compatible with Rust #[repr(C, i32)] enum
+def RustEnum(enum_name, *variants):
+    # type: ( List[Tuple[str,type]] ) -> type
+    class V(ctypes.Union):
+        _fields_ = variants
+    class Enum(ctypes.Structure):
+        _fields_ = [('discr', c_int),
+                    ('var', V)]
+        def __str__(self):
+            name = variants[self.discr][0];
+            return '{0}({1})'.format(name, getattr(self.var, name))
+    for discr, (name, ty) in enumerate(variants):
+        def constructor(value, discr=discr, name=name):
+            e = Enum()
+            e.discr = discr
+            setattr(e.var, name, value)
+            return e
+        setattr(Enum, name, constructor)
+    Enum.__name__ = enum_name
+    return Enum
 
-class BoolResult(ctypes.Union):
-    _fields_ = [('value', c_bool),
-                ('error', SBError)]
+def PyResult(name, T):
+    return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', SBError))
 
-SUCCESS = 1
-ERROR = -1
+ValueResult = PyResult('ValueResult', SBValue)
+BoolResult = PyResult('BoolResult', c_bool)
+PyObjectResult = PyResult('PyObjectResult', py_object)
 
-postinit_cfn = None
-shutdown_cfn = None
-evaluate_cfn = None
-evaluate_as_bool_cfn = None
-modules_loaded_cfn = None
+
 display_html = None
 save_stdout = None
 
 def initialize(log_level, init_callback_addr, display_html_addr, callback_context):
+    global display_html
+
     logging.getLogger().setLevel(log_level)
 
-    global postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
-    postinit_cfn = CFUNCTYPE(c_int, c_size_t)(postinit)
-    shutdown_cfn = CFUNCTYPE(c_int)(shutdown)
-    evaluate_cfn = CFUNCTYPE(c_int, POINTER(ValueResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate)
-    evaluate_as_bool_cfn = CFUNCTYPE(c_int, POINTER(BoolResult), POINTER(c_char), c_size_t, c_bool, SBExecutionContext)(evaluate_as_bool)
-    modules_loaded_cfn = CFUNCTYPE(c_int, POINTER(SBModule), c_size_t)(modules_loaded)
+    args = [callback_context, postinit, shutdown, compile_code, evaluate, evaluate_as_bool, modules_loaded, drop_pyobject]
+    init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
+    init_callback(*args)
 
-    init_callback_cfn = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(init_callback_addr)
-    init_callback_cfn(callback_context, postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn)
-
-    display_html_cfn = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
-    display_html = lambda html, title, position, reveal: display_html_cfn(
+    display_html_raw = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
+    display_html = lambda html, title, position, reveal: display_html_raw(
         callback_context, str_to_bytes(html), str_to_bytes(title), position if position != None else -1, reveal)
 
+@CFUNCTYPE(c_bool, c_size_t)
 def postinit(console_fd):
     global save_stdout
     # Can't set this from inside SBInterpreter::handle_command() context,
@@ -84,48 +95,79 @@ def postinit(console_fd):
         console_fd = msvcrt.open_osfhandle(console_fd, 0)
     save_stdout = sys.stdout
     sys.stdout = os.fdopen(console_fd, 'w', 1) # line-buffered
-    return SUCCESS
+    return True
 
+@CFUNCTYPE(c_bool)
 def shutdown():
-    global postinit_cfn, shutdown_cfn, evaluate_cfn, evaluate_as_bool_cfn, modules_loaded_cfn, display_html
-    display_html = None
-    evaluate_cfn = None
-    evaluate_as_bool_cfn = None
-    modules_loaded_cfn = None
-    shutdown_cfn = None
+    global display_html, save_stdout
     sys.stdout = save_stdout
-    return SUCCESS
+    display_html = None
+    save_stdout = None
+    return True
 
-def evaluate(result, expr_ptr, expr_len, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(PyObjectResult), POINTER(c_char), c_size_t, POINTER(c_char), c_size_t)
+def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
     try:
         expr = ctypes.string_at(expr_ptr, expr_len)
+        filename = ctypes.string_at(filename_ptr, filename_len)
+        try:
+            pycode = compile(expr, filename, 'eval')
+        except SyntaxError:
+            pycode = compile(expr, filename, 'exec')
+        incref(pycode)
+        result[0] = PyObjectResult.Ok(pycode)
+    except Exception as err:
+        traceback.print_exc()
+        error = lldb.SBError()
+        error.SetErrorString(str(err))
+        error = from_swig_wrapper(error, SBError)
+        result[0] = PyObjectResult.Err(error)
+    return True
+
+@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, c_bool, SBExecutionContext)
+def evaluate(result, pycode, is_simple_expr, context):
+    try:
         context = into_swig_wrapper(context, SBExecutionContext)
-        value = evaluate_in_context(expr, is_simple_expr, context)
+        value = evaluate_in_context(pycode, is_simple_expr, context)
         value = to_sbvalue(value, context.target)
-        result.contents.value = from_swig_wrapper(value, SBValue)
-        return SUCCESS
+        result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
     except Exception as err:
         traceback.print_exc()
         error = lldb.SBError()
         error.SetErrorString(str(err))
-        result.contents.error = from_swig_wrapper(error, SBError)
-        return ERROR
+        error = from_swig_wrapper(error, SBError)
+        result[0] = ValueResult.Err(error)
+    return True
 
-def evaluate_as_bool(result, expr_ptr, expr_len, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, c_bool, SBExecutionContext)
+def evaluate_as_bool(result, code, is_simple_expr, context):
     try:
-        expr = ctypes.string_at(expr_ptr, expr_len)
         context = into_swig_wrapper(context, SBExecutionContext)
-        result.contents.value = bool(evaluate_in_context(expr, is_simple_expr, context))
-        return SUCCESS
+        value = bool(evaluate_in_context(code, is_simple_expr, context))
+        result[0] = BoolResult.Ok(value)
     except Exception as err:
         traceback.print_exc()
         error = lldb.SBError()
         error.SetErrorString(str(err))
-        result.contents.error = from_swig_wrapper(error, SBError)
-        return ERROR
+        error = from_swig_wrapper(error, SBError)
+        result[0] = BoolResult.Err(error)
+    return True
 
+@CFUNCTYPE(c_bool, POINTER(SBModule), c_size_t)
 def modules_loaded(modules_ptr, modules_len):
-    return SUCCESS
+    return True
+
+@CFUNCTYPE(c_bool, py_object)
+def drop_pyobject(obj):
+    decref(obj)
+    return True
+
+
+incref = ctypes.pythonapi.Py_IncRef
+incref.argtypes = [ctypes.py_object]
+
+decref = ctypes.pythonapi.Py_DecRef
+decref.argtypes = [ctypes.py_object]
 
 def into_swig_wrapper(cobject, ty, owned=True):
     swig_object = ty.swig_type()
@@ -190,9 +232,9 @@ def find_var_in_frame(sbframe, name):
     val = sbframe.FindVariable(name)
     if not val.IsValid():
         for val_type in [lldb.eValueTypeVariableGlobal,
-                        lldb.eValueTypeVariableStatic,
-                        lldb.eValueTypeRegister,
-                        lldb.eValueTypeConstResult]:
+                         lldb.eValueTypeVariableStatic,
+                         lldb.eValueTypeRegister,
+                         lldb.eValueTypeConstResult]:
             val = sbframe.FindValue(name, val_type)
             if val.IsValid():
                 break
@@ -214,7 +256,7 @@ class PyEvalContext(dict):
         else:
             raise KeyError(name)
 
-def evaluate_in_context(script, simple_expr, execution_context):
+def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()
     debugger = execution_context.GetTarget().GetDebugger()
     if simple_expr:
@@ -231,4 +273,4 @@ def evaluate_in_context(script, simple_expr, execution_context):
         lldb.process = lldb.thread.GetProcess()
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
-    return eval(script, eval_globals, eval_locals)
+    return eval(code, eval_globals, eval_locals)

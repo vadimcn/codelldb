@@ -16,6 +16,7 @@ mod prelude {
 
 #[macro_use]
 mod error;
+mod cancellation;
 mod dap_codec;
 mod dap_session;
 mod debug_event_listener;
@@ -32,6 +33,7 @@ mod terminal;
 mod vec_map;
 
 #[no_mangle]
+#[allow(improper_ctypes_definitions)]
 pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
     hook_crashes();
     env_logger::Builder::from_default_env().init();

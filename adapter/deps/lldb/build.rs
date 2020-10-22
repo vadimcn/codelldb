@@ -15,6 +15,7 @@ fn main() {
     // Generate C++ bindings
     let mut build_config = cpp_build::Config::new();
     build_config.include("include");
+    build_config.debug(true);
     if weak_linkage {
         build_config.cpp_link_stdlib(None);
     }

@@ -40,6 +40,19 @@ impl SBModule {
             return self->GetObjectFileHeaderAddress();
         })
     }
+    pub fn num_symbols(&self) -> u32 {
+        cpp!(unsafe [self as "SBModule*"] -> u32 as "uint32_t" {
+                return self->GetNumSymbols();
+        })
+    }
+    pub fn symbol_at_index(&self, index: u32) -> SBSymbol {
+        cpp!(unsafe [self as "SBModule*", index as "uint32_t"] -> SBSymbol as "SBSymbol" {
+            return self->GetSymbolAtIndex(index);
+        })
+    }
+    pub fn symbols<'a>(&'a self) -> impl Iterator<Item = SBSymbol> + 'a {
+        SBIterator::new(self.num_symbols(), move |index| self.symbol_at_index(index))
+    }
 }
 
 impl IsValid for SBModule {

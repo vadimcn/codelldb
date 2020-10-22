@@ -116,6 +116,20 @@ impl SBProcess {
             return self->GetSTDERR((char*)ptr, len);
         })
     }
+    pub fn read_memory(&self, addr: Address, buffer: &mut [u8]) -> Result<usize, SBError> {
+        let ptr = buffer.as_mut_ptr();
+        let len = buffer.len();
+        let mut error = SBError::new();
+        let bytes_read = cpp!(unsafe [self as "SBProcess*", addr as "addr_t", ptr as "uint8_t*", len as "size_t",
+                                      mut error as "SBError"] -> usize as "size_t" {
+            return self->ReadMemory(addr, (void*)ptr, len, error);
+        });
+        if error.is_success() {
+            Ok(bytes_read)
+        } else {
+            Err(error)
+        }
+    }
 }
 
 impl IsValid for SBProcess {

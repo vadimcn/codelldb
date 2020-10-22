@@ -15,23 +15,26 @@ export interface AdapterStartOptions {
 
 export async function start(
     liblldb: string,
-    libpython: string,
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let env = mergedEnvironment(options.extraEnv);
     let executable = path.join(options.extensionRoot, 'adapter/codelldb');
     let args = ['--liblldb', liblldb];
-    if (libpython) {
-        args.push('--libpython', libpython);
-    }
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
+    }
+
+    let env = mergedEnvironment(options.extraEnv);
+    // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
+    for (let name of ['PYTHONHOME', 'PYTHONPATH']) {
+        if (options.extraEnv[name] === undefined)
+            delete env[name];
     }
     env['RUST_TRACEBACK'] = '1';
     if (options.verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
     }
+
     return spawnDebugAdapter(executable, args, env, options.workDir);
 }
 
@@ -152,13 +155,4 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
         // Ignore missing diractories and such...
     }
     return null;
-}
-
-// Ask codelldb to locate libpython
-export async function findLibPython(extensionRoot: string, extraEnv: Dict<string> = undefined): Promise<string> {
-    let adapter = path.join(extensionRoot, 'adapter/codelldb');
-    let options = extraEnv ? { env: mergedEnvironment(extraEnv) } : {};
-    return async.cp.execFile(adapter, ['find-python'], options)
-        .then(result => result.stdout.trim())
-        .catch(_err => null);
 }

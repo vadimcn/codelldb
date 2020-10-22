@@ -4,19 +4,19 @@ use crate::vec_map::VecMap;
 use serde_derive::*;
 
 pub use raw_debug_protocol::{
-    Breakpoint, BreakpointEventBody, Capabilities, CapabilitiesEventBody, CompletionItem, CompletionsArguments,
-    CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody, DataBreakpoint,
-    DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody, DisconnectArguments,
-    EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget,
-    GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module, ModuleEventBody, NextArguments,
-    OutputEventBody, PauseArguments, RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments,
-    RunInTerminalResponseBody, Scope, ScopesArguments, ScopesResponseBody, SetBreakpointsArguments,
-    SetBreakpointsResponseBody, SetDataBreakpointsArguments, SetDataBreakpointsResponseBody,
-    SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody,
-    Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
-    StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments,
-    TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
-    VariablesResponseBody,
+    Breakpoint, BreakpointEventBody, CancelArguments, Capabilities, CapabilitiesEventBody, CompletionItem,
+    CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
+    DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
+    DisconnectArguments, EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody,
+    GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module,
+    ModuleEventBody, NextArguments, OutputEventBody, PauseArguments, ReadMemoryArguments, ReadMemoryResponseBody,
+    RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope,
+    ScopesArguments, ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody,
+    SetDataBreakpointsArguments, SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments,
+    SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
+    SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
+    StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread,
+    ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -69,6 +69,7 @@ pub enum Command {
 #[serde(tag = "command", content = "arguments")]
 pub enum RequestArguments {
     initialize(InitializeRequestArguments),
+    cancel(CancelArguments),
     launch(LaunchRequestArguments),
     attach(AttachRequestArguments),
     setBreakpoints(SetBreakpointsArguments),
@@ -96,12 +97,14 @@ pub enum RequestArguments {
     setVariable(SetVariableArguments),
     dataBreakpointInfo(DataBreakpointInfoArguments),
     setDataBreakpoints(SetDataBreakpointsArguments),
+    readMemory(ReadMemoryArguments),
     terminate(Option<TerminateArguments>),
     disconnect(Option<DisconnectArguments>),
-    // Custom
-    adapterSettings(AdapterSettings),
     // Reverse
     runInTerminal(RunInTerminalRequestArguments),
+    // Custom
+    _adapterSettings(AdapterSettings),
+    _symbols(SymbolsRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -109,6 +112,7 @@ pub enum RequestArguments {
 pub enum ResponseBody {
     Async,
     initialize(Capabilities),
+    cancel,
     launch,
     attach,
     setBreakpoints(SetBreakpointsResponseBody),
@@ -136,12 +140,14 @@ pub enum ResponseBody {
     setVariable(SetVariableResponseBody),
     dataBreakpointInfo(DataBreakpointInfoResponseBody),
     setDataBreakpoints(SetDataBreakpointsResponseBody),
+    readMemory(ReadMemoryResponseBody),
     terminate,
     disconnect,
-    // Custom
-    adapterSettings,
     // Reverse
     runInTerminal(RunInTerminalResponseBody),
+    // Custom
+    _adapterSettings,
+    _symbols(SymbolsResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -293,6 +299,34 @@ pub enum Expressions {
 pub enum Either<T1, T2> {
     First(T1),
     Second(T2),
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsContinuation {
+    pub next_module: u32,
+    pub next_symbol: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Symbol {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsRequest {
+    pub continuation_token: Option<SymbolsContinuation>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolsResponse {
+    pub symbols: Vec<Symbol>,
+    pub continuation_token: Option<SymbolsContinuation>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

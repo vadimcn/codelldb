@@ -2,19 +2,28 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION 1.5.3)
+set(VERSION "1.6.0") # Base version
 
 include(cmake/CopyFiles.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
 
-set(LLDB_ROOT $ENV{LLDB_ROOT} CACHE PATH "Root of LLDB build directory")
-if (LLDB_ROOT)
-    message("Using LLDB from ${LLDB_ROOT}")
-else()
-    message(FATAL_ERROR "LLDB_ROOT not set." )
+set(VERSION_SUFFIX "-" CACHE INTERNAL "Version suffix")
+if (VERSION_SUFFIX STREQUAL "-")
+    string(TIMESTAMP VERSION_SUFFIX "-dev.%y%m%d%H%M" UTC)
 endif()
+set(VERSION "${VERSION}${VERSION_SUFFIX}")
+message("Version ${VERSION}")
+
+set(LLDB_PACKAGE $ENV{LLDB_PACKAGE} CACHE PATH "Zip archive containing LLDB files")
+if (LLDB_PACKAGE)
+    message("Using LLDB_PACKAGE=${LLDB_PACKAGE}")
+else()
+    message(FATAL_ERROR "LLDB_PACKAGE not set." )
+endif()
+
+set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
 
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -23,8 +32,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-unknown-linux-gnu)
-    set(AllowedDependencies linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
-                            libm.so.6 libc.so.6 /lib64/ld-linux-x86-64.so.2)
+    set(AllowedDependencies liblldb.so libpython3.* linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
+                            libm.so.6 libc.so.6 libexpat.so.1 libz.so.1 libutil.so.1
+                            /lib64/ld-linux-x86-64.so.2)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DylibPrefix lib)
     set(DylibSuffix .dylib)
@@ -32,10 +42,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
-    set(AllowedDependencies Foundation CoreFoundation CoreServices Security
-                            libcompression.dylib libxml2.2.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
-                            libresolv.9.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib
-                            libcodelldb.dylib liblldb.dylib Python)
+    set(AllowedDependencies Foundation CoreFoundation CoreServices Security SystemConfiguration
+                            libcompression.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
+                            libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib
+                            libcodelldb.dylib liblldb.dylib libpython3.*.dylib)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
@@ -44,15 +54,15 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
     set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll ADVAPI32.dll VCRUNTIME140.dll MSVCP140.dll RPCRT4.dll
-                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll
-                            python3.dll liblldb.dll)
+                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll SHLWAPI.dll
+                            python3.*.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
 string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
 
-find_package(Python3 COMPONENTS Interpreter Development)
+find_package(Python3 COMPONENTS Interpreter)
 
 if (NOT LLVM_TRIPLE)
 set(LLVM_TRIPLE ${DefaultTarget})
@@ -66,6 +76,9 @@ set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
 add_subdirectory(adapter)
 add_subdirectory(lldb)
+add_subdirectory(formatters)
+
+add_dependencies(codelldb_lib lldb formatters)
 
 # Extension package content
 
@@ -141,7 +154,6 @@ set(PackagedFilesBootstrap
     README.md
     CHANGELOG.md
     extension.js
-    formatters/*
     images/*
     syntaxes/*
 )
@@ -151,15 +163,15 @@ set(PackagedFilesFull
     platform.ok
     adapter/*.py
     adapter/codelldb
-    adapter/libcodelldb.so
-    adapter/libcodelldb_python.so
-    adapter/libcodelldb.dylib
-    adapter/libcodelldb_python.dylib
     adapter/codelldb.exe
+    adapter/libcodelldb.so
+    adapter/libcodelldb.dylib
     adapter/codelldb.dll
     adapter/codelldb_python.dll
     lldb/bin/**/*
     lldb/lib/**/*
+    lldb/DLLs/**/*
+    formatters/**/*.py
 )
 
 # Indicator file used to determine whether we have the platform package.
@@ -256,7 +268,7 @@ endif()
 # Tests
 
 set(MochaTest ${NPM} run mocha --
-    -u tdd --timeout 30000 --exit
+    -u tdd --timeout ${TEST_TIMEOUT} --exit
     --require source-map-support/register
     #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js
@@ -283,9 +295,18 @@ foreach(TestTriple ${TestTriples})
     set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
 endforeach(TestTriple)
 
+# Run adapter tests
+add_custom_target(check_adapter
+    DEPENDS codelldb debuggee tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "adapter:" --verbose
+    USES_TERMINAL
+)
+
+# Run all tests
 add_custom_target(check
-    DEPENDS tests cargo_test
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS codelldb debuggee tests cargo_test
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+    USES_TERMINAL
 )
 
 # Install

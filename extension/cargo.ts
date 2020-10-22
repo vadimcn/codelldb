@@ -1,8 +1,9 @@
 import { window, DebugConfiguration, env } from 'vscode';
 import * as cp from 'child_process';
-import * as async from './novsc/async';
 import * as path from 'path';
+import * as readline from 'readline';
 import { inspect } from 'util';
+import * as async from './novsc/async';
 import { Dict } from './novsc/commonTypes';
 import { output } from './main';
 import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
@@ -62,11 +63,11 @@ export class Cargo {
 
         if (artifacts.length == 0) {
             output.show();
-            window.showErrorMessage('Cargo has produced no matching compiler artifacts.', { modal: true });
+            window.showErrorMessage('Cargo has produced no matching compilation artifacts.', { modal: true });
             throw new Error('Cannot start debugging.');
         } else if (artifacts.length > 1) {
             output.show();
-            window.showErrorMessage('Cargo has produced more than one matching compiler artifact.', { modal: true });
+            window.showErrorMessage('Cargo has produced more than one matching compilation artifact.', { modal: true });
             throw new Error('Cannot start debugging.');
         }
 
@@ -207,19 +208,15 @@ export class Cargo {
             cargo.on('error', err => {
                 reject(new Error(`could not launch cargo: ${err}`));
             });
+
             cargo.stderr.on('data', chunk => {
                 onStderrString(chunk.toString());
             });
 
-            let stdout = '';
-            cargo.stdout.on('data', chunk => {
-                stdout += chunk
-                let lines = stdout.split('\n');
-                stdout = lines.pop();
-                for (let line of lines) {
-                    let message = JSON.parse(line);
+            let rl = readline.createInterface({ input: cargo.stdout });
+            rl.on('line', line => {
+                const message = JSON.parse(line);
                     onStdoutJson(message);
-                }
             });
 
             cargo.on('exit', (exitCode, signal) => {

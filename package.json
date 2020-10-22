@@ -14,10 +14,10 @@
 	],
 	"keywords": [
 		"LLDB",
-		"Native",
-		"C++",
 		"Rust",
-		"Disassembly"
+		"C++",
+		"Native",
+		"Assembly"
 	],
 	"private": true,
 	"repository": {
@@ -27,7 +27,7 @@
 	"bugs": {
 		"url": "https://github.com/vadimcn/vscode-lldb/issues"
 	},
-	"qna": "https://stackoverflow.com/questions/tagged/visual-studio-code+codelldb",
+	"qna": "https://groups.google.com/g/codelldb-users",
 	"engines": {
 		"vscode": "^1.31.0"
 	},
@@ -114,6 +114,12 @@
 				"category": "LLDB",
 				"title": "Attach to Process...",
 				"command": "lldb.attach"
+			},
+			{
+				"category": "LLDB",
+				"title": "Symbols...",
+				"command": "lldb.symbols",
+				"enablement": "debugType == 'lldb'"
 			}
 		],
 		"languages": [
@@ -156,11 +162,6 @@
 			"properties": {
 				"lldb.library": {
 					"markdownDescription": "Which LLDB library to use.\n\nThis can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
-					"type": "string",
-					"scope": "resource"
-				},
-				"lldb.libpython": {
-					"markdownDescription": "Which Python library to use.",
 					"type": "string",
 					"scope": "resource"
 				},
@@ -250,9 +251,7 @@
 					"items": {
 						"type": "string"
 					},
-					"default": [
-						"\n"
-					],
+					"default": null,
 					"scope": "resource"
 				},
 				"lldb.launch.initCommands": {
@@ -420,6 +419,9 @@
 				"language": "objective-c"
 			},
 			{
+				"language": "objective-cpp"
+			},
+			{
 				"language": "objectpascal"
 			},
 			{
@@ -450,6 +452,7 @@
 					"fortran",
 					"nim",
 					"objective-c",
+					"objective-cpp",
 					"objectpascal",
 					"pascal",
 					"rust"

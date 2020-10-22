@@ -28,7 +28,7 @@ class Value(object):
                 return Value(child_sbvalue)
             raise IndexError("Index '%d' is out of range" % key)
         else:
-            return [self[i] for i in xrange(*key.indices(len(self)))]
+            return [self[i] for i in range(*key.indices(len(self)))]
 
     def __iter__(self):
         return ValueIter(self.__sbvalue)

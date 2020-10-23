@@ -7,7 +7,7 @@
             - [Stdio Redirection](#stdio-redirection)
         - [Attaching to an Existing Process](#attaching-to-a-running-process)
         - [Custom Launch](#custom-launch)
-    - [Starting Debug Session Outside of VSCode](#starting-debug-session-outside-of-vscode)
+    - [Debugging Externally Launched Code](#debugging-externally-launched-code)
     - [Remote Debugging](#remote-debugging)
     - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Inspecting a Core Dump](#inspecting-a-core-dump)
@@ -30,7 +30,13 @@
 
 # Starting a New Debug Session
 
-To start a debug session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.  The `request` property of the configuration chooses how it will be done:
+To start a debug session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.
+The `request` property of launch configuration chooses how the debug session will be created, it may be one of `launch`, `attach` or `custom`.
+Please see the following sections for a detailed description of each of the options.
+
+Note that many of the launch parameters may be given default values via user, workspace or folder-level VSCode configuration files
+(see [Default Launch Configuration Settings](#default-launch-configuration-settings)).
+
 
 ## Launching a New Process
 
@@ -50,7 +56,7 @@ To start a debug session you will need to create a [launch configuration](https:
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.
 |**postRunCommands**|[string]| | LLDB commands executed just after launching the debuggee.
-|**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
+|**exitCommands**   |[string]| | LLDB commands executed at the end of the debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
@@ -96,7 +102,7 @@ stdout to "log.txt",
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before attaching to the debuggee.
 |**postRunCommands**|[string]| | LLDB commands executed just after attaching to the debuggee.
-|**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
+|**exitCommands**   |[string]| | LLDB commands executed at the end of the debugging session.
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
@@ -141,60 +147,72 @@ The custom launch method allows user to fully specify how the debug session is i
 |**reverseDebugging**|bool| | Enable [reverse debugging](#reverse-debugging).
 
 
-## Starting Debug Session Outside of VSCode
+## Debugging Externally Launched Code
 
-Debug sessions may also be started outside of VSCode by invoking a specially formatted URI:
+Debugging sessions may also be started from outside of VSCode by invoking a specially formatted URI:
 
 - **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
-  workspace folder where the launch configuration is defined. If missing, all folders in the current workspace will be searched.<br>
+  the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.<br>
   Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
 - **`vscode://vadimcn.vscode-lldb/launch/command?<env1>=<val1>&<env2>=<val2>&<command-line>`**</br>
-  The \<command-line\> will be split into program name and arguments array using the usual shell command-line parsing rules.<br>
+  The \<command-line\> will be split into the program name and arguments array using the usual shell command-line parsing rules.<br>
   Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
 - **`vscode://vadimcn.vscode-lldb/launch/config?<json>`**</br>
   This endpoint accepts a <a href="https://json5.org/">JSON5</a> snippet matching one of the above debug session initiation methods.
   The `type` and `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.<br>
   Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program:'/path/filename', args:['arg1','arg 2','arg3']}"`
 
-### Applications
-
-- Attach debugger to the current process:
-    ```C
-    char command[256];
-    snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{request:'attach',pid:%d}\"", getpid());
-    system(command);
-    sleep(1); // Wait for the debugger to attach
-    ```
-
-- Same in Rust (did you ever want to debug a build script?):
-    ```Rust
-    let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{request:'attach',pid:{}}}", std::process::id());
-    std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
-    std::thread::sleep_ms(1000);
-    ```
-
-- Have Rust unit tests executed under debugger:<br>
-    - Create `.cargo` directory in your project folder containing these two files:
-        - `config` [(see also)](https://doc.rust-lang.org/cargo/reference/config.html)
-            ```TOML
-            [target.<current-target-triple>]
-            runner = ".cargo/codelldb"
-            ```
-        - `codelldb`
-            ```sh
-            #! /bin/bash
-            code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
-            ```
-    - `chmod +x .cargo/codelldb`
-    - Execute tests as normal.
-
-### Notes
+Notes:
 - All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), therefore all '%' characters must be escaped as '%25'.   A more rigorous launcher script would have done that :)<br>
 - VSCode URIs may also be invoked using OS-specific tools:
   - Linux: `xdg-open <uri>`
   - MacOS: `open <uri>`
   - Windows: `start <uri>`
+
+Examples:
+
+### Attaching debugger to the current process (C)
+```C
+char command[256];
+snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{request:'attach',pid:%d}\"", getpid());
+system(command);
+sleep(1); // Wait for debugger to attach
+```
+
+### Attaching debugger to the current process (Rust)
+Ever wanted to debug a build script?
+```Rust
+let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{request:'attach',pid:{}}}", std::process::id());
+std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
+std::thread::sleep_ms(1000); // Wait for debugger to attach
+```
+
+### Debugging Rust unit tests
+- Create `.cargo` directory in your project folder containing these two files:
+    - `config` [(see also)](https://doc.rust-lang.org/cargo/reference/config.html)
+        ```TOML
+        [target.<current-target-triple>]
+        runner = ".cargo/codelldb.sh"
+        ```
+    - `codelldb.sh`
+        ```sh
+        #!/bin/bash
+        code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
+        ```
+- `chmod +x .cargo/codelldb.sh`
+- Execute tests as normal.
+
+### Bazel
+- Create `codelldb.sh`:
+    ```sh
+    #!/bin/bash
+    code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
+    ```
+- `chmod +x codelldb.sh`
+
+`bazel run --run_under=codelldb.sh //<package>:<target>`
+
 
 ## Remote debugging
 
@@ -486,6 +504,7 @@ CodeLLDB can use external LLDB backends instead of the bundled one.  For example
 Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
 In order to use alternate backend, you will need to provide location of the corresponding liblldb&#46;so/.dylib/.dll
 dynamic library via the **lldb.library** configuration setting.
+
 Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
 You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the corresponding library.
 
@@ -532,7 +551,7 @@ configurations when there is no existing `launch.json`.
 
 # Workspace Configuration
 
-## Default launch configuration settings
+## Default Launch Configuration Settings
 |                                |                                                         |
 |--------------------------------|---------------------------------------------------------|
 |**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.

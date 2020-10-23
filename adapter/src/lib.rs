@@ -1,8 +1,3 @@
-#![feature(try_trait)]
-#![feature(fn_traits)]
-#![feature(untagged_unions)]
-#![feature(box_into_pin)]
-
 use crate::prelude::*;
 use futures::prelude::*;
 use lldb::*;

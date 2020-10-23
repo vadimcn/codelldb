@@ -288,6 +288,30 @@ function generateSuite(triple: string) {
                 await ds.terminate();
             });
 
+            test('variables update', async function () {
+                if (triple.endsWith('pc-windows-msvc')) this.skip();
+
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(debuggeeSource, '#BP4');
+                let stopAsync = ds.launchAndWaitForStop({ name: 'variables update', program: debuggee, args: ['vars_update'] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    });
+                let vectorExpect: { [key: string]: number; } = {};
+                for (let i = 0; i < 10; ++i) {
+                    vectorExpect[`[${i}]`] = i;
+
+                    let stoppedEvent = await stopAsync;
+                    await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
+                    let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
+                    let localsRef = await ds.getFrameLocalsRef(frameId);
+                    await ds.compareVariables(localsRef, { i: i, vector: vectorExpect });
+                    stopAsync = ds.waitForStopEvent();
+                    await ds.continueRequest({ threadId: 0 });
+                }
+                await ds.terminate();
+            })
+
             test('expressions', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
@@ -366,6 +390,7 @@ function generateSuite(triple: string) {
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
+                let vars = await ds.readVariables(localsRef);
                 await ds.compareVariables(localsRef, { i: 5 });
                 await ds.terminate();
             });

@@ -197,6 +197,16 @@ void vars()
     }
 }
 
+void vars_update()
+{
+    std::vector<int> vector;
+    for (int i = 0; i < 10; i++)
+    {
+        vector.push_back(i);
+        int zzz = i; // #BP4
+    }
+}
+
 void mandelbrot()
 {
     const int xdim = 500;
@@ -289,6 +299,10 @@ int main(int argc, char *argv[])
     else if (testcase == "vars")
     {
         vars();
+    }
+    else if (testcase == "vars_update")
+    {
+        vars_update();
     }
     else if (testcase == "header")
     {

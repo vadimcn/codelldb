@@ -10,6 +10,14 @@
 			"terminal": "integrated",
 		},
 		{
+			"name": "debuggee launch vars_update",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["vars_update"],
+			"terminal": "integrated",
+		},
+		{
 			"name": "debuggee launch threads",
 			"type": "lldb",
 			"request": "launch",

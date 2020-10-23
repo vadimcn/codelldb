@@ -19,11 +19,14 @@
 		},
 		{
 			"name": "codelldb",
-			"preLaunchTask": "make codelldb",
+			"preLaunchTask": "make dev_debugging",
 			"type": "lldb",
 			"request": "launch",
 			//"initCommands": ["settings set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter/codelldb",
+			"sourceMap": {
+				"/workspace/source": "/home/chega/NW/llvm-project2"
+			},
 			"sourceLanguages": [
 				"cpp",
 				"rust"
@@ -38,6 +41,8 @@
 					"RUST_LOG": "error,codelldb=debug",
 					"RUST_LOG_STYLE": "always",
 					"RUST_BACKTRACE": "full",
+					//"LD_DEBUG": "libs",
+					//"LD_LIBRARY_PATH": "/home/chega/NW/codelldb/build/lldb/lib",
 				},
 			},
 			"osx": {
@@ -89,15 +94,7 @@
 			],
 		},
 		{
-			"name": "codelldb find-python",
-			"type": "lldb",
-			"request": "launch",
-			"preLaunchTask": "make codelldb",
-			"program": "${workspaceFolder}/build/adapter/codelldb",
-			"args": ["find-python"]
-		},
-		{
-			"name": "codelldb python",
+			"name": "codelldb.py",
 			"type": "python",
 			"request": "attach",
 			"preLaunchTask": "wait for port 4730",
@@ -105,8 +102,12 @@
 			"host": "127.0.0.1",
 			"pathMappings": [
 				{
-					"localRoot": "${workspaceFolder}/",
-					"remoteRoot": "${workspaceFolder}/build/"
+					"remoteRoot": "${workspaceFolder}/build/adapter",
+					"localRoot": "${workspaceFolder}/adapter"
+				},
+				{
+					"remoteRoot": "${workspaceFolder}/build/formatters",
+					"localRoot": "${workspaceFolder}/formatters"
 				}
 			]
 		},
@@ -146,13 +147,12 @@
 			"cwd": "${workspaceRoot}/build",
 			"program": "${workspaceRoot}/build/node_modules/mocha/bin/mocha",
 			"args": [
-				"-u",
-				"tdd",
-				"--timeout",
-				"999999",
+				"-ui=tdd",
+				"--timeout=30000",
 				"--colors",
 				"--exit",
-				//"-g", "Environment",
+				"--trace-warnings",
+				"-g", "variables update",
 				"tests"
 			],
 			"env": {
@@ -189,5 +189,11 @@
 				"target modules load --file ${env:HOME}/tmp/echo -s 0x4000000000"
 			]
 		},
+	],
+	"compounds": [
+		{
+			"name": "codelldb + codelldb.py",
+			"configurations": ["codelldb", "codelldb.py"]
+		}
 	]
 }

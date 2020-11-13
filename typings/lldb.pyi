@@ -95,3 +95,5 @@ eValueTypeVariableGlobal: int
 eValueTypeVariableStatic: int
 eValueTypeRegister: int
 eValueTypeConstResult: int
+
+eReturnStatusSuccessFinishResult: int

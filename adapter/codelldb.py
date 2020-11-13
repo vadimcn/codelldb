@@ -3,7 +3,6 @@ import sys
 import os
 import lldb
 import logging
-import debugger
 import traceback
 import ctypes
 from ctypes import CFUNCTYPE, POINTER, pointer, py_object, sizeof, byref, memmove,\
@@ -15,12 +14,10 @@ logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
 
 log = logging.getLogger('codelldb')
 
-# try:
-#     import ptvsd
-#     ptvsd.enable_attach(address=('0.0.0.0', 4730))
-#     #ptvsd.wait_for_attach()
-# except:
-#     log.warn('Could not import ptvsd')
+import debugger
+
+try: from typing import Tuple
+except Exception: pass
 
 #============================================================================================
 
@@ -40,20 +37,43 @@ class SBModule(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBModule
 
+# Convert one of the above raw SB objects (https://lldb.llvm.org/design/sbapi.html) into a SWIG wrapper.
+# We rely on the fact that SB objects consist of a single shared_ptr, which can be moved around freely.
+# There are 3 memory regions in play:
+#  [1:SWIG wrapper PyObject] -> [2:Memory allocated for SB object (which is just a pointer)] -> [3:The actual LLDB-internal object]
+def into_swig_wrapper(cobject, ty, owned=True):
+    swig_object = ty.swig_type() # Create an empty wrapper, which will be in an "invalid" state ([2] is null, [3] does not exist).
+    addr = int(swig_object.this)
+    memmove(addr, byref(cobject), sizeof(ty)) # Replace [2] with a valid pointer.
+    swig_object.this.own(owned)
+    return swig_object
+
+# The reverse of into_swig_wrapper.
+def from_swig_wrapper(swig_object, ty):
+    swig_object.this.disown() # We'll be moving this value out, make sure swig_object's destructor does not try to deallocate it.
+    addr = int(swig_object.this)
+    cobject = ty()
+    memmove(byref(cobject), addr, sizeof(ty))
+    return cobject
+
 # Generates a FFI type compatible with Rust #[repr(C, i32)] enum
-def RustEnum(enum_name, *variants):
-    # type: ( List[Tuple[str,type]] ) -> type
+def RustEnum(enum_name, *variants): # type: (str, Tuple[str,type]) -> type
     class V(ctypes.Union):
         _fields_ = variants
+
     class Enum(ctypes.Structure):
         _fields_ = [('discr', c_int),
                     ('var', V)]
+        discr = 0
         def __str__(self):
             name = variants[self.discr][0];
             return '{0}({1})'.format(name, getattr(self.var, name))
+        @classmethod
+        def __getattr__(cls, name): pass
+
     for discr, (name, ty) in enumerate(variants):
         def constructor(value, discr=discr, name=name):
-            e = Enum()
+            e = Enum(discr)
             e.discr = discr
             setattr(e.var, name, value)
             return e
@@ -61,13 +81,14 @@ def RustEnum(enum_name, *variants):
     Enum.__name__ = enum_name
     return Enum
 
-def PyResult(name, T):
+def PyResult(name, T): # type: (str, type) -> type
     return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', SBError))
 
 ValueResult = PyResult('ValueResult', SBValue)
 BoolResult = PyResult('BoolResult', c_bool)
 PyObjectResult = PyResult('PyObjectResult', py_object)
 
+#============================================================================================
 
 display_html = None
 save_stdout = None
@@ -169,22 +190,9 @@ incref.argtypes = [ctypes.py_object]
 decref = ctypes.pythonapi.Py_DecRef
 decref.argtypes = [ctypes.py_object]
 
-def into_swig_wrapper(cobject, ty, owned=True):
-    swig_object = ty.swig_type()
-    addr = int(swig_object.this)
-    memmove(addr, byref(cobject), sizeof(ty))
-    swig_object.this.own(owned)
-    return swig_object
+dummy_sberror = lldb.SBError()
 
-def from_swig_wrapper(swig_object, ty):
-    swig_object.this.disown() # We'll be moving this value out.
-    addr = int(swig_object.this)
-    cobject = ty()
-    memmove(byref(cobject), addr, sizeof(ty))
-    return cobject
-
-sberror = lldb.SBError()
-
+# Convert a native Python object into a SBValue.
 def to_sbvalue(value, target):
     value = Value.unwrap(value)
 
@@ -195,26 +203,26 @@ def to_sbvalue(value, target):
         return target.CreateValueFromData('result', lldb.SBData(), ty)
     elif isinstance(value, bool):
         value = c_int(value)
-        asbytes = memoryview(value).tobytes()
+        asbytes = memoryview(value).tobytes() # type: ignore
         data = lldb.SBData()
-        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeBool)
         return target.CreateValueFromData('result', data, ty)
     elif isinstance(value, int):
         value = c_int64(value)
-        asbytes = memoryview(value).tobytes()
+        asbytes = memoryview(value).tobytes() # type: ignore
         data = lldb.SBData()
-        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeLongLong)
         return target.CreateValueFromData('result', data, ty)
     elif isinstance(value, float):
         value = c_double(value)
-        asbytes = memoryview(value).tobytes()
+        asbytes = memoryview(value).tobytes() # type: ignore
         data = lldb.SBData()
-        data.SetData(sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeDouble)
         return target.CreateValueFromData('result', data, ty)
-    else:
+    else: # Fall back to string representation
         value = str(value)
         data = lldb.SBData.CreateDataFromCString(target.GetByteOrder(), target.GetAddressByteSize(), value)
         sbtype_arr = target.GetBasicType(lldb.eBasicTypeChar).GetArrayType(len(value))
@@ -264,7 +272,7 @@ def evaluate_in_context(code, simple_expr, execution_context):
         eval_locals = PyEvalContext(frame)
         eval_globals['__frame_vars'] = eval_locals
     else:
-        import __main__
+        import __main__ # type: ignore
         eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
         eval_globals['__frame_vars'] = PyEvalContext(frame)
         eval_locals = {}

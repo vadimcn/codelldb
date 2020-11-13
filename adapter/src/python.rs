@@ -31,6 +31,7 @@ impl Drop for PyObject {
 
 unsafe impl Send for PyObject {}
 
+// Interface through which the rest of CodeLLDB interacts with Python.
 pub struct PythonInterface {
     initialized: bool,
     event_sender: mpsc::Sender<EventBody>,
@@ -65,6 +66,13 @@ pub struct PythonInterface {
     shutdown_ptr: MustInitialize<unsafe extern "C" fn() -> bool>,
 }
 
+// Initialize Python interface.
+// In order to maintain compatibility with Python 2 (in case we need to load an older liblldb), we eschew Python's C API,
+// instead preferring to interact with it via the `ctypes` module:
+// - Use LLDB's SBCommandInterpreter to import `codelldb` module and invoke `codelldb.initialize()`.
+// - Python code calls us back via `init_callback()` providing pointers to C ABI wrappers of the functions we need.
+//   We stash these pointers and later call them directly, bypassing slow SBCommandInterpreter API.
+// - If any of the above fails, we declare Python scripting defunct and proceed in reduced functionality mode.
 pub fn initialize(
     interpreter: SBCommandInterpreter,
     adapter_dir: &Path,
@@ -177,6 +185,8 @@ pub fn initialize(
 }
 
 impl PythonInterface {
+
+    // Compiles Python source, returns a code object.
     pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, String> {
         let expt_ptr = expr.as_ptr() as *const c_char;
         let expr_size = expr.len();
@@ -196,6 +206,7 @@ impl PythonInterface {
         }
     }
 
+    // Evaluates compiled code in the specified context.
     pub fn evaluate(
         &self,
         code: &PyObject,
@@ -213,6 +224,7 @@ impl PythonInterface {
         }
     }
 
+    // Evaluates compiled code in the specified context, expecting it to yield a boolean.
     pub fn evaluate_as_bool(
         &self,
         code: &PyObject,
@@ -230,6 +242,7 @@ impl PythonInterface {
         }
     }
 
+    // Notifies codelldb.py about newly loaded modules.
     pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
         let modules = modules.cloned().collect::<Vec<SBModule>>();
         unsafe {
@@ -270,6 +283,7 @@ fn test_sizeof() {
     assert_eq!(mem::size_of::<PyObject>(), 16);
 }
 
+#[cfg(test)]
 lazy_static::lazy_static! {
     static ref DEBUGGER: SBDebugger = {
         use lldb::*;

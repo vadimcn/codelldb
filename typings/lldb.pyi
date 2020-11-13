@@ -1,6 +1,14 @@
 
 from typing import Any
 
+frame: Any
+thread: Any
+process: Any
+target: Any
+debugger: Any
+
+def command(command_name=None, doc=None): ...
+
 class SBType:
     ...
 
@@ -19,7 +27,9 @@ class SBError:
     def SetErrorString(self, s: str): ...
 
 class SBData:
-    def SetData(self, err: SBError, buffer: Any, size: int, )
+    def SetData(self, err: SBError, buffer: Any, order: int, size: int): ...
+    @staticmethod
+    def CreateDataFromCString(order: int, size: int, value: Any): ...
 
 class SBTypeSynthetic:
     @staticmethod
@@ -33,6 +43,7 @@ class SBTypeNameSpecifier:
     def __init__(self, name: str, is_regex: bool): ...
 
 class SBExecutionContext:
+    target: SBTarget
     ...
 
 class SBModule:
@@ -79,3 +90,8 @@ eBasicTypeNullPtr: int
 eFormatChar: int
 
 eTypeClassStruct: int
+
+eValueTypeVariableGlobal: int
+eValueTypeVariableStatic: int
+eValueTypeRegister: int
+eValueTypeConstResult: int

@@ -36,7 +36,7 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True) # Before 1.20
     attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True) # Since 1.20
 
-    attach_synthetic_to_type(SliceSynthProvider, r'^&(mut\s*)?\[.*\]$', True)
+    attach_synthetic_to_type(SliceSynthProvider, r'^&(mut[[:space:]]*)?\[.*\]$', True)
     attach_synthetic_to_type(SliceSynthProvider, r'^slice<.+>.*$', True)
 
     attach_synthetic_to_type(StdCStringSynthProvider, 'std::ffi::c_str::CString')

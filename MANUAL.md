@@ -153,15 +153,20 @@ Debugging sessions may also be started from outside of VSCode by invoking a spec
 
 - **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
-  the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.<br>
-  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
+  the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.
+  - `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
 - **`vscode://vadimcn.vscode-lldb/launch/command?<env1>=<val1>&<env2>=<val2>&<command-line>`**</br>
-  The \<command-line\> will be split into the program name and arguments array using the usual shell command-line parsing rules.<br>
-  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
-- **`vscode://vadimcn.vscode-lldb/launch/config?<json>`**</br>
-  This endpoint accepts a <a href="https://json5.org/">JSON5</a> snippet matching one of the above debug session initiation methods.
-  The `type` and `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.<br>
-  Example: `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program:'/path/filename', args:['arg1','arg 2','arg3']}"`
+  The \<command-line\> will be split into the program name and arguments array using the usual shell command-line parsing rules.
+  - `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
+  - `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?RUST_LOG=error&/path/filename arg1 'arg 2' arg3"`
+- **`vscode://vadimcn.vscode-lldb/launch/config?<yaml>`**</br>
+  This endpoint accepts a [YAML](https://yaml.org/) snippet matching one of the above debug session initiation methods.
+  The `type` and the `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.
+  - Line-oriented YAML (`%0A` encodes the 'newline' character):<br>
+   `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?program: /path/filename%0Aargs:%0A- arg1%0A- arg 2%0A- arg3"`<br>
+  - JSON-like YAML (if you are not quoting keys, remember to insert a space after colons!):<br>
+  `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program: '/path/filename', args: ['arg1','arg 2','arg3']}"`<br>
+
 
 Notes:
 - All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), therefore all '%' characters must be escaped as '%25'.   A more rigorous launcher script would have done that :)<br>
@@ -175,7 +180,7 @@ Examples:
 ### Attaching debugger to the current process (C)
 ```C
 char command[256];
-snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{request:'attach',pid:%d}\"", getpid());
+snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{'request':'attach','pid':%d}\"", getpid());
 system(command);
 sleep(1); // Wait for debugger to attach
 ```
@@ -183,7 +188,7 @@ sleep(1); // Wait for debugger to attach
 ### Attaching debugger to the current process (Rust)
 Ever wanted to debug a build script?
 ```Rust
-let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{request:'attach',pid:{}}}", std::process::id());
+let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
 std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
 std::thread::sleep_ms(1000); // Wait for debugger to attach
 ```
@@ -210,8 +215,7 @@ std::thread::sleep_ms(1000); // Wait for debugger to attach
     code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
     ```
 - `chmod +x codelldb.sh`
-
-`bazel run --run_under=codelldb.sh //<package>:<target>`
+- `bazel run --run_under=codelldb.sh //<package>:<target>`
 
 
 ## Remote debugging

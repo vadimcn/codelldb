@@ -9,7 +9,7 @@ import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as querystring from 'querystring';
-import JSON5 from 'json5';
+import YAML from 'yaml';
 import stringArgv from 'string-argv';
 import * as async from './novsc/async';
 import * as htmlView from './htmlView';
@@ -105,7 +105,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         try {
             output.appendLine(`Handling uri: ${uri}`);
             let query = decodeURIComponent(uri.query);
-            output.appendLine(`Decoded query: ${query}`);
+            output.appendLine(`Decoded query:\n${query}`);
 
             if (uri.path == '/launch') {
                 let params = <Dict<string>>querystring.parse(uri.query, ',');
@@ -153,7 +153,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                     request: 'launch',
                     name: '',
                 };
-                Object.assign(debugConfig, JSON5.parse(query));
+                Object.assign(debugConfig, YAML.parse(query));
                 debugConfig.name = debugConfig.name || debugConfig.program;
                 await debug.startDebugging(undefined, debugConfig);
 

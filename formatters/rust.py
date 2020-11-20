@@ -175,42 +175,21 @@ def get_array_summary(valobj, dict):
 class RustSynthProvider(object):
     def __init__(self, valobj, dict={}):
         self.valobj = valobj
-        self._real_class = self.__class__
-        self.__class__ = RustSynthProvider.Uninitialized
-
-    def initialize(self): return None
-    def update(self): return True
-    def num_children(self): return 0
-    def has_children(self): return False
-    def get_child_at_index(self, index): return None
-    def get_child_index(self, name): return None
-    def get_summary(self): return None
-
-    class Uninitialized(object):
-        def __do_init(self, update=False):
-            self.__class__ = self._real_class # type: ignore
-            try:
-                if not update:
-                    log.warning('Synth provider method has been called before update()')
-                self.initialize()
-            except Exception as e:
-                log.error('Error during RustSynthProvider initialization: %s', e)
-                self.__class__ = RustSynthProvider # This object is in a broken state, so fall back to default impls.
-            return self
-        def initialize(self):
-            pass # abstract
-        def update(self):
-            return self.__do_init(True).update()
-        def num_children(self):
-            return self.__do_init().num_children()
-        def has_children(self):
-            return self.__do_init().has_children()
-        def get_child_at_index(self, index):
-            return self.__do_init().get_child_at_index(index)
-        def get_child_index(self, name):
-            return self.__do_init().get_child_index(name)
-        def get_summary(self):
-            return self.__do_init().get_summary()
+        self.initialize()
+    def initialize(self):
+        return None
+    def update(self):
+        return False
+    def num_children(self):
+        return 0
+    def has_children(self):
+        return False
+    def get_child_at_index(self, index):
+        return None
+    def get_child_index(self, name):
+        return None
+    def get_summary(self):
+        return None
 
 class RegularEnumProvider(RustSynthProvider):
     def initialize(self):
@@ -563,9 +542,6 @@ class StdHashMapSynthProvider(RustSynthProvider):
                     self.valid_indices.append(self.num_buckets - 1 - i)
                 else:
                     self.valid_indices.append(i)
-
-    def update(self):
-        return True
 
     def has_children(self):
         return True

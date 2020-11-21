@@ -10,7 +10,7 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{pipe, sink, get_fs_path_case};
+use crate::platform::{get_fs_path_case, pipe, sink};
 use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 use futures;
@@ -1828,10 +1828,6 @@ impl DebugSession {
         }
 
         let mut var = Cow::Borrowed(var);
-        if format != Format::Default {
-            var.set_format(format);
-        }
-
         if self.deref_pointers && format == Format::Default {
             // Rather than showing pointer's numeric value, which is rather uninteresting,
             // we prefer to display summary of the object it points to.
@@ -1869,21 +1865,26 @@ impl DebugSession {
             }
         }
 
-        // Try value.
-        if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
-            return value_str;
-        }
-        // Then try the summary.
-        if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
-            return summary_str;
-        }
-        if is_container {
-            // Try to synthesize summary from its children.
-            Self::get_container_summary(var.as_ref())
-        } else {
-            // Otherwise give up.
-            "<not available>".to_owned()
-        }
+        let prev_format = var.format();
+        var.set_format(format);
+        let summary =
+            // Try value.
+            if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
+                value_str
+            }
+            // Then try summary.
+            else if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
+                summary_str
+            }
+            else if is_container {
+                // Try to synthesize a summary from var's children.
+                Self::get_container_summary(var.as_ref())
+            } else {
+                // Otherwise give up.
+                "<not available>".to_owned()
+            };
+        var.set_format(prev_format);
+        summary
     }
 
     fn get_container_summary(var: &SBValue) -> String {

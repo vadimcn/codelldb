@@ -54,6 +54,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
         subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
+        subscriptions.push(commands.registerCommand('lldb.commandPrompt', () => this.commandPrompt()));
         subscriptions.push(commands.registerCommand('lldb.symbols', () => pickSymbol(debug.activeDebugSession)));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
@@ -555,6 +556,25 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         });
         box.show();
+    }
+
+    commandPrompt() {
+        let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
+        let lldbPath = path.join(this.context.extensionPath, 'lldb', 'bin', lldb);
+        let consolePath = path.join(this.context.extensionPath, 'adapter', 'console.py');
+        let folder = workspace.workspaceFolders[0];
+        let config = this.getExtensionConfig(folder);
+        let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
+
+        let terminal = window.createTerminal({
+            name: 'LLDB Command Prompt',
+            shellPath: lldbPath,
+            shellArgs: ['--no-lldbinit', '--one-line-before-file', 'command script import ' + consolePath],
+            cwd: folder.uri.fsPath,
+            env: env,
+            strictEnv: true
+        });
+        terminal.show()
     }
 
     getExtensionConfig(folder?: WorkspaceFolder, key: string = 'lldb'): WorkspaceConfiguration {

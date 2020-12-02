@@ -18,18 +18,12 @@ export async function start(
     options: AdapterStartOptions
 ): Promise<cp.ChildProcess> {
 
-    let executable = path.join(options.extensionRoot, 'adapter/codelldb');
+    let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
     let args = ['--liblldb', liblldb];
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
     }
-
-    let env = mergedEnvironment(options.extraEnv);
-    // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
-    for (let name of ['PYTHONHOME', 'PYTHONPATH']) {
-        if (options.extraEnv[name] === undefined)
-            delete env[name];
-    }
+    let env = getAdapterEnv(options.extraEnv);
     env['RUST_TRACEBACK'] = '1';
     if (options.verboseLogging) {
         env['RUST_LOG'] = 'error,codelldb=debug';
@@ -155,4 +149,14 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
         // Ignore missing diractories and such...
     }
     return null;
+}
+
+export function getAdapterEnv(extraEnv: Dict<string>): Environment {
+    let env = mergedEnvironment(extraEnv);
+    // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
+    for (let name of ['PYTHONHOME', 'PYTHONPATH']) {
+        if (extraEnv[name] === undefined)
+            delete env[name];
+    }
+    return env;
 }

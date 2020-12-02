@@ -150,6 +150,12 @@
 			]
 		},
 		"menus": {
+			"commandPalette": [
+				{
+					"command": "lldb.modules.copyValue",
+					"when": "viewItem == lldb.moduleProperty"
+				}
+			],
 			"view/item/context": [
 				{
 					"command": "lldb.modules.copyValue",

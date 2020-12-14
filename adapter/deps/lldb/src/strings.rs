@@ -77,7 +77,11 @@ pub(crate) unsafe fn get_str<'a>(ptr: *const c_char) -> &'a str {
     if ptr.is_null() {
         ""
     } else {
-        CStr::from_ptr(ptr).to_str().unwrap()
+        let cstr = CStr::from_ptr(ptr);
+        match cstr.to_str() {
+            Ok(val) => val,
+            Err(err) => str::from_utf8(&cstr.to_bytes()[..err.valid_up_to()]).unwrap(),
+        }
     }
 }
 
@@ -146,5 +150,12 @@ mod test {
                 })
             );
         }
+    }
+
+    #[test]
+    fn test_get_str() {
+        assert_eq!(unsafe { get_str(b"foo\0".as_ptr() as *const c_char) }, "foo");
+        assert_eq!(unsafe { get_str(b"bar\x80\0".as_ptr() as *const c_char) }, "bar");
+        assert_eq!(unsafe { get_str(b"\x80\0".as_ptr() as *const c_char) }, "");
     }
 }

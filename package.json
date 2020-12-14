@@ -421,6 +421,18 @@
 				"language": "fortran-modern"
 			},
 			{
+				"language": "haskell"
+			},
+			{
+				"language": "java"
+			},
+			{
+				"language": "julia"
+			},
+			{
+				"language": "kotlin"
+			},
+			{
 				"language": "lldb.disassembly"
 			},
 			{
@@ -434,6 +446,12 @@
 			},
 			{
 				"language": "objectpascal"
+			},
+			{
+				"language": "ocaml"
+			},
+			{
+				"language": "opencl"
 			},
 			{
 				"language": "pascal"

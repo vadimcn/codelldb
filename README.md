@@ -1,5 +1,5 @@
 # Features
-- Debugging on Linux (x64 or ARM), macOS and Windows<sup>*</sup>,
+- Debugging on Linux (x64 or ARM), macOS (x64 or ARM) and Windows<sup>*</sup>,
 - Conditional breakpoints, function breakpoints, data breakpoints, logpoints,
 - Launch debuggee in integrated or external terminal,
 - Disassembly view with instruction-level stepping,

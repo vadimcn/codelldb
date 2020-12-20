@@ -3,7 +3,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack, char } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
@@ -584,7 +584,7 @@ function generateSuite(triple: string) {
                     reg_struct_ref: '{a:1, c:12}',
                     array: { '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5 },
                     slice: '(5) &[1, 2, 3, 4, 5]',
-                    mut_slice: '(5) &[10000, 20000, 30000, 40000, 50000]',
+                    mut_slice: '(5) &[1000, 2000, 3000, 4000, 5000]',
                     vec_int: {
                         $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
                         '[0]': 1, '[1]': 2, '[9]': 10
@@ -642,8 +642,8 @@ function generateSuite(triple: string) {
 
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', '[0]': "'o'", '[1]': "'k'" },
-                        result_err: { $: 'Err("err")', '[0]': "'e'", '[1]': "'r'", '[2]': "'r'" },
+                        result_ok: { $: 'Ok("ok")', '[0]': char('o'), '[1]': char('k') },
+                        result_err: { $: 'Err("err")', '[0]': char('e'), '[1]': char('r'), '[2]': char('r') },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                     });
@@ -696,7 +696,7 @@ function generateSuite(triple: string) {
                     expression: 'string', context: 'watch',
                     frameId: frames.body.stackFrames[0].id
                 });
-                await ds.compareVariables(response2.body.variablesReference, { '[0]': "'A'", '[7]': "'g'" });
+                await ds.compareVariables(response2.body.variablesReference, { '[0]': char('A'), '[7]': char('g') });
 
                 // Check format-as-array.
                 let response3 = await ds.evaluateRequest({

@@ -126,7 +126,7 @@ fn main() {
 
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];
-    let mut array2 = [10000, 20000, 30000, 40000, 50000];
+    let mut array2 = [1000, 2000, 3000, 4000, 5000];
     let mut_slice = &mut array2[..];
     let empty_vec = Vec::<i32>::new();
     let vec_int = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];

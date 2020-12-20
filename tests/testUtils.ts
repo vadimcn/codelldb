@@ -10,6 +10,7 @@ import { WritableStream } from 'memory-streams';
 import { Dict } from 'extension/novsc/commonTypes';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
+import { type } from 'os';
 
 let extensionRoot: string = null;
 let testLog: stream.Writable = null;
@@ -306,4 +307,9 @@ export class DebugTestSession extends DebugClient {
         let localsRef = scopes.body.scopes[0].variablesReference;
         return localsRef;
     }
+}
+
+export function char(ch: string): ValidatorFn {
+    assert.equal(ch.length, 1);
+    return v => parseInt(v.value) == ch.charCodeAt(0) || v.value == `'${ch}'`;
 }

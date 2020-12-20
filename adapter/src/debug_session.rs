@@ -875,10 +875,14 @@ impl DebugSession {
         let rust_panic = filters.iter().any(|x| x == "rust_panic");
         let mut bps = vec![];
         if cpp_throw || cpp_catch {
-            bps.push(self.target.breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw));
+            let bp = self.target.breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
+            bp.add_name("cpp_exception");
+            bps.push(bp);
         }
         if rust_panic {
-            bps.push(self.target.breakpoint_create_by_name("rust_panic"));
+            let bp = self.target.breakpoint_create_by_name("rust_panic");
+            bp.add_name("rust_panic");
+            bps.push(bp);
         }
         bps
     }

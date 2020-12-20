@@ -60,6 +60,20 @@ impl SBBreakpoint {
             return self->GetHitCount();
         })
     }
+    pub fn add_name(&self, name: &str) -> bool {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBBreakpoint*", name as "const char*"] -> bool as "bool" {
+                return self->AddName(name);
+            })
+        })
+    }
+    pub fn remove_name(&self, name: &str) {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBBreakpoint*", name as "const char*"] {
+                self->RemoveName(name);
+            })
+        })
+    }
     // LLDB API does not provide automatic tracking of callback lifetimes; in order to prevent a memory leak,
     // be sure to call clear_callback().  The easiest way to accomplish this is by watching for "breakpoint removed"
     // events.

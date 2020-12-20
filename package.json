@@ -265,6 +265,12 @@
 					"default": null,
 					"scope": "resource"
 				},
+				"lldb.evaluateForHovers": {
+					"description": "Enable value preview when cursor is hovering over a variable.",
+					"type": "boolean",
+					"default": true,
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

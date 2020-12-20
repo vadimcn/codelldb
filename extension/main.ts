@@ -175,8 +175,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     // Read current adapter settings values from workspace configuration.
-    getAdapterSettings(): AdapterSettings {
-        let folder = debug.activeDebugSession?.workspaceFolder;
+    getAdapterSettings(folder: WorkspaceFolder = undefined): AdapterSettings {
+        folder = folder || debug.activeDebugSession?.workspaceFolder;
         let config = this.getExtensionConfig(folder);
         let settings: AdapterSettings = {
             displayFormat: config.get('displayFormat'),
@@ -187,6 +187,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             consoleMode: config.get('consoleMode'),
             sourceLanguages: null,
             terminalPromptClear: config.get('terminalPromptClear'),
+            evaluateForHovers: config.get('evaluateForHovers'),
         };
         return settings;
     }
@@ -354,8 +355,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {
-        let lldbConfig = this.getExtensionConfig(session.workspaceFolder);
-        let adapterParams: any = this.getAdapterParameters(lldbConfig);
+        let settings = this.getAdapterSettings(session.workspaceFolder);
+        let adapterParams: any = {
+            evaluateForHovers: settings.evaluateForHovers,
+        };
         if (session.configuration.sourceLanguages) {
             adapterParams.sourceLanguages = session.configuration.sourceLanguages;
             delete session.configuration.sourceLanguages;
@@ -414,14 +417,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
         return debugConfig;
-    }
-
-    getAdapterParameters(config: WorkspaceConfiguration, params: Dict<any> = {}): Dict<any> {
-        util.setIfDefined(params, config, 'reverseDebugging');
-        util.setIfDefined(params, config, 'suppressMissingSourceFiles');
-        util.setIfDefined(params, config, 'evaluationTimeout');
-        util.setIfDefined(params, config, 'consoleMode');
-        return params;
     }
 
     async getCargoLaunchConfigs() {

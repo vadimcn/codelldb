@@ -16,7 +16,6 @@ use crate::terminal::Terminal;
 use futures;
 use futures::prelude::*;
 use lldb::*;
-use serde_derive::*;
 use serde_json;
 use std;
 use std::borrow::Cow;
@@ -33,12 +32,6 @@ use std::str;
 use std::time;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AdapterParameters {
-    source_languages: Option<Vec<String>>,
-}
 
 #[derive(Debug, Clone)]
 enum BreakpointKind {
@@ -111,6 +104,7 @@ pub struct DebugSession {
     deref_pointers: bool,
     console_mode: ConsoleMode,
     suppress_missing_files: bool,
+    evaluate_for_hovers: bool,
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
     terminal_prompt_clear: Option<Vec<String>>,
@@ -200,6 +194,7 @@ impl DebugSession {
             deref_pointers: true,
             console_mode: ConsoleMode::Commands,
             suppress_missing_files: true,
+            evaluate_for_hovers: true,
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
@@ -497,10 +492,12 @@ impl DebugSession {
 
     fn handle_initialize(&mut self, _args: InitializeRequestArguments) -> Result<Capabilities, Error> {
         self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
+        Ok(self.make_capabilities())
+    }
 
-        let caps = Capabilities {
+    fn make_capabilities(&self) -> Capabilities {
+        Capabilities {
             supports_configuration_done_request: Some(true),
-            supports_evaluate_for_hovers: Some(true),
             supports_function_breakpoints: Some(true),
             supports_conditional_breakpoints: Some(true),
             supports_hit_conditional_breakpoints: Some(true),
@@ -514,10 +511,10 @@ impl DebugSession {
             supports_restart_frame: Some(true),
             supports_cancel_request: Some(true),
             supports_read_memory_request: Some(true),
+            supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
-        };
-        Ok(caps)
+        }
     }
 
     fn handle_set_breakpoints(&mut self, args: SetBreakpointsArguments) -> Result<SetBreakpointsResponseBody, Error> {
@@ -1434,8 +1431,7 @@ impl DebugSession {
         });
 
         if let Some(ref settings) = args_common.adapter_settings {
-            self.update_adapter_settings(settings);
-            self.terminal_prompt_clear = settings.terminal_prompt_clear.clone();
+            self.update_adapter_settings_and_caps(settings);
         }
 
         if let Some(commands) = &args_common.init_commands {
@@ -1965,6 +1961,7 @@ impl DebugSession {
                     }
                 }
             },
+            Some("hover") if !self.evaluate_for_hovers => bail!("Hovers are disabled."),
             _ => self.handle_evaluate_expression(&args.expression, frame),
         };
 
@@ -2537,29 +2534,42 @@ impl DebugSession {
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
-        self.update_adapter_settings(&args);
+        self.update_adapter_settings_and_caps(&args);
         if self.process.state().is_stopped() {
             self.refresh_client_display(None);
         }
         Ok(())
     }
 
-    fn update_adapter_settings(&mut self, args: &AdapterSettings) {
-        self.global_format = match args.display_format {
+    fn update_adapter_settings_and_caps(&mut self, settings: &AdapterSettings) {
+        self.update_adapter_settings(&settings);
+        if settings.evaluate_for_hovers.is_some() || settings.source_languages.is_some() {
+            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
+                capabilities: self.make_capabilities(),
+            }));
+        }
+    }
+
+    fn update_adapter_settings(&mut self, settings: &AdapterSettings) {
+        self.global_format = match settings.display_format {
             None => self.global_format,
             Some(DisplayFormat::Auto) => Format::Default,
             Some(DisplayFormat::Decimal) => Format::Decimal,
             Some(DisplayFormat::Hex) => Format::Hex,
             Some(DisplayFormat::Binary) => Format::Binary,
         };
-        self.show_disassembly = args.show_disassembly.unwrap_or(self.show_disassembly);
-        self.deref_pointers = args.dereference_pointers.unwrap_or(self.deref_pointers);
-        self.suppress_missing_files = args.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
-        self.console_mode = args.console_mode.unwrap_or(self.console_mode);
-        if let Some(timeout) = args.evaluation_timeout {
+        self.show_disassembly = settings.show_disassembly.unwrap_or(self.show_disassembly);
+        self.deref_pointers = settings.dereference_pointers.unwrap_or(self.deref_pointers);
+        self.suppress_missing_files = settings.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
+        self.console_mode = settings.console_mode.unwrap_or(self.console_mode);
+        self.evaluate_for_hovers = settings.evaluate_for_hovers.unwrap_or(self.evaluate_for_hovers);
+        if let Some(timeout) = settings.evaluation_timeout {
             self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
         }
-        if let Some(ref source_languages) = args.source_languages {
+        if let Some(ref terminal_prompt_clear) = settings.terminal_prompt_clear {
+            self.terminal_prompt_clear = Some(terminal_prompt_clear.clone());
+        }
+        if let Some(ref source_languages) = settings.source_languages {
             self.source_languages = source_languages.clone();
         }
     }

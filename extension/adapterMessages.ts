@@ -9,6 +9,7 @@ export class AdapterSettings {
     consoleMode: 'commands' | 'expressions';
     sourceLanguages: string[];
     terminalPromptClear: string[];
+    evaluateForHovers: boolean;
 };
 
 export interface DisplayHtmlRequest {

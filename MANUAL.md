@@ -590,3 +590,4 @@ configurations when there is no existing `launch.json`.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
+|**lldb.evaluateForHovers**|Enable value preview when cursor is hovering over a variable.

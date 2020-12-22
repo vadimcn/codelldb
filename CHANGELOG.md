@@ -1,5 +1,19 @@
 # Release Notes
 
+# 1.6.1
+
+## Fixed
+- Bug #395 - Size and content of std::vector is not adjusted correctly after push_back #395.
+- Bug #394 - Debug adapter crash when hit breakpoint.
+
+## New
+- Added "LLDB Command Prompt" command, which opens LLDB command prompt in a terminal.  This is mainly intended for
+  managing installed Python packages (via the `pip` command).
+- Added `"lldb.evaluateForHovers"` configuration setting, which allows to disable expression evaluation for mouse hovers.
+  This is intended to mitigate problems similar to the one described in #353, triggered by auto-evaluation of expressions.
+- Added `"lldb.commandCompletions"` configuration setting, which allows to disable command completions in the debug console.
+  Similarly to the previous one, this is for mitigation of LLDB crashes triggered by completions.
+
 # 1.6.0
 
 ## Changed

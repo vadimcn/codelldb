@@ -188,6 +188,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             sourceLanguages: null,
             terminalPromptClear: config.get('terminalPromptClear'),
             evaluateForHovers: config.get('evaluateForHovers'),
+            commandCompletions: config.get('commandCompletions'),
         };
         return settings;
     }
@@ -358,6 +359,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let settings = this.getAdapterSettings(session.workspaceFolder);
         let adapterParams: any = {
             evaluateForHovers: settings.evaluateForHovers,
+            commandCompletions: settings.commandCompletions,
         };
         if (session.configuration.sourceLanguages) {
             adapterParams.sourceLanguages = session.configuration.sourceLanguages;

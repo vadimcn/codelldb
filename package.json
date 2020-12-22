@@ -271,6 +271,12 @@
 					"default": true,
 					"scope": "resource"
 				},
+				"lldb.commandCompletions": {
+					"description": "Enable command completions in debug console.",
+					"type": "boolean",
+					"default": true,
+					"scope": "resource"
+				},
 				"lldb.launch.initCommands": {
 					"description": "Commands executed *before* initCommands in individual launch configurations.",
 					"type": "array",

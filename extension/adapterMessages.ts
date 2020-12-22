@@ -10,6 +10,7 @@ export class AdapterSettings {
     sourceLanguages: string[];
     terminalPromptClear: string[];
     evaluateForHovers: boolean;
+    commandCompletions: boolean;
 };
 
 export interface DisplayHtmlRequest {

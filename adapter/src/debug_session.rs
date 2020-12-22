@@ -105,6 +105,7 @@ pub struct DebugSession {
     console_mode: ConsoleMode,
     suppress_missing_files: bool,
     evaluate_for_hovers: bool,
+    command_completions: bool,
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
     terminal_prompt_clear: Option<Vec<String>>,
@@ -195,6 +196,7 @@ impl DebugSession {
             console_mode: ConsoleMode::Commands,
             suppress_missing_files: true,
             evaluate_for_hovers: true,
+            command_completions: true,
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
@@ -502,7 +504,6 @@ impl DebugSession {
             supports_conditional_breakpoints: Some(true),
             supports_hit_conditional_breakpoints: Some(true),
             supports_set_variable: Some(true),
-            supports_completions_request: Some(true),
             supports_goto_targets_request: Some(true),
             supports_delayed_stack_trace_loading: Some(true),
             support_terminate_debuggee: Some(true),
@@ -512,6 +513,7 @@ impl DebugSession {
             supports_cancel_request: Some(true),
             supports_read_memory_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
+            supports_completions_request: Some(self.command_completions),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
             ..Default::default()
         }
@@ -2241,6 +2243,9 @@ impl DebugSession {
     }
 
     fn handle_completions(&mut self, args: CompletionsArguments) -> Result<CompletionsResponseBody, Error> {
+        if !self.command_completions {
+            bail!("Completions are disabled");
+        }
         let (text, cursor_column) = match self.console_mode {
             ConsoleMode::Commands => (&args.text[..], args.column - 1),
             ConsoleMode::Evaluate => {
@@ -2543,7 +2548,10 @@ impl DebugSession {
 
     fn update_adapter_settings_and_caps(&mut self, settings: &AdapterSettings) {
         self.update_adapter_settings(&settings);
-        if settings.evaluate_for_hovers.is_some() || settings.source_languages.is_some() {
+        if settings.evaluate_for_hovers.is_some()
+            || settings.command_completions.is_some()
+            || settings.source_languages.is_some()
+        {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
                 capabilities: self.make_capabilities(),
             }));
@@ -2563,6 +2571,7 @@ impl DebugSession {
         self.suppress_missing_files = settings.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
         self.console_mode = settings.console_mode.unwrap_or(self.console_mode);
         self.evaluate_for_hovers = settings.evaluate_for_hovers.unwrap_or(self.evaluate_for_hovers);
+        self.command_completions = settings.command_completions.unwrap_or(self.command_completions);
         if let Some(timeout) = settings.evaluation_timeout {
             self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
         }

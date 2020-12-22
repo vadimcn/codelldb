@@ -245,6 +245,7 @@ pub struct AdapterSettings {
     pub source_languages: Option<Vec<String>>,
     pub terminal_prompt_clear: Option<Vec<String>>,
     pub evaluate_for_hovers: Option<bool>,
+    pub command_completions: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

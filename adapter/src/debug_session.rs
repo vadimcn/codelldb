@@ -10,7 +10,7 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{get_fs_path_case, pipe, sink};
+use crate::platform::{get_fs_path_case, pipe, sink, make_case_folder};
 use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 use futures;
@@ -1099,7 +1099,9 @@ impl DebugSession {
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         let mut launch_info = self.target.launch_info();
 
-        let mut launch_env = HashMap::new();
+        let mut launch_env: HashMap<String, String> = HashMap::new();
+        let mut fold_case = make_case_folder();
+
         let inherit_env = match self.debugger.get_variable("target.inherit-env").string_at_index(0) {
             Some("true") => true,
             _ => false,
@@ -1107,12 +1109,12 @@ impl DebugSession {
         // Init with host environment if `inherit-env` is set.
         if inherit_env {
             for (k, v) in env::vars() {
-                launch_env.insert(k, v);
+                launch_env.insert(fold_case(&k), v);
             }
         }
         if let Some(ref env) = args.env {
             for (k, v) in env.iter() {
-                launch_env.insert(k.clone(), v.clone());
+                launch_env.insert(fold_case(k), v.into());
             }
         }
         let launch_env = launch_env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>();

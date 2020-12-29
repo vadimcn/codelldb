@@ -32,7 +32,7 @@ mod vec_map;
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
+pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>, debugpy_port: Option<u16>) {
     hook_crashes();
     env_logger::Builder::from_default_env().init();
 
@@ -43,11 +43,14 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
         None => Default::default(),
     };
 
-    // // Enable Python debugging
-    // let debugger = SBDebugger::create(false);
-    // let command = format!("script import debugpy; debugpy.configure(python='{}'); debugpy.listen(3470)", "c:/python3.8.5/python.exe");
-    // let mut command_result = SBCommandReturnObject::new();
-    // debugger.command_interpreter().handle_command(&command, &mut command_result, false);
+    if let Some(debugpy_port) = debugpy_port {
+        // Enable Python debugging
+        let debugger = SBDebugger::create(false);
+        let python = if cfg!(windows) { "python" } else { "python3" };
+        let command = format!("script import debugpy; debugpy.configure(python='{}'); debugpy.listen({})", python, debugpy_port);
+        let mut command_result = SBCommandReturnObject::new();
+        debugger.command_interpreter().handle_command(&command, &mut command_result, false);
+    }
 
     let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
     let addr = net::SocketAddr::new(localhost.into(), port);

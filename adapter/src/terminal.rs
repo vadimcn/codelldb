@@ -3,9 +3,9 @@ use crate::prelude::*;
 use crate::dap_session::DAPSession;
 use crate::debug_protocol::*;
 use std::time::Duration;
+use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::prelude::*;
 
 pub struct Terminal {
     #[allow(unused)]
@@ -35,7 +35,7 @@ impl Terminal {
                 dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
             }
 
-            let mut listener = TcpListener::bind("127.0.0.1:0").await?;
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
             let addr = listener.local_addr()?;
 
             let accept_fut = listener.accept();

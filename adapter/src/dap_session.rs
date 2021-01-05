@@ -65,9 +65,9 @@ impl DAPSession {
                                 debug!("Client has disconnected");
                                 break
                             }
-                        }
-                    },
-                    Some((message, response_sender)) = out_receiver.next() => {
+                         }
+                     },
+                    Some((message, response_sender)) = out_receiver.recv() => {
                         let mut message = message;
                         match &mut message {
                             ProtocolMessage::Request(request) => {

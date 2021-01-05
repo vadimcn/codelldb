@@ -5,7 +5,6 @@ authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-bytes = "0.5.4"
 backtrace = "0.3.37"
 base64 = "0.12.3"
 clap = "2.33.0"
@@ -20,9 +19,10 @@ serde_derive = "1.0.94"
 serde_json = "1.0.40"
 superslice = "1.0.0"
 
+bytes = "1.0.0"
 futures = "0.3.0"
-tokio = { version = "0.2", features = ["rt-threaded", "rt-util", "stream", "macros", "io-util", "fs", "tcp", "dns", "time", "sync", "blocking"] }
-tokio-util = { version = "0.3.0", features = ["codec"] }
+tokio = { version = "1.0.0", features = ["full"] }
+tokio-util = { version = "0.6.0", features = ["codec"] }
 
 lldb = { path = "deps/lldb" }
 loading = { path = "deps/loading" }

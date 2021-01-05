@@ -10,13 +10,10 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{get_fs_path_case, pipe, sink, make_case_folder};
+use crate::platform::{get_fs_path_case, make_case_folder, pipe, sink};
 use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
-use futures;
-use futures::prelude::*;
-use lldb::*;
-use serde_json;
+
 use std;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -30,6 +27,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
 use std::time;
+
+use futures;
+use futures::prelude::*;
+use lldb::*;
+use serde_json;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 
@@ -145,10 +147,10 @@ impl DebugSession {
             current_exe.parent().unwrap(),
             Some(con_writer.try_clone().unwrap()),
         ) {
-            Ok((python, events)) => (Some(python), events.left_stream()),
+            Ok((python, events)) => (Some(python), Some(events)),
             Err(err) => {
                 error!("Initialize Python interpreter: {}", err);
-                (None, stream::pending().right_stream())
+                (None, None)
             }
         };
 
@@ -206,12 +208,12 @@ impl DebugSession {
 
         // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
         let mut raw_requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
-        let (mut requests_sender, mut requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+        let (requests_sender, mut requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
         let filter = async move {
             let mut pending_requests: HashMap<u32, cancellation::Sender> = HashMap::new();
             let mut cancellable_requests: Vec<cancellation::Sender> = Vec::new();
 
-            while let Some(Ok(request)) = raw_requests_stream.next().await {
+            while let Ok(request) = raw_requests_stream.recv().await {
                 let sender = cancellation::Sender::new();
                 let receiver = sender.subscribe();
 
@@ -267,9 +269,15 @@ impl DebugSession {
             rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
             let local = tokio::task::LocalSet::new();
             let mut con_data = [0u8; 1024];
-            local
-                .run_until(async move {
+            local.run_until(async move {
                     loop {
+                        let python_event_fut = async {
+                            match python_events {
+                                Some(ref mut receiver) => receiver.recv().await,
+                                None => future::pending().await,
+                            }
+                        };
+
                         tokio::select! {
                             request = requests_receiver.recv() => {
                                 match request {
@@ -280,17 +288,17 @@ impl DebugSession {
                                     }
                                 }
                             }
-                            Some(event) = debug_events_stream.next() => {
+                            Some(event) = debug_events_stream.recv() => {
                                 rc_session.borrow_mut().handle_debug_event(event)
                             }
-                            Some(event) = python_events.next() => {
+                            Some(event) = python_event_fut => {
                                 rc_session.borrow_mut().send_event(event);
                             }
                             Ok(bytes) = con_reader.read(&mut con_data) => {
                                 let msg = String::from_utf8_lossy(&con_data[0..bytes]);
                                 scoped_borrow_mut(&rc_session, |s| s.console_message_nonl(msg));
                             }
-                            Some((closure, caller)) = invoke_server.next() => {
+                            Some((closure, caller)) = invoke_server.recv() => {
                                 scoped_borrow_mut(&rc_session, |s| closure(s));
                                 caller.unpark();
                             }
@@ -927,7 +935,7 @@ impl DebugSession {
 
         let hit_condition = bp_info.hit_condition.clone();
 
-        let mut invoke_client = self.invoke_client.clone();
+        let invoke_client = self.invoke_client.clone();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
             let mut result = true;
@@ -1084,7 +1092,7 @@ impl DebugSession {
         let result = self.dap_session.borrow().subscribe_requests();
         async move {
             let mut receiver = result?;
-            while let Some(Ok(request)) = receiver.next().await {
+            while let Ok(request) = receiver.recv().await {
                 match request.command {
                     Command::Known(RequestArguments::configurationDone(_)) => {
                         return Ok(());

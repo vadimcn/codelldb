@@ -55,9 +55,8 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
     let addr = net::SocketAddr::new(localhost.into(), port);
 
-    let mut rt = tokio::runtime::Builder::new() //
-        .threaded_scheduler()
-        .core_threads(2)
+    let rt = tokio::runtime::Builder::new_multi_thread() //
+        .worker_threads(2)
         .enable_all()
         .build()
         .unwrap();
@@ -74,21 +73,13 @@ async fn run_debug_server(
     adapter_settings: debug_protocol::AdapterSettings,
     multi_session: bool,
 ) {
-    let mut listener = TcpListener::bind(&addr).await.unwrap();
+    let listener = TcpListener::bind(&addr).await.unwrap();
 
     println!("Listening on port {}", listener.local_addr().unwrap().port());
 
-    let incoming = listener.incoming();
-
-    let mut incoming: Box<dyn Stream<Item = _> + Send + Unpin> = if !multi_session {
-        Box::new(incoming.take(1))
-    } else {
-        Box::new(incoming)
-    };
-
-    while let Some(connection) = incoming.next().await {
+    loop {
+        let (tcp_stream, _) = listener.accept().await.unwrap();
         debug!("New debug session");
-        let tcp_stream = connection.unwrap();
         tcp_stream.set_nodelay(true).unwrap();
         let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
         let (dap_session, dap_fut) = dap_session::DAPSession::new(Box::new(framed_stream));
@@ -96,6 +87,9 @@ async fn run_debug_server(
         tokio::spawn(dap_fut);
         session_fut.await;
         debug!("Session has ended");
+        if !multi_session {
+            break;
+        }
     }
 }
 

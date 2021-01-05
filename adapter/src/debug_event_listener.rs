@@ -1,11 +1,10 @@
 use crate::prelude::*;
-use futures::prelude::*;
 use lldb::{IsValid, SBEvent, SBListener};
 use tokio::sync::mpsc::{self, error::TrySendError};
 
-pub fn start_polling(event_listener: &SBListener) -> impl Stream<Item = SBEvent> {
+pub fn start_polling(event_listener: &SBListener) -> mpsc::Receiver<SBEvent> {
     let mut event_listener = event_listener.clone();
-    let (mut sender, receiver) = mpsc::channel(1000);
+    let (sender, receiver) = mpsc::channel(1000);
 
     tokio::task::spawn(async move {
         let mut event = SBEvent::new();

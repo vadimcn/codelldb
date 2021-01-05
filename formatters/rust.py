@@ -518,7 +518,10 @@ class StdCowSynthProvider(EnumSynthProvider):
 
 class StdHashMapSynthProvider(RustSynthProvider):
     def initialize(self):
-        table = gcm(self.valobj, 'base', 'table')
+        self.initialize_table(gcm(self.valobj, 'base', 'table'))
+
+    def initialize_table(self, table):
+        assert table.IsValid()
         self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
 
         ctrl_ptr = gcm(table, 'ctrl', 'pointer')
@@ -566,8 +569,10 @@ class StdHashMapSynthProvider(RustSynthProvider):
 
 class StdHashSetSynthProvider(StdHashMapSynthProvider):
     def initialize(self):
-        self.valobj = gcm(self.valobj, 'map')
-        StdHashMapSynthProvider.initialize(self)
+        table = gcm(self.valobj, 'base', 'map', 'table') # rust 1.48
+        if not table.IsValid():
+            table = gcm(self.valobj, 'map', 'base', 'table')  # rust < 1.48
+        self.initialize_table(table)
 
     def get_child_at_index(self, index):
         bucket_idx = self.valid_indices[index]

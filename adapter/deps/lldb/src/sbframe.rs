@@ -61,6 +61,14 @@ impl SBFrame {
         })
         .check()
     }
+    pub fn find_value(&self, name: &str, value_type: ValueType) -> Option<SBValue> {
+        with_cstr(name, |name| {
+            cpp!(unsafe [self as "SBFrame*", name as "const char*", value_type as "ValueType"] -> SBValue as "SBValue" {
+                return self->FindValue(name, value_type);
+            })
+        })
+        .check()
+    }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {
             cpp!(unsafe [self as "SBFrame*", expr as "const char*"] -> SBValue as "SBValue" {

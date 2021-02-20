@@ -2411,27 +2411,58 @@ impl DebugSession {
         let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
         let child = match container {
             Container::SBValue(container) => container.child_member_with_name(&args.name),
-            Container::Locals(frame) | Container::Globals(frame) | Container::Statics(frame) => {
-                frame.find_variable(&args.name)
-            }
+            Container::Locals(frame) => frame.find_variable(&args.name),
+            Container::Globals(frame) => frame.find_value(&args.name, ValueType::VariableGlobal),
+            Container::Statics(frame) => frame.find_value(&args.name, ValueType::VariableStatic),
             _ => None,
         };
         if let Some(child) = child {
             let addr = child.load_address();
-            let size = child.byte_size();
-            let data_id = format!("{}/{}", addr, size);
-            let desc = child.name().unwrap_or("");
-            Ok(DataBreakpointInfoResponseBody {
-                data_id: Some(data_id),
-                description: format!("{} bytes at {:X} ({})", size, addr, desc),
-                ..Default::default()
-            })
+            if addr != lldb::INVALID_ADDRESS {
+                let size = child.byte_size();
+                if self.is_valid_watchpoint_size(size) {
+                    let data_id = format!("{}/{}", addr, size);
+                    let desc = child.name().unwrap_or("");
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: Some(data_id),
+                        description: format!("{} bytes at {:X} ({})", size, addr, desc),
+                        ..Default::default()
+                    })
+                } else {
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: None,
+                        description: "Invalid watchpoint size.".into(),
+                        ..Default::default()
+                    })
+                }
+            } else {
+                Ok(DataBreakpointInfoResponseBody {
+                    data_id: None,
+                    description: "This variable doesn't have an address.".into(),
+                    ..Default::default()
+                })
+            }
         } else {
             Ok(DataBreakpointInfoResponseBody {
                 data_id: None,
                 description: "Variable not found.".into(),
                 ..Default::default()
             })
+        }
+    }
+
+    fn is_valid_watchpoint_size(&self, size: usize) -> bool {
+        let addr_size = self.target.address_byte_size();
+        match addr_size {
+            4 => match size {
+                1 | 2 | 4 => true,
+                _ => false,
+            },
+            8 => match size {
+                1 | 2 | 4 | 8 => true,
+                _ => false,
+            },
+            _ => true, // No harm in allowing to set an invalid watchpoint, other than user confusion.
         }
     }
 

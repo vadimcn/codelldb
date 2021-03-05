@@ -15,6 +15,7 @@
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
 - [Debugger Features](#debugger-features)
     - [Commands](#commands)
+    - [Debug Console](#debug-console)
     - [Regex Breakpoints](#regex-breakpoints)
     - [Conditional Breakpoints](#conditional-breakpoints)
     - [Data Breakpoints](#data-breakpoints)
@@ -154,7 +155,7 @@ Debugging sessions may also be started from outside of VSCode by invoking a spec
 - **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
   the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.
-  - `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project`
+  - `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project"`
 - **`vscode://vadimcn.vscode-lldb/launch/command?<env1>=<val1>&<env2>=<val2>&<command-line>`**</br>
   The \<command-line\> will be split into the program name and arguments array using the usual shell command-line parsing rules.
   - `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
@@ -378,10 +379,22 @@ Example:
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
 
 
+## Debug console
+
+The VSCode [Debug Console](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) panel serves a dual
+purpose in CodeLLDB:
+1. Execution of [LLDB commands](https://lldb.llvm.org/use/tutorial.html).
+2. Evaluation of [expressions](#expressions).
+
+By default, console input is interpreted as LLDB commands.  If you would like to evaluate an expression instead, prefix it with
+'`?`', e.g. '`?a+2`' (Expression type preffixes are added on top of that, i.e. '`?/nat a.size()`').
+Console input mode may altered via **"lldb.consoleMode": "evaluate"** setting: in this case expression evaluation will be the default,
+while commands will need to be prefixed with either '`/cmd `' or '`' (backtick).
+
 ## Regex Breakpoints
 Function breakpoints prefixed with '`/re `', are interpreted as regular expressions.
 This causes a breakpoint to be set in every function matching the expression.
-The list of created breakpoint locations may be examined using `break list` command.
+The list of created breakpoint locations may be examined using the `break list` command.
 
 ## Conditional Breakpoints
 You may use any of the supported expression [syntaxes](#expressions) to create breakpoint conditions.
@@ -451,12 +464,6 @@ value of the object pointed to.  If you would like to see the raw address value,
 you may toggle this behavior using **Toggle Pointee Summaries** command.
 Another way to display raw pointer address is to add the pointer variable to Watch panel and specify
 an explicit format, as described in the previous section.
-
-## LLDB Commands
-To access LLDB features not exposed via the VS Code UI, you may enter
-[LLDB commands](http://lldb.llvm.org/tutorial.html) directly into the Debug Console.
-
-If you would like to evaluate an expression instead, prefix it with '`?`', e.g. `?a+b`.
 
 ## Expressions
 
@@ -586,7 +593,7 @@ configurations when there is no existing `launch.json`.
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.library**       |Which LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.

@@ -19,7 +19,7 @@ if (CMAKE_VERBOSE_MAKEFILE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 
-set(Cargo ${WithEnv} RUSTC_BOOTSTRAP=1 cargo)
+set(Cargo ${WithEnv} CXX_${LLVM_TRIPLE}=${CMAKE_C_COMPILER} CXXFLAGS_${LLVM_TRIPLE}=${CMAKE_C_FLAGS} RUSTC_BOOTSTRAP=1 cargo)
 
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/adapter/codelldb.py

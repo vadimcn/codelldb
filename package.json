@@ -907,6 +907,7 @@
 				"arm64-linux": "codelldb-aarch64-linux.vsix",
 				"arm-linux": "codelldb-arm-linux.vsix",
 				"x64-darwin": "codelldb-x86_64-darwin.vsix",
+				"arm64-darwin": "codelldb-aarch64-darwin.vsix",
 				"x64-win32": "codelldb-x86_64-windows.vsix",
 				"ia32-win32": "codelldb-x86_64-windows.vsix"
 			}

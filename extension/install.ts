@@ -93,7 +93,14 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
 async function getPlatformPackageUrl(): Promise<Uri> {
     let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
     let pp = pkg.config.platformPackages;
-    let id = `${os.arch()}-${os.platform()}`;
+    let platform = os.platform();
+    let arch = os.arch();
+    if (platform == 'darwin' && arch == 'x64') {
+        let sysctl = await async.cp.execFile('sysctl', ['-in', 'sysctl.proc_translated'], { encoding: 'utf8' });
+        if (parseInt(sysctl.stdout) == 1)
+            arch = 'arm64';
+    }
+    let id = `${arch}-${platform}`;
     let platformPackage = pp.platforms[id];
     if (platformPackage == undefined) {
         throw new Error(`This platform (${id}) is not suported.`);

@@ -1,18 +1,16 @@
 variables:
-  lldbBuildId: 1588
+  lldbBuildId: 1660
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
-  rustcVersion: '1.47.0'
-  cacheDiscr: F
+  rustcVersion: '1.51.0'
+  cachePrefix: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
 
   setenvLinux: |
       export PATH=$HOME/.cargo/bin:$PATH
-      echo "$(publicRelease)"
   setenvOSX: |
       export PATH=$HOME/.cargo/bin:$PATH
-      echo "$(publicRelease)"
   setenvWindows: |
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
@@ -44,9 +42,6 @@ jobs:
         RustTarget: 'aarch64-unknown-linux-gnu'
         CrossBuilding: true
 
-  variables:
-    cachePrefix: $(cacheDiscr) | $(Triple)
-
   container:
     image: 'vadimcn/linux-builder:latest'
     options: --privileged
@@ -74,12 +69,9 @@ jobs:
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
-  - task: CacheBeta@0
+  - task: Cache@2
     inputs:
-      key: $(cachePrefix) | node_modules | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | node_modules | $(Build.BuildId)
-        $(cachePrefix) | node_modules
+      key: '$(cachePrefix) | $(Triple) | node_modules | package-lock.json'
       path: $(Build.SourcesDirectory)/build/node_modules
       continueOnError: true
     displayName: Cache node_modules
@@ -137,12 +129,20 @@ jobs:
 
 - job: OSX
   pool:
-    vmImage: 'macOS 10.14'
+    vmImage: 'macOS-10.15'
 
-  variables:
-    cachePrefix: $(cacheDiscr) | x86_64-apple-darwin
-    PlatformId: 'x86_64-darwin'
-    Triple: 'x86_64-apple-darwin'
+  strategy:
+    matrix:
+      x86_64:
+        PlatformId: 'x86_64-darwin'
+        Triple: 'x86_64-apple-darwin'
+        RustTarget: 'x86_64-apple-darwin'
+        CrossBuilding: false
+      aarch64:
+        PlatformId: 'aarch64-darwin'
+        Triple: 'aarch64-apple-darwin'
+        RustTarget: 'aarch64-apple-darwin'
+        CrossBuilding: true
 
   steps:
 
@@ -159,12 +159,9 @@ jobs:
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
-  - task: CacheBeta@0
+  - task: Cache@2
     inputs:
-      key: $(cachePrefix) | node_modules | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | node_modules | $(Build.BuildId)
-        $(cachePrefix) | node_modules
+      key: '$(cachePrefix) | $(Triple) | node_modules | package-lock.json'
       path: $(Build.SourcesDirectory)/build/node_modules
       continueOnError: true
     displayName: Cache node_modules
@@ -180,6 +177,7 @@ jobs:
       source $HOME/.cargo/env
       rustup toolchain install $(rustcVersion)
       rustup default $(rustcVersion)
+      rustup target add $(RustTarget)
       rustup show
     displayName: 'Install Rust'
 
@@ -188,17 +186,18 @@ jobs:
 
       mkdir build
       cd build
-      cmake -DVERSION_SUFFIX=$(versionSuffix)\
+      xcrun -sdk macosx cmake -DVERSION_SUFFIX=$(versionSuffix)\
             -DCMAKE_BUILD_TYPE=RelWithDebInfo\
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
+            -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
             ..
       cat CMakeCache.txt
     displayName: 'Configure'
 
   - script: |
       $(setenvOSX)
-      cmake --build build --target vsix_full
+      xcrun -sdk macosx cmake --build build --target vsix_full
       cmake -E copy build/codelldb-full.vsix $(Build.ArtifactStagingDirectory)/codelldb-$(PlatformId).vsix
     displayName: 'Build'
 
@@ -209,8 +208,9 @@ jobs:
 
   - script: |
       $(setenvOSX)
-      cmake --build build --target check
+      xcrun -sdk macosx cmake --build build --target check
     displayName: 'Test'
+    condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
       echo - env ------------------
@@ -227,7 +227,6 @@ jobs:
     vmImage: 'VS2017-Win2016'
 
   variables:
-    cachePrefix: $(cacheDiscr) | x86_64-windows
     PlatformId: 'x86_64-windows'
     Triple: 'x86_64-windows-msvc'
 
@@ -257,12 +256,9 @@ jobs:
       downloadPath: '$(Agent.BuildDirectory)/D'
     displayName: 'Download LLDB'
 
-  - task: CacheBeta@0
+  - task: Cache@2
     inputs:
-      key: $(cachePrefix) | node_modules | $(Build.BuildId)
-      restoreKeys: |
-        $(cachePrefix) | node_modules | $(Build.BuildId)
-        $(cachePrefix) | node_modules
+      key: '$(cachePrefix) | $(Triple) | node_modules | package-lock.json'
       path: $(Build.SourcesDirectory)/build/node_modules
       continueOnError: true
     displayName: Cache node_modules

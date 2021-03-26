@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.6.1") # Base version
+set(VERSION "1.6.2") # Base version
 
 include(cmake/CopyFiles.cmake)
 
@@ -89,7 +89,7 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURR
 
 # Run 'npm install'
 execute_process(
-    COMMAND ${NPM} install
+    COMMAND ${NPM} ci # like install, but actually respects package-lock file.
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE Result
 )

@@ -20,6 +20,7 @@ add_executable(debuggee
 
 if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     target_link_libraries(debuggee dl pthread)
+    target_compile_options(debuggee PRIVATE "-fstandalone-debug")
 else()
     set(Drive "C:")
 endif()

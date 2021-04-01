@@ -2428,6 +2428,11 @@ impl DebugSession {
                     let desc = child.name().unwrap_or("");
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: Some(data_id),
+                        access_types: Some(vec![
+                            DataBreakpointAccessType::Read,
+                            DataBreakpointAccessType::Write,
+                            DataBreakpointAccessType::ReadWrite,
+                        ]),
                         description: format!("{} bytes at {:X} ({})", size, addr, desc),
                         ..Default::default()
                     })
@@ -2479,10 +2484,22 @@ impl DebugSession {
             let mut parts = wp.data_id.split('/');
             let addr = parts.next().ok_or("")?.parse::<u64>()?;
             let size = parts.next().ok_or("")?.parse::<usize>()?;
-            let res = match self.target.watch_address(addr, size, false, true) {
+            let (read, write) = match wp.access_type {
+                None => (false, true),
+                Some(DataBreakpointAccessType::Read) => (true, false),
+                Some(DataBreakpointAccessType::Write) => (false, true),
+                Some(DataBreakpointAccessType::ReadWrite) => (true, true),
+            };
+            let when = match (read, write) {
+                (true, false) => "read",
+                (false, true) => "write",
+                (true, true) => "read and write",
+                _ => unreachable!(),
+            };
+            let res = match self.target.watch_address(addr, size, read, write) {
                 Ok(_wp) => Breakpoint {
                     verified: true,
-                    message: Some(format!("{} bytes at {:X} (", size, addr)),
+                    message: Some(format!("Break on {}", when)),
                     ..Default::default()
                 },
                 Err(err) => Breakpoint {

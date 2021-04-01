@@ -181,7 +181,7 @@
 		"StoppedEvent": {
 			"allOf": [ { "$ref": "#/definitions/Event" }, {
 				"type": "object",
-				"description": "The event indicates that the execution of the debuggee has stopped due to some condition.\nThis can be caused by a break point previously set, a stepping action has completed, by executing a debugger statement etc.",
+				"description": "The event indicates that the execution of the debuggee has stopped due to some condition.\nThis can be caused by a break point previously set, a stepping request has completed, by executing a debugger statement etc.",
 				"properties": {
 					"event": {
 						"type": "string",
@@ -193,7 +193,7 @@
 							"reason": {
 								"type": "string",
 								"description": "The reason for the event.\nFor backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).",
-								"_enum": [ "step", "breakpoint", "exception", "pause", "entry", "goto", "function breakpoint", "data breakpoint" ]
+								"_enum": [ "step", "breakpoint", "exception", "pause", "entry", "goto", "function breakpoint", "data breakpoint", "instruction breakpoint" ]
 							},
 							"description": {
 								"type": "string",
@@ -214,6 +214,13 @@
 							"allThreadsStopped": {
 								"type": "boolean",
 								"description": "If 'allThreadsStopped' is true, a debug adapter can announce that all threads have stopped.\n- The client should use this information to enable that all threads can be expanded to access their stacktraces.\n- If the attribute is missing or false, only the thread with the given threadId can be expanded."
+							},
+							"hitBreakpointIds": {
+								"type": "array",
+								"items": {
+									"type": "integer"
+								},
+								"description": "Ids of the breakpoints that triggered the event. In most cases there will be only a single breakpoint but here are some examples for multiple breakpoints:\n- Different types of breakpoints map to the same location.\n- Multiple source breakpoints get collapsed to the same instruction by the compiler/runtime.\n- Multiple function breakpoints with different function names map to the same location."
 							}
 						},
 						"required": [ "reason" ]
@@ -360,7 +367,7 @@
 							},
 							"variablesReference": {
 								"type": "integer",
-								"description": "If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"source": {
 								"$ref": "#/definitions/Source",
@@ -567,7 +574,7 @@
 								"description": "Mandatory (short) title of the progress reporting. Shown in the UI to describe the long running operation."
 							},
 							"requestId": {
-								"type": "number",
+								"type": "integer",
 								"description": "The request ID that this progress report is related to. If specified a debug adapter is expected to emit\nprogress events for the long running request until the request has been either completed or cancelled.\nIf the request ID is omitted, the progress report is assumed to be related to some general activity of the debug adapter."
 							},
 							"cancellable": {
@@ -650,6 +657,40 @@
 			}]
 		},
 
+		"InvalidatedEvent": {
+			"allOf": [ { "$ref": "#/definitions/Event" }, {
+				"type": "object",
+				"description": "This event signals that some state in the debug adapter has changed and requires that the client needs to re-render the data snapshot previously requested.\nDebug adapters do not have to emit this event for runtime changes like stopped or thread events because in that case the client refetches the new state anyway. But the event can be used for example to refresh the UI after rendering formatting has changed in the debug adapter.\nThis event should only be sent if the debug adapter has received a value true for the 'supportsInvalidatedEvent' capability of the 'initialize' request.",
+				"properties": {
+					"event": {
+						"type": "string",
+						"enum": [ "invalidated" ]
+					},
+					"body": {
+						"type": "object",
+						"properties": {
+							"areas": {
+								"type": "array",
+								"description": "Optional set of logical areas that got invalidated. This property has a hint characteristic: a client can only be expected to make a 'best effort' in honouring the areas but there are no guarantees. If this property is missing, empty, or if values are not understand the client should assume a single value 'all'.",
+								"items": {
+									"$ref": "#/definitions/InvalidatedAreas"
+								}
+							},
+							"threadId": {
+								"type": "integer",
+								"description": "If specified, the client only needs to refetch data related to this thread."
+							},
+							"stackFrameId": {
+								"type": "integer",
+								"description": "If specified, the client only needs to refetch data related to this stack frame (and the 'threadId' is ignored)."
+							}
+						}
+					}
+				},
+				"required": [ "event", "body" ]
+			}]
+		},
+
 		"RunInTerminalRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
@@ -682,7 +723,7 @@
 				},
 				"cwd": {
 					"type": "string",
-					"description": "Working directory of the command."
+					"description": "Working directory for the command. For non-empty, valid paths this typically results in execution of a change directory command."
 				},
 				"args": {
 					"type": "array",
@@ -712,11 +753,11 @@
 						"properties": {
 							"processId": {
 								"type": "integer",
-								"description": "The process ID. The value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The process ID. The value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"shellProcessId": {
 								"type": "integer",
-								"description": "The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31-1)."
 							}
 						}
 					}
@@ -794,6 +835,10 @@
 				"supportsProgressReporting": {
 					"type": "boolean",
 					"description": "Client supports progress reporting."
+				},
+				"supportsInvalidatedEvent": {
+					"type": "boolean",
+					"description": "Client supports the invalidated event."
 				}
 			},
 			"required": [ "adapterID" ]
@@ -1196,7 +1241,7 @@
 		"SetExceptionBreakpointsRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request configures the debuggers response to thrown exceptions.\nIf an exception is configured to break, a 'stopped' event is fired (with reason 'exception').\nClients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.",
+				"description": "The request configures the debuggers response to thrown exceptions.\nIf an exception is configured to break, a 'stopped' event is fired (with reason 'exception').\nClients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.\nIf a filter or filter option is invalid (e.g. due to an invalid 'condition'), the request should fail with an 'ErrorResponse' explaining the problem(s).",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1218,7 +1263,14 @@
 					"items": {
 						"type": "string"
 					},
-					"description": "IDs of checked exception options. The set of IDs is returned via the 'exceptionBreakpointFilters' capability."
+					"description": "Set of exception filters specified by their ID. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. The 'filter' and 'filterOptions' sets are additive."
+				},
+				"filterOptions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/ExceptionFilterOptions"
+					},
+					"description": "Set of exception filters and their options. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. This attribute is only honored by a debug adapter if the capability 'supportsExceptionFilterOptions' is true. The 'filter' and 'filterOptions' sets are additive."
 				},
 				"exceptionOptions": {
 					"type": "array",
@@ -1263,7 +1315,7 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "The name of the Variable's child to obtain data breakpoint information for.\nIf variableReference isn’t provided, this can be an expression."
+					"description": "The name of the Variable's child to obtain data breakpoint information for.\nIf variablesReference isn’t provided, this can be an expression."
 				}
 			},
 			"required": [ "name" ]
@@ -1356,6 +1408,63 @@
 			}]
 		},
 
+		"SetInstructionBreakpointsRequest": {
+			"allOf": [
+				{ "$ref": "#/definitions/Request" },
+				{
+					"type": "object",
+					"description": "Replaces all existing instruction breakpoints. Typically, instruction breakpoints would be set from a diassembly window. \nTo clear all instruction breakpoints, specify an empty array.\nWhen an instruction breakpoint is hit, a 'stopped' event (with reason 'instruction breakpoint') is generated.\nClients should only call this request if the capability 'supportsInstructionBreakpoints' is true.",
+					"properties": {
+						"command": {
+						"type": "string",
+						"enum": [ "setInstructionBreakpoints" ]
+					},
+					"arguments": {
+						"$ref": "#/definitions/SetInstructionBreakpointsArguments"
+					}
+				},
+				"required": [ "command", "arguments" ]
+			}]
+		},
+		"SetInstructionBreakpointsArguments": {
+			"type": "object",
+			"description": "Arguments for 'setInstructionBreakpoints' request",
+			"properties": {
+				"breakpoints": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/InstructionBreakpoint"
+					},
+					"description": "The instruction references of the breakpoints"
+				}
+			},
+			"required": ["breakpoints"]
+		},
+		"SetInstructionBreakpointsResponse": {
+			"allOf": [
+				{ "$ref": "#/definitions/Response" },
+				{
+					"type": "object",
+					"description": "Response to 'setInstructionBreakpoints' request",
+					"properties": {
+						"body": {
+							"type": "object",
+							"properties": {
+								"breakpoints": {
+									"type": "array",
+									"items": {
+										"$ref": "#/definitions/Breakpoint"
+									},
+								"description": "Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' array."
+							}
+						},
+						"required": [ "breakpoints" ]
+					}
+				},
+				"required": [ "body" ]
+			}]
+		},
+
 		"ContinueRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
@@ -1425,6 +1534,10 @@
 				"threadId": {
 					"type": "integer",
 					"description": "Execute 'next' for this thread."
+				},
+				"granularity": {
+					"$ref": "#/definitions/SteppingGranularity",
+					"description": "Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed."
 				}
 			},
 			"required": [ "threadId" ]
@@ -1463,6 +1576,10 @@
 				"targetId": {
 					"type": "integer",
 					"description": "Optional id of the target to step into."
+				},
+				"granularity": {
+					"$ref": "#/definitions/SteppingGranularity",
+					"description": "Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed."
 				}
 			},
 			"required": [ "threadId" ]
@@ -1497,6 +1614,10 @@
 				"threadId": {
 					"type": "integer",
 					"description": "Execute 'stepOut' for this thread."
+				},
+				"granularity": {
+					"$ref": "#/definitions/SteppingGranularity",
+					"description": "Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed."
 				}
 			},
 			"required": [ "threadId" ]
@@ -1531,6 +1652,10 @@
 				"threadId": {
 					"type": "integer",
 					"description": "Execute 'stepBack' for this thread."
+				},
+				"granularity": {
+					"$ref": "#/definitions/SteppingGranularity",
+					"description": "Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed."
 				}
 			},
 			"required": [ "threadId" ]
@@ -1685,7 +1810,7 @@
 		"StackTraceRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request returns a stacktrace from the current execution state.",
+				"description": "The request returns a stacktrace from the current execution state of a given thread.\nA client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients and if the debug adapter's 'supportsDelayedStackTraceLoading' capability is true, stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1738,7 +1863,7 @@
 							},
 							"totalFrames": {
 								"type": "integer",
-								"description": "The total number of frames available."
+								"description": "The total number of frames available in the stack. If omitted or if totalFrames is larger than the available frames, a client is expected to request frames until a request returns less frames than requested (which indicates the end of the stack). Returning monotonically increasing totalFrames values for subsequent requests can be used to enforce paging in the client."
 							}
 						},
 						"required": [ "stackFrames" ]
@@ -1922,15 +2047,15 @@
 							},
 							"variablesReference": {
 								"type": "integer",
-								"description": "If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"namedVariables": {
 								"type": "integer",
-								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"indexedVariables": {
 								"type": "integer",
-								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							}
 						},
 						"required": [ "value" ]
@@ -2235,15 +2360,15 @@
 							},
 							"variablesReference": {
 								"type": "integer",
-								"description": "If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"namedVariables": {
 								"type": "integer",
-								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"indexedVariables": {
 								"type": "integer",
-								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"memoryReference": {
 								"type": "string",
@@ -2318,15 +2443,15 @@
 							},
 							"variablesReference": {
 								"type": "integer",
-								"description": "If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"namedVariables": {
 								"type": "integer",
-								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of named child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							},
 							"indexedVariables": {
 								"type": "integer",
-								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+								"description": "The number of indexed child variables.\nThe client can use this optional information to present the variables in a paged UI and fetch them in chunks.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 							}
 						},
 						"required": [ "value" ]
@@ -2722,7 +2847,7 @@
 					"items": {
 						"$ref": "#/definitions/ExceptionBreakpointsFilter"
 					},
-					"description": "Available filters or options for the setExceptionBreakpoints request."
+					"description": "Available exception filter options for the 'setExceptionBreakpoints' request."
 				},
 				"supportsStepBack": {
 					"type": "boolean",
@@ -2795,7 +2920,7 @@
 				},
 				"supportsDelayedStackTraceLoading": {
 					"type": "boolean",
-					"description": "The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and the 'totalFrames' result of the 'StackTrace' request are supported."
+					"description": "The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported."
 				},
 				"supportsLoadedSourcesRequest": {
 					"type": "boolean",
@@ -2840,25 +2965,49 @@
 				"supportsClipboardContext": {
 					"type": "boolean",
 					"description": "The debug adapter supports the 'clipboard' context value in the 'evaluate' request."
+				},
+				"supportsSteppingGranularity": {
+					"type": "boolean",
+					"description": "The debug adapter supports stepping granularities (argument 'granularity') for the stepping requests."
+				},
+				"supportsInstructionBreakpoints": {
+					"type": "boolean",
+					"description": "The debug adapter supports adding breakpoints based on instruction references."
+				},
+				"supportsExceptionFilterOptions": {
+					"type": "boolean",
+					"description": "The debug adapter supports 'filterOptions' as an argument on the 'setExceptionBreakpoints' request."
 				}
 			}
 		},
 
 		"ExceptionBreakpointsFilter": {
 			"type": "object",
-			"description": "An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with.",
+			"description": "An ExceptionBreakpointsFilter is shown in the UI as an filter option for configuring how exceptions are dealt with.",
 			"properties": {
 				"filter": {
 					"type": "string",
-					"description": "The internal ID of the filter. This value is passed to the setExceptionBreakpoints request."
+					"description": "The internal ID of the filter option. This value is passed to the 'setExceptionBreakpoints' request."
 				},
 				"label": {
 					"type": "string",
-					"description": "The name of the filter. This will be shown in the UI."
+					"description": "The name of the filter option. This will be shown in the UI."
+				},
+				"description": {
+					"type": "string",
+					"description": "An optional help text providing additional information about the exception filter. This string is typically shown as a hover and must be translated."
 				},
 				"default": {
 					"type": "boolean",
-					"description": "Initial value of the filter. If not specified a value 'false' is assumed."
+					"description": "Initial value of the filter option. If not specified a value 'false' is assumed."
+				},
+				"supportsCondition": {
+					"type": "boolean",
+					"description": "Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set."
+				},
+				"conditionDescription": {
+					"type": "string",
+					"description": "An optional help text providing information about the condition. This string is shown as the placeholder text for a text box and must be translated."
 				}
 			},
 			"required": [ "filter", "label" ]
@@ -3025,7 +3174,7 @@
 				},
 				"sourceReference": {
 					"type": "integer",
-					"description": "If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified).\nA sourceReference is only valid for a session, so it must not be used to persist a source.\nThe value should be less than or equal to 2147483647 (2^31 - 1)."
+					"description": "If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified).\nA sourceReference is only valid for a session, so it must not be used to persist a source.\nThe value should be less than or equal to 2147483647 (2^31-1)."
 				},
 				"presentationHint": {
 					"type": "string",
@@ -3088,6 +3237,10 @@
 				"endColumn": {
 					"type": "integer",
 					"description": "An optional end column of the range covered by the stack frame."
+				},
+				"canRestart": {
+					"type": "boolean",
+					"description": "Indicates whether this frame can be restarted with the 'restart' request. Clients should only use this if the debug adapter supports the 'restart' request (capability 'supportsRestartRequest' is true)."
 				},
 				"instructionPointerReference": {
 					"type": "string",
@@ -3227,7 +3380,7 @@
 						"Indicates that the object is an interface.",
 						"Indicates that the object is the most derived class.",
 						"Indicates that the object is virtual, that means it is a synthetic object introducedby the\nadapter for rendering purposes, e.g. an index range for large arrays.",
-						"Indicates that a data breakpoint is registered for the object."
+						"Deprecated: Indicates that a data breakpoint is registered for the object. The 'hasDataBreakpoint' attribute should generally be used instead."
 					]
 				},
 				"attributes": {
@@ -3235,7 +3388,7 @@
 					"type": "array",
 					"items": {
 						"type": "string",
-						"_enum": [ "static", "constant", "readOnly", "rawString", "hasObjectId", "canHaveObjectId", "hasSideEffects" ],
+						"_enum": [ "static", "constant", "readOnly", "rawString", "hasObjectId", "canHaveObjectId", "hasSideEffects", "hasDataBreakpoint" ],
 						"enumDescriptions": [
 							"Indicates that the object is static.",
 							"Indicates that the object is a constant.",
@@ -3243,7 +3396,8 @@
 							"Indicates that the object is a raw string.",
 							"Indicates that the object can have an Object ID created for it.",
 							"Indicates that the object has an Object ID associated with it.",
-							"Indicates that the evaluation had side effects."
+							"Indicates that the evaluation had side effects.",
+							"Indicates that the object has its value tracked by a data breakpoint."
 						]
 					}
 				},
@@ -3357,9 +3511,33 @@
 			"required": [ "dataId" ]
 		},
 
+		"InstructionBreakpoint": {
+			"type": "object",
+			"description": "Properties of a breakpoint passed to the setInstructionBreakpoints request",
+			"properties": {
+				"instructionReference": {
+					"type": "string",
+					"description": "The instruction reference of the breakpoint.\nThis should be a memory or instruction pointer reference from an EvaluateResponse, Variable, StackFrame, GotoTarget, or Breakpoint."
+				},
+				"offset": {
+					"type": "integer",
+					"description": "An optional offset from the instruction reference.\nThis can be negative."
+				},
+				"condition": {
+					"type": "string",
+					"description": "An optional expression for conditional breakpoints.\nIt is only honored by a debug adapter if the capability 'supportsConditionalBreakpoints' is true."
+				},
+				"hitCondition": {
+					"type": "string",
+					"description": "An optional expression that controls how many hits of the breakpoint are ignored.\nThe backend is expected to interpret the expression as needed.\nThe attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true."
+				}
+			},
+			"required": [ "instructionReference" ]
+		},
+
 		"Breakpoint": {
 			"type": "object",
-			"description": "Information about a Breakpoint created in setBreakpoints or setFunctionBreakpoints.",
+			"description": "Information about a Breakpoint created in setBreakpoints, setFunctionBreakpoints, setInstructionBreakpoints, or setDataBreakpoints.",
 			"properties": {
 				"id": {
 					"type": "integer",
@@ -3392,9 +3570,28 @@
 				"endColumn": {
 					"type": "integer",
 					"description": "An optional end column of the actual range covered by the breakpoint.\nIf no end line is given, then the end column is assumed to be in the start line."
+				},
+				"instructionReference": {
+					"type": "string",
+					"description": "An optional memory reference to where the breakpoint is set."
+				},
+				"offset": {
+					"type": "integer",
+					"description": "An optional offset from the instruction reference.\nThis can be negative."
 				}
 			},
 			"required": [ "verified" ]
+		},
+
+		"SteppingGranularity": {
+			"type": "string",
+			"description": "The granularity of one 'step' in the stepping requests 'next', 'stepIn', 'stepOut', and 'stepBack'.",
+			"enum": [ "statement", "line", "instruction" ],
+			"enumDescriptions": [
+				"The step should allow the program to run until the current statement has finished executing.\nThe meaning of a statement is determined by the adapter and it may be considered equivalent to a line.\nFor example 'for(int i = 0; i < 10; i++) could be considered to have 3 statements 'int i = 0', 'i < 10', and 'i++'.",
+				"The step should allow the program to run until the current source line has executed.",
+				"The step should allow one instruction to execute (e.g. one x86 instruction)."
+			]
 		},
 
 		"StepInTarget": {
@@ -3565,6 +3762,22 @@
 			}]
 		},
 
+		"ExceptionFilterOptions": {
+			"type": "object",
+			"description": "An ExceptionFilterOptions is used to specify an exception filter together with a condition for the setExceptionsFilter request.",
+			"properties": {
+				"filterId": {
+					"type": "string",
+					"description": "ID of an exception filter returned by the 'exceptionBreakpointFilters' capability."
+				},
+				"condition": {
+					"type": "string",
+					"description": "An optional expression for conditional exceptions.\nThe exception will break into the debugger if the result of the condition is true."
+				}
+			},
+			"required": [ "filterId" ]
+		},
+
 		"ExceptionOptions": {
 			"type": "object",
 			"description": "An ExceptionOptions assigns configuration options to a set of exceptions.",
@@ -3685,6 +3898,18 @@
 				}
 			},
 			"required": [ "address", "instruction" ]
+		},
+
+		"InvalidatedAreas": {
+			"type": "string",
+			"description": "Logical areas that can be invalidated by the 'invalidated' event.",
+			"_enum": [ "all", "stacks", "threads", "variables" ],
+			"enumDescriptions": [
+				"All previously fetched data has become invalid and needs to be refetched.",
+				"Previously fetched stack related data has become invalid and needs to be refetched.",
+				"Previously fetched thread related data has become invalid and needs to be refetched.",
+				"Previously fetched variable data has become invalid and needs to be refetched."
+			]
 		}
 
 	}

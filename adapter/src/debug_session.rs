@@ -860,11 +860,13 @@ impl DebugSession {
                 filter: "cpp_throw".into(),
                 label: "C++: on throw".into(),
                 default: Some(true),
+                ..Default::default()
             });
             filters.push(ExceptionBreakpointsFilter {
                 filter: "cpp_catch".into(),
                 label: "C++: on catch".into(),
                 default: Some(false),
+                ..Default::default()
             });
         }
         if source_langs.iter().any(|x| x == "rust") {
@@ -872,6 +874,7 @@ impl DebugSession {
                 filter: "rust_panic".into(),
                 label: "Rust: on panic".into(),
                 default: Some(true),
+                ..Default::default()
             });
         }
         filters
@@ -2770,6 +2773,7 @@ impl DebugSession {
             description: None,
             text: description,
             preserve_focus_hint: None,
+            ..Default::default()
         }));
 
         if let Some(python) = &self.python {

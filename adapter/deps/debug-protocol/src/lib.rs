@@ -16,6 +16,8 @@ impl Default for Breakpoint {
             end_line: None,
             message: None,
             source: None,
+            instruction_reference: None,
+            offset: None,
         }
     }
 }
@@ -30,6 +32,7 @@ impl Default for StackFrame {
             column: 0,
             end_column: None,
             end_line: None,
+            can_restart: None,
             instruction_pointer_reference: None,
             module_id: None,
             presentation_hint: None,
@@ -80,6 +83,7 @@ impl Default for StoppedEventBody {
             description: None,
             preserve_focus_hint: None,
             text: None,
+            hit_breakpoint_ids: None,
         }
     }
 }
@@ -152,6 +156,19 @@ impl Default for DataBreakpointInfoResponseBody {
             access_types: None,
             can_persist: None,
             description: String::new(),
+        }
+    }
+}
+
+impl Default for ExceptionBreakpointsFilter {
+    fn default() -> Self {
+        ExceptionBreakpointsFilter {
+            filter: String::new(),
+            label: String::new(),
+            description: None,
+            default: None,
+            supports_condition: None,
+            condition_description: None,
         }
     }
 }

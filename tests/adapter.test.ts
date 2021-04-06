@@ -54,6 +54,15 @@ function generateSuite(triple: string) {
                 });
                 assert.ok(result.body.result.startsWith('lldb version'));
                 assert.ok(result.body.result.indexOf('rust-enabled') >= 0);
+
+                // Check that LLDB was built with libxml2.
+                let result2 = await ds.evaluateRequest({
+                    expression: 'script import lldb; s = lldb.SBStream(); lldb.debugger.GetBuildConfiguration().GetAsJSON(s) and None; print(s.GetData())',
+                    context: 'repl'
+                });
+                let buildConfig = JSON.parse(result2.body.result);
+                assert.ok(buildConfig.xml.value);
+
                 await ds.terminate();
             });
 

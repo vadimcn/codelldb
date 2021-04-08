@@ -337,7 +337,7 @@ pub struct SymbolsResponse {
 mod tests {
     use super::*;
 
-    macro_rules! assert_match(($e:expr, $p:pat) => { assert!(match $e { $p => true, _ => false }, stringify!($e ~ $p)) });
+    macro_rules! assert_matches(($e:expr, $p:pat) => { assert!(matches!($e, $p), "{}", stringify!($e !~ $p)) });
 
     fn parse(s: &[u8]) -> ProtocolMessage {
         serde_json::from_slice::<ProtocolMessage>(s).unwrap()
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_initialize() {
         let request = parse(br#"{"command":"initialize","arguments":{"clientID":"vscode","clientName":"Visual Studio Code","adapterID":"lldb","pathFormat":"path","linesStartAt1":true,"columnsStartAt1":true,"supportsVariableType":true,"supportsVariablePaging":true,"supportsRunInTerminalRequest":true,"locale":"en-us"},"type":"request","seq":1}"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::initialize(..)),
@@ -355,7 +355,7 @@ mod tests {
         );
 
         let response = parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#);
-        assert_match!(
+        assert_matches!(
             response,
             ProtocolMessage::Response(Response {
                 body: Some(ResponseBody::initialize(..)),
@@ -377,7 +377,7 @@ mod tests {
                         "_displaySettings":{"showDisassembly":"always","displayFormat":"auto","dereferencePointers":true,"toggleContainerSummary":false,"containerSummary":true},
                         "__sessionId":"81865613-a1ee-4a66-b449-a94165625fd2"}
                       }"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::launch(..)),
@@ -386,7 +386,7 @@ mod tests {
         );
 
         let response = parse(br#"{"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
-        assert_match!(
+        assert_matches!(
             response,
             ProtocolMessage::Response(Response {
                 body: Some(ResponseBody::launch),
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn test_event() {
         let event = parse(br#"{"type":"event","event":"initialized","seq":0}"#);
-        assert_match!(
+        assert_matches!(
             event,
             ProtocolMessage::Event(Event {
                 body: EventBody::initialized,
@@ -407,7 +407,7 @@ mod tests {
         );
 
         let event = parse(br#"{"body":{"reason":"started","threadId":7537},"type":"event","event":"thread","seq":0}"#);
-        assert_match!(
+        assert_matches!(
             event,
             ProtocolMessage::Event(Event {
                 body: EventBody::thread(..),
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_scopes() {
         let request = parse(br#"{"command":"scopes","arguments":{"frameId":1000},"type":"request","seq":12}"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::scopes(..)),
@@ -428,7 +428,7 @@ mod tests {
         );
 
         let response = parse(br#"{"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
-        assert_match!(
+        assert_matches!(
             response,
             ProtocolMessage::Response(Response {
                 body: Some(ResponseBody::scopes(..)),
@@ -441,7 +441,7 @@ mod tests {
     fn test_configuration_done() {
         let request = parse(br#"{"type":"request", "seq":12, "command":"configurationDone"}"#);
         println!("{:?}", request);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::configurationDone(None)),
@@ -451,7 +451,7 @@ mod tests {
         let request =
             parse(br#"{"type":"request", "seq":12, "command":"configurationDone", "arguments": {"foo": "bar"}}"#);
         println!("{:?}", request);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::configurationDone(Some(_))),
@@ -464,7 +464,7 @@ mod tests {
     fn test_disconnect() {
         let request =
             parse(br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::disconnect(Some(..))),
@@ -473,7 +473,7 @@ mod tests {
         );
 
         let request = parse(br#"{"type":"request", "seq":12, "command":"disconnect"}"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
                 command: Command::Known(RequestArguments::disconnect(None)),
@@ -485,12 +485,10 @@ mod tests {
     #[test]
     fn test_unknown() {
         let request = parse(br#"{"type":"request", "seq":12, "command":"foobar"}"#);
-        assert_match!(
+        assert_matches!(
             request,
             ProtocolMessage::Request(Request {
-                command: Command::Unknown {
-                    ..
-                },
+                command: Command::Unknown { .. },
                 ..
             })
         );

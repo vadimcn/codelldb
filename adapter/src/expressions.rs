@@ -240,7 +240,7 @@ pub fn preprocess_python_expr(expr: &str) -> String {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-macro_rules! assert_match(($e:expr, $p:pat) => { assert!(matches!($e, $p)) });
+macro_rules! assert_matches(($e:expr, $p:pat) => { assert!(matches!($e, $p), "{}", stringify!($e !~ $p)) });
 
 #[cfg(test)]
 pub fn escape_variable_name<'a>(name: &'a str) -> std::borrow::Cow<'a, str> {
@@ -321,33 +321,36 @@ fn test_escape_variable_name() {
 
 #[test]
 fn test_expression_format() {
-    assert_match!(get_expression_format("foo"), Ok(("foo", None)));
-    assert_match!(get_expression_format("foo,bar"), Ok(("foo,bar", None)));
+    assert_matches!(get_expression_format("foo"), Ok(("foo", None)));
+    assert_matches!(get_expression_format("foo,bar"), Ok(("foo,bar", None)));
 
-    assert_match!(get_expression_format("foo,h"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
-    assert_match!(get_expression_format("foo,x"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
-    assert_match!(get_expression_format("foo,y"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Bytes)))));
-    assert_match!(get_expression_format("foo,Y"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::BytesWithASCII)))));
+    assert_matches!(get_expression_format("foo,h"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
+    assert_matches!(get_expression_format("foo,x"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Hex)))));
+    assert_matches!(get_expression_format("foo,y"), Ok(("foo", Some(FormatSpec::Format(lldb::Format::Bytes)))));
+    assert_matches!(
+        get_expression_format("foo,Y"),
+        Ok(("foo", Some(FormatSpec::Format(lldb::Format::BytesWithASCII))))
+    );
 
-    assert_match!(get_expression_format("foo,[42]"), Ok(("foo", Some(FormatSpec::Array(42)))));
+    assert_matches!(get_expression_format("foo,[42]"), Ok(("foo", Some(FormatSpec::Array(42)))));
 
-    assert_match!(get_expression_format("foo,Z"), Err(_));
+    assert_matches!(get_expression_format("foo,Z"), Err(_));
 }
 
 #[test]
 fn test_parse_hit_condition() {
-    assert_match!(parse_hit_condition(" 13   "), Ok(HitCondition::GE(13)));
-    assert_match!(parse_hit_condition(" < 42"), Ok(HitCondition::LT(42)));
-    assert_match!(parse_hit_condition(" <=53 "), Ok(HitCondition::LE(53)));
-    assert_match!(parse_hit_condition("=  61"), Ok(HitCondition::EQ(61)));
-    assert_match!(parse_hit_condition("==62 "), Ok(HitCondition::EQ(62)));
-    assert_match!(parse_hit_condition(">=76 "), Ok(HitCondition::GE(76)));
-    assert_match!(parse_hit_condition(">85"), Ok(HitCondition::GT(85)));
-    assert_match!(parse_hit_condition(""), Err(_));
-    assert_match!(parse_hit_condition("      "), Err(_));
-    assert_match!(parse_hit_condition("!90"), Err(_));
-    assert_match!(parse_hit_condition("=>92"), Err(_));
-    assert_match!(parse_hit_condition("<"), Err(_));
-    assert_match!(parse_hit_condition("=AA"), Err(_));
-    assert_match!(parse_hit_condition("XYZ"), Err(_));
+    assert_matches!(parse_hit_condition(" 13   "), Ok(HitCondition::GE(13)));
+    assert_matches!(parse_hit_condition(" < 42"), Ok(HitCondition::LT(42)));
+    assert_matches!(parse_hit_condition(" <=53 "), Ok(HitCondition::LE(53)));
+    assert_matches!(parse_hit_condition("=  61"), Ok(HitCondition::EQ(61)));
+    assert_matches!(parse_hit_condition("==62 "), Ok(HitCondition::EQ(62)));
+    assert_matches!(parse_hit_condition(">=76 "), Ok(HitCondition::GE(76)));
+    assert_matches!(parse_hit_condition(">85"), Ok(HitCondition::GT(85)));
+    assert_matches!(parse_hit_condition(""), Err(_));
+    assert_matches!(parse_hit_condition("      "), Err(_));
+    assert_matches!(parse_hit_condition("!90"), Err(_));
+    assert_matches!(parse_hit_condition("=>92"), Err(_));
+    assert_matches!(parse_hit_condition("<"), Err(_));
+    assert_matches!(parse_hit_condition("=AA"), Err(_));
+    assert_matches!(parse_hit_condition("XYZ"), Err(_));
 }

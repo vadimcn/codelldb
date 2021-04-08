@@ -1,4 +1,7 @@
-import { debug, TreeDataProvider, TreeItem, ProviderResult, EventEmitter, ExtensionContext, DebugSessionCustomEvent, TreeItemCollapsibleState, DebugSession, commands, env } from 'vscode';
+import {
+    debug, env, commands, TreeDataProvider, TreeItem, ProviderResult, EventEmitter,
+    ExtensionContext, TreeItemCollapsibleState, DebugSession, DebugAdapterTracker
+} from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { Dict } from './novsc/commonTypes';
 
@@ -26,9 +29,8 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
     readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
     constructor(context: ExtensionContext) {
-        context.subscriptions.push(debug.onDidReceiveDebugSessionCustomEvent(this.onDebugSessionCustomEvent, this));
+        context.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
         context.subscriptions.push(debug.onDidChangeActiveDebugSession(this.onChangedActiveDebugSession, this));
-        context.subscriptions.push(debug.onDidTerminateDebugSession(this.onEndedDebugSession, this));
         context.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
     }
 
@@ -47,8 +49,6 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
 
     getChildren(element?: Element): ProviderResult<Element[]> {
         if (element == undefined) {
-            if (this.activeSessionId == undefined)
-                return undefined;
             return this.sessions[this.activeSessionId];
         } else if (element instanceof ModuleProperty) {
             return [];
@@ -81,25 +81,29 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
         }
     }
 
-    onEndedDebugSession(session: DebugSession) {
-        if (session.type == 'lldb') {
-            delete this.sessions[session.id];
-        }
+    createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker> {
+        return new AdapterTracker(session, this);
     }
 
     onChangedActiveDebugSession(session: DebugSession) {
-        if (session && session.type == 'lldb') {
-            this.activeSessionId = session.id;
-        } else {
-            this.activeSessionId = undefined;
-        }
-        this.onDidChangeTreeDataEmitter.fire(undefined);
+        this.activeSessionId = session.id;
+        this.onDidChangeTreeDataEmitter.fire(null);
+    }
+}
+
+class AdapterTracker implements DebugAdapterTracker {
+    session: DebugSession;
+    treeView: ModuleTreeDataProvider;
+
+    constructor(session: DebugSession, treeView: ModuleTreeDataProvider) {
+        this.session = session;
+        this.treeView = treeView;
     }
 
-    onDebugSessionCustomEvent(e: DebugSessionCustomEvent) {
-        if (e.session.type == 'lldb' && e.event == 'module') {
-            let modules = this.modulesForSession(e.session.id);
-            let event = <DebugProtocol.ModuleEvent><any>e;
+    onDidSendMessage(message: any) {
+        if (message.type == 'event' && message.event == 'module') {
+            let modules = this.treeView.modulesForSession(this.session.id);
+            let event = <DebugProtocol.ModuleEvent>message;
             if (event.body.reason == 'new' || event.body.reason == 'changed') {
                 let index = modules.findIndex(m => m.id == event.body.module.id);
                 if (index == -1) {
@@ -111,8 +115,14 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
                 modules.filter((m) => m.id != event.body.module.id);
             }
 
-            if (e.session.id == this.activeSessionId)
-                this.onDidChangeTreeDataEmitter.fire(undefined);
+            if (this.session.id == this.treeView.activeSessionId) {
+                this.treeView.onDidChangeTreeDataEmitter.fire(null);
+            }
         }
+    }
+
+    onWillStopSession() {
+        delete this.treeView.sessions[this.session.id];
+        this.treeView.onDidChangeTreeDataEmitter.fire(null);
     }
 }

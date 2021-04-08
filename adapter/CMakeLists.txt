@@ -6,8 +6,7 @@ endif()
 set(LLDB_LinkSearch "${CMAKE_BINARY_DIR}/lldb/lib" CACHE STRING "" FORCE)
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
-                             --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target
-                             -Zpackage-features)
+                             --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target)
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
     set(CargoFlags ${CargoFlags} --release)
     set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/release)
@@ -19,7 +18,7 @@ if (CMAKE_VERBOSE_MAKEFILE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 
-set(Cargo ${WithEnv} CXX_${LLVM_TRIPLE}=${CMAKE_C_COMPILER} CXXFLAGS_${LLVM_TRIPLE}=${CMAKE_C_FLAGS} RUSTC_BOOTSTRAP=1 cargo)
+set(Cargo ${WithEnv} CXX_${LLVM_TRIPLE}=${CMAKE_C_COMPILER} CXXFLAGS_${LLVM_TRIPLE}=${CMAKE_C_FLAGS} cargo)
 
 add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
         ${CMAKE_SOURCE_DIR}/adapter/codelldb.py

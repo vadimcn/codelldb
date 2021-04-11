@@ -47,10 +47,10 @@ else()
     set(Rusttypes rusttypes.exe)
 endif()
 
-set(Cargo ${CMAKE_COMMAND} -E env RUSTC_BOOTSTRAP=1 cargo)
+set(Cargo ${CMAKE_COMMAND} -E env RUSTC_BOOTSTRAP=1 cargo -Zunstable-options)
 
 add_custom_target(rust-debuggee
-    COMMAND ${Cargo} build -p rust-debuggee --bin rust-debuggee ${Target} --out-dir ${CMAKE_CURRENT_BINARY_DIR} -Zunstable-options
+    COMMAND ${Cargo} build -p rust-debuggee --bin rust-debuggee ${Target} --out-dir ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
 

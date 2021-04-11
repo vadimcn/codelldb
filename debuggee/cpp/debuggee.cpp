@@ -245,11 +245,11 @@ void mandelbrot()
 
 int main(int argc, char *argv[])
 {
-    std::vector<std::string> args;
+    std::vector<std::string> args; // #BP1
     for (int i = 0; i < argc; ++i)
         args.push_back(argv[i]);
 
-    if (args.size() < 2) // #BP1
+    if (args.size() < 2)
     {
         printf("No testcase was specified.\n");
         return -1;

@@ -34,7 +34,7 @@ mod vec_map;
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>, debugpy_port: Option<u16>) {
     hook_crashes();
-    env_logger::Builder::from_default_env().init();
+    env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
     SBDebugger::initialize();
 

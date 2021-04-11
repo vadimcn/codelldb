@@ -1,9 +1,21 @@
 # Release Notes
 
+# 1.6.2
+
+## Fixed
+- Bug #417: Loaded modules not shown.
+- Fixed visualizers for Rust 1.48+ hashmaps.
+
+## New
+- Added support for Apple Silicon.
+- The bundled LLDB is now compiled with support for X86, ARM, AVR, RISCV, MSP430 and WebAssembly architectures.
+- Added [RPC server](MANUAL.md#rpc-server) for "external" launching.
+- Implemented new data watchpoint options (read vs write vs read/write).
+
 # 1.6.1
 
 ## Fixed
-- Bug #395 - Size and content of std::vector is not adjusted correctly after push_back #395.
+- Bug #395 - Size and content of std::vector is not adjusted correctly after push_back.
 - Bug #394 - Debug adapter crash when hit breakpoint.
 
 ## New

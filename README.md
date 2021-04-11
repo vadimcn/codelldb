@@ -1,5 +1,5 @@
 # Features
-- Debugging on Linux (x64 or ARM), macOS and Windows<sup>*</sup>,
+- Debugging on Linux (x86 or Arm), MacOS (x86 or Arm) and Windows<sup>\*</sup> (x86 only),
 - Conditional breakpoints, function breakpoints, data breakpoints, logpoints,
 - Launch debuggee in integrated or external terminal,
 - Disassembly view with instruction-level stepping,
@@ -11,15 +11,15 @@
 - Remote debugging,
 - Reverse debugging (experimental, requires compatible backend).
 
-<sup>\*</sup> DWARF debug info format recommended, limited support for MS PDB.
+For full details please see the [User's Manual](MANUAL.md).<br>
 
-For full details please see [the User's Manual](MANUAL.md).
+<sup>\*</sup> For a good debugging experience on Windows, please use `x86_64-pc-windows-gnu` compilation target.
+MS PDB debug info support is limited, especially for Rust binaries. [More info.](https://github.com/vadimcn/vscode-lldb/wiki/Windows)
 
-# Minimal System Requirements
-- 64-bit OS
-    - Linux: glibc 2.18 (Debian 8, Ubuntu 14.04, Centos 8)
-    - Mac: OS X 10.10 Yosemite
-    - Windows: 10.0
+# Supported Platforms
+- Linux with glibc 2.18+ (e.g. Debian 8, Ubuntu 14.04, Centos 8) for x86_64, aarch64 or armhf architecture,
+- MacOS X 10.10+ for x86_64 or arm64 architecture,
+- Windows 10 for x86_64 architecture.
 
 # Quick Start
 Here's a minimal debug configuration to get you started:
@@ -34,12 +34,11 @@ Here's a minimal debug configuration to get you started:
 ```
 
 # Links
-- [Initial Setup](https://github.com/vadimcn/vscode-lldb/wiki/Setup)
 - [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging) - if you are new to VSCode debugging.
-- [CodeLLDB User's Manual](MANUAL.md) - about this specific extension.
-- [Troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting) - known problems and solutions.
-- [Mailing list](https://groups.google.com/g/codelldb-users) - for questions and discussion.
-
+- [CodeLLDB User's Manual](MANUAL.md) - how to use this extension.
+- [LLDB Homepage](https://lldb.llvm.org/) - all of LLDB's CLI commands and scripting features can be used too.
+- [Wiki pages](https://github.com/vadimcn/vscode-lldb/wiki) - [troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting) and other tips and tricks.
+- [Discussions](https://github.com/vadimcn/vscode-lldb/discussions) - for questions and discussion.
 
 # Screenshots
 

@@ -29,6 +29,7 @@ def initialize_category(debugger):
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
+    attach_synthetic_to_type(StrSliceSynthProvider, 'str') # *-windows-msvc uses this name since 1.5?
 
     attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String') # Before 1.20
     attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String') # Since 1.20

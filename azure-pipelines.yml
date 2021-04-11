@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 1660
+  lldbBuildId: 1678
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: '1.51.0'
@@ -227,6 +227,7 @@ jobs:
     vmImage: 'VS2017-Win2016'
 
   variables:
+    lldbBuildId: 1588
     PlatformId: 'x86_64-windows'
     Triple: 'x86_64-windows-msvc'
 

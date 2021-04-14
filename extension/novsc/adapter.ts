@@ -1,7 +1,8 @@
 import * as cp from 'child_process';
 import * as path from 'path';
-import { Readable } from 'stream';
 import * as async from './async';
+import * as os from 'os';
+import { Readable } from 'stream';
 import { Dict, Environment } from './commonTypes';
 import { mergedEnvironment } from './expand';
 
@@ -43,6 +44,13 @@ export async function spawnDebugAdapter(
         let stat = await async.fs.stat(workDir).catch(_ => null);
         if (!stat || !stat.isDirectory())
             workDir = undefined;
+    }
+
+    // Make sure that adapter gets launched with the correct architecture preference setting if
+    // launched by translated x86 VSCode.
+    if (await isRosetta()) {
+        args = ['--arm64', executable].concat(args);
+        executable = 'arch';
     }
 
     return cp.spawn(executable, args, {
@@ -160,3 +168,18 @@ export function getAdapterEnv(extraEnv: Dict<string>): Environment {
     }
     return env;
 }
+
+// Whether this is an x86 process running on Apple M1 CPU.
+export async function isRosetta(): Promise<boolean> {
+    return await isRosettaAsync;
+}
+
+async function isRosettaImpl(): Promise<boolean> {
+    if (os.platform() == 'darwin' && os.arch() == 'x64') {
+        let sysctl = await async.cp.execFile('sysctl', ['-in', 'sysctl.proc_translated'], { encoding: 'utf8' });
+        return parseInt(sysctl.stdout) == 1;
+    } else {
+        return false;
+    }
+}
+let isRosettaAsync = isRosettaImpl();

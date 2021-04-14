@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Writable } from 'stream';
 import * as async from './novsc/async';
+import { isRosetta } from './novsc/adapter';
 
 const MaxRedirects = 10;
 
@@ -95,10 +96,8 @@ async function getPlatformPackageUrl(): Promise<Uri> {
     let pp = pkg.config.platformPackages;
     let platform = os.platform();
     let arch = os.arch();
-    if (platform == 'darwin' && arch == 'x64') {
-        let sysctl = await async.cp.execFile('sysctl', ['-in', 'sysctl.proc_translated'], { encoding: 'utf8' });
-        if (parseInt(sysctl.stdout) == 1)
-            arch = 'arm64';
+    if (await isRosetta()) {
+        arch = 'arm64';
     }
     let id = `${arch}-${platform}`;
     let platformPackage = pp.platforms[id];

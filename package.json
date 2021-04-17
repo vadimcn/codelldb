@@ -61,7 +61,9 @@
 	},
 	"main": "extension.js",
 	"activationEvents": [
-		"*"
+		"onDebug",
+		"onUri",
+		"onStartupFinished"
 	],
 	"contributes": {
 		"commands": [

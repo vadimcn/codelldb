@@ -9,6 +9,7 @@ import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as querystring from 'querystring';
+import * as net from 'net';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
 import * as async from './novsc/async';
@@ -26,10 +27,16 @@ import { pickSymbol } from './symbols';
 
 export let output = window.createOutputChannel('LLDB');
 
+let extension: Extension;
+
 // Main entry point
 export function activate(context: ExtensionContext) {
-    let extension = new Extension(context);
+    extension = new Extension(context);
     extension.onActivate();
+}
+
+export function deactivate() {
+    extension.onDeactivate();
 }
 
 class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory, UriHandler {
@@ -37,6 +44,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     htmlViewer: htmlView.DebuggerHtmlView;
     status: StatusBarItem;
     loadedModules: ModuleTreeDataProvider;
+    rpcServer: net.Server;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -69,6 +77,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             if (event.affectsConfiguration('lldb.library')) {
                 this.adapterDylibsCache = null;
             }
+            if (event.affectsConfiguration('lldb.rpcServer')) {
+                this.startRpcServer();
+            }
         }));
 
         this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
@@ -100,6 +111,31 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(window.registerTreeDataProvider('loadedModules', this.loadedModules));
 
         subscriptions.push(window.registerUriHandler(this));
+
+        this.startRpcServer();
+    }
+
+    async onActivate() {
+        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
+        let currVersion = pkg.version;
+        let lastVersion = this.context.globalState.get('lastLaunchedVersion');
+        if (lastVersion != undefined && currVersion != lastVersion) {
+            this.context.globalState.update('lastLaunchedVersion', currVersion);
+            let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
+            if (choice != null) {
+                let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
+                let uri = Uri.file(changelog);
+                await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
+            }
+        }
+        this.propagateDisplaySettings();
+        install.ensurePlatformPackage(this.context, output, false);
+    }
+
+    onDeactivate() {
+        if (this.rpcServer) {
+            this.rpcServer.close();
+        }
     }
 
     async handleUri(uri: Uri) {
@@ -163,6 +199,44 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         } catch (err) {
             await window.showErrorMessage(err.message);
+        }
+    }
+
+    startRpcServer() {
+        if (this.rpcServer) {
+            output.appendLine('Stopping RPC server');
+            this.rpcServer.close();
+            this.rpcServer = null;
+        }
+
+        let config = this.getExtensionConfig()
+        let rpcOptions: any = config.get('rpcServer');
+        if (rpcOptions) {
+            output.appendLine(`Starting RPC server with: ${inspect(rpcOptions)}`);
+            this.rpcServer = net.createServer(socket => {
+                let request = '';
+                socket.on('data', chunk => request += chunk);
+                socket.on('end', async () => {
+                    let debugConfig: DebugConfiguration = {
+                        type: 'lldb',
+                        request: 'launch',
+                        name: '',
+                    };
+                    Object.assign(debugConfig, YAML.parse(request));
+                    debugConfig.name = debugConfig.name || debugConfig.program;
+                    if (rpcOptions.token) {
+                        if (debugConfig.token != rpcOptions.token)
+                            return;
+                        delete debugConfig.token;
+                    }
+                    await debug.startDebugging(undefined, debugConfig);
+                });
+                socket.end();
+            });
+            this.rpcServer.on('error', err => {
+                output.appendLine(err.toString())
+            });
+            this.rpcServer.listen(rpcOptions);
         }
     }
 
@@ -245,23 +319,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             commands.executeCommand(item.command);
         });
         qpick.show();
-    }
-
-    async onActivate() {
-        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
-        let currVersion = pkg.version;
-        let lastVersion = this.context.globalState.get('lastLaunchedVersion');
-        if (lastVersion != undefined && currVersion != lastVersion) {
-            this.context.globalState.update('lastLaunchedVersion', currVersion);
-            let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
-            if (choice != null) {
-                let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
-                let uri = Uri.file(changelog);
-                await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
-            }
-        }
-        this.propagateDisplaySettings();
-        install.ensurePlatformPackage(this.context, output, false);
     }
 
     async provideDebugConfigurations(

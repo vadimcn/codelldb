@@ -401,6 +401,15 @@
 					},
 					"default": {},
 					"scope": "resource"
+				},
+				"lldb.rpcServer": {
+					"description": "Start an RPC server that will accept debug configuration requests.",
+					"type": [
+						"object",
+						"null"
+					],
+					"default": null,
+					"scope": "window"
 				}
 			}
 		},

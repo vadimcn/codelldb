@@ -8,6 +8,7 @@
         - [Attaching to an Existing Process](#attaching-to-a-running-process)
         - [Custom Launch](#custom-launch)
     - [Debugging Externally Launched Code](#debugging-externally-launched-code)
+        - [RPC Server](#rpc-server)
     - [Remote Debugging](#remote-debugging)
     - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Inspecting a Core Dump](#inspecting-a-core-dump)
@@ -218,6 +219,20 @@ std::thread::sleep_ms(1000); // Wait for debugger to attach
 - `chmod +x codelldb.sh`
 - `bazel run --run_under=codelldb.sh //<package>:<target>`
 
+## RPC Server
+Unfortunately, starting debug sessons via the "open-url" interface has two problems:
+- It launches debug session in the last active VSCode window.
+- It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
+
+For these reasons, CodeLLDB offers an alternate method of performing external launches: by adding `lldb.rpcServer` setting to a workspace
+of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket.
+The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) of the Node.js network server object.<br>
+As a rudimentary security feature, you may also add a `token` attribute to the server options above, in which case submitted
+debug configurations must also contain `token` with a matching value.
+
+### Example:
+- Configuration is settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
+- Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat 127.0.0.1 12345`
 
 ## Remote debugging
 
@@ -599,3 +614,4 @@ configurations when there is no existing `launch.json`.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
 |**lldb.evaluateForHovers**|Enable value preview when cursor is hovering over a variable.
 |**lldb.commandCompletions**|Enable command completions in debug console.
+|**lldb.rpcServer**|See [RPC server](#rpc-server).

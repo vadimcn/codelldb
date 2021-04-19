@@ -119,13 +119,15 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
         let currVersion = pkg.version;
         let lastVersion = this.context.globalState.get('lastLaunchedVersion');
-        if (lastVersion != undefined && currVersion != lastVersion) {
+        if (currVersion != lastVersion) {
             this.context.globalState.update('lastLaunchedVersion', currVersion);
-            let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
-            if (choice != null) {
-                let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
-                let uri = Uri.file(changelog);
-                await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
+            if (lastVersion != undefined) {
+                let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
+                if (choice != null) {
+                    let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
+                    let uri = Uri.file(changelog);
+                    await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
+                }
             }
         }
         this.propagateDisplaySettings();

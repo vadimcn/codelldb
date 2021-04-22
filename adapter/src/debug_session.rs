@@ -436,7 +436,10 @@ impl DebugSession {
                                 RequestArguments::_symbols(args) =>
                                     self.handle_symbols(args)
                                         .map(|r| ResponseBody::_symbols(r)),
-                                _=> Err("Not implemented.".into())
+                                _=> {
+                                    info!("Received an unknown command: {}", command);
+                                    Err("Not implemented.".into())
+                                }
                             }
                         }
                     }

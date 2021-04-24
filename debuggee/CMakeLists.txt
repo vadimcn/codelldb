@@ -20,7 +20,9 @@ add_executable(debuggee
 
 if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     target_link_libraries(debuggee dl pthread)
-    target_compile_options(debuggee PRIVATE "-fstandalone-debug")
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        target_compile_options(debuggee PRIVATE "-fstandalone-debug") # Include STL debug info in the binary.
+    endif()
 else()
     set(Drive "C:")
 endif()

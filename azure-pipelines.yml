@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 1678
+  lldbBuildId: 1701
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'llvm-project'
   rustcVersion: '1.51.0'
@@ -118,12 +118,15 @@ jobs:
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
-      echo - env ------------------
-      env
-      echo - dir -----------------------
-      ls -R $(Agent.BuildDirectory)
-    displayName: 'On Failure'
-    condition: failed()
+      cd $(Agent.BuildDirectory)
+      cat /proc/cpuinfo > system.log
+      cat /proc/meminfo >> system.log
+      env > env.log
+      find $(Agent.BuildDirectory) -type d > build-tree.log
+      zip --recurse-patterns $(Agent.BuildDirectory)/$(Triple).zip "*.log" "CMakeCache.txt"
+      echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
+    displayName: 'Logs'
+    condition: always()
 
 ########################################################################################################################
 
@@ -134,18 +137,19 @@ jobs:
   strategy:
     matrix:
       x86_64:
+        DeploymentTarget: '10.10'
         PlatformId: 'x86_64-darwin'
         Triple: 'x86_64-apple-darwin'
         RustTarget: 'x86_64-apple-darwin'
         CrossBuilding: false
       aarch64:
+        DeploymentTarget: '11.0'
         PlatformId: 'aarch64-darwin'
         Triple: 'aarch64-apple-darwin'
         RustTarget: 'aarch64-apple-darwin'
         CrossBuilding: true
 
   steps:
-
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
@@ -183,7 +187,7 @@ jobs:
 
   - script: |
       $(setenvOSX)
-
+      export MACOSX_DEPLOYMENT_TARGET=$(DeploymentTarget)
       mkdir build
       cd build
       xcrun -sdk macosx cmake -DVERSION_SUFFIX=$(versionSuffix)\
@@ -197,6 +201,7 @@ jobs:
 
   - script: |
       $(setenvOSX)
+      export MACOSX_DEPLOYMENT_TARGET=$(DeploymentTarget)
       xcrun -sdk macosx cmake --build build --target vsix_full
       cmake -E copy build/codelldb-full.vsix $(Build.ArtifactStagingDirectory)/codelldb-$(PlatformId).vsix
     displayName: 'Build'
@@ -208,17 +213,20 @@ jobs:
 
   - script: |
       $(setenvOSX)
+      export MACOSX_DEPLOYMENT_TARGET=$(DeploymentTarget)
       xcrun -sdk macosx cmake --build build --target check
     displayName: 'Test'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
   - script: |
-      echo - env ------------------
-      env
-      echo - dir -----------------------
-      ls -R $(Agent.BuildDirectory)
-    displayName: 'On Failure'
-    condition: failed()
+      cd $(Agent.BuildDirectory)
+      sysctl -a > system.log
+      env > env.log
+      find $(Agent.BuildDirectory) -type d > build-tree.log
+      zip --recurse-patterns $(Agent.BuildDirectory)/$(Triple).zip "*.log" "CMakeCache.txt"
+      echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
+    displayName: 'Logs'
+    condition: always()
 
  ########################################################################################################################
 
@@ -318,9 +326,10 @@ jobs:
     displayName: 'Test'
 
   - script: |
-      echo - env ------------------
-      env
-      echo - dir -----------------------
-      ls -R $(Agent.BuildDirectory)
-    displayName: 'On Failure'
-    condition: failed()
+      cd $(Agent.BuildDirectory)
+      set > env.log
+      tree /a > build-tree.log
+      zip --recurse-patterns $(Agent.BuildDirectory)\$(Triple).zip "*.log" "CMakeCache.txt"
+      echo ##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)\$(Triple).zip
+    displayName: 'Logs'
+    condition: always()

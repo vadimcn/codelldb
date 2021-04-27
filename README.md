@@ -18,7 +18,7 @@ MS PDB debug info support is limited, especially for Rust binaries. [More info.]
 
 # Supported Platforms
 - Linux with glibc 2.18+ (e.g. Debian 8, Ubuntu 14.04, Centos 8) for x86_64, aarch64 or armhf architecture,
-- MacOS X 10.10+ for x86_64 or arm64 architecture,
+- MacOS X 10.10+ for x86_64 and 11.0+ for arm64 architecture,
 - Windows 10 for x86_64 architecture.
 
 # Quick Start

@@ -1882,22 +1882,17 @@ impl DebugSession {
 
         let prev_format = var.format();
         var.set_format(format);
-        let summary =
-            // Try value.
-            if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
-                value_str
-            }
-            // Then try summary.
-            else if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
-                summary_str
-            }
-            else if is_container {
-                // Try to synthesize a summary from var's children.
-                Self::get_container_summary(var.as_ref())
-            } else {
-                // Otherwise give up.
-                "<not available>".to_owned()
-            };
+        let summary = if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
+            summary_str
+        } else if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
+            value_str
+        } else if is_container {
+            // Try to synthesize a summary from var's children.
+            Self::get_container_summary(var.as_ref())
+        } else {
+            // Otherwise give up.
+            "<not available>".to_owned()
+        };
         var.set_format(prev_format);
         summary
     }

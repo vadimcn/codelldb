@@ -25,7 +25,7 @@
 			//"initCommands": ["settings set target.disable-aslr false"],
 			"program": "${workspaceFolder}/build/adapter/codelldb",
 			"sourceMap": {
-				"/workspace/source": "/home/chega/NW/llvm-project2"
+				"/workspace/source": "${workspaceFolder}/llvm-project"
 			},
 			"sourceLanguages": [
 				"cpp",
@@ -34,7 +34,8 @@
 			"terminal": "integrated",
 			"args": [
 				"--multi-session",
-				"--port=4711"
+				"--port=4711",
+				"--debugpy=4730"
 			],
 			"linux": {
 				"env": {
@@ -42,7 +43,6 @@
 					"RUST_LOG_STYLE": "always",
 					"RUST_BACKTRACE": "full",
 					//"LD_DEBUG": "libs",
-					//"LD_LIBRARY_PATH": "/home/chega/NW/codelldb/build/lldb/lib",
 				},
 			},
 			"osx": {
@@ -61,6 +61,23 @@
 					"RUST_BACKTRACE": "full",
 				},
 			},
+		},
+		{
+			"name": "codelldb.py",
+			"type": "python",
+			"request": "attach",
+			"port": 4730,
+			"host": "127.0.0.1",
+			"pathMappings": [
+				{
+					"remoteRoot": "${workspaceFolder}/build/adapter",
+					"localRoot": "${workspaceFolder}/adapter"
+				},
+				{
+					"remoteRoot": "${workspaceFolder}/build/formatters",
+					"localRoot": "${workspaceFolder}/formatters"
+				}
+			]
 		},
 		{
 			"name": "codelldb on Windows+cppvsdbg",
@@ -92,24 +109,6 @@
 					"value": "full"
 				},
 			],
-		},
-		{
-			"name": "codelldb.py",
-			"type": "python",
-			"request": "attach",
-			"preLaunchTask": "wait for port 4730",
-			"port": 4730,
-			"host": "127.0.0.1",
-			"pathMappings": [
-				{
-					"remoteRoot": "${workspaceFolder}/build/adapter",
-					"localRoot": "${workspaceFolder}/adapter"
-				},
-				{
-					"remoteRoot": "${workspaceFolder}/build/formatters",
-					"localRoot": "${workspaceFolder}/formatters"
-				}
-			]
 		},
 		{
 			"name": "cargo test codelldb",

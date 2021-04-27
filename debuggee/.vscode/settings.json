@@ -1,6 +1,8 @@
 {
     "lldb.launch.initCommands": [
-        "settings set target.x86-disassembly-flavor intel"
+        "settings set target.x86-disassembly-flavor intel",
+        "command script import ${workspaceRoot}/../tools/debugvis.py",
+        "script from debugvis import *",
     ],
     "lldb.dbgconfig": {
         "targetDir": "${workspaceFolder}/../build/debuggee"

@@ -367,12 +367,12 @@ mod tests {
     #[test]
     fn test_launch() {
         let request = parse(br#"{"type":"request","seq":2, "command":"launch","arguments":{"type":"lldb","request":"launch","name":"Debug tests in types_lib",
-                        "program":"/home/chega/NW/vscode-lldb/debuggee/target/debug/types_lib-d6a67ab7ca515c6b",
+                        "program":"target/debug/types_lib-d6a67ab7ca515c6b",
                         "args":[],
-                        "cwd":"/home/chega/NW/vscode-lldb/debuggee",
+                        "cwd":"/home/debuggee",
                         "initCommands":["platform shell echo 'init'"],
                         "env":{"TEST":"folder"},
-                        "sourceMap":{"/checkout/src":"/home/chega/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src"},
+                        "sourceMap":{"/checkout/src":"/home/user/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src"},
                         "debugServer":41025,
                         "_displaySettings":{"showDisassembly":"always","displayFormat":"auto","dereferencePointers":true,"toggleContainerSummary":false,"containerSummary":true},
                         "__sessionId":"81865613-a1ee-4a66-b449-a94165625fd2"}

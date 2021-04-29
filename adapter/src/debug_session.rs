@@ -1777,7 +1777,7 @@ impl DebugSession {
             }
 
             if self.current_cancellation.is_cancelled() {
-                bail!("cancelled");
+                bail!(UserError("<cancelled>".into()));
             }
 
             // Bail out if timeout has expired.

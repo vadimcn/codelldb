@@ -27,7 +27,7 @@
 	"bugs": {
 		"url": "https://github.com/vadimcn/vscode-lldb/issues"
 	},
-	"qna": "https://groups.google.com/g/codelldb-users",
+	"qna": "https://github.com/vadimcn/vscode-lldb/discussions",
 	"engines": {
 		"vscode": "^1.31.0"
 	},

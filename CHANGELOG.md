@@ -1,7 +1,10 @@
 # Release Notes
 
 # 1.6.3
-...
+
+## Fixed
+- Bug #424: 1.6.2 failure stopping at breakpoints
+- Bug #428: Debugger fails to start (Fresh install / macOS 10.13)
 
 # 1.6.2
 

@@ -3,9 +3,6 @@ name = "lldb"
 version = "0.1.0"
 edition = "2018"
 
-[lib]
-path = "src/lldb.rs"
-
 [dependencies]
 cpp = "0.5"
 bitflags = "1.0"

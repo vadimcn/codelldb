@@ -19,7 +19,7 @@ fn main() {
         build_config.cpp_link_stdlib(None);
     }
 
-    build_config.build("src/lldb.rs");
+    build_config.build("src/lib.rs");
     for entry in fs::read_dir("src").unwrap() {
         println!("cargo:rerun-if-changed={}", entry.unwrap().path().display());
     }

@@ -10,7 +10,7 @@ use crate::fsutil::normalize_path;
 use crate::future;
 use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{get_fs_path_case, make_case_folder, pipe, sink};
+use crate::platform::{get_fs_path_case, make_case_folder, pipe};
 use crate::python::{self, PyObject, PythonInterface};
 use crate::terminal::Terminal;
 
@@ -78,10 +78,9 @@ pub struct DebugSession {
     event_listener: SBListener,
     invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
     python: Option<Box<PythonInterface>>,
-    current_cancellation: cancellation::Receiver, // Cancellation associated with currently processed request
+    current_cancellation: cancellation::Receiver, // Cancellation associated with request currently being processed
 
     console_pipe: std::fs::File,
-    null_pipe: std::fs::File,
 
     debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
@@ -167,7 +166,6 @@ impl DebugSession {
             current_cancellation: cancellation::dummy(),
 
             console_pipe: con_writer,
-            null_pipe: sink().unwrap(),
 
             debugger: debugger,
             target: NotInitialized,
@@ -271,6 +269,7 @@ impl DebugSession {
             let mut con_data = [0u8; 1024];
             local.run_until(async move {
                     loop {
+                        // If Python initialization failed, replace its receiver with a forever-pending future.
                         let python_event_fut = async {
                             match python_events {
                                 Some(ref mut receiver) => receiver.recv().await,
@@ -279,6 +278,7 @@ impl DebugSession {
                         };
 
                         tokio::select! {
+                            // Requests from VSCode
                             request = requests_receiver.recv() => {
                                 match request {
                                     Some((request, cancellation)) => rc_session.borrow_mut().handle_request(request, cancellation),
@@ -288,16 +288,20 @@ impl DebugSession {
                                     }
                                 }
                             }
+                            // LLDB events.
                             Some(event) = debug_events_stream.recv() => {
                                 rc_session.borrow_mut().handle_debug_event(event)
                             }
+                            // Events generated in Python code.
                             Some(event) = python_event_fut => {
                                 rc_session.borrow_mut().send_event(event);
                             }
+                            // Data arriving via the console pipe.
                             Ok(bytes) = con_reader.read(&mut con_data) => {
                                 let msg = String::from_utf8_lossy(&con_data[0..bytes]);
                                 scoped_borrow_mut(&rc_session, |s| s.console_message_nonl(msg));
                             }
+                            // Requests (from breakpoint callbacks) to execute code in the context of DebugSession.
                             Some((closure, caller)) = invoke_server.recv() => {
                                 scoped_borrow_mut(&rc_session, |s| closure(s));
                                 caller.unpark();
@@ -1963,20 +1967,23 @@ impl DebugSession {
                     if args.expression.starts_with("?") {
                         self.handle_evaluate_expression(&args.expression[1..], frame)
                     } else {
-                        self.handle_execute_command(&args.expression, frame)
+                        self.handle_execute_command(&args.expression, frame, false)
                     }
                 }
                 ConsoleMode::Evaluate => {
                     if args.expression.starts_with('`') {
-                        self.handle_execute_command(&args.expression[1..], frame)
+                        self.handle_execute_command(&args.expression[1..], frame, false)
                     } else if args.expression.starts_with("/cmd ") {
-                        self.handle_execute_command(&args.expression[5..], frame)
+                        self.handle_execute_command(&args.expression[5..], frame, false)
                     } else {
                         self.handle_evaluate_expression(&args.expression, frame)
                     }
                 }
             },
             Some("hover") if !self.evaluate_for_hovers => bail!("Hovers are disabled."),
+            // out protocol extension for testing
+            Some("_command") => self.handle_execute_command(&args.expression, frame, true),
+            // "watch"
             _ => self.handle_evaluate_expression(&args.expression, frame),
         };
 
@@ -1986,19 +1993,25 @@ impl DebugSession {
         Err(AsyncResponse(Box::new(future::ready(result))).into())
     }
 
-    fn handle_execute_command(&mut self, command: &str, frame: Option<SBFrame>) -> Result<EvaluateResponseBody, Error> {
+    fn handle_execute_command(
+        &mut self,
+        command: &str,
+        frame: Option<SBFrame>,
+        return_output: bool, // return command output in EvaluateResponseBody::result
+    ) -> Result<EvaluateResponseBody, Error> {
         let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
+        result.set_immediate_output_file(self.console_pipe.try_clone()?)?;
         let interp = self.debugger.command_interpreter();
-        drop(self.debugger.set_output_stream(self.null_pipe.try_clone()?));
         let ok = interp.handle_command_with_context(command, &context, &mut result, false);
-        drop(self.debugger.set_output_stream(self.console_pipe.try_clone()?));
         debug!("{} -> {:?}, {:?}", command, ok, result);
         // TODO: multiline
         if result.succeeded() {
-            let output = into_string_lossy(result.output()).trim_end().into();
             Ok(EvaluateResponseBody {
-                result: output,
+                result: match return_output {
+                    true => into_string_lossy(result.output()).trim_end().into(),
+                    false => String::new(),
+                },
                 ..Default::default()
             })
         } else {

@@ -1,4 +1,6 @@
 use super::*;
+use crate::cfile::cfile_from_file;
+use std::fs::File;
 
 cpp_class!(pub unsafe struct SBCommandReturnObject as "SBCommandReturnObject");
 
@@ -59,6 +61,20 @@ impl SBCommandReturnObject {
         } else {
             unsafe { CStr::from_ptr(ptr) }
         }
+    }
+    pub fn set_immediate_output_file(&self, file: File) -> Result<(), SBError> {
+        let cfile = cfile_from_file(file, true)?;
+        cpp!(unsafe [self as "SBCommandReturnObject*", cfile as "FILE*"] {
+            return self->SetImmediateOutputFile(cfile, true);
+        });
+        Ok(())
+    }
+    pub fn set_immediate_error_file(&self, file: File) -> Result<(), SBError> {
+        let cfile = cfile_from_file(file, true)?;
+        cpp!(unsafe [self as "SBCommandReturnObject*", cfile as "FILE*"] {
+            return self->SetImmediateErrorFile(cfile, true);
+        });
+        Ok(())
     }
 }
 

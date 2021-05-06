@@ -50,7 +50,7 @@ function generateSuite(triple: string) {
                 await ds.launch({ name: 'check python', custom: true });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
-                    context: 'repl'
+                    context: '_command'
                 });
                 assert.ok(result.body.result.startsWith('lldb version'));
                 assert.ok(result.body.result.indexOf('rust-enabled') >= 0);
@@ -58,7 +58,7 @@ function generateSuite(triple: string) {
                 // Check that LLDB was built with libxml2.
                 let result2 = await ds.evaluateRequest({
                     expression: 'script import lldb; s = lldb.SBStream(); lldb.debugger.GetBuildConfiguration().GetAsJSON(s) and None; print(s.GetData())',
-                    context: 'repl'
+                    context: '_command'
                 });
                 let buildConfig = JSON.parse(result2.body.result);
                 assert.ok(buildConfig.xml.value);

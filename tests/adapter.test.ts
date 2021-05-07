@@ -626,6 +626,28 @@ function generateSuite(triple: string) {
                     ref_cell3_borrow: 12,
                 });
 
+                let expected1 = [
+                    '("Olaf", 24)',
+                    '("Harald", 12)',
+                    '("Einar", 25)',
+                    '("Conan", 29)',
+                ];
+                let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
+                for (let expectedValue of expected1) {
+                    assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
+                }
+
+                let expected2 = [
+                    '"Olaf"',
+                    '"Harald"',
+                    '"Einar"',
+                    '"Conan"',
+                ];
+                let setValues = await ds.readVariables(localVars['set'].variablesReference);
+                for (let expectedValue of expected2) {
+                    assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
+                }
+
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
                         char_: "'A'",
@@ -657,28 +679,6 @@ function generateSuite(triple: string) {
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                     });
-
-                    let expected1 = [
-                        '("Olaf", 24)',
-                        '("Harald", 12)',
-                        '("Einar", 25)',
-                        '("Conan", 29)',
-                    ];
-                    let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
-                    for (let expectedValue of expected1) {
-                        assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
-                    }
-
-                    let expected2 = [
-                        '"Olaf"',
-                        '"Harald"',
-                        '"Einar"',
-                        '"Conan"',
-                    ];
-                    let setValues = await ds.readVariables(localVars['set'].variablesReference);
-                    for (let expectedValue of expected2) {
-                        assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
-                    }
 
                     if (!triple.endsWith('apple-darwin')) {
                         await ds.compareVariables(localVars, {

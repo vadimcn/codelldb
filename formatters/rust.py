@@ -528,7 +528,13 @@ class StdHashMapSynthProvider(RustSynthProvider):
         ctrl_ptr = gcm(table, 'ctrl', 'pointer')
         ctrl = ctrl_ptr.GetPointeeData(0, self.num_buckets)
 
-        item_ty = table.type.template_args[0];
+        if table.type.GetNumberOfTemplateArguments() > 0:
+            item_ty = table.type.GetTemplateArgumentType(0)
+        else: # we must be on windows-msvc - try to look up item type by name
+            table_ty_name = table.GetType().GetName() # "hashbrown::raw::RawTable<ITEM_TY>"
+            item_ty_name = table_ty_name[table_ty_name.find('<')+1 : table_ty_name.rfind('>')]
+            item_ty = table.GetTarget().FindTypes(item_ty_name).GetTypeAtIndex(0)
+
         buckets_ty = item_ty.GetArrayType(self.num_buckets)
         data = gcm(table, 'data')
         new_layout = not data.IsValid()

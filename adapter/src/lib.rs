@@ -32,7 +32,7 @@ mod vec_map;
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>, debugpy_port: Option<u16>) {
+pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
     hook_crashes();
     env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
@@ -43,11 +43,9 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
         None => Default::default(),
     };
 
-    if let Some(debugpy_port) = debugpy_port {
-        // Enable Python debugging
+    // Execute startup command
+    if let Ok(command) = std::env::var("CODELLDB_STARTUP") {
         let debugger = SBDebugger::create(false);
-        let python = if cfg!(windows) { "python" } else { "python3" };
-        let command = format!("script import debugpy; debugpy.configure(python='{}'); debugpy.listen({})", python, debugpy_port);
         let mut command_result = SBCommandReturnObject::new();
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
     }

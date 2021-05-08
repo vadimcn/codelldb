@@ -13,7 +13,6 @@ fn main() -> Result<(), Error> {
         .arg(Arg::with_name("preload").long("preload").multiple(true).takes_value(true))
         .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("params").long("params").takes_value(true))
-        .arg(Arg::with_name("debugpy").long("debugpy").takes_value(true))
         .subcommand(SubCommand::with_name("terminal-agent").arg(Arg::with_name("port").long("port").takes_value(true)))
         .get_matches();
 
@@ -32,7 +31,6 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     let multi_session = matches.is_present("multi-session");
     let port = matches.value_of("port").map(|s| s.parse().unwrap()).unwrap_or(0);
     let adapter_params = matches.value_of("params");
-    let debugpy_port = matches.value_of("debugpy").map(|s| s.parse().unwrap());
 
     unsafe {
         // Preload anything passed via --preload
@@ -63,8 +61,8 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         let codelldb = load_library(&codelldb_path, false)?;
 
         // Find codelldb's entry point and call it.
-        let entry: unsafe extern "C" fn(u16, bool, Option<&str>, Option<u16>) = transmute(find_symbol(codelldb, "entry")?);
-        entry(port, multi_session, adapter_params, debugpy_port);
+        let entry: unsafe extern "C" fn(u16, bool, Option<&str>) = transmute(find_symbol(codelldb, "entry")?);
+        entry(port, multi_session, adapter_params);
     }
 
     Ok(())

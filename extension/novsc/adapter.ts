@@ -162,7 +162,7 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
 export function getAdapterEnv(extraEnv: Dict<string>): Environment {
     let env = mergedEnvironment(extraEnv);
     // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
-    for (let name of ['PYTHONHOME', 'PYTHONPATH']) {
+    for (let name of ['PYTHONHOME', 'PYTHONPATH', 'CODELLDB_STARTUP']) {
         if (extraEnv[name] === undefined)
             delete env[name];
     }

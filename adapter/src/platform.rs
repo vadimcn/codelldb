@@ -40,17 +40,17 @@ pub fn pipe() -> Result<(fs::File, fs::File), Error> {
     }
 }
 
-#[cfg(unix)]
-pub fn sink() -> Result<fs::File, Error> {
-    Ok(fs::File::create("/dev/null")?)
-}
+// #[cfg(unix)]
+// pub fn sink() -> Result<fs::File, Error> {
+//     Ok(fs::File::create("/dev/null")?)
+// }
 
-#[cfg(windows)]
-pub fn sink() -> Result<fs::File, Error> {
-    Ok(fs::File::create(r#"\\.\NUL"#)?)
-}
+// #[cfg(windows)]
+// pub fn sink() -> Result<fs::File, Error> {
+//     Ok(fs::File::create(r#"\\.\NUL"#)?)
+// }
 
-/// Returns file path with the actual casing, as stored on disk.
+/// Returns the actual file path casing.
 #[cfg(windows)]
 pub fn get_fs_path_case(path: &Path) -> Result<PathBuf, std::io::Error> {
     use std::ffi::OsString;

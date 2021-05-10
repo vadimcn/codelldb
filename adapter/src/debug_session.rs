@@ -2083,7 +2083,8 @@ impl DebugSession {
                     Some(frame) => frame.evaluate_expression(&pp_expr).into_result(),
                     None => self.target.evaluate_expression(&pp_expr).into_result(),
                 };
-                result.map_err(|e| e.into())
+                let result = result.map_err(|e| UserError(e.error_string().into()))?;
+                Ok(result)
             }
             (PreparedExpression::Python(pp_expr), Some(python)) | //.
             (PreparedExpression::Simple(pp_expr), Some(python)) => {

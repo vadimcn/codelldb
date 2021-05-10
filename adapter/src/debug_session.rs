@@ -2533,19 +2533,21 @@ impl DebugSession {
         // Let go of the terminal helper connection
         self.debuggee_terminal = None;
 
-        let terminate = match args {
-            None => self.terminate_on_disconnect,
-            Some(args) => match args.terminate_debuggee {
-                None => self.terminate_on_disconnect,
-                Some(terminate) => terminate,
-            },
-        };
-
         if let Initialized(ref process) = self.process {
-            if terminate {
-                process.kill()?;
-            } else {
-                process.detach()?;
+            let state = process.state();
+            if state.is_alive() {
+                let terminate = match args {
+                    Some(args) => match args.terminate_debuggee {
+                        Some(terminate) => terminate,
+                        None => self.terminate_on_disconnect,
+                    },
+                    None => self.terminate_on_disconnect,
+                };
+                if terminate {
+                    process.kill()?;
+                } else {
+                    process.detach()?;
+                }
             }
         }
 

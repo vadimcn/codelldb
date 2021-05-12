@@ -150,6 +150,23 @@
 			]
 		},
 		{
+			"name": "debuggee remote debugserver launch vars",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			// debugserver 127.0.0.1:1234
+			"initCommands": [
+				"platform select remote-macosx",
+				"platform settings -w /tmp"
+			],
+			"preRunCommands": [
+				"process connect connect://127.0.0.1:1234"
+			],
+			"args": [
+				"vars"
+			]
+		},
+		{
 			"name": "debuggee rr mandelbrot",
 			"type": "lldb",
 			"request": "custom",

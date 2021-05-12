@@ -28,8 +28,8 @@ pub struct DAPSession {
 impl DAPSession {
     pub fn new(channel: Box<dyn DAPChannel>) -> (DAPSession, impl Future<Output = ()> + Send) {
         let mut channel: Pin<Box<dyn DAPChannel>> = channel.into();
-        let requests_sender = Arc::new(broadcast::channel::<Request>(10).0);
-        let events_sender = Arc::new(broadcast::channel::<Event>(10).0);
+        let requests_sender = Arc::new(broadcast::channel::<Request>(100).0);
+        let events_sender = Arc::new(broadcast::channel::<Event>(100).0);
         let (out_sender, mut out_receiver) = mpsc::channel(100);
         let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseBody>> = HashMap::new();
         let mut message_seq = 0;

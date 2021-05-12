@@ -204,60 +204,7 @@ impl DebugSession {
 
         debug_session.update_adapter_settings(&settings);
 
-        // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
-        let mut raw_requests_stream = debug_session.dap_session.borrow_mut().subscribe_requests().unwrap();
-        let (requests_sender, mut requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
-        let filter = async move {
-            let mut pending_requests: HashMap<u32, cancellation::Sender> = HashMap::new();
-            let mut cancellable_requests: Vec<cancellation::Sender> = Vec::new();
-
-            while let Ok(request) = raw_requests_stream.recv().await {
-                let sender = cancellation::Sender::new();
-                let receiver = sender.subscribe();
-
-                match &request.command {
-                    Command::Known(request_args) => match request_args {
-                        RequestArguments::cancel(args) => {
-                            info!("Cancellation {:?}", args);
-                            if let Some(id) = args.request_id {
-                                if let Some(sender) = pending_requests.remove(&(id as u32)) {
-                                    let _ = sender.send();
-                                }
-                            }
-                            continue; // Dont forward to the main event loop.
-                        }
-                        // Requests that may be canceled.
-                        RequestArguments::scopes(_)
-                        | RequestArguments::variables(_)
-                        | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
-                        // Requests that will cancel the above.
-                        RequestArguments::continue_(_)
-                        | RequestArguments::pause(_)
-                        | RequestArguments::next(_)
-                        | RequestArguments::stepIn(_)
-                        | RequestArguments::stepOut(_)
-                        | RequestArguments::stepBack(_)
-                        | RequestArguments::reverseContinue(_)
-                        | RequestArguments::terminate(_)
-                        | RequestArguments::disconnect(_) => {
-                            for sender in &mut cancellable_requests {
-                                sender.send();
-                            }
-                        }
-                        _ => (),
-                    },
-                    _ => (),
-                }
-
-                pending_requests.insert(request.seq, sender);
-                requests_sender.send((request, receiver)).await.unwrap();
-
-                // Clean out entries which don't have any receivers.
-                pending_requests.retain(|_k, v| v.receiver_count() > 0);
-                cancellable_requests.retain(|v| v.receiver_count() > 0);
-            }
-        };
-        tokio::spawn(filter);
+        let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.borrow());
 
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
@@ -312,6 +259,75 @@ impl DebugSession {
                 })
                 .await;
         }
+    }
+
+    /// Handle request cancellations.
+    fn cancellation_filter(dap_session: &DAPSession) -> mpsc::Receiver<(Request, cancellation::Receiver)> {
+        use tokio::sync::broadcast::error::RecvError;
+
+        let mut raw_requests_stream = dap_session.subscribe_requests().unwrap();
+        let (requests_sender, requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+
+        // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
+        let filter = async move {
+            let mut pending_requests: HashMap<u32, cancellation::Sender> = HashMap::new();
+            let mut cancellable_requests: Vec<cancellation::Sender> = Vec::new();
+
+            loop {
+                match raw_requests_stream.recv().await {
+                    Ok(request) => {
+                        let sender = cancellation::Sender::new();
+                        let receiver = sender.subscribe();
+
+                        match &request.command {
+                            Command::Known(request_args) => match request_args {
+                                RequestArguments::cancel(args) => {
+                                    info!("Cancellation {:?}", args);
+                                    if let Some(id) = args.request_id {
+                                        if let Some(sender) = pending_requests.remove(&(id as u32)) {
+                                            let _ = sender.send();
+                                        }
+                                    }
+                                    continue; // Dont forward to the main event loop.
+                                }
+                                // Requests that may be canceled.
+                                RequestArguments::scopes(_)
+                                | RequestArguments::variables(_)
+                                | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
+                                // Requests that will cancel the above.
+                                RequestArguments::continue_(_)
+                                | RequestArguments::pause(_)
+                                | RequestArguments::next(_)
+                                | RequestArguments::stepIn(_)
+                                | RequestArguments::stepOut(_)
+                                | RequestArguments::stepBack(_)
+                                | RequestArguments::reverseContinue(_)
+                                | RequestArguments::terminate(_)
+                                | RequestArguments::disconnect(_) => {
+                                    for sender in &mut cancellable_requests {
+                                        sender.send();
+                                    }
+                                }
+                                _ => (),
+                            },
+                            _ => (),
+                        }
+
+                        pending_requests.insert(request.seq, sender);
+                        requests_sender.send((request, receiver)).await.unwrap();
+
+                        // Clean out entries which don't have any receivers.
+                        pending_requests.retain(|_k, v| v.receiver_count() > 0);
+                        cancellable_requests.retain(|v| v.receiver_count() > 0);
+                    }
+                    Err(RecvError::Lagged(count)) => error!("Missed {} messages", count),
+                    Err(RecvError::Closed) => break,
+                }
+            }
+        };
+        tokio::spawn(filter);
+
+        requests_receiver
     }
 
     fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {

@@ -501,6 +501,7 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, _args: InitializeRequestArguments) -> Result<Capabilities, Error> {
+        self.event_listener.start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
         self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
         Ok(self.make_capabilities())
     }

@@ -99,6 +99,8 @@ pub struct DebugSession {
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
 
+    client_caps: MustInitialize<InitializeRequestArguments>,
+
     default_expr_type: Expressions,
     global_format: Format,
     show_disassembly: ShowDisassembly,
@@ -188,6 +190,8 @@ impl DebugSession {
             debuggee_terminal: None,
             selected_frame_changed: false,
             last_goto_request: None,
+
+            client_caps: NotInitialized,
 
             default_expr_type: Expressions::Simple,
             global_format: Format::Default,
@@ -520,9 +524,10 @@ impl DebugSession {
         }));
     }
 
-    fn handle_initialize(&mut self, _args: InitializeRequestArguments) -> Result<Capabilities, Error> {
+    fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
         self.event_listener.start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
         self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
+        self.client_caps = Initialized(args);
         Ok(self.make_capabilities())
     }
 
@@ -1837,12 +1842,24 @@ impl DebugSession {
             })
         };
 
+        let mem_ref = match self.client_caps.supports_memory_references {
+            Some(true) => {
+                let load_addr = var.load_address();
+                match load_addr {
+                    lldb::INVALID_ADDRESS => None,
+                    _ => Some(format!("0x{:X}", load_addr)),
+                }
+            }
+            _ => None,
+        };
+
         Variable {
             name: name.to_owned(),
             value: value,
             type_: dtype.map(|v| v.to_owned()),
             variables_reference: handles::to_i64(handle),
             evaluate_name: eval_name,
+            memory_reference: mem_ref,
             ..Default::default()
         }
     }
@@ -2579,7 +2596,7 @@ impl DebugSession {
         let bytes_read = self.process.read_memory(address + offset, buffer.as_mut_slice())?;
         buffer.truncate(bytes_read);
         Ok(ReadMemoryResponseBody {
-            address: format!("0x{:x}", address + offset),
+            address: format!("0x{:X}", address + offset),
             unreadable_bytes: Some((count - bytes_read) as i64),
             data: Some(base64::encode(buffer)),
         })

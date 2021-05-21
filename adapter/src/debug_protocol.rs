@@ -8,15 +8,16 @@ pub use raw_debug_protocol::{
     CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
     DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
     DisconnectArguments, EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody,
-    GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments, Module,
-    ModuleEventBody, NextArguments, OutputEventBody, PauseArguments, ReadMemoryArguments, ReadMemoryResponseBody,
-    RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope,
-    ScopesArguments, ScopesResponseBody, SetBreakpointsArguments, SetBreakpointsResponseBody,
-    SetDataBreakpointsArguments, SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments,
-    SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
-    SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
-    StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread,
-    ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
+    GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments,
+    InvalidatedAreas, InvalidatedEventBody, Module, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments,
+    ReadMemoryArguments, ReadMemoryResponseBody, RestartFrameArguments, ReverseContinueArguments,
+    RunInTerminalRequestArguments, RunInTerminalResponseBody, Scope, ScopesArguments, ScopesResponseBody,
+    SetBreakpointsArguments, SetBreakpointsResponseBody, SetDataBreakpointsArguments, SetDataBreakpointsResponseBody,
+    SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody,
+    Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
+    StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments,
+    TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
+    VariablesResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -162,6 +163,7 @@ pub enum EventBody {
     module(ModuleEventBody),
     terminated(TerminatedEventBody),
     thread(ThreadEventBody),
+    invalidated(InvalidatedEventBody),
     stopped(StoppedEventBody),
     // Custom
     displayHtml(DisplayHtmlEventBody),

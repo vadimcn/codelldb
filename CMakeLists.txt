@@ -119,14 +119,14 @@ endif()
 
 add_custom_target(extension
     COMMAND
-    COMMAND ${NPM} run webpack -- --display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/extension.js
+    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=extension.js
         ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
 
 add_custom_target(tests
-    COMMAND ${NPM} run webpack -- --display=minimal --mode=${WebpackMode} --output=${CMAKE_CURRENT_BINARY_DIR}/tests.js
+    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=tests.js
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

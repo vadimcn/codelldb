@@ -200,7 +200,7 @@ async function ensureDirectory(dir: string) {
     let exists = await new Promise(resolve => fs.exists(dir, exists => resolve(exists)));
     if (!exists) {
         await ensureDirectory(path.dirname(dir));
-        await new Promise((resolve, reject) => fs.mkdir(dir, err => {
+        await new Promise<void>((resolve, reject) => fs.mkdir(dir, err => {
             if (err) reject(err);
             else resolve();
         }));

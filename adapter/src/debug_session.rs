@@ -2077,17 +2077,18 @@ impl DebugSession {
                         let var = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
                             // For pointers and references we re-interpret the pointee.
                             let array_type = var_type.pointee_type().array_type(size as u64);
-                            let addr = sbval.dereference().address().unwrap();
+                            let pointee = sbval.dereference().into_result().map_err(as_user_error)?;
+                            let addr = pointee.address().ok_or_else(|| as_user_error("No address"))?;
                             sbval.target().create_value_from_address("(as array)", &addr, &array_type)
                         } else if type_class.intersects(TypeClass::Array) {
                             // For arrays, re-interpret the array length.
                             let array_type = var_type.array_element_type().array_type(size as u64);
-                            let addr = sbval.address().unwrap();
+                            let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
                             sbval.target().create_value_from_address("(as array)", &addr, &array_type)
                         } else {
                             // For other types re-interpret the value itself.
                             let array_type = var_type.array_type(size as u64);
-                            let addr = sbval.address().unwrap();
+                            let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
                             sbval.target().create_value_from_address("(as array)", &addr, &array_type)
                         };
                         (var, self.global_format)

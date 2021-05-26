@@ -6,7 +6,7 @@ import lldb
 
 if sys.version_info[0] == 2:
     # python2-based LLDB accepts utf8-encoded ascii strings only.
-    to_lldb_str = lambda s: s.encode('utf8', 'backslashreplace') if isinstance(s, unicode) else s
+    def to_lldb_str(s): return s.encode('utf8', 'backslashreplace') if isinstance(s, unicode) else s
     range = xrange
 else:
     to_lldb_str = str
@@ -16,26 +16,27 @@ log = logging.getLogger(__name__)
 module = sys.modules[__name__]
 rust_category = None
 
+
 def initialize_category(debugger):
     global module, rust_category
 
     rust_category = debugger.CreateCategory('Rust')
-    #rust_category.AddLanguage(lldb.eLanguageTypeRust)
+    # rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
     #attach_summary_to_type(get_array_summary, r'^.*\[[0-9]+\]$', True)
     attach_summary_to_type(get_tuple_summary, r'^\(.*\)$', True)
-    attach_summary_to_type(get_tuple_summary, r'^tuple<.+>$', True) # *-windows-msvc uses this name since 1.47
+    attach_summary_to_type(get_tuple_summary, r'^tuple<.+>$', True)  # *-windows-msvc uses this name since 1.47
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
-    attach_synthetic_to_type(StrSliceSynthProvider, 'str') # *-windows-msvc uses this name since 1.5?
+    attach_synthetic_to_type(StrSliceSynthProvider, 'str')  # *-windows-msvc uses this name since 1.5?
 
-    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String') # Before 1.20
-    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String') # Since 1.20
+    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String')  # Before 1.20
+    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String')  # Since 1.20
 
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True) # Before 1.20
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True) # Since 1.20
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)  # Before 1.20
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)  # Since 1.20
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
     attach_synthetic_to_type(SliceSynthProvider, r'^(mut *)?slice<.+>.*$', True)
@@ -75,7 +76,7 @@ def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     synth.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
 
-    summary_fn = lambda valobj, dict: get_synth_summary(synth_class, valobj, dict)
+    def summary_fn(valobj, dict): return get_synth_summary(synth_class, valobj, dict)
     # LLDB accesses summary fn's by name, so we need to create a unique one.
     summary_fn.__name__ = '_get_synth_summary_' + synth_class.__name__
     setattr(module, summary_fn.__name__, summary_fn)
@@ -89,7 +90,7 @@ def attach_summary_to_type(summary_fn, type_name, is_regex=False):
     summary.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
 
-\
+
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
 # This trick allows us to share data extraction logic between synth providers and their sibling summary providers.
 def get_synth_summary(synth_class, valobj, dict):
@@ -107,15 +108,17 @@ def gcm(valobj, *chain):
 
 # Rust-enabled LLDB using DWARF debug info will strip tuple field prefixes.
 # If LLDB is not Rust-enalbed or if using PDB debug info, they will be underscore-prefixed.
+
+
 def read_unique_ptr(valobj):
     pointer = valobj.GetChildMemberWithName('pointer')
-    child = pointer.GetChildMemberWithName('__0') # Plain lldb
+    child = pointer.GetChildMemberWithName('__0')  # Plain lldb
     if child.IsValid():
         return child
-    child = pointer.GetChildMemberWithName('0') # rust-lldb
+    child = pointer.GetChildMemberWithName('0')  # rust-lldb
     if child.IsValid():
         return child
-    return pointer # pointer no longer contains NonZero since Rust 1.33
+    return pointer  # pointer no longer contains NonZero since Rust 1.33
 
 
 def string_from_ptr(pointer, length):
@@ -143,8 +146,9 @@ def get_obj_summary(valobj, unavailable='{...}'):
 def sequence_summary(childern, maxsize=32):
     s = ''
     for child in childern:
-        if len(s) > 0: s += ', '
-        s +=  get_obj_summary(child)
+        if len(s) > 0:
+            s += ', '
+        s += get_obj_summary(child)
         if len(s) > maxsize:
             s += ', ...'
             break
@@ -155,42 +159,56 @@ def get_unqualified_type_name(type_name):
     if type_name[0] in unqual_type_markers:
         return type_name
     return unqual_type_regex.match(type_name).group(1)
+
+
 #
 unqual_type_markers = ["(", "[", "&", "*"]
 unqual_type_regex = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
+
 
 def dump_type(ty):
     log.info('type %s: size=%d', ty.GetName(), ty.GetByteSize())
 
 # ----- Summaries -----
 
+
 def get_tuple_summary(valobj, dict):
     fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
     return '(%s)' % ', '.join(fields)
+
 
 def get_array_summary(valobj, dict):
     return '(%d) [%s]' % (valobj.GetNumChildren(), sequence_summary(valobj))
 
 # ----- Synth providers ------
 
+
 class RustSynthProvider(object):
     def __init__(self, valobj, dict={}):
         self.valobj = valobj
         self.initialize()
+
     def initialize(self):
         return None
+
     def update(self):
         return False
+
     def num_children(self):
         return 0
+
     def has_children(self):
         return False
+
     def get_child_at_index(self, index):
         return None
+
     def get_child_index(self, name):
         return None
+
     def get_summary(self):
         return None
+
 
 class RegularEnumProvider(RustSynthProvider):
     def initialize(self):
@@ -215,16 +233,18 @@ class RegularEnumProvider(RustSynthProvider):
         return get_obj_summary(self.variant)
 
 # Base class for providers that represent array-like objects
+
+
 class ArrayLikeSynthProvider(RustSynthProvider):
     def initialize(self):
-        ptr, len = self.ptr_and_len(self.valobj) # type: ignore
+        ptr, len = self.ptr_and_len(self.valobj)  # type: ignore
         self.ptr = ptr
         self.len = len
         self.item_type = self.ptr.GetType().GetPointeeType()
         self.item_size = self.item_type.GetByteSize()
 
     def ptr_and_len(self, obj):
-        pass # abstract
+        pass  # abstract
 
     def num_children(self):
         return self.len
@@ -252,12 +272,14 @@ class ArrayLikeSynthProvider(RustSynthProvider):
     def get_summary(self):
         return '(%d)' % (self.len,)
 
+
 class StdVectorSynthProvider(ArrayLikeSynthProvider):
     def ptr_and_len(self, vec):
         return (
             read_unique_ptr(gcm(vec, 'buf', 'ptr')),
             gcm(vec, 'len').GetValueAsUnsigned()
         )
+
     def get_summary(self):
         try:
             return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
@@ -267,16 +289,20 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
 
 ##################################################################################################################
 
+
 class SliceSynthProvider(ArrayLikeSynthProvider):
     def ptr_and_len(self, vec):
         return (
             gcm(vec, 'data_ptr'),
             gcm(vec, 'length').GetValueAsUnsigned()
         )
+
     def get_summary(self):
         return '(%d) &[%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
 # Base class for *String providers
+
+
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
     def get_child_at_index(self, index):
         ch = ArrayLikeSynthProvider.get_child_at_index(self, index)
@@ -289,15 +315,18 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         strval = string_from_ptr(self.ptr, min(self.len, 1000))
         if strval == None:
             return None
-        if self.len > 1000: strval += u'...'
+        if self.len > 1000:
+            strval += u'...'
         return u'"%s"' % strval
 
+
 class StrSliceSynthProvider(StringLikeSynthProvider):
-     def ptr_and_len(self, valobj):
-         return (
+    def ptr_and_len(self, valobj):
+        return (
             gcm(valobj, 'data_ptr'),
             gcm(valobj, 'length').GetValueAsUnsigned()
-         )
+        )
+
 
 class StdStringSynthProvider(StringLikeSynthProvider):
     def ptr_and_len(self, valobj):
@@ -307,6 +336,7 @@ class StdStringSynthProvider(StringLikeSynthProvider):
             gcm(vec, 'len').GetValueAsUnsigned()
         )
 
+
 class StdCStringSynthProvider(StringLikeSynthProvider):
     def ptr_and_len(self, valobj):
         vec = gcm(valobj, 'inner')
@@ -315,16 +345,18 @@ class StdCStringSynthProvider(StringLikeSynthProvider):
             gcm(vec, 'length').GetValueAsUnsigned() - 1
         )
 
+
 class StdOsStringSynthProvider(StringLikeSynthProvider):
     def ptr_and_len(self, valobj):
         vec = gcm(valobj, 'inner', 'inner')
-        tmp = gcm(vec, 'bytes') # Windows OSString has an extra layer
+        tmp = gcm(vec, 'bytes')  # Windows OSString has an extra layer
         if tmp.IsValid():
             vec = tmp
         return (
             read_unique_ptr(gcm(vec, 'buf', 'ptr')),
             gcm(vec, 'len').GetValueAsUnsigned()
         )
+
 
 class FFISliceSynthProvider(StringLikeSynthProvider):
     def ptr_and_len(self, valobj):
@@ -338,22 +370,27 @@ class FFISliceSynthProvider(StringLikeSynthProvider):
         length = process.ReadPointerFromMemory(slice_ptr + process.GetAddressByteSize(), error)
         return pointer, length
 
+
 class StdCStrSynthProvider(FFISliceSynthProvider):
     def ptr_and_len(self, valobj):
         ptr, len = FFISliceSynthProvider.ptr_and_len(self, valobj)
-        return (ptr, len-1) # drop terminaing '\0'
+        return (ptr, len-1)  # drop terminaing '\0'
+
 
 class StdOsStrSynthProvider(FFISliceSynthProvider):
     pass
+
 
 class StdPathBufSynthProvider(StdOsStringSynthProvider):
     def ptr_and_len(self, valobj):
         return StdOsStringSynthProvider.ptr_and_len(self, gcm(valobj, 'inner'))
 
+
 class StdPathSynthProvider(FFISliceSynthProvider):
     pass
 
 ##################################################################################################################
+
 
 class DerefSynthProvider(RustSynthProvider):
     deref = lldb.SBValue()
@@ -374,6 +411,8 @@ class DerefSynthProvider(RustSynthProvider):
         return get_obj_summary(self.deref)
 
 # Base for Rc and Arc
+
+
 class StdRefCountedSynthProvider(DerefSynthProvider):
     weak = 0
     strong = 0
@@ -389,6 +428,7 @@ class StdRefCountedSynthProvider(DerefSynthProvider):
             s += '<disposed>'
         return s
 
+
 class StdRcSynthProvider(StdRefCountedSynthProvider):
     def initialize(self):
         inner = read_unique_ptr(gcm(self.valobj, 'ptr'))
@@ -396,10 +436,11 @@ class StdRcSynthProvider(StdRefCountedSynthProvider):
         self.weak = gcm(inner, 'weak', 'value', 'value').GetValueAsUnsigned()
         if self.strong > 0:
             self.deref = gcm(inner, 'value')
-            self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
+            self.weak -= 1  # There's an implicit weak reference communally owned by all the strong pointers
         else:
             self.deref = lldb.SBValue()
         self.deref.SetPreferSyntheticValue(True)
+
 
 class StdArcSynthProvider(StdRefCountedSynthProvider):
     def initialize(self):
@@ -408,20 +449,23 @@ class StdArcSynthProvider(StdRefCountedSynthProvider):
         self.weak = gcm(inner, 'weak', 'v', 'value').GetValueAsUnsigned()
         if self.strong > 0:
             self.deref = gcm(inner, 'data')
-            self.weak -= 1 # There's an implicit weak reference communally owned by all the strong pointers
+            self.weak -= 1  # There's an implicit weak reference communally owned by all the strong pointers
         else:
             self.deref = lldb.SBValue()
         self.deref.SetPreferSyntheticValue(True)
+
 
 class StdMutexSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'data', 'value')
         self.deref.SetPreferSyntheticValue(True)
 
+
 class StdCellSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value', 'value')
         self.deref.SetPreferSyntheticValue(True)
+
 
 class StdRefCellSynthProvider(DerefSynthProvider):
     def initialize(self):
@@ -437,6 +481,7 @@ class StdRefCellSynthProvider(DerefSynthProvider):
             s = '(borrowed:%d) ' % borrow
         return s + get_obj_summary(self.deref)
 
+
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
     def initialize(self):
         self.deref = gcm(self.valobj, 'value').Dereference()
@@ -444,8 +489,10 @@ class StdRefCellBorrowSynthProvider(DerefSynthProvider):
 
 ##################################################################################################################
 
+
 ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
+
 
 class EnumSynthProvider(DerefSynthProvider):
     def initialize(self):
@@ -454,7 +501,7 @@ class EnumSynthProvider(DerefSynthProvider):
 
         # The first two branches are for the sake of windows-*-msvc targets and non-rust-enabled liblldb.
         # Normally, we should be calling the initialize_enum().
-        if first_field_name.startswith(ENCODED_ENUM_PREFIX): # Niche-optimized enum
+        if first_field_name.startswith(ENCODED_ENUM_PREFIX):  # Niche-optimized enum
             tokens = first_field_name[len(ENCODED_ENUM_PREFIX):].split("$")
             discr_indices = [int(index) for index in tokens[:-1]]
             null_variant = tokens[-1]
@@ -464,7 +511,7 @@ class EnumSynthProvider(DerefSynthProvider):
                 discriminant = discriminant.GetChildAtIndex(discr_index)
 
             # Recurse down the first field of the discriminant till we reach a non-struct type,
-            for i in range(20): # ... but limit the depth, just in case.
+            for i in range(20):  # ... but limit the depth, just in case.
                 if discriminant.GetType().GetTypeClass() != lldb.eTypeClassStruct:
                     break
                 discriminant = discriminant.GetChildAtIndex(0)
@@ -473,7 +520,7 @@ class EnumSynthProvider(DerefSynthProvider):
                 self.deref = lldb.SBValue()
             else:
                 self.deref = self.valobj.GetChildAtIndex(0)
-        elif first_field_name == ENUM_DISCRIMINANT: # Regular enum
+        elif first_field_name == ENUM_DISCRIMINANT:  # Regular enum
             self.variant = self.valobj.GetChildAtIndex(0).GetValue()
             self.deref = self.valobj.GetChildAtIndex(1)
         else:
@@ -499,6 +546,7 @@ class StdOptionSynthProvider(EnumSynthProvider):
             self.variant = 'None'
             self.deref = lldb.SBValue()
 
+
 class StdResultSynthProvider(EnumSynthProvider):
     def initialize_enum(self):
         if self.valobj.GetTypeName().endswith('::Ok'):
@@ -506,6 +554,7 @@ class StdResultSynthProvider(EnumSynthProvider):
         else:
             self.variant = 'Err'
         self.deref = gcm(self.valobj, '0')
+
 
 class StdCowSynthProvider(EnumSynthProvider):
     def initialize_enum(self):
@@ -516,6 +565,7 @@ class StdCowSynthProvider(EnumSynthProvider):
         self.deref = gcm(self.valobj, '0')
 
 ##################################################################################################################
+
 
 class StdHashMapSynthProvider(RustSynthProvider):
     def initialize(self):
@@ -530,15 +580,15 @@ class StdHashMapSynthProvider(RustSynthProvider):
 
         if table.type.GetNumberOfTemplateArguments() > 0:
             item_ty = table.type.GetTemplateArgumentType(0)
-        else: # we must be on windows-msvc - try to look up item type by name
-            table_ty_name = table.GetType().GetName() # "hashbrown::raw::RawTable<ITEM_TY>"
-            item_ty_name = table_ty_name[table_ty_name.find('<')+1 : table_ty_name.rfind('>')]
+        else:  # we must be on windows-msvc - try to look up item type by name
+            table_ty_name = table.GetType().GetName()  # "hashbrown::raw::RawTable<ITEM_TY>"
+            item_ty_name = table_ty_name[table_ty_name.find('<')+1: table_ty_name.rfind('>')]
             item_ty = table.GetTarget().FindTypes(item_ty_name).GetTypeAtIndex(0)
 
         buckets_ty = item_ty.GetArrayType(self.num_buckets)
         data = gcm(table, 'data')
         new_layout = not data.IsValid()
-        if new_layout: # buckets are located above `ctrl`, in reverse order.
+        if new_layout:  # buckets are located above `ctrl`, in reverse order.
             start_addr = ctrl_ptr.GetValueAsUnsigned() - item_ty.GetByteSize() * self.num_buckets
             self.buckets = self.valobj.CreateValueFromAddress('data', start_addr, buckets_ty)
         else:
@@ -574,9 +624,10 @@ class StdHashMapSynthProvider(RustSynthProvider):
     def get_summary(self):
         return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
 
+
 class StdHashSetSynthProvider(StdHashMapSynthProvider):
     def initialize(self):
-        table = gcm(self.valobj, 'base', 'map', 'table') # rust 1.48
+        table = gcm(self.valobj, 'base', 'map', 'table')  # rust 1.48
         if not table.IsValid():
             table = gcm(self.valobj, 'map', 'base', 'table')  # rust < 1.48
         self.initialize_table(table)
@@ -587,6 +638,7 @@ class StdHashSetSynthProvider(StdHashMapSynthProvider):
         return item.CreateChildAtOffset('[%d]' % index, 0, item.GetType())
 
 ##################################################################################################################
+
 
 def __lldb_init_module(debugger_obj, internal_dict):
     log.info('Initializing')

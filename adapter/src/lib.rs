@@ -8,7 +8,7 @@ use tokio_util::codec::Decoder;
 
 #[allow(unused_imports)]
 mod prelude {
-    pub use crate::error::{Error, UserError};
+    pub use crate::error::{Error, as_user_error};
     pub use log::{debug, error, info};
 }
 

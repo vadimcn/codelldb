@@ -11,6 +11,10 @@ impl fmt::Display for UserError {
     }
 }
 
+pub fn as_user_error<E: ToString>(err: E) -> UserError {
+    UserError(err.to_string())
+}
+
 pub type Error = Box<dyn std::error::Error>;
 
 macro_rules! bail(($err:expr) => (return Err(From::from($err))));

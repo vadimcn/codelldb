@@ -483,7 +483,7 @@ impl DebugSession {
                 show_user: None,
             },
             Err(err) => {
-                let message = if let Some(user_err) = err.downcast_ref::<UserError>() {
+                let message = if let Some(user_err) = err.downcast_ref::<crate::error::UserError>() {
                     format!("{}", user_err)
                 } else {
                     format!("Internal debugger error: {}", err)
@@ -1098,7 +1098,7 @@ impl DebugSession {
         } else {
             let program = match &args.program {
                 Some(program) => program,
-                None => bail!(UserError("\"program\" property is required for launch".into())),
+                None => bail!(as_user_error("\"program\" property is required for launch")),
             };
 
             self.no_debug = args.no_debug.unwrap_or(false);
@@ -1217,16 +1217,16 @@ impl DebugSession {
         let process = match result {
             Ok(process) => process,
             Err(err) => {
-                let mut msg: String = err.error_string().into();
+                let mut msg = err.to_string();
                 if let Some(work_dir) = launch_info.working_directory() {
                     if self.target.platform().get_file_permissions(work_dir) == 0 {
                         #[rustfmt::skip]
-                            let _ = write!( msg, "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
-                                work_dir.display()
-                            );
+                        let _ = write!( msg, "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                            work_dir.display()
+                        );
                     }
                 }
-                return Err(UserError(msg))?;
+                bail!(as_user_error(msg))
             }
         };
         self.console_message(format!("Launched process {}", process.process_id()));
@@ -1282,7 +1282,7 @@ impl DebugSession {
         self.common_init_session(&args.common)?;
 
         if args.program.is_none() && args.pid.is_none() {
-            return Err(UserError(r#"Either "program" or "pid" is required for attach."#.into()))?;
+            bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
         }
 
         self.target = Initialized(self.debugger.create_target("", None, None, false)?);
@@ -1306,7 +1306,10 @@ impl DebugSession {
         if let Some(pid) = args.pid {
             let pid = match pid {
                 Pid::Number(n) => n as ProcessID,
-                Pid::String(s) => s.parse().map_err(|_| UserError("Process id must me a positive integer.".into()))?,
+                Pid::String(s) => match s.parse() {
+                    Ok(n) => n,
+                    Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
+                },
             };
             attach_info.set_process_id(pid);
         } else if let Some(program) = args.program {
@@ -1320,7 +1323,7 @@ impl DebugSession {
 
         let process = match self.target.attach(&attach_info) {
             Ok(process) => process,
-            Err(err) => return Err(UserError(err.error_string().into()))?,
+            Err(err) => bail!(as_user_error(err)),
         };
         self.console_message(format!("Attached to process {}", process.process_id()));
         self.process = Initialized(process);
@@ -1352,7 +1355,7 @@ impl DebugSession {
                 }
             }
         }
-        .map_err(|e| UserError(e.to_string()).into())
+        .map_err(|e| as_user_error(e).into())
     }
 
     fn find_executable<'a>(&self, program: &'a str) -> Cow<'a, str> {
@@ -1501,7 +1504,7 @@ impl DebugSession {
             if !result.succeeded() {
                 let err = result.error().to_string_lossy().into_owned();
                 self.console_error(err.clone());
-                return Err(UserError(err))?;
+                bail!(as_user_error(err))
             }
         }
         Ok(())
@@ -1803,7 +1806,7 @@ impl DebugSession {
             }
 
             if self.current_cancellation.is_cancelled() {
-                bail!(UserError("<cancelled>".into()));
+                bail!(as_user_error("<cancelled>"));
             }
 
             // Bail out if timeout has expired.
@@ -2042,14 +2045,14 @@ impl DebugSession {
         if result.succeeded() {
             Ok(EvaluateResponseBody {
                 result: match return_output {
-                    true => into_string_lossy(result.output()).trim_end().into(),
+                    true => into_string_lossy(result.output()).trim_end().to_string(),
                     false => String::new(),
                 },
                 ..Default::default()
             })
         } else {
-            let message = into_string_lossy(result.error()).trim_end().into();
-            Err(UserError(message).into())
+            let message = into_string_lossy(result.error()).trim_end().to_string();
+            bail!(as_user_error(message))
         }
     }
 
@@ -2060,7 +2063,7 @@ impl DebugSession {
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
         let (pp_expr, expr_format) =
-            expressions::prepare_with_format(expression, self.default_expr_type).map_err(|err| UserError(err))?;
+            expressions::prepare_with_format(expression, self.default_expr_type).map_err(as_user_error)?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
             Ok(sbval) => {
@@ -2116,18 +2119,18 @@ impl DebugSession {
                     Some(frame) => frame.evaluate_expression(&pp_expr).into_result(),
                     None => self.target.evaluate_expression(&pp_expr).into_result(),
                 };
-                let result = result.map_err(|e| UserError(e.error_string().into()))?;
+                let result = result.map_err(as_user_error)?;
                 Ok(result)
             }
             (PreparedExpression::Python(pp_expr), Some(python)) | //.
             (PreparedExpression::Simple(pp_expr), Some(python)) => {
                 let context = self.context_from_frame(frame);
-                let pycode = python.compile_code(pp_expr, "<input>").map_err(|s| UserError(s))?;
+                let pycode = python.compile_code(pp_expr, "<input>").map_err(as_user_error)?;
                 let is_simple_expr = matches!(expression, PreparedExpression::Simple(_));
-                let result = python.evaluate(&pycode, is_simple_expr, &context).map_err(|s| UserError(s))?;
+                let result = python.evaluate(&pycode, is_simple_expr, &context).map_err(as_user_error)?;
                 Ok(result)
             }
-            _ => Err(UserError("Python expressions are disabled.".into()))?,
+            _ => bail!(as_user_error("Python expressions are disabled.")),
         }
     }
 
@@ -2170,10 +2173,10 @@ impl DebugSession {
                     };
                     Ok(response)
                 }
-                Err(err) => Err(UserError(err.to_string()))?,
+                Err(err) => Err(as_user_error(err))?,
             }
         } else {
-            Err(UserError("Could not set variable value.".into()))?
+            bail!(as_user_error("Could not set variable value."));
         }
     }
 
@@ -2187,7 +2190,7 @@ impl DebugSession {
                     self.notify_process_stopped();
                     Ok(())
                 } else {
-                    Err(UserError(error.error_string().into()))?
+                    bail!(as_user_error(error));
                 }
             }
         }
@@ -2199,7 +2202,7 @@ impl DebugSession {
             Ok(()) => Ok(ContinueResponseBody {
                 all_threads_continued: Some(true),
             }),
-            Err(error) => {
+            Err(err) => {
                 if self.process.state().is_running() {
                     // Did we lose a 'running' event?
                     self.notify_process_running();
@@ -2207,7 +2210,7 @@ impl DebugSession {
                         all_threads_continued: Some(true),
                     })
                 } else {
-                    Err(UserError(error.error_string().into()))?
+                    bail!(as_user_error(err))
                 }
             }
         }
@@ -2409,7 +2412,7 @@ impl DebugSession {
                                 self.refresh_client_display(Some(thread_id));
                                 Ok(())
                             } else {
-                                bail!(UserError("Failed to set the instruction pointer.".into()));
+                                bail!(as_user_error("Failed to set the instruction pointer."));
                             }
                         }
                         // Normal source file
@@ -2421,8 +2424,8 @@ impl DebugSession {
                                     self.refresh_client_display(Some(thread_id));
                                     Ok(())
                                 }
-                                Err(error) => {
-                                    bail!(UserError(error.error_string().into()));
+                                Err(err) => {
+                                    bail!(as_user_error(err))
                                 }
                             }
                         }

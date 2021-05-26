@@ -527,13 +527,20 @@ debugger's main script context).
 |**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
 
 # Alternate LLDB backends
-CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging
-Swift programs, one might want to use a custom LLDB instance that has Swift extensions built in.<br>
-In order to use alternate backend, you will need to provide location of the corresponding `liblldb.so` (Linux)/`liblldb.dylib` (macOS)/`liblldb.dll` (Windows) dynamic library via the **lldb.library** configuration setting.
+CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging Swift programs,
+one might want to use a custom LLDB instance that has Swift extensions built in.   In order to use an alternate backend,
+you will need to provide location of the corresponding LLDB dynamic library (which must be v6.0 or later) via
+**lldb.library** configuration setting.
+
+Where to find the LLDB dynamic library:
+- Linux: `<lldb root>/lib/liblldb.so.<verson>`,<br>
+    `<lldb root>` is wherever you've installed LLDB, or `/usr`, if it's a standard distro package.
+- MacOS: `<lldb framework>/LLDB` if built as Apple framework, `<lldb root>/lib/liblldb.<version>.dylib` otherwise.<br>
+    `<lldb framework>` is typically located under `/Library/Developer/<toolchain>/.../PrivateFrameworks`.
+- Windows: `<lldb root>/bin/liblldb.dll`.
 
 Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
-You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the corresponding library.
-
+You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the dynamic library.
 
 # Rust Language Support
 

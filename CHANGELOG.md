@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.6.4
+
+## Fixed
+- Bug #411: Cannot launch and connect to debugserver on Mac
+- Bug #412: std::collectionHashMap/Set are not displayed (on x86_64-pc-windows-msvc)
+- Bug #435: debug session exited unexpectedly
+- Bug #438: Supply memoryReference for variables
+- Bug #439: Debug session fails if I "watch" for a certain expression
+- Bug #440: Nicer watch window messages with "native" expressions
+- Bug #442: Rust std::collection::HashMap has no pretty printing
+
 # 1.6.3
 
 ## Fixed

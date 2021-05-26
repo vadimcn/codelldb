@@ -31,7 +31,7 @@ subdirectories from build output.
 cd codelleb
 mkdir build  # (the build directory may be changed, but tasks.json assumes it's "build" under the project root)
 cd build
-cmake .. -LLDB_PACKAGE=<path to zip archive created in the previous step>
+cmake .. -DLLDB_PACKAGE=<path to zip archive created in the previous step>
 ```
 
 # Build

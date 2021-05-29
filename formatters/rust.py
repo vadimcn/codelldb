@@ -573,10 +573,6 @@ class StdHashMapSynthProvider(RustSynthProvider):
 
     def initialize_table(self, table):
         assert table.IsValid()
-        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
-
-        ctrl_ptr = gcm(table, 'ctrl', 'pointer')
-        ctrl = ctrl_ptr.GetPointeeData(0, self.num_buckets)
 
         if table.type.GetNumberOfTemplateArguments() > 0:
             item_ty = table.type.GetTemplateArgumentType(0)
@@ -585,23 +581,43 @@ class StdHashMapSynthProvider(RustSynthProvider):
             item_ty_name = table_ty_name[table_ty_name.find('<')+1: table_ty_name.rfind('>')]
             item_ty = table.GetTarget().FindTypes(item_ty_name).GetTypeAtIndex(0)
 
-        buckets_ty = item_ty.GetArrayType(self.num_buckets)
-        data = gcm(table, 'data')
-        new_layout = not data.IsValid()
-        if new_layout:  # buckets are located above `ctrl`, in reverse order.
-            start_addr = ctrl_ptr.GetValueAsUnsigned() - item_ty.GetByteSize() * self.num_buckets
-            self.buckets = self.valobj.CreateValueFromAddress('data', start_addr, buckets_ty)
-        else:
-            self.buckets = gcm(data, 'pointer').Dereference().Cast(buckets_ty)
+        if item_ty.IsTypedefType():
+            item_ty = item_ty.GetTypedefedType()
 
+        inner_table = table.GetChildMemberWithName('table')
+        if inner_table.IsValid():
+            self.initialize_hashbrown_v2(inner_table, item_ty)  # 1.52 <= std_version
+        else:
+            if not table.GetChildMemberWithName('data'):
+                self.initialize_hashbrown_v2(table, item_ty)  # ? <= std_version < 1.52
+            else:
+                self.initialize_hashbrown_v1(table, item_ty)  # 1.36 <= std_version < ?
+
+    def initialize_hashbrown_v2(self, table, item_ty):
+        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
+        ctrl_ptr = gcm(table, 'ctrl', 'pointer')
+        ctrl = ctrl_ptr.GetPointeeData(0, self.num_buckets)
+        # Buckets are located above `ctrl`, in reverse order.
+        start_addr = ctrl_ptr.GetValueAsUnsigned() - item_ty.GetByteSize() * self.num_buckets
+        buckets_ty = item_ty.GetArrayType(self.num_buckets)
+        self.buckets = self.valobj.CreateValueFromAddress('data', start_addr, buckets_ty)
         error = lldb.SBError()
         self.valid_indices = []
         for i in range(self.num_buckets):
             if ctrl.GetUnsignedInt8(error, i) & 0x80 == 0:
-                if new_layout:
-                    self.valid_indices.append(self.num_buckets - 1 - i)
-                else:
-                    self.valid_indices.append(i)
+                self.valid_indices.append(self.num_buckets - 1 - i)
+
+    def initialize_hashbrown_v1(self, table, item_ty):
+        self.num_buckets = gcm(table, 'bucket_mask').GetValueAsUnsigned() + 1
+        ctrl_ptr = gcm(table, 'ctrl', 'pointer')
+        ctrl = ctrl_ptr.GetPointeeData(0, self.num_buckets)
+        buckets_ty = item_ty.GetArrayType(self.num_buckets)
+        self.buckets = gcm(table, 'data', 'pointer').Dereference().Cast(buckets_ty)
+        error = lldb.SBError()
+        self.valid_indices = []
+        for i in range(self.num_buckets):
+            if ctrl.GetUnsignedInt8(error, i) & 0x80 == 0:
+                self.valid_indices.append(i)
 
     def has_children(self):
         return True
@@ -627,9 +643,9 @@ class StdHashMapSynthProvider(RustSynthProvider):
 
 class StdHashSetSynthProvider(StdHashMapSynthProvider):
     def initialize(self):
-        table = gcm(self.valobj, 'base', 'map', 'table')  # rust 1.48
+        table = gcm(self.valobj, 'base', 'map', 'table')  # std_version >= 1.48
         if not table.IsValid():
-            table = gcm(self.valobj, 'map', 'base', 'table')  # rust < 1.48
+            table = gcm(self.valobj, 'map', 'base', 'table')  # std_version < 1.48
         self.initialize_table(table)
 
     def get_child_at_index(self, index):

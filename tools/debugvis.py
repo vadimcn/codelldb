@@ -1,5 +1,25 @@
+import sys
+from contextlib import contextmanager
 import lldb
 import debugger
+
+
+indent = 0
+
+
+@contextmanager
+def indent_by(n):
+    global indent
+    indent += n
+    try:
+        yield None
+    finally:
+        indent -= n
+
+
+def iprint(*args, **kwargs):
+    sys.stdout.write(' ' * indent)
+    print(*args, **kwargs)
 
 
 def eval(expr):
@@ -7,26 +27,46 @@ def eval(expr):
 
 
 def show_type(ty):
+    global indent
     if isinstance(ty, str):
-        ty = eval(ty).GetType()
-    print('Name:', ty.GetName())
-    print('TypeClass:', str_type_class(ty.GetTypeClass()))
-    print('BasicType:', str_basic_type(ty.GetBasicType()))
-    print('Number of template arguments:', ty.GetNumberOfTemplateArguments())
+        tys = lldb.target.FindTypes(ty)
+        ty = tys.GetTypeAtIndex(0)
+    iprint('Name:', ty.GetName())
+    iprint('Size:', ty.GetByteSize())
+    iprint('BasicType:', str_basic_type(ty.GetBasicType()))
+    iprint('TypeClass:', str_type_class(ty.GetTypeClass()))
+    if ty.IsTypedefType():
+        with indent_by(4):
+            show_type(ty.GetTypedefedType())
+    iprint('Number of template arguments:', ty.GetNumberOfTemplateArguments())
     for i in range(ty.GetNumberOfTemplateArguments()):
-        print('  {} {}'.format(str_templ_arg_kind(ty.GetTemplateArgumentKind(i)),
-                               ty.GetTemplateArgumentType(i).GetName()))
+        iprint(i, ':', str_templ_arg_kind(ty.GetTemplateArgumentKind(i)))
+        with indent_by(4):
+            show_type(ty.GetTemplateArgumentType(i))
+
+
+def show_val_type(val):
+    if isinstance(val, str):
+        val = eval(val)
+    show_type(val.GetType())
 
 
 def show_value(val):
     if isinstance(val, str):
         val = eval(val)
-    print('Name:', val.GetName())
-    print('Value:', val.GetValue())
-    print('Summary:', val.GetSummary())
-    print('TypeName:', val.GetTypeName())
-    print('ValueType:', str_value_type(val.GetValueType()))
-    print('IsSynthetic:', val.IsSynthetic())
+    iprint('Name:', val.GetName())
+    iprint('Value:', val.GetValue())
+    iprint('Summary:', val.GetSummary())
+    iprint('TypeName:', val.GetTypeName())
+    iprint('ValueType:', str_value_type(val.GetValueType()))
+    iprint('IsSynthetic:', val.IsSynthetic())
+    if val.IsSynthetic():
+        with indent_by(4):
+            show_value(val.GetNonSyntheticValue())
+    iprint('IsDynamic:', val.IsDynamic())
+    if val.IsDynamic():
+        with indent_by(4):
+            show_value(val.GetStaticValue())
 
 
 type_classes = [

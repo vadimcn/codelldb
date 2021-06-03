@@ -658,6 +658,10 @@ function generateSuite(triple: string) {
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',
+
+                        cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
+                        cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
+
                         cstr: '"C String"',
                         osstr: '"OS String"',
                         path: foo_bar,
@@ -679,13 +683,6 @@ function generateSuite(triple: string) {
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                     });
-
-                    if (!triple.endsWith('apple-darwin')) {
-                        await ds.compareVariables(localVars, {
-                            cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
-                            cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
-                        });
-                    }
                 }
 
                 // LLDB does not handle Rust enums well for now

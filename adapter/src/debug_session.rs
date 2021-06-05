@@ -2592,7 +2592,7 @@ impl DebugSession {
     }
 
     fn handle_read_memory(&mut self, args: ReadMemoryArguments) -> Result<ReadMemoryResponseBody, Error> {
-        let address = args.memory_reference.parse::<lldb::Address>()?;
+        let address = lldb::Address::from_str_radix(&args.memory_reference[ 2.. ], 16)?;
         let offset = args.offset.unwrap_or(0) as lldb::Address;
         let count = args.count as usize;
         let mut buffer = Vec::with_capacity(count);

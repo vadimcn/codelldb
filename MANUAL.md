@@ -126,7 +126,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 
 ## Custom Launch
 
-The custom launch method allows user to fully specify how the debug session is initiated.  The flow of custom launch is as follows:
+The custom launch method allows user to fully specify how the debug session is initiated.  The flow of a custom launch is as follows:
 
 1. The `targetCreateCommands` command sequence is executed.  It is expected that a debug target will have been created upon completion.
 2. Debugger inserts source breakpoints.
@@ -226,13 +226,22 @@ Unfortunately, starting debug sessons via the "open-url" interface has two probl
 
 For these reasons, CodeLLDB offers an alternate method of performing external launches: by adding `lldb.rpcServer` setting to a workspace
 of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket.
-The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) of the Node.js network server object.<br>
-As a rudimentary security feature, you may also add a `token` attribute to the server options above, in which case submitted
-debug configurations must also contain `token` with a matching value.
+The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) of the Node.js network server object.
+As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
+debug configurations must also contain `token` with a matching value.<br>
+After writing configuration data, the client must half-close its end of the connection.
+Upon completion, CodeLLDB will respond with:
+```
+{
+    "success": true/false,
+    ["message": <optional error message>]
+}
+```
+
 
 ### Example:
 - Configuration is settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
-- Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat 127.0.0.1 12345`
+- Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345`
 
 ## Remote debugging
 

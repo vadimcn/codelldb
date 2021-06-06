@@ -215,7 +215,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let rpcOptions: any = config.get('rpcServer');
         if (rpcOptions) {
             output.appendLine(`Starting RPC server with: ${inspect(rpcOptions)}`);
-            this.rpcServer = net.createServer(socket => {
+            this.rpcServer = net.createServer({
+                allowHalfOpen: true
+            });
+            this.rpcServer.on('error', err => {
+                output.appendLine(err.toString())
+            });
+            this.rpcServer.on('connection', socket => {
                 let request = '';
                 socket.on('data', chunk => request += chunk);
                 socket.on('end', async () => {
@@ -231,12 +237,15 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                             return;
                         delete debugConfig.token;
                     }
-                    await debug.startDebugging(undefined, debugConfig);
+                    let result;
+                    try {
+                        let success = await debug.startDebugging(undefined, debugConfig);
+                        result = { success: success };
+                    } catch (err) {
+                        result = { success: false, message: err.toString() };
+                    }
+                    socket.end(JSON.stringify(result));
                 });
-                socket.end();
-            });
-            this.rpcServer.on('error', err => {
-                output.appendLine(err.toString())
             });
             this.rpcServer.listen(rpcOptions);
         }

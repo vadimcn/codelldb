@@ -2592,15 +2592,16 @@ impl DebugSession {
     }
 
     fn handle_read_memory(&mut self, args: ReadMemoryArguments) -> Result<ReadMemoryResponseBody, Error> {
-        let address = args.memory_reference.parse::<lldb::Address>()?;
-        let offset = args.offset.unwrap_or(0) as lldb::Address;
+        let mem_ref = parse_int::parse::<i64>(&args.memory_reference)?;
+        let offset = args.offset.unwrap_or(0);
         let count = args.count as usize;
+        let address = (mem_ref + offset) as lldb::Address;
         let mut buffer = Vec::with_capacity(count);
         buffer.resize(count, 0);
-        let bytes_read = self.process.read_memory(address + offset, buffer.as_mut_slice())?;
+        let bytes_read = self.process.read_memory(address, buffer.as_mut_slice())?;
         buffer.truncate(bytes_read);
         Ok(ReadMemoryResponseBody {
-            address: format!("0x{:X}", address + offset),
+            address: format!("0x{:X}", address),
             unreadable_bytes: Some((count - bytes_read) as i64),
             data: Some(base64::encode(buffer)),
         })

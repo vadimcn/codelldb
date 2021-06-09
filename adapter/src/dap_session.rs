@@ -108,7 +108,7 @@ impl DAPSession {
     }
 
     pub fn send_request(
-        &mut self,
+        &self,
         request_args: RequestArguments,
     ) -> impl Future<Output = Result<ResponseBody, Error>> {
         let (sender, receiver) = oneshot::channel();
@@ -123,13 +123,13 @@ impl DAPSession {
         }
     }
 
-    pub fn send_response(&mut self, response: Response) -> Result<(), Error> {
+    pub fn send_response(&self, response: Response) -> Result<(), Error> {
         let message = ProtocolMessage::Response(response);
         self.out_sender.try_send((message, None))?;
         Ok(())
     }
 
-    pub fn send_event(&mut self, event_body: EventBody) -> Result<(), Error> {
+    pub fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
         let message = ProtocolMessage::Event(Event {
             body: event_body,
             seq: 0,

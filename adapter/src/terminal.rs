@@ -18,7 +18,7 @@ impl Terminal {
         terminal_kind: impl Into<String>,
         title: impl Into<String>,
         clear_sequence: Option<Vec<String>>,
-        mut dap_session: DAPSession,
+        dap_session: DAPSession,
     ) -> Result<Terminal, Error> {
         let terminal_kind = terminal_kind.into();
         let title = title.into();

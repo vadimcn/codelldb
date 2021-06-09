@@ -30,7 +30,7 @@ pub fn pipe() -> Result<(fs::File, fs::File), Error> {
     unsafe {
         let mut r: HANDLE = ptr::null_mut();
         let mut w: HANDLE = ptr::null_mut();
-        if CreatePipe(&mut r, &mut w, ptr::null_mut(), 4096) != 0 {
+        if CreatePipe(&mut r, &mut w, ptr::null_mut(), 65536) != 0 {
             let r = File::from_raw_handle(r);
             let w = File::from_raw_handle(w);
             Ok((r, w))

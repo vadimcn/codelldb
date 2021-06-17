@@ -558,21 +558,10 @@ function generateSuite(triple: string) {
         })
 
         suite('Rust tests', () => {
-            test('rust_variables', async function () {
+            test('rust primitives', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(rustDebuggeeSource, '#BP1');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'rust variables', program: rustDebuggee },
-                    async () => {
-                        await ds.setBreakpoint(rustDebuggeeSource, bpLine);
-                    });
-                await ds.verifyLocation(stoppedEvent.body.threadId, rustDebuggeeSource, bpLine);
-                let frames = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
-                let scopes = await ds.scopesRequest({ frameId: frames.body.stackFrames[0].id });
-
-                let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
-
-                let localVars = await ds.readVariables(scopes.body.scopes[0].variablesReference);
-
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_primitives');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust primitives', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
                     bool_: true,
                     i16_: -16,
@@ -587,74 +576,24 @@ function generateSuite(triple: string) {
                     usize_: 2,
                     f32_: 3.1415926535,
                     f64_: 3.1415926535 * 2.0,
-
-                    tuple: '(1, "a", 42)',
-                    tuple_ref: '(1, "a", 42)',
-                    reg_struct: '{a:1, c:12}',
-                    reg_struct_ref: '{a:1, c:12}',
-                    array: { '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5 },
-                    slice: '(5) &[1, 2, 3, 4, 5]',
-                    mut_slice: '(5) &[1000, 2000, 3000, 4000, 5000]',
-                    vec_int: {
-                        $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
-                        '[0]': 1, '[1]': 2, '[9]': 10
-                    },
-                    vec_str: '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
-                    large_vec: '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
-                    empty_string: '""',
-                    string: '"A String"',
-                    str_slice: '"String slice"',
-                    wstr1: '"Превед йожэг!"',
-                    wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
-                    cstring: '"C String"',
-                    osstring: '"OS String"',
-
-                    path_buf: foo_bar,
-                    class: { finally: 1, import: 2, lambda: 3, raise: 4 },
-                    boxed: { $: '"boxed"' },
-                    rc_box: { $: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box2: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box2c: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box3: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    arc_box: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    arc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    ref_cell: 10,
-                    ref_cell2: '(borrowed:2) 11',
-                    ref_cell2_borrow1: 11,
-                    ref_cell3: '(borrowed:mut) 12',
-                    ref_cell3_borrow: 12,
-                });
-
-                let expected1 = [
-                    '("Olaf", 24)',
-                    '("Harald", 12)',
-                    '("Einar", 25)',
-                    '("Conan", 29)',
-                ];
-                let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
-                for (let expectedValue of expected1) {
-                    assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
-                }
-
-                let expected2 = [
-                    '"Olaf"',
-                    '"Harald"',
-                    '"Einar"',
-                    '"Conan"',
-                ];
-                let setValues = await ds.readVariables(localVars['set'].variablesReference);
-                for (let expectedValue of expected2) {
-                    assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
-                }
-
+                })
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
                         char_: "'A'",
                         i8_: -8,
                         u8_: 8,
                         unit: '()',
+                    })
+                }
+                await ds.terminate();
+            })
 
+            test('rust enums', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust enums', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                if (!triple.endsWith('pc-windows-msvc')) {
+                    await ds.compareVariables(localVars, {
                         reg_enum2: '{0:100, 1:200}',
                         reg_enum3: '{x:11.35, y:20.5}',
                         reg_enum_ref: '{x:11.35, y:20.5}',
@@ -662,6 +601,88 @@ function generateSuite(triple: string) {
                         cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
                         cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
 
+                        opt_str1: 'Some("string")',
+                        opt_str2: 'None',
+                        result_ok: { $: 'Ok("ok")', '[0]': char('o'), '[1]': char('k') },
+                        result_err: { $: 'Err("err")', '[0]': char('e'), '[1]': char('r'), '[2]': char('r') },
+                        cow1: 'Borrowed("their cow")',
+                        cow2: 'Owned("my cow")',
+                    });
+                }
+                // reg_enum1: 'A',
+                // enc_enum1: 'Some("string")',
+                // enc_enum2: 'Nothing',
+                // opt_reg_struct1: 'Some({...})',
+                // opt_reg_struct2: 'None',
+                await ds.terminate();
+            })
+
+
+            test('rust structs', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_structs');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust structs', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                await ds.compareVariables(localVars, {
+                    tuple: '(1, "a", 42)',
+                    tuple_ref: '(1, "a", 42)',
+                    reg_struct: '{a:1, c:12}',
+                    reg_struct_ref: '{a:1, c:12}',
+                    //tuple_struct: '(3, "xxx", -3)',
+                })
+                await ds.terminate();
+            })
+
+
+            test('rust arrays', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_arrays');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust arrays', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                await ds.compareVariables(localVars, {
+                    array: { '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5 },
+                    slice: '(5) &[1, 2, 3, 4, 5]',
+                    mut_slice: '(5) &[1000, 2000, 3000, 4000, 5000]',
+                    vec_int: {
+                        $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        '[0]': 1, '[1]': 2, '[9]': 10
+                    },
+                    large_vec: '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
+                    vec_str: {
+                        $: '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
+                        '[0]': '"111"', '[4]': '"5555"'
+                    }
+                })
+
+                // // Check format-as-array.
+                // let response3 = await ds.evaluateRequest({
+                //     expression: 'array[0],[5]', context: 'watch',
+                //     frameId: frameId
+                // });
+                // await ds.compareVariables(response3.body.variablesReference, {
+                //     '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
+                // });
+                await ds.terminate();
+            })
+
+            test('rust strings', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_strings');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust strings', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
+                await ds.compareVariables(localVars, {
+                    empty_string: '""',
+                    string: {
+                        $: '"A String"',
+                        '[0]': char('A'), '[7]': char('g')
+                    },
+                    str_slice: '"String slice"',
+                    wstr1: '"Превед йожэг!"',
+                    wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+                    cstring: '"C String"',
+                    osstring: '"OS String"',
+                    path_buf: foo_bar,
+                })
+                if (!triple.endsWith('pc-windows-msvc')) {
+                    await ds.compareVariables(localVars, {
                         cstr: '"C String"',
                         osstr: '"OS String"',
                         path: foo_bar,
@@ -675,47 +696,69 @@ function generateSuite(triple: string) {
                             '6': foo_bar,
                             '7': foo_bar,
                         },
-
-                        opt_str1: 'Some("string")',
-                        opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', '[0]': char('o'), '[1]': char('k') },
-                        result_err: { $: 'Err("err")', '[0]': char('e'), '[1]': char('r'), '[2]': char('r') },
-                        cow1: 'Borrowed("their cow")',
-                        cow2: 'Owned("my cow")',
-                    });
+                    })
                 }
-
-                // LLDB does not handle Rust enums well for now
-                // reg_enum1: 'A',
-                // enc_enum1: 'Some("string")',
-                // enc_enum2: 'Nothing',
-                // opt_reg_struct1: 'Some({...})',
-                // opt_reg_struct2: 'None',
-                // tuple_struct: '(3, "xxx", -3)',
-
-                let response1 = await ds.evaluateRequest({
-                    expression: 'vec_str', context: 'watch',
-                    frameId: frames.body.stackFrames[0].id
-                });
-                await ds.compareVariables(response1.body.variablesReference, { '[0]': '"111"', '[4]': '"5555"' });
-
-                let response2 = await ds.evaluateRequest({
-                    expression: 'string', context: 'watch',
-                    frameId: frames.body.stackFrames[0].id
-                });
-                await ds.compareVariables(response2.body.variablesReference, { '[0]': char('A'), '[7]': char('g') });
-
-                // Check format-as-array.
-                let response3 = await ds.evaluateRequest({
-                    expression: 'array[0],[5]', context: 'watch',
-                    frameId: frames.body.stackFrames[0].id
-                });
-                await ds.compareVariables(response3.body.variablesReference, {
-                    '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
-                });
-
                 await ds.terminate();
-            });
+            })
+
+            test('rust boxes', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust boxes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                await ds.compareVariables(localVars, {
+                    boxed: { $: '"boxed"' },
+                    rc_box: { $: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box2: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box2c: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box3: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    arc_box: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    arc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    ref_cell: 10,
+                    ref_cell2: '(borrowed:2) 11',
+                    ref_cell2_borrow1: 11,
+                    ref_cell3: '(borrowed:mut) 12',
+                    ref_cell3_borrow: 12,
+                })
+                await ds.terminate();
+            })
+
+            test('rust hashes', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_hashes');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust hashes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let expected1 = [
+                    '("Olaf", 24)',
+                    '("Harald", 12)',
+                    '("Einar", 25)',
+                    '("Conan", 29)',
+                ];
+                let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
+                for (let expectedValue of expected1) {
+                    assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
+                }
+                let expected2 = [
+                    '"Olaf"',
+                    '"Harald"',
+                    '"Einar"',
+                    '"Conan"',
+                ];
+                let setValues = await ds.readVariables(localVars['set'].variablesReference);
+                for (let expectedValue of expected2) {
+                    assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
+                }
+                await ds.terminate();
+            })
+
+            test('rust misc', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust misc', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                await ds.compareVariables(localVars, {
+                    class: { finally: 1, import: 2, lambda: 3, raise: 4 },
+                })
+                await ds.terminate();
+            })
         });
     });
 }

@@ -295,6 +295,18 @@ export class DebugTestSession extends DebugClient {
         return <dp.StoppedEvent>stoppedEvent;
     }
 
+    async launchStopAndGetVars(launchArgs: any, bpFile: string, bpLine: number): Promise<Dict<dp.Variable>> {
+        let stoppedEvent = await this.launchAndWaitForStop(launchArgs,
+            async () => {
+                await this.setBreakpoint(bpFile, bpLine);
+            });
+        await this.verifyLocation(stoppedEvent.body.threadId, bpFile, bpLine);
+        let frames = await this.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
+        let scopes = await this.scopesRequest({ frameId: frames.body.stackFrames[0].id });
+        let localVars = await this.readVariables(scopes.body.scopes[0].variablesReference);
+        return localVars;
+    }
+
     async getTopFrameId(threadId: number): Promise<number> {
         logWithStack('Awaiting stack trace');
         let frames = await this.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });

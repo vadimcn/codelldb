@@ -25,9 +25,8 @@ def initialize_category(debugger):
     # rust_category.AddLanguage(lldb.eLanguageTypeRust)
     rust_category.SetEnabled(True)
 
-    #attach_summary_to_type(get_array_summary, r'^.*\[[0-9]+\]$', True)
-    attach_summary_to_type(get_tuple_summary, r'^\(.*\)$', True)
-    attach_summary_to_type(get_tuple_summary, r'^tuple<.+>$', True)  # *-windows-msvc uses this name since 1.47
+    attach_summary_to_type(tuple_summary_provider, r'^\(.*\)$', True)
+    attach_synthetic_to_type(MsvcTupleSynthProvider, r'^tuple\$?<.+>$', True)  # *-windows-msvc uses this name since 1.47
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
@@ -39,8 +38,10 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)  # Before 1.20
     attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)  # Since 1.20
 
+    attach_synthetic_to_type(MsvcEnumSynthProvider, r'^enum\$<.+>$', True)
+
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
-    attach_synthetic_to_type(SliceSynthProvider, r'^(mut *)?slice<.+>.*$', True)
+    attach_synthetic_to_type(MsvcSliceSynthProvider, r'^(mut *)?slice\$?<.+>.*$', True)
 
     attach_synthetic_to_type(StdCStringSynthProvider, 'std::ffi::c_str::CString')
     attach_synthetic_to_type(StdCStrSynthProvider, 'std::ffi::c_str::CStr')
@@ -65,14 +66,14 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdHashMapSynthProvider, r'^std::collections::hash::map::HashMap<.+>$', True)
     attach_synthetic_to_type(StdHashSetSynthProvider, r'^std::collections::hash::set::HashSet<.+>$', True)
 
-    attach_synthetic_to_type(StdOptionSynthProvider, r'^core::option::Option<.+>$', True)
-    attach_synthetic_to_type(StdResultSynthProvider, r'^core::result::Result<.+>$', True)
-    attach_synthetic_to_type(StdCowSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
+    attach_synthetic_to_type(GenericEnumSynthProvider, r'^core::option::Option<.+>$', True)
+    attach_synthetic_to_type(GenericEnumSynthProvider, r'^core::result::Result<.+>$', True)
+    attach_synthetic_to_type(GenericEnumSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
 
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global module, rust_category
-    #log.debug('attaching synthetic %s to "%s", is_regex=%s', synth_class.__name__, type_name, is_regex)
+    # log.debug('attaching synthetic %s to "%s", is_regex=%s', synth_class.__name__, type_name, is_regex)
     synth = lldb.SBTypeSynthetic.CreateWithClassName(__name__ + '.' + synth_class.__name__)
     synth.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSynthetic(lldb.SBTypeNameSpecifier(type_name, is_regex), synth)
@@ -86,7 +87,7 @@ def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
 
 def attach_summary_to_type(summary_fn, type_name, is_regex=False):
     global module, rust_category
-    #log.debug('attaching summary %s to "%s", is_regex=%s', summary_fn.__name__, type_name, is_regex)
+    # log.debug('attaching summary %s to "%s", is_regex=%s', summary_fn.__name__, type_name, is_regex)
     summary = lldb.SBTypeSummary.CreateWithFunctionName(__name__ + '.' + summary_fn.__name__)
     summary.SetOptions(lldb.eTypeOptionCascade)
     rust_category.AddTypeSummary(lldb.SBTypeNameSpecifier(type_name, is_regex), summary)
@@ -157,7 +158,7 @@ def get_template_params(type_name):
     return params
 
 
-def get_obj_summary(valobj, unavailable='{...}'):
+def obj_summary(valobj, unavailable='{...}'):
     summary = valobj.GetSummary()
     if summary is not None:
         return summary
@@ -172,22 +173,23 @@ def sequence_summary(childern, maxsize=32):
     for child in childern:
         if len(s) > 0:
             s += ', '
-        s += get_obj_summary(child)
+        s += obj_summary(child)
         if len(s) > maxsize:
             s += ', ...'
             break
     return s
 
 
-# ----- Summaries -----
-
-def get_tuple_summary(valobj, dict={}):
-    fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
+def tuple_summary(obj, skip_first=0):
+    fields = [obj_summary(obj.GetChildAtIndex(i)) for i in range(skip_first, obj.GetNumChildren())]
     return '(%s)' % ', '.join(fields)
 
 
-def get_array_summary(valobj, dict):
-    return '(%d) [%s]' % (valobj.GetNumChildren(), sequence_summary(valobj))
+# ----- Summaries -----
+
+def tuple_summary_provider(valobj, dict={}):
+    return tuple_summary(valobj)
+
 
 # ----- Synth providers ------
 
@@ -207,43 +209,21 @@ class RustSynthProvider(object):
     def update(self):
         return False
 
-    def num_children(self):
-        return 0
-
     def has_children(self):
         return False
 
-    def get_child_at_index(self, index):
-        return None
-
-    def get_child_index(self, name):
-        return None
-
-    def get_summary(self):
-        return None
-
-
-class RegularEnumProvider(RustSynthProvider):
-    def initialize(self):
-        # Regular enums are represented as unions of structs, containing discriminant in the
-        # first field.
-        discriminant = self.valobj.GetChildAtIndex(0).GetChildAtIndex(0).GetValueAsUnsigned()
-        self.variant = self.valobj.GetChildAtIndex(discriminant)
-
     def num_children(self):
-        return max(0, self.variant.GetNumChildren() - 1)
-
-    def has_children(self):
-        return self.num_children() > 0
+        return 0
 
     def get_child_at_index(self, index):
-        return self.variant.GetChildAtIndex(index + 1)
+        return None
 
     def get_child_index(self, name):
-        return self.variant.GetIndexOfChildWithName(name) - 1
+        return None
 
     def get_summary(self):
-        return get_obj_summary(self.variant)
+        return None
+
 
 # Base class for providers that represent array-like objects
 
@@ -309,9 +289,14 @@ class SliceSynthProvider(ArrayLikeSynthProvider):
     def get_summary(self):
         return '(%d) &[%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
+
+class MsvcSliceSynthProvider(SliceSynthProvider):
+    def get_type_name(self):
+        tparams = get_template_params(self.valobj.GetTypeName())
+        return '&[' + tparams[0] + ']'
+
+
 # Base class for *String providers
-
-
 class StringLikeSynthProvider(ArrayLikeSynthProvider):
     def get_child_at_index(self, index):
         ch = ArrayLikeSynthProvider.get_child_at_index(self, index)
@@ -404,11 +389,11 @@ class StdPathSynthProvider(FFISliceSynthProvider):
 class DerefSynthProvider(RustSynthProvider):
     deref = lldb.SBValue()
 
-    def num_children(self):
-        return self.deref.GetNumChildren()
-
     def has_children(self):
         return self.deref.MightHaveChildren()
+
+    def num_children(self):
+        return self.deref.GetNumChildren()
 
     def get_child_at_index(self, index):
         return self.deref.GetChildAtIndex(index)
@@ -417,7 +402,7 @@ class DerefSynthProvider(RustSynthProvider):
         return self.deref.GetIndexOfChildWithName(name)
 
     def get_summary(self):
-        return get_obj_summary(self.deref)
+        return obj_summary(self.deref)
 
 # Base for Rc and Arc
 
@@ -432,7 +417,7 @@ class StdRefCountedSynthProvider(DerefSynthProvider):
         else:
             s = '(refs:%d) ' % self.strong
         if self.strong > 0:
-            s += get_obj_summary(self.deref)
+            s += obj_summary(self.deref)
         else:
             s += '<disposed>'
         return s
@@ -488,7 +473,7 @@ class StdRefCellSynthProvider(DerefSynthProvider):
             s = '(borrowed:mut) '
         elif borrow > 0:
             s = '(borrowed:%d) ' % borrow
-        return s + get_obj_summary(self.deref)
+        return s + obj_summary(self.deref)
 
 
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
@@ -499,12 +484,135 @@ class StdRefCellBorrowSynthProvider(DerefSynthProvider):
 ##################################################################################################################
 
 
+class EnumSynthProvider(RustSynthProvider):
+    variant = lldb.SBValue()
+    summary = ''
+    skip_first = 0
+
+    def initialize(self):
+        self.initialize_enum()
+
+    def initialize_enum(self):
+        pass
+
+    def num_children(self):
+        return self.variant.GetNumChildren() - self.skip_first
+
+    def has_children(self):
+        return self.variant.MightHaveChildren()
+
+    def get_child_at_index(self, index):
+        return self.variant.GetChildAtIndex(index + self.skip_first)
+
+    def get_child_index(self, name):
+        return self.variant.GetIndexOfChildWithName(name) - self.skip_first
+
+    def get_summary(self):
+        return self.summary
+
+##################################################################################################################
+
+
+class GenericEnumSynthProvider(EnumSynthProvider):
+    def initialize_enum(self):
+        dyn_type_name = self.valobj.GetTypeName()
+        variant_name = dyn_type_name[dyn_type_name.rfind(':')+1:]
+        self.variant = self.valobj
+
+        if self.variant.IsValid() and self.variant.GetNumChildren() > self.skip_first:
+            if self.variant.GetChildAtIndex(self.skip_first).GetName() in ['0', '__0']:
+                self.summary = variant_name + tuple_summary(self.variant)
+            else:
+                self.summary = variant_name + '{...}'
+        else:
+            self.summary = variant_name
+
+
+##################################################################################################################
+
+class MsvcTupleSynthProvider(RustSynthProvider):
+    def initialize(self):
+        tparams = get_template_params(self.valobj.GetTypeName())
+        self.type_name = '(' + ', '.join(tparams) + ')'
+
+    def has_children(self):
+        return self.valobj.MightHaveChildren()
+
+    def num_children(self):
+        return self.valobj.GetNumChildren()
+
+    def get_child_at_index(self, index):
+        child = self.valobj.GetChildAtIndex(index)
+        return child.CreateChildAtOffset(str(index), 0, child.GetType())
+
+    def get_child_index(self, name):
+        return str(name)
+
+    def get_summary(self):
+        return tuple_summary(self.valobj)
+
+    def get_type_name(self):
+        return self.type_name
+
+
+class MsvcEnumSynthProvider(EnumSynthProvider):
+    is_tuple_variant = False
+
+    def initialize_enum(self):
+        tparams = get_template_params(self.valobj.GetTypeName())
+        if len(tparams) == 1:  # Regular enum
+            discr = gcm(self.valobj, 'variant0', 'variant$')
+            self.variant = gcm(self.valobj, 'variant' + str(discr.GetValueAsUnsigned()))
+            variant_name = discr.GetValue()
+            self.skip_first = 1
+        else:  # Niche enum
+            dataful_min = int(tparams[1])
+            dataful_max = int(tparams[2])
+            dataful_var = tparams[3]
+            discr = gcm(self.valobj, 'discriminant')
+            if dataful_min <= discr.GetValueAsUnsigned() <= dataful_max:
+                self.variant = gcm(self.valobj, 'dataful_variant')
+                variant_name = dataful_var
+            else:
+                variant_name = discr.GetValue()
+
+        self.type_name = tparams[0]
+
+        if self.variant.IsValid() and self.variant.GetNumChildren() > self.skip_first:
+            if self.variant.GetChildAtIndex(self.skip_first).GetName() == '__0':
+                self.is_tuple_variant = True
+                self.summary = variant_name + tuple_summary(self.variant, skip_first=self.skip_first)
+            else:
+                self.summary = variant_name + '{...}'
+        else:
+            self.summary = variant_name
+
+    def get_child_at_index(self, index):
+        child = self.variant.GetChildAtIndex(index + self.skip_first)
+        if self.is_tuple_variant:
+            return child.CreateChildAtOffset(str(index), 0, child.GetType())
+        else:
+            return child
+
+    def get_child_index(self, name):
+        if self.is_tuple_variant:
+            return int(name)
+        else:
+            return self.variant.GetIndexOfChildWithName(name) - self.skip_first
+
+    def get_type_name(self):
+        return self.type_name
+
+
+##################################################################################################################
+
+
 ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
 ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
 
 
-class EnumSynthProvider(DerefSynthProvider):
-    def initialize(self):
+class LegacyEnumSynthProvider(EnumSynthProvider):
+    def initialize_enum(self):
         obj_type = self.valobj.GetType()
         first_field_name = obj_type.GetFieldAtIndex(0).GetName()
 
@@ -536,42 +644,12 @@ class EnumSynthProvider(DerefSynthProvider):
             self.initialize_enum()
         self.deref.SetPreferSyntheticValue(True)
 
-    def initialize_enum(self):
-        pass
-
     def get_summary(self):
         if self.deref.IsValid():
-            return self.variant + '(' + get_obj_summary(self.deref) + ')'
+            return self.variant + '(' + obj_summary(self.deref) + ')'
         else:
             return self.variant
 
-
-class StdOptionSynthProvider(EnumSynthProvider):
-    def initialize_enum(self):
-        if self.valobj.GetTypeName().endswith('::Some'):
-            self.variant = 'Some'
-            self.deref = gcm(self.valobj, '0')
-        else:
-            self.variant = 'None'
-            self.deref = lldb.SBValue()
-
-
-class StdResultSynthProvider(EnumSynthProvider):
-    def initialize_enum(self):
-        if self.valobj.GetTypeName().endswith('::Ok'):
-            self.variant = 'Ok'
-        else:
-            self.variant = 'Err'
-        self.deref = gcm(self.valobj, '0')
-
-
-class StdCowSynthProvider(EnumSynthProvider):
-    def initialize_enum(self):
-        if self.valobj.GetTypeName().endswith('::Owned'):
-            self.variant = 'Owned'
-        else:
-            self.variant = 'Borrowed'
-        self.deref = gcm(self.valobj, '0')
 
 ##################################################################################################################
 
@@ -587,7 +665,7 @@ class StdHashMapSynthProvider(RustSynthProvider):
             item_ty = table.type.GetTemplateArgumentType(0)
         else:  # we must be on windows-msvc - try to look up item type by name
             table_ty_name = table.GetType().GetName()  # "hashbrown::raw::RawTable<ITEM_TY>"
-            item_ty_name = table_ty_name[table_ty_name.find('<')+1: table_ty_name.rfind('>')]
+            item_ty_name = get_template_params(table_ty_name)[0]
             item_ty = table.GetTarget().FindTypes(item_ty_name).GetTypeAtIndex(0)
 
         if item_ty.IsTypedefType():

@@ -603,8 +603,8 @@ function generateSuite(triple: string) {
 
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', '[0]': char('o'), '[1]': char('k') },
-                        result_err: { $: 'Err("err")', '[0]': char('e'), '[1]': char('r'), '[2]': char('r') },
+                        result_ok: { $: 'Ok("ok")', '0': '"ok"' },
+                        result_err: { $: 'Err("err")', '0': '"err"' },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                     });

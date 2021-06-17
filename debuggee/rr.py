@@ -1,10 +1,8 @@
-from __future__ import print_function
 import lldb
 import re
 
 def gdb_escape(string):
     result = ""
-    pos = 0
     for curr_char in string:
         result += format(ord(curr_char), '02x')
     return result
@@ -17,8 +15,8 @@ def gdb_unescape(string):
         pos += 2
     return result
 
+@lldb.command('rr')
 def execute(debugger, command, result, internal_dict):
-    #print 'process plugin packet send \'qRRCmd:%s\'' % command
     cmd = 'process plugin packet send \'qRRCmd:%s\'' % gdb_escape(command)
     interp = debugger.GetCommandInterpreter()
     interp.HandleCommand(cmd, result, False)
@@ -29,6 +27,3 @@ def execute(debugger, command, result, internal_dict):
         result.Clear()
         result.PutCString(rv)
         result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
-
-def __lldb_init_module(debugger, internal_dict):
-    debugger.HandleCommand('command script add -f rr.execute rr')

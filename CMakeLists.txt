@@ -117,20 +117,31 @@ else()
     set(WebpackMode development)
 endif()
 
-add_custom_target(extension
-    COMMAND
+file(GLOB_RECURSE ExtensionFiles ${CMAKE_CURRENT_SOURCE_DIR}/extension/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/extension/*.json)
+add_custom_command(
+    OUTPUT extension.js
+    DEPENDS ${ExtensionFiles}
     COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=extension.js
         ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
+add_custom_target(extension
+    DEPENDS extension.js
+)
 
-add_custom_target(tests
+file(GLOB_RECURSE TestFiles ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.json)
+add_custom_command(
+    OUTPUT tests.js
+    DEPENDS ${TestFiles} ${ExtensionFiles}
     COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=tests.js
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
+)
+add_custom_target(tests
+    DEPENDS tests.js
 )
 
 # Extension package resources

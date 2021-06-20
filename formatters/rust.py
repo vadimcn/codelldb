@@ -3,6 +3,7 @@ import sys
 import logging
 import re
 import lldb
+import weakref
 
 if sys.version_info[0] == 2:
     # python2-based LLDB accepts utf8-encoded ascii strings only.
@@ -94,10 +95,15 @@ def attach_summary_to_type(summary_fn, type_name, is_regex=False):
 # 'get_summary' is annoyingly not a part of the standard LLDB synth provider API.
 # This trick allows us to share data extraction logic between synth providers and their sibling summary providers.
 def get_synth_summary(synth_class, valobj, dict):
-    synth = synth_class(valobj.GetNonSyntheticValue(), dict)
-    synth.update()
-    summary = synth.get_summary()
-    return to_lldb_str(summary)
+    try:
+        ns_valobj = valobj.GetNonSyntheticValue()
+        synth = synth_by_id.get(ns_valobj.GetID())
+        if synth is None:
+            synth = synth_class(ns_valobj, dict)
+        return to_lldb_str(synth.get_summary())
+    except Exception as e:
+        log.error('%s', e)
+        raise
 
 
 # Chained GetChildMemberWithName lookups
@@ -106,11 +112,10 @@ def gcm(valobj, *chain):
         valobj = valobj.GetChildMemberWithName(name)
     return valobj
 
-# Rust-enabled LLDB using DWARF debug info will strip tuple field prefixes.
-# If LLDB is not Rust-enalbed or if using PDB debug info, they will be underscore-prefixed.
-
 
 def read_unique_ptr(valobj):
+    # Rust-enabled LLDB using DWARF debug info will strip tuple field prefixes.
+    # If LLDB is not Rust-enalbed or if using PDB debug info, they will be underscore-prefixed.
     pointer = valobj.GetChildMemberWithName('pointer')
     child = pointer.GetChildMemberWithName('__0')  # Plain lldb
     if child.IsValid():
@@ -131,6 +136,25 @@ def string_from_ptr(pointer, length):
         return data.decode('utf8', 'replace')
     else:
         log.error('ReadMemory error: %s', error.GetCString())
+
+
+def get_template_params(type_name):
+    params = []
+    level = 0
+    start = 0
+    for i, c in enumerate(type_name):
+        if c == '<':
+            level += 1
+            if level == 1:
+                start = i + 1
+        elif c == '>':
+            level -= 1
+            if level == 0:
+                params.append(type_name[start:i].strip())
+        elif c == ',' and level == 1:
+            params.append(type_name[start:i].strip())
+            start = i + 1
+    return params
 
 
 def get_obj_summary(valobj, unavailable='{...}'):
@@ -155,24 +179,9 @@ def sequence_summary(childern, maxsize=32):
     return s
 
 
-def get_unqualified_type_name(type_name):
-    if type_name[0] in unqual_type_markers:
-        return type_name
-    return unqual_type_regex.match(type_name).group(1)
-
-
-#
-unqual_type_markers = ["(", "[", "&", "*"]
-unqual_type_regex = re.compile(r'^(?:\w+::)*(\w+).*', re.UNICODE)
-
-
-def dump_type(ty):
-    log.info('type %s: size=%d', ty.GetName(), ty.GetByteSize())
-
 # ----- Summaries -----
 
-
-def get_tuple_summary(valobj, dict):
+def get_tuple_summary(valobj, dict={}):
     fields = [get_obj_summary(valobj.GetChildAtIndex(i)) for i in range(0, valobj.GetNumChildren())]
     return '(%s)' % ', '.join(fields)
 
@@ -183,10 +192,14 @@ def get_array_summary(valobj, dict):
 # ----- Synth providers ------
 
 
+synth_by_id = weakref.WeakValueDictionary()
+
+
 class RustSynthProvider(object):
     def __init__(self, valobj, dict={}):
         self.valobj = valobj
         self.initialize()
+        synth_by_id[valobj.GetID()] = self
 
     def initialize(self):
         return None
@@ -281,11 +294,7 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
         )
 
     def get_summary(self):
-        try:
-            return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
-        except Exception as e:
-            log.error('%s', e)
-            raise
+        return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
 ##################################################################################################################
 

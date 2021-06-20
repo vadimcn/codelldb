@@ -1831,7 +1831,7 @@ impl DebugSession {
         container_handle: Option<Handle>,
     ) -> Variable {
         let name = var.name().unwrap_or_default();
-        let dtype = var.type_name();
+        let dtype = var.display_type_name();
         let value = self.get_var_summary(&var, self.global_format, container_handle.is_some());
         let handle = self.get_var_handle(container_handle, name, &var);
 
@@ -2098,7 +2098,7 @@ impl DebugSession {
                 let handle = self.get_var_handle(None, expression, &var);
                 Ok(EvaluateResponseBody {
                     result: self.get_var_summary(&var, format, handle.is_some()),
-                    type_: var.type_name().map(|s| s.to_owned()),
+                    type_: var.display_type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
                     ..Default::default()
                 })

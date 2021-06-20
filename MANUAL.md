@@ -164,10 +164,10 @@ Debugging sessions may also be started from outside of VSCode by invoking a spec
 - **`vscode://vadimcn.vscode-lldb/launch/config?<yaml>`**</br>
   This endpoint accepts a [YAML](https://yaml.org/) snippet matching one of the above debug session initiation methods.
   The `type` and the `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.
+  - JSON-like YAML (if you are not quoting keys in mappings, remember to insert a space after the colon!):<br>
+  `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program: '/path/filename', args: ['arg1','arg 2','arg3']}"`<br>
   - Line-oriented YAML (`%0A` encodes the 'newline' character):<br>
    `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?program: /path/filename%0Aargs:%0A- arg1%0A- arg 2%0A- arg3"`<br>
-  - JSON-like YAML (if you are not quoting keys, remember to insert a space after colons!):<br>
-  `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?{program: '/path/filename', args: ['arg1','arg 2','arg3']}"`<br>
 
 
 Notes:
@@ -225,22 +225,17 @@ Unfortunately, starting debug sessons via the "open-url" interface has two probl
 - It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
 
 For these reasons, CodeLLDB offers an alternate method of performing external launches: by adding `lldb.rpcServer` setting to a workspace
-of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket.
-The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) of the Node.js network server object.
-As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
+of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket:
+- The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) object of the Node.js network server object.
+- As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
 debug configurations must also contain `token` with a matching value.<br>
-After writing configuration data, the client must half-close its end of the connection.
-Upon completion, CodeLLDB will respond with:
-```
-{
-    "success": true/false,
-    ["message": <optional error message>]
-}
-```
+- After writing configuration data, the client must half-close its end of the connection.
+- Upon completion, CodeLLDB will respond with `{ "success": true/false, "message": <optional error message> }`
+
 
 
 ### Example:
-- Configuration is settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
+- Configuration in settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
 - Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345`
 
 ## Remote debugging
@@ -550,6 +545,12 @@ Where to find the LLDB dynamic library:
 
 Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
 You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the dynamic library.
+
+Note: Debian builds of LLDB have a bug whereby they search for `lldb-server` helper binary relative to the current
+executable module (which in this case is CodeLLDB), rather than relative to liblldb (as they should).  As a result,
+you may see the following error after switching to an alternate backend: "Unable to locate lldb-server-\<version\>".
+To fix this, determine where `lldb-server` is installed (via `which lldb-server-<version>`), then add
+this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-server path>"}`.
 
 # Rust Language Support
 

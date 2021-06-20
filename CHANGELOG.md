@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.6.5
+
+## Fixed
+- Bug #327: Enums are not correctly displayed on MacOS.
+- Bug #451: Debug Console doesn't work with version 1.6.4 on Windows.
+- Bug #454: readMemory request does not accept negative offset.
+
+## New
+- Rust windows-msvc binaries built using nightly-2021-06-05 or later compiler will have their enums displayed correctly 🎉.  (This will be in stable rustc 1.54)
+- Upon completing a request, the [RPC server](MANUAL.md#rpc-server) will now respond with a status message.
+
 # 1.6.4
 
 ## Fixed

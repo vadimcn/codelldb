@@ -570,6 +570,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             let [_, port] = await this.startDebugAdapter(folder, {});
             let socket = await async.net.createConnection({ port: port, timeout: 1000 });
             socket.destroy()
+            succeeded = true;
         } catch (err) {
             succeeded = false;
         }

@@ -18,6 +18,9 @@
   #include <crt_externs.h>
   #define environ (*_NSGetEnviron())
  #endif
+ #if defined(__linux__)
+  #include <sys/prctl.h>
+ #endif
 #else
  #include <windows.h>
  void sleep(unsigned secs) { Sleep(secs * 1000); }
@@ -246,6 +249,10 @@ void mandelbrot()
 
 int main(int argc, char *argv[])
 {
+#if defined(__linux__)
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+#endif
+
     std::vector<std::string> args; // #BP1
     for (int i = 0; i < argc; ++i)
         args.push_back(argv[i]);

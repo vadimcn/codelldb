@@ -498,22 +498,10 @@ function generateSuite(triple: string) {
         });
 
         suite('Attach tests', () => {
-            // Many Linux systems restrict tracing to parent processes only, which lldb in this case isn't.
-            // To allow unrestricted tracing run `echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope`.
-            let ptraceLocked = false;
-            if (process.platform == 'linux') {
-                if (parseInt(fs.readFileSync('/proc/sys/kernel/yama/ptrace_scope', 'ascii')) > 0) {
-                    ptraceLocked = true;
-                }
-            }
-
             let debuggeeProc: cp.ChildProcess;
 
             suiteSetup(() => {
-                if (ptraceLocked)
-                    console.log('ptrace() syscall is locked down: skipping attach tests');
-                else
-                    debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
+                debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
             })
 
             suiteTeardown(() => {
@@ -522,8 +510,6 @@ function generateSuite(triple: string) {
             })
 
             test('attach by pid', async function () {
-                if (ptraceLocked) this.skip();
-
                 let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
@@ -533,8 +519,6 @@ function generateSuite(triple: string) {
             });
 
             test('attach by pid / nostop', async function () {
-                if (ptraceLocked) this.skip();
-
                 let ds = await DebugTestSession.start();
                 let stopCount = 0;
                 ds.addListener('stopped', () => stopCount += 1);
@@ -546,8 +530,6 @@ function generateSuite(triple: string) {
             });
 
             test('attach by name', async function () {
-                if (ptraceLocked) this.skip();
-
                 let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });

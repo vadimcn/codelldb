@@ -79,8 +79,6 @@ jobs:
 
   - script: |
       $(setenvLinux)
-      echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
-
       mkdir build
       cd build
       cmake -DVERSION_SUFFIX=$(versionSuffix)\

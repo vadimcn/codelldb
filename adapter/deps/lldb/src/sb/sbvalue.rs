@@ -204,6 +204,12 @@ impl SBValue {
             unsafe { Some(CStr::from_ptr(ptr)) }
         }
     }
+    pub fn should_hide_children(&self) -> bool {
+        cpp!(unsafe [self as "SBValue*"] -> bool as "bool" {
+            auto summary = self->GetTypeSummary();
+            return summary.IsValid() && (summary.GetOptions() & lldb::eTypeOptionHideChildren) == lldb::eTypeOptionHideChildren;
+        })
+    }
     pub fn num_children(&self) -> u32 {
         cpp!(unsafe [self as "SBValue*"] -> u32 as "uint32_t" {
             return self->GetNumChildren();

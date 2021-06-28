@@ -23,6 +23,7 @@ const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'd
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
 const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
+const lldbinitScript = path.normalize(path.join(sourceDir, 'debuggee', 'lldbinit.py'));
 
 const rustDebuggee = path.join(debuggeeDir, 'rust-debuggee');
 const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
@@ -476,6 +477,71 @@ function generateSuite(triple: string) {
                     expression: '/py type(debugger.wrap(debugger.evaluate("s1", unwrap=True)))', frameId: frameId, context: 'watch'
                 });
                 assert.ok(response3.body.result.includes('value.Value'), `Actual: ${response3.body.result}`);
+
+                await ds.terminate();
+            });
+
+            test("providers", async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(debuggeeSource, "#BP3");
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: "expressions", program: debuggee, args: ["vars"] },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                    }
+                );
+
+                let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
+                let localsRef = await ds.getFrameLocalsRef(frameId);
+
+                await ds.compareVariables(localsRef, {
+                    synth: {
+                        $: "{...}",
+                        d: {
+                            $: "{5, 8}",
+                            "[0]": 5,
+                            "[1]": 8,
+                        },
+                    }
+                });
+
+                let result = await ds.evaluateRequest({
+                    expression: 'type summary add --summary-string "test summary ${var.d[0]}" Synth',
+                    context: "_command",
+                });
+                assert.ok(result.success);
+
+                // Summary string hides children by default
+                result = await ds.evaluateRequest({
+                    expression: 'synth', context: 'watch', frameId: frameId
+                });
+                assert.equal(result.body.result, 'test summary 5');
+                assert.equal(result.body.variablesReference, 0);
+
+                result = await ds.evaluateRequest({
+                    expression: "type summary delete Synth",
+                    context: "_command",
+                });
+                assert.ok(result.success);
+
+                // Load script setting both summary string and custom synthetic children that behave
+                // the same as LLDB internal formatters for C++ do (size=x for summary string, and children, e.g. for vector)
+                result = await ds.evaluateRequest({
+                    expression:
+                        `command script import ${lldbinitScript}`,
+                    context: "_command",
+                });
+                assert.ok(result.success);
+
+                await ds.compareVariables(localsRef, {
+                    synth: {
+                        $: "test size=4",
+                        first: 5,
+                        second: 8,
+                        third: 5,
+                        forth: 8,
+                        "[raw]": (_: any) => true,
+                    },
+                });
 
                 await ds.terminate();
             });

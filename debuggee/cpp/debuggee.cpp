@@ -145,6 +145,11 @@ void vars()
         };
     };
 
+    struct Synth
+    {
+        int d[2];
+    };
+
     int a = 10;
     int b = 20;
     for (int i = 0; i < 10; i++)
@@ -184,6 +189,8 @@ void vars()
         for (int j = 0; j < 5; ++j)
             array_struct[j] = { i*2 + j, (char)('a'+ j), (float)j};
         Struct* array_struct_p = array_struct;
+
+        Synth synth = {{5, 8}};
 
         const char *cstr = "The quick brown fox";
         const wchar_t *wcstr = L"The quick brown fox";

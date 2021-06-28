@@ -1869,7 +1869,10 @@ impl DebugSession {
 
     // Generate a handle for a variable.
     fn get_var_handle(&mut self, parent_handle: Option<Handle>, key: &str, var: &SBValue) -> Option<Handle> {
-        if var.num_children() > 0 || var.is_synthetic() {
+        // Hide children when type summary is present
+        if var.should_hide_children() && var.summary().is_some() {
+            None
+        } else if var.num_children() > 0 {
             Some(self.var_refs.create(parent_handle, key, Container::SBValue(var.clone())))
         } else {
             None

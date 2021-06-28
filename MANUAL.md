@@ -508,6 +508,13 @@ Python expressions use normal Python syntax.  In addition to that, any identifie
 variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $arr]`
 will evaluate to a list containing square roots of the values contained in array variable `arr`.
 
+Use the `script import [python_package]` command to import, or add such commands to your initCommands
+editor configuration:
+
+```
+"initCommands": ["script import math"]
+```
+
 ### Native expressions
 Prefix: `/nat `<br>
 Native expressions use LLDB's built-in expression evaluators.  The specifics depend on source language of the

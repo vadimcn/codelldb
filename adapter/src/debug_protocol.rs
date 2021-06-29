@@ -339,7 +339,8 @@ pub struct SymbolsResponse {
 mod tests {
     use super::*;
 
-    macro_rules! assert_matches(($e:expr, $p:pat) => { assert!(matches!($e, $p), "{}", stringify!($e !~ $p)) });
+    #[cfg(test)]
+    macro_rules! assert_matches(($e:expr, $p:pat) => { let e = $e; assert!(matches!(e, $p), "{:?} !~ {}", e, stringify!($p)) });
 
     fn parse(s: &[u8]) -> ProtocolMessage {
         serde_json::from_slice::<ProtocolMessage>(s).unwrap()

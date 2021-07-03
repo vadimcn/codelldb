@@ -50,7 +50,6 @@ impl AddressSpace {
         }
 
         let addr = SBAddress::from_load_address(load_addr, &self.target);
-        assert!(addr.is_valid());
         debug!("{:?}", addr);
 
         let start_addr;

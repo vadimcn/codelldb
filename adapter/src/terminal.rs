@@ -51,7 +51,7 @@ impl Terminal {
                 kind: Some(terminal_kind),
                 title: Some(title),
             };
-            let _resp = dap_session.send_request(RequestArguments::runInTerminal(req_args));
+            log_errors!(dap_session.send_request(RequestArguments::runInTerminal(req_args)).await);
 
             let (stream, _remote_addr) = accept_fut.await?;
 

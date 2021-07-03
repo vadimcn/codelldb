@@ -8,7 +8,7 @@ use tokio_util::codec::Decoder;
 
 #[allow(unused_imports)]
 mod prelude {
-    pub use crate::error::{Error, as_user_error};
+    pub use crate::error::{as_user_error, Error};
     pub use log::{debug, error, info};
 }
 
@@ -27,6 +27,7 @@ mod handles;
 mod must_initialize;
 mod platform;
 mod python;
+mod shared;
 mod terminal;
 mod vec_map;
 

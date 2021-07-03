@@ -12,6 +12,7 @@ use crate::handles::{self, Handle, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::platform::{get_fs_path_case, make_case_folder, pipe};
 use crate::python::{self, PyObject, PythonInterface};
+use crate::shared::Shared;
 use crate::terminal::Terminal;
 
 use std;
@@ -22,7 +23,6 @@ use std::env;
 use std::ffi::CStr;
 use std::fmt::Write;
 use std::mem;
-use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
@@ -70,13 +70,10 @@ struct BreakpointsState {
     breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
 }
 
-type Invocation = &'static mut (dyn FnMut(&mut DebugSession) + Send + Sync);
-
 pub struct DebugSession {
-    self_ref: MustInitialize<Rc<RefCell<DebugSession>>>,
-    dap_session: RefCell<DAPSession>,
+    self_ref: MustInitialize<Shared<DebugSession>>,
+    dap_session: DAPSession,
     event_listener: SBListener,
-    invoke_client: mpsc::Sender<(Invocation, std::thread::Thread)>,
     python: Option<Box<PythonInterface>>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with request currently being processed
 
@@ -140,10 +137,10 @@ impl DebugSession {
         debugger.set_async_mode(true);
 
         let (con_reader, con_writer) = pipe().unwrap();
-        let _ = debugger.set_output_stream(con_writer.try_clone().unwrap());
+        log_errors!(debugger.set_output_stream(con_writer.try_clone().unwrap()));
         let current_exe = env::current_exe().unwrap();
 
-        let (python, mut python_events) = match python::initialize(
+        let (python, python_events) = match python::initialize(
             debugger.command_interpreter(),
             current_exe.parent().unwrap(),
             Some(con_writer.try_clone().unwrap()),
@@ -155,15 +152,12 @@ impl DebugSession {
             }
         };
 
-        let mut con_reader = tokio::fs::File::from_std(con_reader);
-
-        let (invoke_client, mut invoke_server) = mpsc::channel(10);
+        let con_reader = tokio::fs::File::from_std(con_reader);
 
         let mut debug_session = DebugSession {
             self_ref: NotInitialized,
-            dap_session: RefCell::new(dap_session),
+            dap_session: dap_session,
             event_listener: SBListener::new_with_name("DebugSession"),
-            invoke_client: invoke_client,
             python: python,
             current_cancellation: cancellation::dummy(),
 
@@ -206,63 +200,70 @@ impl DebugSession {
             terminal_prompt_clear: None,
         };
 
-        debug_session.update_adapter_settings(&settings);
+        DebugSession::pipe_console_events(&debug_session.dap_session, con_reader);
 
-        let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.borrow());
+        if let Some(python_events) = python_events {
+            DebugSession::pipe_python_events(&debug_session.dap_session, python_events);
+        }
 
+        let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
-        // The main event loop, where we react to incoming events from different sources.
-        let rc_session = Rc::new(RefCell::new(debug_session));
-        async move {
-            rc_session.borrow_mut().self_ref = Initialized(rc_session.clone());
-            let local = tokio::task::LocalSet::new();
-            let mut con_data = [0u8; 1024];
-            local.run_until(async move {
-                    loop {
-                        // If Python initialization failed, replace its receiver with a forever-pending future.
-                        let python_event_fut = async {
-                            match python_events {
-                                Some(ref mut receiver) => receiver.recv().await,
-                                None => future::pending().await,
-                            }
-                        };
+        debug_session.update_adapter_settings(&settings);
 
-                        tokio::select! {
-                            // Requests from VSCode
-                            request = requests_receiver.recv() => {
-                                match request {
-                                    Some((request, cancellation)) => rc_session.borrow_mut().handle_request(request, cancellation),
-                                    None => {
-                                        debug!("End of the requests stream");
-                                        break;
-                                    }
-                                }
-                            }
-                            // LLDB events.
-                            Some(event) = debug_events_stream.recv() => {
-                                rc_session.borrow_mut().handle_debug_event(event)
-                            }
-                            // Events generated in Python code.
-                            Some(event) = python_event_fut => {
-                                rc_session.borrow_mut().send_event(event);
-                            }
-                            // Data arriving via the console pipe.
-                            Ok(bytes) = con_reader.read(&mut con_data) => {
-                                let msg = String::from_utf8_lossy(&con_data[0..bytes]);
-                                scoped_borrow_mut(&rc_session, |s| s.console_message_nonl(msg));
-                            }
-                            // Requests (from breakpoint callbacks) to execute code in the context of DebugSession.
-                            Some((closure, caller)) = invoke_server.recv() => {
-                                scoped_borrow_mut(&rc_session, |s| closure(s));
-                                caller.unpark();
+        // The main event loop, where we react to incoming events from different sources.
+        let shared_session = Shared::new(debug_session);
+        shared_session.try_map(|s| s.self_ref = Initialized(shared_session.clone())).unwrap();
+
+        let local_set = tokio::task::LocalSet::new();
+        local_set.spawn_local(async move {
+            loop {
+                tokio::select! {
+                    // Requests from VSCode
+                    request = requests_receiver.recv() => {
+                        match request {
+                            Some((request, cancellation)) => shared_session.map(
+                                    |s| s.handle_request(request, cancellation)).await,
+                            None => {
+                                debug!("End of the requests stream");
+                                break;
                             }
                         }
                     }
-                    rc_session.borrow_mut().self_ref = NotInitialized;
-                })
-                .await;
-        }
+                    // LLDB events.
+                    Some(event) = debug_events_stream.recv() => {
+                        shared_session.map( |s| s.handle_debug_event(event)).await;
+                    }
+                }
+            }
+            shared_session.map(|s| s.self_ref = NotInitialized).await;
+        });
+        local_set
+    }
+
+    fn pipe_console_events(dap_session: &DAPSession, mut con_reader: tokio::fs::File) {
+        let dap_session = dap_session.clone();
+        tokio::spawn(async move {
+            let mut con_data = [0u8; 1024];
+            loop {
+                if let Ok(bytes) = con_reader.read(&mut con_data).await {
+                    let event = EventBody::output(OutputEventBody {
+                        output: String::from_utf8_lossy(&con_data[0..bytes]).into(),
+                        ..Default::default()
+                    });
+                    log_errors!(dap_session.send_event(event).await);
+                }
+            }
+        });
+    }
+
+    fn pipe_python_events(dap_session: &DAPSession, mut python_events: mpsc::Receiver<EventBody>) {
+        let dap_session = dap_session.clone();
+        tokio::spawn(async move {
+            while let Some(event) = python_events.recv().await {
+                log_errors!(dap_session.send_event(event).await);
+            }
+        });
     }
 
     /// Handle request cancellations.
@@ -289,7 +290,7 @@ impl DebugSession {
                                     info!("Cancellation {:?}", args);
                                     if let Some(id) = args.request_id {
                                         if let Some(sender) = pending_requests.remove(&(id as u32)) {
-                                            let _ = sender.send();
+                                            sender.send();
                                         }
                                     }
                                     continue; // Dont forward to the main event loop.
@@ -318,7 +319,7 @@ impl DebugSession {
                         }
 
                         pending_requests.insert(request.seq, sender);
-                        requests_sender.send((request, receiver)).await.unwrap();
+                        log_errors!(requests_sender.send((request, receiver)).await);
 
                         // Clean out entries which don't have any receivers.
                         pending_requests.retain(|_k, v| v.receiver_count() > 0);
@@ -349,7 +350,7 @@ impl DebugSession {
                     tokio::task::spawn_local(async move {
                         let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
                         let result = fut.await;
-                        self_ref.borrow().send_response(seq, result);
+                        self_ref.map(|s| s.send_response(seq, result)).await;
                     });
                 }
                 // Send synchronous results immediately
@@ -383,7 +384,7 @@ impl DebugSession {
                             .map(|_| ResponseBody::disconnect),
                     _ => {
                         if self.no_debug {
-                            Err("Not supported in noDebug mode.".into())
+                            bail!("Not supported in noDebug mode.")
                         } else {
                             match arguments {
                                 RequestArguments::setBreakpoints(args) =>
@@ -460,7 +461,7 @@ impl DebugSession {
                                 RequestArguments::_symbols(args) =>
                                     self.handle_symbols(args)
                                         .map(|r| ResponseBody::_symbols(r)),
-                                _=> Err("Not implemented.".into())
+                                _=> bail!("Not implemented.")
                             }
                         }
                     }
@@ -468,7 +469,7 @@ impl DebugSession {
             },
             Command::Unknown { ref command } => {
                 info!("Received an unknown command: {}", command);
-                Err("Not implemented.".into())
+                bail!("Not implemented.")
             }
         }
     }
@@ -498,11 +499,11 @@ impl DebugSession {
                 }
             }
         };
-        let _ = self.dap_session.borrow_mut().send_response(response);
+        log_errors!(self.dap_session.try_send_response(response));
     }
 
     fn send_event(&self, event_body: EventBody) {
-        let _ = self.dap_session.borrow_mut().send_event(event_body);
+        log_errors!(self.dap_session.try_send_event(event_body));
     }
 
     fn console_message(&self, output: impl std::fmt::Display) {
@@ -963,21 +964,12 @@ impl DebugSession {
         };
 
         let hit_condition = bp_info.hit_condition.clone();
-
-        let invoke_client = self.invoke_client.clone();
+        let shared_session = self.self_ref.clone();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-            let mut result = true;
-            let mut closure = |session: &mut DebugSession| {
-                result = session.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition);
-            };
-            // Safe to cast away lifetimes, because the current thread will be parked until invocation is complete.
-            let closure: Invocation = unsafe { mem::transmute(&mut closure as &mut (dyn FnMut(&mut DebugSession))) };
-            match invoke_client.try_send((closure, std::thread::current())) {
-                Ok(_) => std::thread::park(),
-                Err(_) => error!("Could not invoke on_breakpoint_hit()"),
-            };
-            result
+            tokio::runtime::Handle::current().block_on(
+                shared_session.map(|s| s.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition)),
+            )
         });
     }
 
@@ -1111,14 +1103,14 @@ impl DebugSession {
             let self_ref = self.self_ref.clone();
             let fut = async move {
                 drop(tokio::join!(term_fut, config_done_fut));
-                self_ref.borrow_mut().complete_launch(args)
+                self_ref.map(|s| s.complete_launch(args)).await
             };
             Err(AsyncResponse(Box::new(fut)).into())
         }
     }
 
     fn wait_for_configuration_done(&self) -> impl Future<Output = Result<(), Error>> {
-        let result = self.dap_session.borrow().subscribe_requests();
+        let result = self.dap_session.subscribe_requests();
         async move {
             let mut receiver = result?;
             while let Ok(request) = receiver.recv().await {
@@ -1221,9 +1213,10 @@ impl DebugSession {
                 if let Some(work_dir) = launch_info.working_directory() {
                     if self.target.platform().get_file_permissions(work_dir) == 0 {
                         #[rustfmt::skip]
-                        let _ = write!( msg, "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                        log_errors!(write!(msg,
+                            "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
                             work_dir.display()
-                        );
+                        ));
                     }
                 }
                 bail!(as_user_error(msg))
@@ -1255,8 +1248,8 @@ impl DebugSession {
 
         let self_ref = self.self_ref.clone();
         let fut = async move {
-            scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
-            self_ref.borrow_mut().complete_custom_launch(args)
+            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            self_ref.map(|s| s.complete_custom_launch(args)).await
         };
         Err(AsyncResponse(Box::new(fut)).into())
     }
@@ -1291,8 +1284,8 @@ impl DebugSession {
 
         let self_ref = self.self_ref.clone();
         let fut = async move {
-            scoped_borrow_mut(&self_ref, |s| s.wait_for_configuration_done()).await?;
-            self_ref.borrow_mut().complete_attach(args)
+            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            self_ref.map(|s| s.complete_attach(args)).await
         };
         Err(AsyncResponse(Box::new(fut)).into())
     }
@@ -1332,7 +1325,7 @@ impl DebugSession {
         if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
         } else {
-            let _ = self.process.resume();
+            log_errors!(self.process.resume());
         }
 
         if let Some(commands) = args.common.post_run_commands {
@@ -1393,22 +1386,19 @@ impl DebugSession {
         };
 
         let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
-        let fut = Terminal::create(
-            terminal_kind,
-            title,
-            self.terminal_prompt_clear.clone(),
-            self.dap_session.borrow().clone(),
-        );
+        let fut = Terminal::create(terminal_kind, title, self.terminal_prompt_clear.clone(), self.dap_session.clone());
         let self_ref = self.self_ref.clone();
         async move {
             let result = fut.await;
-            scoped_borrow_mut(&self_ref, |s| match result {
-                Ok(terminal) => s.debuggee_terminal = Some(terminal),
-                Err(err) => s.console_error(format!(
-                    "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
-                    err
-                )),
-            })
+            self_ref
+                .map(|s| match result {
+                    Ok(terminal) => s.debuggee_terminal = Some(terminal),
+                    Err(err) => s.console_error(format!(
+                        "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
+                        err
+                    )),
+                })
+                .await
         }
         .right_future()
     }
@@ -1561,7 +1551,7 @@ impl DebugSession {
         for thread in self.process.threads() {
             let mut descr = format!("{}: tid={}", thread.index_id(), thread.thread_id());
             if let Some(name) = thread.name() {
-                let _ = write!(descr, " \"{}\"", name);
+                log_errors!(write!(descr, " \"{}\"", name));
             }
             response.threads.push(Thread {
                 id: thread.thread_id() as i64,
@@ -1576,7 +1566,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in stack trace request.");
-                return Err("Invalid thread id.")?;
+                bail!("Invalid thread id.");
             }
         };
 
@@ -1960,7 +1950,7 @@ impl DebugSession {
                     if name.starts_with("[") {
                         summary.push_str(value);
                     } else {
-                        let _ = write!(summary, "{}:{}", name, value);
+                        log_errors!(write!(summary, "{}:{}", name, value));
                     }
                 }
             }
@@ -2222,7 +2212,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step request.");
-                return Err("Invalid thread id.")?;
+                bail!("Invalid thread id.");
             }
         };
 
@@ -3038,12 +3028,4 @@ where
 
 fn into_string_lossy(cstr: &CStr) -> String {
     cstr.to_string_lossy().into_owned()
-}
-
-fn scoped_borrow_mut<T, F, R>(ref_cell: &RefCell<T>, f: F) -> R
-where
-    F: FnOnce(&mut T) -> R,
-{
-    let mut b = ref_cell.borrow_mut();
-    f(b.deref_mut())
 }

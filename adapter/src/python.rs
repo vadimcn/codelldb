@@ -142,7 +142,7 @@ pub fn initialize(
             position: Some(position as i32),
             reveal: reveal != 0,
         });
-        drop((*interface).event_sender.try_send(event));
+        log_errors!((*interface).event_sender.try_send(event));
     }
 
     let py_log_level = match log::max_level() {
@@ -185,7 +185,6 @@ pub fn initialize(
 }
 
 impl PythonInterface {
-
     // Compiles Python source, returns a code object.
     pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, String> {
         let expt_ptr = expr.as_ptr() as *const c_char;

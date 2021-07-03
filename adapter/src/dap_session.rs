@@ -46,16 +46,18 @@ impl DAPSession {
                     maybe_message = channel.next() => {
                         match maybe_message {
                             Some(message) => match message {
-                                Ok(ProtocolMessage::Request(request)) => log_send_err(requests_sender.send(request)),
-                                Ok(ProtocolMessage::Event(event)) => log_send_err(events_sender.send(event)),
+                                Ok(ProtocolMessage::Request(request)) => log_errors!(requests_sender.send(request)),
+                                Ok(ProtocolMessage::Event(event)) => log_errors!(events_sender.send(event)),
                                 Ok(ProtocolMessage::Response(response)) => match pending_requests.entry(response.request_seq) {
                                     Entry::Vacant(_) => {
-                                        debug!("Received response without a pending request (request_seq={})", response.request_seq);
+                                        error!("Received response without a pending request (request_seq={})", response.request_seq);
                                     }
                                     Entry::Occupied(entry) => {
                                         let sender = entry.remove();
                                         if let Some(body) = response.body {
-                                            log_send_err(sender.send(body));
+                                            if let Err(_) = sender.send(body) {
+                                                error!("Requestor is gone (request_seq={})", response.request_seq);
+                                            }
                                         }
                                     }
                                 },
@@ -83,7 +85,7 @@ impl DAPSession {
                             },
                             ProtocolMessage::Response(_) => {}
                         }
-                        log_send_err(channel.send(message).await);
+                        log_errors!(channel.send(message).await);
                     }
                 }
             }
@@ -107,40 +109,44 @@ impl DAPSession {
         }
     }
 
-    pub fn send_request(
-        &self,
-        request_args: RequestArguments,
-    ) -> impl Future<Output = Result<ResponseBody, Error>> {
+    pub async fn send_request(&self, request_args: RequestArguments) -> Result<ResponseBody, Error> {
         let (sender, receiver) = oneshot::channel();
         let message = ProtocolMessage::Request(Request {
             command: Command::Known(request_args),
             seq: 0,
         });
-        let send_result = self.out_sender.try_send((message, Some(sender)));
-        async move {
-            send_result?;
-            Ok(receiver.await?)
-        }
+        self.out_sender.send((message, Some(sender))).await?;
+        Ok(receiver.await?)
     }
 
-    pub fn send_response(&self, response: Response) -> Result<(), Error> {
+    #[allow(unused)]
+    pub async fn send_response(&self, response: Response) -> Result<(), Error> {
+        let message = ProtocolMessage::Response(response);
+        self.out_sender.send((message, None)).await?;
+        Ok(())
+    }
+
+    pub fn try_send_response(&self, response: Response) -> Result<(), Error> {
         let message = ProtocolMessage::Response(response);
         self.out_sender.try_send((message, None))?;
         Ok(())
     }
 
-    pub fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
+    pub async fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
+        let message = ProtocolMessage::Event(Event {
+            body: event_body,
+            seq: 0,
+        });
+        self.out_sender.send((message, None)).await?;
+        Ok(())
+    }
+
+    pub fn try_send_event(&self, event_body: EventBody) -> Result<(), Error> {
         let message = ProtocolMessage::Event(Event {
             body: event_body,
             seq: 0,
         });
         self.out_sender.try_send((message, None))?;
         Ok(())
-    }
-}
-
-fn log_send_err<T, E: std::fmt::Debug>(result: Result<T, E>) {
-    if let Err(err) = result {
-        error!("Send error: {:?}", err);
     }
 }

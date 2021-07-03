@@ -3,7 +3,7 @@
 	"displayName": "CodeLLDB",
 	"version": "@VERSION@",
 	"publisher": "vadimcn",
-	"description": "Native debugger based on LLDB.",
+	"description": "A native debugger powered by LLDB.  Debug C++, Rust and other compiled languages.",
 	"license": "MIT",
 	"author": {
 		"name": "vadimcn"
@@ -13,11 +13,11 @@
 		"Debuggers"
 	],
 	"keywords": [
-		"LLDB",
-		"Rust",
 		"C++",
-		"Native",
-		"Assembly"
+		"Rust",
+		"Reverse",
+		"Embedded",
+		"Debugger"
 	],
 	"private": true,
 	"repository": {

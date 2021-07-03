@@ -25,8 +25,8 @@
     - [Formatting](#formatting)
         - [Pointers](#pointers)
     - [Expressions](#expressions)
+- [Python Scripting](#python-scripting)
     - [Debugger API](#debugger-api)
-- [Adapter types](#adapter-types)
 - [Alternate LLDB backends](#alternate-lldb-backends)
 - [Rust Language Support](#rust-language-support)
 - [Workspace Configuration](#workspace-configuration)
@@ -517,7 +517,12 @@ Prefix: `/py `<br>
 Python expressions use normal Python syntax.  In addition to that, any identifier prefixed by `$`
 (or enclosed in `${`...`}`), will be replaced with the value of the corresponding debuggee
 variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $arr]`
-will evaluate to a list containing square roots of the values contained in array variable `arr`.
+will evaluate to a list of square roots of the values contained in array variable `arr`.
+
+The environment, in which Python expressions are executed, is shared with the internal Python interpreter of the debugger
+and is affected by `script ...` command.  This may be used to import Python modules you are going to use later.
+For example, in order to evaluate `math.sqrt(x)` above, you'll need to have imported the `math` package via
+`script import math`.  To import Python modules on debug session startup, use `"initCommands": ["script import ..."]`.
 
 ### Native expressions
 Prefix: `/nat `<br>
@@ -529,19 +534,31 @@ of new data types, instantiation of C++ classes, invocation of functions and cla
 Note, however, that native evaluators ignore data formatters and operate on "raw" data structures,
 thus they are often not as convenient as "simple" or "python" expressions.
 
+# Python Scripting
+
 ## Debugger API
 
-CodeLLDB provides Python API via the `debugger` module (which is auto-imported into
-debugger's main script context).
+CodeLLDB provides extended Python API via `codelldb` module (which is auto-imported into debugger's main script context).
 
-|Function                           |Description|
-|-----------------------------------|------------
-|**evaluate(expression: `str`) -> `Value`**| Allows dynamic evaluation of [simple expressions](#simple-expressions). The returned `Value` object is a proxy wrapper around [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html),<br> which implements most Python operators over the underlying value.
-|**unwrap(obj: `Value`) -> `lldb.SBValue`**| Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from `Value`.
-|**wrap(obj: `lldb.SBValue`) -> `Value`**| Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
-|**display_html(<br>&nbsp;&nbsp;&nbsp;&nbsp;html: `str`, title: `str` = None,<br>&nbsp;&nbsp;&nbsp;&nbsp;position: `int` = None, reveal: `bool` = False)**|Displays content in a VSCode Webview panel:<li>html: HTML markup to display.<li> title: Title of the panel.  Defaults to name of the current launch configuration.<li>position: Position (column) of the panel.  The allowed range is 1 through 3.<li>reveal: Whether to reveal a panel, if one already exists.
+- **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Allows dynamic evaluation of [simple expressions](#simple-expressions). The returned `Value` object is a proxy wrapper around [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html), which adds implementations of standard Python operators.
+    - **expression**: The expression to evaluate.
+    - **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
+- **unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from `Value`.
+- **wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
+- **display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : Displays content in a VSCode WebView panel:
+    - **html**: HTML markup to display.
+    - **title**: Title of the panel.  Defaults to the name of the current launch configuration.
+    - **position**: Position (column) of the panel.  The allowed range is 1 through 3.
+    - **reveal**: Whether to reveal a panel if one already exists.
 
-# Alternate LLDB backends
+## Installing Packages
+
+CodeLLDB bundles its own copy of Python, which may be different from the version of your default Python.
+As such, it likely won't be able to use third-party packages you've installed through `pip`.  In order to install packages
+for use in CodeLLDB, you will need to use the **LLDB: Command Prompt** command in VSCode, followed by `pip install --user <package>`.
+
+# Alternate LLDB Backends
+
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging Swift programs,
 one might want to use a custom LLDB instance that has Swift extensions built in.   In order to use an alternate backend,
 you will need to provide location of the corresponding LLDB dynamic library (which must be v6.0 or later) via
@@ -562,6 +579,7 @@ executable module (which in this case is CodeLLDB), rather than relative to libl
 you may see the following error after switching to an alternate backend: "Unable to locate lldb-server-\<version\>".
 To fix this, determine where `lldb-server` is installed (via `which lldb-server-<version>`), then add
 this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-server path>"}`.
+
 
 # Rust Language Support
 

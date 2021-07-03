@@ -1,5 +1,15 @@
 # Release Notes
 
+# 1.6.6
+
+## New
+- Updated LLDB to 13.0.0
+- Added [`debug_info`](MANUAL.md#debugger-commands) LLDB command, that makes it easier to determine which modules have debug info available.
+
+## Fixed
+- Bug #474: image dump sections causes the plugin to hang
+- Bug #480: Panic: 'assertion failed: addr.is_valid()'
+
 # 1.6.5
 
 ## Fixed

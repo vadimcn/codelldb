@@ -16,9 +16,9 @@ pub use crate::dap::{
     SetDataBreakpointsArguments, SetDataBreakpointsResponseBody, SetExceptionBreakpointsArguments,
     SetFunctionBreakpointsArguments, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
     SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
-    StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread,
-    ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody, WriteMemoryArguments,
-    WriteMemoryResponseBody,
+    StepInArguments, StepOutArguments, SteppingGranularity, StoppedEventBody, TerminateArguments, TerminatedEventBody,
+    Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
+    WriteMemoryArguments, WriteMemoryResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

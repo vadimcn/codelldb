@@ -447,6 +447,9 @@ impl DebugSession {
                         RequestArguments::setDataBreakpoints(args) =>
                             self.handle_set_data_breakpoints(args)
                                 .map(|r| ResponseBody::setDataBreakpoints(r)),
+                        RequestArguments::disassemble(args) =>
+                            self.handle_disassemble(args)
+                                .map(|r| ResponseBody::disassemble(r)),
                         RequestArguments::readMemory(args) =>
                             self.handle_read_memory(args)
                                 .map(|r| ResponseBody::readMemory(r)),
@@ -539,6 +542,7 @@ impl DebugSession {
             supports_data_breakpoints: Some(true),
             supports_restart_frame: Some(true),
             supports_cancel_request: Some(true),
+            supports_disassemble_request: Some(true),
             supports_read_memory_request: Some(true),
             supports_write_memory_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
@@ -640,6 +644,7 @@ impl DebugSession {
             let mut stack_frame: StackFrame = Default::default();
             stack_frame.id = handle.get() as i64;
             let pc_address = frame.pc_address();
+            stack_frame.instruction_pointer_reference = Some(format!("0x{:X}", pc_address.load_address(&self.target)));
             stack_frame.name = if let Some(name) = frame.function_name() {
                 name.to_owned()
             } else {
@@ -1101,6 +1106,59 @@ impl DebugSession {
         }
 
         Ok(())
+    }
+
+    fn handle_disassemble(&mut self, args: DisassembleArguments) -> Result<DisassembleResponseBody, Error> {
+        fn invalid_instruction() -> DisassembledInstruction {
+            DisassembledInstruction {
+                address: "".into(),
+                instruction: "<invalid>".into(),
+                ..Default::default()
+            }
+        }
+
+        let base_addr = parse_int::parse::<u64>(&args.memory_reference)?;
+        let base_addr = match args.offset {
+            Some(offset) => base_addr.wrapping_add(offset as u64),
+            None => base_addr,
+        };
+        let instruction_offset = args.instruction_offset.unwrap_or(0);
+        if args.instruction_count < 0 {
+            bail!("Invalid instruction_count");
+        }
+        let instruction_count = args.instruction_count as usize;
+
+        let result = if instruction_offset >= 0 {
+            let start_addr = SBAddress::from_load_address(base_addr, &self.target);
+            let instructions = self
+                .target
+                .read_instructions(&start_addr, (instruction_offset + args.instruction_count) as u32);
+
+            let mut dis_instructions = Vec::new();
+            for instr in instructions.iter().skip(instruction_offset as usize) {
+                dis_instructions.push(disassembly::sbinstr_to_disinstr(&instr, &self.target, true));
+            }
+            if dis_instructions.len() < instruction_count {
+                // Pad to instruction_count at the end
+                dis_instructions.resize_with(instruction_count, invalid_instruction);
+            }
+            dis_instructions
+        } else {
+            let count = -instruction_offset * 16;
+            let start_addr = base_addr.wrapping_sub(count as u64);
+
+            let mut dis_instructions = disassembly::disassemble_byte_range(start_addr, count as usize, &self.process)?;
+            if dis_instructions.len() < instruction_count {
+                // Pad to instruction_count at the start
+                dis_instructions.splice(
+                    0..0,
+                    std::iter::repeat_with(invalid_instruction).take(instruction_count - dis_instructions.len()),
+                );
+            }
+            dis_instructions
+        };
+
+        Ok(DisassembleResponseBody { instructions: result })
     }
 
     fn handle_read_memory(&mut self, args: ReadMemoryArguments) -> Result<ReadMemoryResponseBody, Error> {

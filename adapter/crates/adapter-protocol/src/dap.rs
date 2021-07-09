@@ -173,3 +173,19 @@ impl Default for ExceptionBreakpointsFilter {
         }
     }
 }
+
+impl Default for DisassembledInstruction {
+    fn default() -> Self {
+        DisassembledInstruction {
+            address: String::new(),
+            instruction: String::new(),
+            instruction_bytes: None,
+            symbol: None,
+            location: None,
+            line: None,
+            end_line: None,
+            column: None,
+            end_column: None,
+        }
+    }
+}

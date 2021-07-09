@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::str;
 
 use crate::handles::Handle;
+use adapter_protocol::DisassembledInstruction;
 use lldb::*;
 use superslice::Ext;
 
@@ -232,6 +233,69 @@ impl DisassembledRange {
 
         text
     }
+}
+
+pub fn disassemble_byte_range(
+    start: Address,
+    count: usize,
+    process: &SBProcess,
+) -> Result<Vec<DisassembledInstruction>, Error> {
+    let target = process.target();
+    let mut buffer = Vec::new();
+    buffer.resize(count, 0);
+    process.read_memory(start, &mut buffer)?;
+
+    let mut dis_instructions = Vec::new();
+    let mut idx = 0;
+    while idx < buffer.len() {
+        let base_addr = SBAddress::from_load_address(start, &target);
+        let instructions = target.get_instructions(&base_addr, &buffer[idx..]);
+        if instructions.len() == 0 {
+            let dis_instr = DisassembledInstruction {
+                address: format!("0x{:X}", start as usize + idx),
+                instruction: format!("db 0x{:02x}", buffer[idx]),
+                instruction_bytes: Some(format!("{:02X}", buffer[idx])),
+                ..Default::default()
+            };
+            dis_instructions.push(dis_instr);
+            idx += 1;
+        } else {
+            for instr in instructions.iter() {
+                dis_instructions.push(sbinstr_to_disinstr(&instr, &target, false));
+                idx += instr.byte_size();
+            }
+        }
+    }
+    Ok(dis_instructions)
+}
+
+pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_symbols: bool) -> DisassembledInstruction {
+    let mnemonic = instr.mnemonic(target);
+    let operands = instr.operands(target);
+    let comment = instr.comment(target);
+    let comment_sep = if comment.is_empty() { "" } else { "  ; " };
+    let instruction_str = format!("{:<6} {}{}{}", mnemonic, operands, comment_sep, comment);
+    let mut dis_instr = DisassembledInstruction {
+        address: format!("0x{:X}", instr.address().load_address(target)),
+        instruction: instruction_str,
+        ..Default::default()
+    };
+    let mut instr_bytes = Vec::new();
+    instr_bytes.resize(instr.byte_size(), 0);
+    if instr.data(target).read_raw_data(0, &mut instr_bytes).is_ok() {
+        let mut bytes_str = String::with_capacity(instr_bytes.len() * 3);
+        for b in instr_bytes.iter() {
+            let _ = write!(bytes_str, "{:02X} ", b);
+        }
+        dis_instr.instruction_bytes = Some(bytes_str);
+    }
+
+    if resolve_symbols {
+        if let Some(symbol) = instr.address().symbol() {
+            dis_instr.symbol = Some(symbol.name().into());
+        }
+    }
+    dis_instr
 }
 
 #[test]

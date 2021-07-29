@@ -382,6 +382,9 @@ impl DebugSession {
                         RequestArguments::setBreakpoints(args) =>
                             self.handle_set_breakpoints(args)
                                 .map(|r| ResponseBody::setBreakpoints(r)),
+                        RequestArguments::setInstructionBreakpoints(args) =>
+                            self.handle_set_instruction_breakpoints(args)
+                                .map(|r| ResponseBody::setInstructionBreakpoints(r)),
                         RequestArguments::setFunctionBreakpoints(args) =>
                             self.handle_set_function_breakpoints(args)
                                 .map(|r| ResponseBody::setFunctionBreakpoints(r)),
@@ -544,6 +547,7 @@ impl DebugSession {
             supports_cancel_request: Some(true),
             supports_disassemble_request: Some(true),
             supports_stepping_granularity: Some(true),
+            supports_instruction_breakpoints: Some(true),
             supports_read_memory_request: Some(true),
             supports_write_memory_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),

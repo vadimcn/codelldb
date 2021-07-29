@@ -18,6 +18,7 @@ use lldb::*;
 enum BreakpointKind {
     Source,
     Disassembly,
+    Instruction,
     Function,
     Exception,
 }
@@ -36,6 +37,7 @@ struct BreakpointInfo {
 pub(super) struct BreakpointsState {
     source: HashMap<PathBuf, HashMap<i64, BreakpointID>>,
     assembly: HashMap<Handle, HashMap<i64, BreakpointID>>,
+    instruction: HashMap<Address, BreakpointID>,
     function: HashMap<String, BreakpointID>,
     breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
 }
@@ -45,6 +47,7 @@ impl BreakpointsState {
         BreakpointsState {
             source: HashMap::new(),
             assembly: HashMap::new(),
+            instruction: HashMap::new(),
             function: HashMap::new(),
             breakpoint_infos: HashMap::new(),
         }
@@ -205,6 +208,51 @@ impl super::DebugSession {
         Ok(result)
     }
 
+    pub(super) fn handle_set_instruction_breakpoints(
+        &mut self,
+        args: SetInstructionBreakpointsArguments,
+    ) -> Result<SetInstructionBreakpointsResponseBody, Error> {
+        let BreakpointsState {
+            ref mut instruction,
+            ref mut breakpoint_infos,
+            ..
+        } = *self.breakpoints.borrow_mut();
+
+        let mut new_bps = HashMap::new();
+        let mut result = vec![];
+        for req in args.breakpoints {
+            // Find an existing breakpoint or create a new one
+            let address = parse_int::parse(&req.instruction_reference)?;
+            let bp = match instruction.get(&address).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
+                Some(bp) => bp,
+                None => self.target.breakpoint_create_by_load_address(address),
+            };
+
+            let bp_info = BreakpointInfo {
+                id: bp.id(),
+                breakpoint: bp,
+                kind: BreakpointKind::Instruction,
+                condition: req.condition.clone(),
+                log_message: None,
+                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_count: 0,
+            };
+            self.init_bp_actions(&bp_info);
+
+            result.push(self.make_bp_response(&bp_info, false));
+            new_bps.insert(address, bp_info.id);
+            breakpoint_infos.insert(bp_info.id, bp_info);
+        }
+        for (name, bp_id) in instruction.iter() {
+            if !new_bps.contains_key(name) {
+                self.target.breakpoint_delete(*bp_id);
+            }
+        }
+        drop(mem::replace(instruction, new_bps));
+
+        Ok(SetInstructionBreakpointsResponseBody { breakpoints: result })
+    }
+
     pub(super) fn handle_set_function_breakpoints(
         &mut self,
         args: SetFunctionBreakpointsArguments,
@@ -356,6 +404,17 @@ impl super::DebugSession {
                             message,
                             ..Default::default()
                         }
+                    }
+                }
+                BreakpointKind::Instruction => {
+                    let address = bp_info.breakpoint.location_at_index(0).address();
+                    let laddress = address.load_address(&self.target);
+                    Breakpoint {
+                        id: Some(bp_info.id as i64),
+                        verified: true,
+                        instruction_reference: Some(format!("0x{:X}", laddress)),
+                        message,
+                        ..Default::default()
                     }
                 }
                 BreakpointKind::Function => Breakpoint {

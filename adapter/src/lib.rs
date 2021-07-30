@@ -1,11 +1,3 @@
-use crate::prelude::*;
-use futures::prelude::*;
-use lldb::*;
-use std::net;
-use tokio::net::TcpListener;
-use tokio::time::Duration;
-use tokio_util::codec::Decoder;
-
 #[allow(unused_imports)]
 mod prelude {
     pub use crate::error::{as_user_error, Error};
@@ -30,6 +22,13 @@ mod python;
 mod shared;
 mod terminal;
 mod vec_map;
+
+use crate::prelude::*;
+use lldb::*;
+use std::net;
+use tokio::net::TcpListener;
+use tokio::time::Duration;
+use tokio_util::codec::Decoder;
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]

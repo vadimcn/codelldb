@@ -319,6 +319,13 @@ export class DebugTestSession extends DebugClient {
         let localsRef = scopes.body.scopes[0].variablesReference;
         return localsRef;
     }
+
+    async evaluate(expression: string): Promise<string> {
+        let response = await this.evaluateRequest({
+            expression: expression, context: 'repl'
+        });
+        return response.body.result;
+    }
 }
 
 export function char(ch: string): ValidatorFn {

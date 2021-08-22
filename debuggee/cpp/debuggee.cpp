@@ -350,10 +350,10 @@ int main(int argc, char *argv[])
     }
     else if (testcase == "weird_path")
     {
-        denorm_path();
         remote_path1();
         remote_path2();
         relative_path();
+        denorm_path();
     }
     else if (testcase == "spam")
     {

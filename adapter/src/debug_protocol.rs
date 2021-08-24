@@ -42,12 +42,23 @@ pub struct Request {
 pub struct Response {
     pub request_seq: u32,
     pub success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub show_user: Option<bool>,
     #[serde(flatten)]
-    pub body: Option<ResponseBody>,
+    pub result: ResponseResult,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum ResponseResult {
+    Success {
+        #[serde(flatten)]
+        body: ResponseBody,
+    },
+    Error {
+        command: String,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        show_user: Option<bool>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -361,7 +372,9 @@ mod tests {
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {
-                body: Some(ResponseBody::initialize(..)),
+                result: ResponseResult::Success {
+                    body: ResponseBody::initialize(..)
+                },
                 ..
             })
         );
@@ -392,7 +405,9 @@ mod tests {
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {
-                body: Some(ResponseBody::launch),
+                result: ResponseResult::Success {
+                    body: ResponseBody::launch,
+                },
                 ..
             })
         );
@@ -434,7 +449,10 @@ mod tests {
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {
-                body: Some(ResponseBody::scopes(..)),
+                success: true,
+                result: ResponseResult::Success {
+                    body: ResponseBody::scopes(..),
+                },
                 ..
             })
         );

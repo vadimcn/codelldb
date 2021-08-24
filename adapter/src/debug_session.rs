@@ -299,139 +299,141 @@ impl DebugSession {
 
     fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {
         let seq = request.seq;
-        if cancellation.is_cancelled() {
-            self.send_response(seq, Err("canceled".into()));
-        } else {
-            self.current_cancellation = cancellation;
-            let result = self.handle_command(request.command);
-            self.current_cancellation = cancellation::dummy();
-            match result {
-                // Spawn async responses as tasks
-                Err(err) if err.is::<AsyncResponse>() => {
-                    let self_ref = self.self_ref.clone();
-                    tokio::task::spawn_local(async move {
-                        let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
-                        let result = fut.await;
-                        self_ref.map(|s| s.send_response(seq, result)).await;
-                    });
+        match request.command {
+            Command::Known(args) => {
+                if cancellation.is_cancelled() {
+                    self.send_response(seq, Err("canceled".into()));
+                } else {
+                    self.current_cancellation = cancellation;
+                    let result = self.handle_request_args(args);
+                    self.current_cancellation = cancellation::dummy();
+                    match result {
+                        // Spawn async responses as tasks
+                        Err(err) if err.is::<AsyncResponse>() => {
+                            let self_ref = self.self_ref.clone();
+                            tokio::task::spawn_local(async move {
+                                let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
+                                let result = fut.await;
+                                self_ref.map(|s| s.send_response(seq, result)).await;
+                            });
+                        }
+                        // Send synchronous results immediately
+                        _ => {
+                            self.send_response(seq, result);
+                        }
+                    }
                 }
-                // Send synchronous results immediately
-                _ => {
-                    self.send_response(seq, result);
-                }
+            }
+            Command::Unknown {
+                command,
+            } => {
+                info!("Received an unknown command: {}", command);
+                self.send_response(seq, Err("Not implemented.".into()));
             }
         }
     }
 
     #[rustfmt::skip]
-    fn handle_command(&mut self, command: Command) -> Result<ResponseBody, Error> {
-        match command {
-            Command::Known(arguments) => {
-                match arguments {
-                    RequestArguments::_adapterSettings(args) =>
-                        self.handle_adapter_settings(args)
-                            .map(|_| ResponseBody::_adapterSettings),
-                    RequestArguments::initialize(args) =>
-                        self.handle_initialize(args)
-                            .map(|r| ResponseBody::initialize(r)),
-                    RequestArguments::launch(args) =>
-                            self.handle_launch(args),
-                    RequestArguments::attach(args) =>
-                        self.handle_attach(args),
-                    RequestArguments::configurationDone(_) =>
-                        self.handle_configuration_done()
-                            .map(|_| ResponseBody::configurationDone),
-                    RequestArguments::disconnect(args) =>
-                        self.handle_disconnect(args)
-                            .map(|_| ResponseBody::disconnect),
-                    _ => {
-                        if self.no_debug {
-                            bail!("Not supported in noDebug mode.")
-                        } else {
-                            match arguments {
-                                RequestArguments::setBreakpoints(args) =>
-                                    self.handle_set_breakpoints(args)
-                                        .map(|r| ResponseBody::setBreakpoints(r)),
-                                RequestArguments::setFunctionBreakpoints(args) =>
-                                    self.handle_set_function_breakpoints(args)
-                                        .map(|r| ResponseBody::setFunctionBreakpoints(r)),
-                                RequestArguments::setExceptionBreakpoints(args) =>
-                                    self.handle_set_exception_breakpoints(args)
-                                        .map(|_| ResponseBody::setExceptionBreakpoints),
-                                RequestArguments::threads(_) =>
-                                    self.handle_threads()
-                                        .map(|r| ResponseBody::threads(r)),
-                                RequestArguments::stackTrace(args) =>
-                                    self.handle_stack_trace(args)
-                                        .map(|r| ResponseBody::stackTrace(r)),
-                                RequestArguments::scopes(args) =>
-                                    self.handle_scopes(args)
-                                        .map(|r| ResponseBody::scopes(r)),
-                                RequestArguments::variables(args) =>
-                                    self.handle_variables(args)
-                                        .map(|r| ResponseBody::variables(r)),
-                                RequestArguments::evaluate(args) =>
-                                    self.handle_evaluate(args),
-                                RequestArguments::setVariable(args) =>
-                                    self.handle_set_variable(args)
-                                        .map(|r| ResponseBody::setVariable(r)),
-                                RequestArguments::pause(args) =>
-                                    self.handle_pause(args)
-                                        .map(|_| ResponseBody::pause),
-                                RequestArguments::continue_(args) =>
-                                    self.handle_continue(args)
-                                        .map(|r| ResponseBody::continue_(r)),
-                                RequestArguments::next(args) =>
-                                    self.handle_next(args)
-                                        .map(|_| ResponseBody::next),
-                                RequestArguments::stepIn(args) =>
-                                    self.handle_step_in(args)
-                                        .map(|_| ResponseBody::stepIn),
-                                RequestArguments::stepOut(args) =>
-                                    self.handle_step_out(args)
-                                        .map(|_| ResponseBody::stepOut),
-                                RequestArguments::stepBack(args) =>
-                                    self.handle_step_back(args)
-                                        .map(|_| ResponseBody::stepBack),
-                                RequestArguments::reverseContinue(args) =>
-                                    self.handle_reverse_continue(args)
-                                        .map(|_| ResponseBody::reverseContinue),
-                                RequestArguments::source(args) =>
-                                    self.handle_source(args)
-                                        .map(|r| ResponseBody::source(r)),
-                                RequestArguments::completions(args) =>
-                                    self.handle_completions(args)
-                                        .map(|r| ResponseBody::completions(r)),
-                                RequestArguments::gotoTargets(args) =>
-                                    self.handle_goto_targets(args)
-                                        .map(|r| ResponseBody::gotoTargets(r)),
-                                RequestArguments::goto(args) =>
-                                    self.handle_goto(args)
-                                        .map(|_| ResponseBody::goto),
-                                RequestArguments::restartFrame(args) =>
-                                    self.handle_restart_frame(args)
-                                        .map(|_| ResponseBody::restartFrame),
-                                RequestArguments::dataBreakpointInfo(args) =>
-                                    self.handle_data_breakpoint_info(args)
-                                        .map(|r| ResponseBody::dataBreakpointInfo(r)),
-                                RequestArguments::setDataBreakpoints(args) =>
-                                    self.handle_set_data_breakpoints(args)
-                                        .map(|r| ResponseBody::setDataBreakpoints(r)),
-                                RequestArguments::readMemory(args) =>
-                                    self.handle_read_memory(args)
-                                        .map(|r| ResponseBody::readMemory(r)),
-                                RequestArguments::_symbols(args) =>
-                                    self.handle_symbols(args)
-                                        .map(|r| ResponseBody::_symbols(r)),
-                                _=> bail!("Not implemented.")
-                            }
-                        }
+    fn handle_request_args(&mut self, arguments: RequestArguments) -> Result<ResponseBody, Error> {
+        match arguments {
+            RequestArguments::_adapterSettings(args) =>
+                self.handle_adapter_settings(args)
+                    .map(|_| ResponseBody::_adapterSettings),
+            RequestArguments::initialize(args) =>
+                self.handle_initialize(args)
+                    .map(|r| ResponseBody::initialize(r)),
+            RequestArguments::launch(args) =>
+                    self.handle_launch(args),
+            RequestArguments::attach(args) =>
+                self.handle_attach(args),
+            RequestArguments::configurationDone(_) =>
+                self.handle_configuration_done()
+                    .map(|_| ResponseBody::configurationDone),
+            RequestArguments::disconnect(args) =>
+                self.handle_disconnect(args)
+                    .map(|_| ResponseBody::disconnect),
+            _ => {
+                if self.no_debug {
+                    bail!("Not supported in noDebug mode.")
+                } else {
+                    match arguments {
+                        RequestArguments::setBreakpoints(args) =>
+                            self.handle_set_breakpoints(args)
+                                .map(|r| ResponseBody::setBreakpoints(r)),
+                        RequestArguments::setFunctionBreakpoints(args) =>
+                            self.handle_set_function_breakpoints(args)
+                                .map(|r| ResponseBody::setFunctionBreakpoints(r)),
+                        RequestArguments::setExceptionBreakpoints(args) =>
+                            self.handle_set_exception_breakpoints(args)
+                                .map(|_| ResponseBody::setExceptionBreakpoints),
+                        RequestArguments::threads(_) =>
+                            self.handle_threads()
+                                .map(|r| ResponseBody::threads(r)),
+                        RequestArguments::stackTrace(args) =>
+                            self.handle_stack_trace(args)
+                                .map(|r| ResponseBody::stackTrace(r)),
+                        RequestArguments::scopes(args) =>
+                            self.handle_scopes(args)
+                                .map(|r| ResponseBody::scopes(r)),
+                        RequestArguments::variables(args) =>
+                            self.handle_variables(args)
+                                .map(|r| ResponseBody::variables(r)),
+                        RequestArguments::evaluate(args) =>
+                            self.handle_evaluate(args),
+                        RequestArguments::setVariable(args) =>
+                            self.handle_set_variable(args)
+                                .map(|r| ResponseBody::setVariable(r)),
+                        RequestArguments::pause(args) =>
+                            self.handle_pause(args)
+                                .map(|_| ResponseBody::pause),
+                        RequestArguments::continue_(args) =>
+                            self.handle_continue(args)
+                                .map(|r| ResponseBody::continue_(r)),
+                        RequestArguments::next(args) =>
+                            self.handle_next(args)
+                                .map(|_| ResponseBody::next),
+                        RequestArguments::stepIn(args) =>
+                            self.handle_step_in(args)
+                                .map(|_| ResponseBody::stepIn),
+                        RequestArguments::stepOut(args) =>
+                            self.handle_step_out(args)
+                                .map(|_| ResponseBody::stepOut),
+                        RequestArguments::stepBack(args) =>
+                            self.handle_step_back(args)
+                                .map(|_| ResponseBody::stepBack),
+                        RequestArguments::reverseContinue(args) =>
+                            self.handle_reverse_continue(args)
+                                .map(|_| ResponseBody::reverseContinue),
+                        RequestArguments::source(args) =>
+                            self.handle_source(args)
+                                .map(|r| ResponseBody::source(r)),
+                        RequestArguments::completions(args) =>
+                            self.handle_completions(args)
+                                .map(|r| ResponseBody::completions(r)),
+                        RequestArguments::gotoTargets(args) =>
+                            self.handle_goto_targets(args)
+                                .map(|r| ResponseBody::gotoTargets(r)),
+                        RequestArguments::goto(args) =>
+                            self.handle_goto(args)
+                                .map(|_| ResponseBody::goto),
+                        RequestArguments::restartFrame(args) =>
+                            self.handle_restart_frame(args)
+                                .map(|_| ResponseBody::restartFrame),
+                        RequestArguments::dataBreakpointInfo(args) =>
+                            self.handle_data_breakpoint_info(args)
+                                .map(|r| ResponseBody::dataBreakpointInfo(r)),
+                        RequestArguments::setDataBreakpoints(args) =>
+                            self.handle_set_data_breakpoints(args)
+                                .map(|r| ResponseBody::setDataBreakpoints(r)),
+                        RequestArguments::readMemory(args) =>
+                            self.handle_read_memory(args)
+                                .map(|r| ResponseBody::readMemory(r)),
+                        RequestArguments::_symbols(args) =>
+                            self.handle_symbols(args)
+                                .map(|r| ResponseBody::_symbols(r)),
+                        _=> bail!("Not implemented.")
                     }
                 }
-            },
-            Command::Unknown { ref command } => {
-                info!("Received an unknown command: {}", command);
-                bail!("Not implemented.")
             }
         }
     }
@@ -441,9 +443,9 @@ impl DebugSession {
             Ok(body) => Response {
                 request_seq: request_seq,
                 success: true,
-                body: Some(body),
-                message: None,
-                show_user: None,
+                result: ResponseResult::Success {
+                    body: body,
+                },
             },
             Err(err) => {
                 let message = if let Some(user_err) = err.downcast_ref::<crate::error::UserError>() {
@@ -455,9 +457,11 @@ impl DebugSession {
                 Response {
                     request_seq: request_seq,
                     success: false,
-                    message: Some(message),
-                    show_user: Some(true),
-                    body: None,
+                    result: ResponseResult::Error {
+                        command: "".into(),
+                        message: message,
+                        show_user: Some(true),
+                    },
                 }
             }
         };

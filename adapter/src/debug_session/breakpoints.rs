@@ -18,7 +18,6 @@ use lldb::*;
 enum BreakpointKind {
     Source,
     Disassembly,
-    Instruction,
     Function,
     Exception,
 }
@@ -37,7 +36,6 @@ struct BreakpointInfo {
 pub(super) struct BreakpointsState {
     source: HashMap<PathBuf, HashMap<i64, BreakpointID>>,
     assembly: HashMap<Handle, HashMap<i64, BreakpointID>>,
-    instruction: HashMap<Address, BreakpointID>,
     function: HashMap<String, BreakpointID>,
     breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
 }
@@ -47,7 +45,6 @@ impl BreakpointsState {
         BreakpointsState {
             source: HashMap::new(),
             assembly: HashMap::new(),
-            instruction: HashMap::new(),
             function: HashMap::new(),
             breakpoint_infos: HashMap::new(),
         }
@@ -209,7 +206,7 @@ impl super::DebugSession {
         Ok(result)
     }
 
-    fn handle_set_function_breakpoints(
+    pub(super) fn handle_set_function_breakpoints(
         &mut self,
         args: SetFunctionBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
@@ -348,17 +345,6 @@ impl super::DebugSession {
                             adapter_data: adapter_data,
                             ..Default::default()
                         }),
-                        message,
-                        ..Default::default()
-                    }
-                }
-                BreakpointKind::Instruction => {
-                    let address = bp_info.breakpoint.location_at_index(0).address();
-                    let laddress = address.load_address(&self.target);
-                    Breakpoint {
-                        id: Some(bp_info.id as i64),
-                        verified: true,
-                        instruction_reference: Some(format!("0x{:X}", laddress)),
                         message,
                         ..Default::default()
                     }

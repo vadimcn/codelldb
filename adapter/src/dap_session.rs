@@ -22,7 +22,7 @@ impl<T> DAPChannel for T where
 pub struct DAPSession {
     requests_sender: Weak<broadcast::Sender<Request>>,
     events_sender: Weak<broadcast::Sender<Event>>,
-    out_sender: mpsc::Sender<(ProtocolMessage, Option<oneshot::Sender<ResponseBody>>)>,
+    out_sender: mpsc::Sender<(ProtocolMessage, Option<oneshot::Sender<ResponseResult>>)>,
 }
 
 impl DAPSession {
@@ -31,7 +31,7 @@ impl DAPSession {
         let requests_sender = Arc::new(broadcast::channel::<Request>(100).0);
         let events_sender = Arc::new(broadcast::channel::<Event>(100).0);
         let (out_sender, mut out_receiver) = mpsc::channel(100);
-        let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseBody>> = HashMap::new();
+        let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseResult>> = HashMap::new();
         let mut message_seq = 0;
 
         let client = DAPSession {
@@ -54,10 +54,8 @@ impl DAPSession {
                                     }
                                     Entry::Occupied(entry) => {
                                         let sender = entry.remove();
-                                        if let Some(body) = response.body {
-                                            if let Err(_) = sender.send(body) {
-                                                error!("Requestor is gone (request_seq={})", response.request_seq);
-                                            }
+                                        if let Err(_) = sender.send(response.result) {
+                                            error!("Requestor is gone (request_seq={})", response.request_seq);
                                         }
                                     }
                                 },
@@ -116,7 +114,16 @@ impl DAPSession {
             seq: 0,
         });
         self.out_sender.send((message, Some(sender))).await?;
-        Ok(receiver.await?)
+        let result = receiver.await?;
+        match result {
+            ResponseResult::Success {
+                body,
+            } => Ok(body),
+            ResponseResult::Error {
+                message,
+                ..
+            } => Err(message.into()),
+        }
     }
 
     #[allow(unused)]

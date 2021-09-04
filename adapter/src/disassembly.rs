@@ -11,31 +11,37 @@ use crate::handles::Handle;
 use lldb::*;
 use superslice::Ext;
 
+struct Ranges {
+    pub by_handle: HashMap<Handle, Rc<DisassembledRange>>,
+    pub by_address: Vec<Rc<DisassembledRange>>,
+}
 pub struct AddressSpace {
     target: SBTarget,
-    by_handle: HashMap<Handle, Rc<DisassembledRange>>,
-    by_address: Vec<Rc<DisassembledRange>>,
+    ranges: RefCell<Ranges>,
 }
 
 impl AddressSpace {
     pub fn new(target: &SBTarget) -> AddressSpace {
         AddressSpace {
             target: target.clone(),
-            by_handle: HashMap::new(),
-            by_address: Vec::new(),
+            ranges: RefCell::new(Ranges {
+                by_handle: HashMap::new(),
+                by_address: Vec::new(),
+            }),
         }
     }
 
     pub fn find_by_handle(&self, handle: Handle) -> Option<Rc<DisassembledRange>> {
-        self.by_handle.get(&handle).map(|dasm| dasm.clone())
+        self.ranges.borrow_mut().by_handle.get(&handle).map(|dasm| dasm.clone())
     }
 
-    pub fn find_by_address(&self, load_addr: Address) -> Option<Rc<DisassembledRange>> {
-        let idx = self.by_address.upper_bound_by_key(&load_addr, |dasm| dasm.start_load_addr);
+    fn find_by_address(&self, load_addr: Address) -> Option<Rc<DisassembledRange>> {
+        let ranges = self.ranges.borrow_mut();
+        let idx = ranges.by_address.upper_bound_by_key(&load_addr, |dasm| dasm.start_load_addr);
         if idx == 0 {
             None
         } else {
-            let dasm = &self.by_address[idx - 1];
+            let dasm = &ranges.by_address[idx - 1];
             if dasm.start_load_addr <= load_addr && load_addr < dasm.end_load_addr {
                 Some(dasm.clone())
             } else {
@@ -44,9 +50,9 @@ impl AddressSpace {
         }
     }
 
-    pub fn get_by_address(&mut self, load_addr: Address) -> Rc<DisassembledRange> {
+    pub fn from_address(&self, load_addr: Address) -> Result<Rc<DisassembledRange>, Error> {
         if let Some(dasm) = self.find_by_address(load_addr) {
-            return dasm;
+            return Ok(dasm);
         }
 
         let addr = SBAddress::from_load_address(load_addr, &self.target);
@@ -74,16 +80,22 @@ impl AddressSpace {
                 };
             }
         }
-        self.add(start_addr, end_addr, instructions)
+
+        if instructions.len() > 0 {
+            Ok(self.add(start_addr, end_addr, instructions))
+        } else {
+            bail!("Can't read instructions at that address.")
+        }
     }
 
     fn add(
-        &mut self,
+        &self,
         start_addr: SBAddress,
         end_addr: SBAddress,
         instructions: SBInstructionList,
     ) -> Rc<DisassembledRange> {
-        let handle = Handle::new((self.by_handle.len() + 1000) as u32).unwrap();
+        let mut ranges = self.ranges.borrow_mut();
+        let handle = Handle::new((ranges.by_handle.len() + 1000) as u32).unwrap();
         let instruction_addrs = instructions.iter().map(|i| i.address().load_address(&self.target)).collect();
         let start_load_addr = start_addr.load_address(&self.target);
         let end_load_addr = end_addr.load_address(&self.target);
@@ -103,9 +115,9 @@ impl AddressSpace {
             instruction_addresses: instruction_addrs,
             source_text: RefCell::new(None),
         });
-        self.by_handle.insert(handle, dasm.clone());
-        let idx = self.by_address.lower_bound_by_key(&dasm.start_load_addr, |dasm| dasm.start_load_addr);
-        self.by_address.insert(idx, dasm.clone());
+        ranges.by_handle.insert(handle, dasm.clone());
+        let idx = ranges.by_address.lower_bound_by_key(&dasm.start_load_addr, |dasm| dasm.start_load_addr);
+        ranges.by_address.insert(idx, dasm.clone());
         dasm
     }
 }
@@ -159,8 +171,8 @@ impl DisassembledRange {
     }
 
     pub fn lines_from_adapter_data(adapter_data: &AdapterData) -> Vec<Address> {
-        Some(adapter_data.start)
-            .into_iter()
+        std::iter::repeat(adapter_data.start)
+            .take(4) // lines are 1-based + 2 header lines + 1st instruction
             .chain(adapter_data.line_offsets.iter().scan(adapter_data.start, |addr, &delta| {
                 *addr += delta as u64;
                 Some(*addr)
@@ -226,4 +238,16 @@ impl DisassembledRange {
 
         text
     }
+}
+
+#[test]
+fn test_adapter_data() {
+    let addresses = &[10, 20, 23, 25, 30, 35, 41, 42, 50];
+    let adapter_data = AdapterData {
+        start: 10,
+        end: 55,
+        line_offsets: addresses.windows(2).map(|w| (w[1] - w[0]) as u32).collect(),
+    };
+    let addresses2 = DisassembledRange::lines_from_adapter_data(&adapter_data);
+    assert_eq!(addresses, &addresses2[3..]);
 }

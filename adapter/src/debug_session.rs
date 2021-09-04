@@ -492,6 +492,7 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
+        self.event_listener.start_listening_for_event_class(&self.debugger, SBTarget::broadcaster_class_name(), !0);
         self.event_listener.start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
         self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
         self.client_caps = Initialized(args);
@@ -1072,7 +1073,7 @@ impl DebugSession {
                 }
             } else {
                 let pc_addr = frame.pc();
-                let dasm = self.disassembly.get_by_address(pc_addr);
+                let dasm = self.disassembly.from_address(pc_addr)?;
                 stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
                 stack_frame.column = 0;
                 stack_frame.source = Some(Source {

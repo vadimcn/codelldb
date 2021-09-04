@@ -196,10 +196,7 @@ impl super::DebugSession {
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
-            result.push(Breakpoint {
-                id: Some(bp_info.id as i64),
-                ..Default::default()
-            });
+            result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.line, bp_info.id);
             self.breakpoints.get_mut().breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -286,9 +283,9 @@ impl super::DebugSession {
         Ok(())
     }
 
-    // Generates debug_protocol::Breakpoint message from BreakpointInfo
+    // Generates debug_protocol::Breakpoint message from a BreakpointInfo
     fn make_bp_response(&self, bp_info: &BreakpointInfo, include_source: bool) -> Breakpoint {
-        let message = Some(format!("Locations: {}", bp_info.breakpoint.num_locations()));
+        let message = Some(format!("Resolved locations: {}", bp_info.breakpoint.num_resolved_locations()));
 
         if bp_info.breakpoint.num_locations() == 0 {
             Breakpoint {
@@ -333,20 +330,29 @@ impl super::DebugSession {
                 BreakpointKind::Disassembly => {
                     let address = bp_info.breakpoint.location_at_index(0).address();
                     let laddress = address.load_address(&self.target);
-                    let dasm = self.disassembly.find_by_address(laddress).unwrap();
-                    let adapter_data = Some(serde_json::to_value(dasm.adapter_data()).unwrap());
-                    Breakpoint {
-                        id: Some(bp_info.id as i64),
-                        verified: true,
-                        line: Some(dasm.line_num_by_address(laddress) as i64),
-                        source: Some(Source {
-                            name: Some(dasm.source_name().to_owned()),
-                            source_reference: Some(handles::to_i64(Some(dasm.handle()))),
-                            adapter_data: adapter_data,
+                    if let Ok(dasm) = self.disassembly.from_address(laddress) {
+                        let adapter_data = Some(serde_json::to_value(dasm.adapter_data()).unwrap());
+                        Breakpoint {
+                            id: Some(bp_info.id as i64),
+                            verified: true,
+                            line: Some(dasm.line_num_by_address(laddress) as i64),
+                            source: Some(Source {
+                                name: Some(dasm.source_name().to_owned()),
+                                path: Some(dasm.source_name().to_owned()),
+                                source_reference: Some(handles::to_i64(Some(dasm.handle()))),
+                                adapter_data: adapter_data,
+                                ..Default::default()
+                            }),
+                            message,
                             ..Default::default()
-                        }),
-                        message,
-                        ..Default::default()
+                        }
+                    } else {
+                        Breakpoint {
+                            id: Some(bp_info.id as i64),
+                            verified: false,
+                            message,
+                            ..Default::default()
+                        }
                     }
                 }
                 BreakpointKind::Function => Breakpoint {
@@ -583,7 +589,7 @@ impl super::DebugSession {
                 }));
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
-        } else if event_type.intersects(BreakpointEventType::LocationsAdded) {
+        } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
             if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "changed".into(),

@@ -282,3 +282,30 @@ def evaluate_in_context(code, simple_expr, execution_context):
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
     return eval(code, eval_globals, eval_locals)
+
+# ============================================================================================
+
+
+@lldb.command('debug_info')
+def debug_info(debugger, command, result, internal_dict):
+    '''Display compilation units found in each module's debug info.\nUsage: debug_info [module name]'''
+    import shlex
+    args = shlex.split(command)
+    if len(args) > 0:
+        import re
+        regex = re.compile(args[0])
+        filter = lambda mod: regex.search(mod.platform_file.fullpath)
+    else:
+        filter = lambda mod: True
+
+    target = debugger.GetSelectedTarget()
+    for module in target.modules:
+        if filter(module):
+            result.write('Module {}\n'.format(module.platform_file.fullpath))
+            if len(module.compile_units) == 0:
+                result.write('    No compile units found.\n')
+            else:
+                for cu in module.compile_units:
+                    result.write('    {}\n'.format(cu.file.fullpath))
+            result.write('\n')
+            result.flush()

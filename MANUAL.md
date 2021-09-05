@@ -15,7 +15,8 @@
     - [Source Path Remapping](#source-path-remapping)
     - [Parameterized Launch Configurations](#parameterized-launch-configurations)
 - [Debugger Features](#debugger-features)
-    - [Commands](#commands)
+    - [VSCode Commands](#vscode-commands)
+    - [Debugger Commands](#debugger-commands)
     - [Debug Console](#debug-console)
     - [Regex Breakpoints](#regex-breakpoints)
     - [Conditional Breakpoints](#conditional-breakpoints)
@@ -382,7 +383,7 @@ Example:
 
 # Debugger Features
 
-## Commands
+## VSCode Commands
 
 |                                 |                                                         |
 |---------------------------------|---------------------------------------------------------|
@@ -398,7 +399,17 @@ Example:
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
 
 
-## Debug console
+## Debugger Commands
+
+CodeLLDB also adds in-debugger commands that may be executed in the Debug Console during a debug dession:
+
+|                |                                                         |
+|----------------|---------------------------------------------------------|
+|**debug_info**  |Display compilation units found in each module's debug info.  This list may be filtered by a module name.
+
+For more details about each command please use `help <command>`.
+
+## Debug Console
 
 The VSCode [Debug Console](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) panel serves a dual
 purpose in CodeLLDB:

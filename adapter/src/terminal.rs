@@ -23,7 +23,7 @@ impl Terminal {
         let terminal_kind = terminal_kind.into();
         let title = title.into();
 
-        let terminal_fut = async {
+        let terminal_fut = async move {
             if let Some(clear_sequence) = clear_sequence {
                 let req_args = RunInTerminalRequestArguments {
                     args: clear_sequence,
@@ -51,10 +51,13 @@ impl Terminal {
                 kind: Some(terminal_kind),
                 title: Some(title),
             };
-            log_errors!(dap_session.send_request(RequestArguments::runInTerminal(req_args)).await);
+
+            tokio::spawn(async move {
+                let response = dap_session.send_request(RequestArguments::runInTerminal(req_args));
+                log_errors!(response.await);
+            });
 
             let (stream, _remote_addr) = accept_fut.await?;
-
             let mut reader = BufReader::new(stream);
             let mut data = String::new();
             reader.read_line(&mut data).await?;
@@ -65,7 +68,7 @@ impl Terminal {
             })
         };
 
-        match tokio::time::timeout(Duration::from_secs(5), terminal_fut).await {
+        match tokio::time::timeout(Duration::from_secs(300), terminal_fut).await {
             Ok(res) => res,
             Err(_) => bail!("Terminal agent did not respond within the allotted time."),
         }

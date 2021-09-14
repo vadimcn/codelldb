@@ -478,6 +478,9 @@
 				"language": "ocaml"
 			},
 			{
+				"language": "odin"
+			},
+			{
 				"language": "opencl"
 			},
 			{
@@ -510,6 +513,7 @@
 					"objective-c",
 					"objective-cpp",
 					"objectpascal",
+					"odin",
 					"pascal",
 					"rust"
 				],

@@ -7,7 +7,7 @@ cpp_class!(pub unsafe struct SBBreakpoint as "SBBreakpoint");
 
 unsafe impl Send for SBBreakpoint {}
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref CALLBACKS: Mutex<HashMap<BreakpointID, Box<dyn FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send>>> =
         Mutex::new(HashMap::new());
 }

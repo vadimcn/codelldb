@@ -1,30 +1,12 @@
 #![allow(non_upper_case_globals)]
 #![allow(deprecated)] // TODO: check for rust-cpp updates
 
-#[macro_use]
-extern crate cpp;
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate lazy_static;
-
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::slice;
 use std::str;
-
-cpp! {{
-    #ifdef _WIN32
-        #define _CRT_NONSTDC_NO_DEPRECATE 1
-        #include <io.h>
-        #include <fcntl.h>
-    #endif
-    #include <stdio.h>
-    #include <lldb/API/LLDB.h>
-    using namespace lldb;
-}}
 
 pub type Address = u64;
 pub type ProcessID = u64;
@@ -122,8 +104,21 @@ mod cfile;
 mod strings;
 
 mod sb {
+    use cpp::{cpp, cpp_class};
+    use bitflags::bitflags;
     use super::strings::*;
     use super::*;
+
+    cpp! {{
+        #ifdef _WIN32
+            #define _CRT_NONSTDC_NO_DEPRECATE 1
+            #include <io.h>
+            #include <fcntl.h>
+        #endif
+        #include <stdio.h>
+        #include <lldb/API/LLDB.h>
+        using namespace lldb;
+    }}
 
     pub mod sbaddress;
     pub mod sbattachinfo;

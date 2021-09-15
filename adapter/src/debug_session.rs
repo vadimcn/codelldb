@@ -778,7 +778,10 @@ impl DebugSession {
         }
         attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
         attach_info.set_ignore_existing(false);
-        attach_info.set_listener(&self.event_listener);
+
+        if !self.target.process().is_valid() || self.target.process().state() != ProcessState::Connected {
+            attach_info.set_listener(&self.event_listener);
+        }
 
         let process = match self.target.attach(&attach_info) {
             Ok(process) => process,

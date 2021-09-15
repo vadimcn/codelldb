@@ -744,7 +744,10 @@ impl DebugSession {
             bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
         }
 
-        self.target = Initialized(self.debugger.create_target("", None, None, false)?);
+        self.target = match &args.program {
+            Some(program) => Initialized(self.create_target_from_program(program)?),
+            None => Initialized(self.debugger.create_target("", None, None, false)?),
+        };
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
 

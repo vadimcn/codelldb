@@ -1,9 +1,8 @@
 //===-- SBAddress.h ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,6 +29,12 @@ public:
 
   const lldb::SBAddress &operator=(const lldb::SBAddress &rhs);
 
+  explicit operator bool() const;
+
+  // operator== is a free function
+
+  bool operator!=(const SBAddress &rhs) const;
+
   bool IsValid() const;
 
   void Clear();
@@ -54,9 +59,9 @@ public:
   lldb::SBSymbolContext GetSymbolContext(uint32_t resolve_scope);
 
   // The following functions grab individual objects for a given address and
-  // are less efficient if you want more than one symbol related objects.
-  // Use one of the following when you want multiple debug symbol related
-  // objects for an address:
+  // are less efficient if you want more than one symbol related objects. Use
+  // one of the following when you want multiple debug symbol related objects
+  // for an address:
   //    lldb::SBSymbolContext SBAddress::GetSymbolContext (uint32_t
   //    resolve_scope);
   //    lldb::SBSymbolContext SBTarget::ResolveSymbolContextForAddress (const
@@ -80,10 +85,9 @@ public:
 
   lldb::SBLineEntry GetLineEntry();
 
-  lldb::AddressClass GetAddressClass();
-
 protected:
   friend class SBBlock;
+  friend class SBBreakpoint;
   friend class SBBreakpointLocation;
   friend class SBFrame;
   friend class SBFunction;
@@ -103,7 +107,7 @@ protected:
 
   const lldb_private::Address *operator->() const;
 
-  friend bool operator==(const SBAddress &lhs, const SBAddress &rhs);
+  friend bool LLDB_API operator==(const SBAddress &lhs, const SBAddress &rhs);
 
   lldb_private::Address *get();
 
@@ -116,10 +120,10 @@ protected:
   void SetAddress(const lldb_private::Address *lldb_object_ptr);
 
 private:
-  std::unique_ptr<lldb_private::Address> m_opaque_ap;
+  std::unique_ptr<lldb_private::Address> m_opaque_up;
 };
 
-bool operator==(const SBAddress &lhs, const SBAddress &rhs);
+bool LLDB_API operator==(const SBAddress &lhs, const SBAddress &rhs);
 
 } // namespace lldb
 

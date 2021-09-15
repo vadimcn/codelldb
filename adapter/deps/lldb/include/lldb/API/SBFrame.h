@@ -1,9 +1,8 @@
 //===-- SBFrame.h -----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,6 +25,8 @@ public:
   ~SBFrame();
 
   bool IsEqual(const lldb::SBFrame &that) const;
+
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -90,6 +91,10 @@ public:
 
   bool IsInlined() const;
 
+  bool IsArtificial();
+
+  bool IsArtificial() const;
+
   /// The version that doesn't supply a 'use_dynamic' value will use the
   /// target's default.
   lldb::SBValue EvaluateExpression(const char *expr);
@@ -153,10 +158,10 @@ public:
                              lldb::DynamicValueType use_dynamic);
 
   // Find a value for a variable expression path like "rect.origin.x" or
-  // "pt_ptr->x", "*self", "*this->obj_ptr". The returned value is _not_
-  // and expression result and is not a constant object like
-  // SBFrame::EvaluateExpression(...) returns, but a child object of
-  // the variable value.
+  // "pt_ptr->x", "*self", "*this->obj_ptr". The returned value is _not_ and
+  // expression result and is not a constant object like
+  // SBFrame::EvaluateExpression(...) returns, but a child object of the
+  // variable value.
   lldb::SBValue GetValueForVariablePath(const char *var_expr_cstr,
                                         DynamicValueType use_dynamic);
 

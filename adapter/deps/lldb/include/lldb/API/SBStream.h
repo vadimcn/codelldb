@@ -1,9 +1,8 @@
 //===-- SBStream.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,28 +23,33 @@ public:
 
   ~SBStream();
 
+  explicit operator bool() const;
+
   bool IsValid() const;
 
-  // If this stream is not redirected to a file, it will maintain a local
-  // cache for the stream data which can be accessed using this accessor.
+  // If this stream is not redirected to a file, it will maintain a local cache
+  // for the stream data which can be accessed using this accessor.
   const char *GetData();
 
-  // If this stream is not redirected to a file, it will maintain a local
-  // cache for the stream output whose length can be accessed using this
-  // accessor.
+  // If this stream is not redirected to a file, it will maintain a local cache
+  // for the stream output whose length can be accessed using this accessor.
   size_t GetSize();
 
   void Printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
   void RedirectToFile(const char *path, bool append);
 
+  void RedirectToFile(lldb::SBFile file);
+
+  void RedirectToFile(lldb::FileSP file);
+
   void RedirectToFileHandle(FILE *fh, bool transfer_fh_ownership);
 
   void RedirectToFileDescriptor(int fd, bool transfer_fh_ownership);
 
   // If the stream is redirected to a file, forget about the file and if
-  // ownership of the file was transferred to this object, close the file.
-  // If the stream is backed by a local cache, clear this cache.
+  // ownership of the file was transferred to this object, close the file. If
+  // the stream is backed by a local cache, clear this cache.
   void Clear();
 
 protected:
@@ -96,7 +100,7 @@ protected:
 
 private:
   DISALLOW_COPY_AND_ASSIGN(SBStream);
-  std::unique_ptr<lldb_private::Stream> m_opaque_ap;
+  std::unique_ptr<lldb_private::Stream> m_opaque_up;
   bool m_is_file;
 };
 

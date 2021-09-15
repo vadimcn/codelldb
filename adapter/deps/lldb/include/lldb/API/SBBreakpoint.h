@@ -1,9 +1,8 @@
 //===-- SBBreakpoint.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +22,8 @@ public:
 
   SBBreakpoint(const lldb::SBBreakpoint &rhs);
 
+  SBBreakpoint(const lldb::BreakpointSP &bp_sp);
+
   ~SBBreakpoint();
 
   const lldb::SBBreakpoint &operator=(const lldb::SBBreakpoint &rhs);
@@ -34,6 +35,8 @@ public:
   bool operator!=(const lldb::SBBreakpoint &rhs);
 
   break_id_t GetID() const;
+
+  explicit operator bool() const;
 
   bool IsValid() const;
 
@@ -91,6 +94,9 @@ public:
 
   void SetScriptCallbackFunction(const char *callback_function_name);
 
+  SBError SetScriptCallbackFunction(const char *callback_function_name,
+                                 SBStructuredData &extra_args);
+
   void SetCommandLineCommands(SBStringList &commands);
 
   bool GetCommandLineCommands(SBStringList &commands);
@@ -127,13 +133,17 @@ public:
   static uint32_t
   GetNumBreakpointLocationsFromEvent(const lldb::SBEvent &event_sp);
 
+  bool IsHardware() const;
+
+  // Can only be called from a ScriptedBreakpointResolver...
+  SBError
+  AddLocation(SBAddress &address);
+  
 private:
   friend class SBBreakpointList;
   friend class SBBreakpointLocation;
   friend class SBBreakpointName;
   friend class SBTarget;
-
-  SBBreakpoint(const lldb::BreakpointSP &bp_sp);
 
   lldb::BreakpointSP GetSP() const;
 

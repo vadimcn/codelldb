@@ -1,9 +1,8 @@
 //===-- SBData.h -----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +28,8 @@ public:
   void SetAddressByteSize(uint8_t addr_byte_size);
 
   void Clear();
+
+  explicit operator bool() const;
 
   bool IsValid();
 
@@ -71,11 +72,10 @@ public:
                       lldb::addr_t base_addr = LLDB_INVALID_ADDRESS);
 
   // it would be nice to have SetData(SBError, const void*, size_t) when
-  // endianness and address size can be
-  // inferred from the existing DataExtractor, but having two SetData()
-  // signatures triggers a SWIG bug where
-  // the typemap isn't applied before resolving the overload, and thus the right
-  // function never gets called
+  // endianness and address size can be inferred from the existing
+  // DataExtractor, but having two SetData() signatures triggers a SWIG bug
+  // where the typemap isn't applied before resolving the overload, and thus
+  // the right function never gets called
   void SetData(lldb::SBError &error, const void *buf, size_t size,
                lldb::ByteOrder endian, uint8_t addr_size);
 
@@ -87,9 +87,8 @@ public:
                                             const char *data);
 
   // in the following CreateData*() and SetData*() prototypes, the two
-  // parameters array and array_len
-  // should not be renamed or rearranged, because doing so will break the SWIG
-  // typemap
+  // parameters array and array_len should not be renamed or rearranged,
+  // because doing so will break the SWIG typemap
   static lldb::SBData CreateDataFromUInt64Array(lldb::ByteOrder endian,
                                                 uint32_t addr_byte_size,
                                                 uint64_t *array,

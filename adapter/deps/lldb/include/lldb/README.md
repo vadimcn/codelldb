@@ -1,1 +1,1 @@
-API headers from LLDB 6.0 (commit:d359f2096850)
+API headers from LLDB 10.0 (commit:ef32c611aa21)

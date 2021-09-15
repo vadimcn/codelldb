@@ -1,9 +1,8 @@
 //===-- SBValueList.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,6 +23,8 @@ public:
 
   ~SBValueList();
 
+  explicit operator bool() const;
+
   bool IsValid() const;
 
   void Clear();
@@ -43,8 +44,8 @@ public:
   const lldb::SBValueList &operator=(const lldb::SBValueList &rhs);
 
 protected:
-  // only useful for visualizing the pointer or comparing two SBValueLists
-  // to see if they are backed by the same underlying Impl.
+  // only useful for visualizing the pointer or comparing two SBValueLists to
+  // see if they are backed by the same underlying Impl.
   void *opaque_ptr();
 
 private:
@@ -66,7 +67,7 @@ private:
 
   ValueListImpl &ref();
 
-  std::unique_ptr<ValueListImpl> m_opaque_ap;
+  std::unique_ptr<ValueListImpl> m_opaque_up;
 };
 
 } // namespace lldb

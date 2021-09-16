@@ -149,7 +149,7 @@ impl super::DebugSession {
             // Find an existing breakpoint or create a new one
             let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
                 Some(bp) => bp,
-                None => self.target.breakpoint_create_by_absolute_address(laddress),
+                None => self.target.breakpoint_create_by_load_address(laddress),
             };
 
             let bp_info = BreakpointInfo {
@@ -185,7 +185,7 @@ impl super::DebugSession {
         let line_addresses = disassembly::DisassembledRange::lines_from_adapter_data(adapter_data);
         for req in requested_bps {
             let address = line_addresses[req.line as usize] as Address;
-            let bp = self.target.breakpoint_create_by_absolute_address(address);
+            let bp = self.target.breakpoint_create_by_load_address(address);
             let bp_info = BreakpointInfo {
                 id: bp.id(),
                 breakpoint: bp,

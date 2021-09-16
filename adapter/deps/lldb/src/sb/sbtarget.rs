@@ -139,7 +139,7 @@ impl SBTarget {
             return self->BreakpointCreateBySBAddress(*address);
         })
     }
-    pub fn breakpoint_create_by_absolute_address(&self, address: Address) -> SBBreakpoint {
+    pub fn breakpoint_create_by_load_address(&self, address: Address) -> SBBreakpoint {
         cpp!(unsafe [self as "SBTarget*", address as "addr_t"] -> SBBreakpoint as "SBBreakpoint" {
             return self->BreakpointCreateByAddress(address);
         })

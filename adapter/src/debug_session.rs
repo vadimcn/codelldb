@@ -198,7 +198,11 @@ impl DebugSession {
                     }
                 }
             }
+            SBBreakpoint::clear_all_callbacks(); // Callbacks hold references to the session
             shared_session.map(|s| s.self_ref = NotInitialized).await;
+            if shared_session.ref_count() > 1 {
+                error!("shared_session.ref_count={}", shared_session.ref_count());
+            }
         });
         local_set
     }

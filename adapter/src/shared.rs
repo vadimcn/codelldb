@@ -30,4 +30,8 @@ impl<T> Shared<T> {
         let mut g = self.0.try_lock()?;
         Ok(f(g.deref_mut()))
     }
+
+    pub fn ref_count(&self) -> usize {
+        Arc::strong_count(&self.0)
+    }
 }

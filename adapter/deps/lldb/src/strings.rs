@@ -1,11 +1,13 @@
 use super::*;
 
 use std::mem;
+use std::ffi::OsStr;
 
-pub(crate) fn with_cstr<R, F>(s: &str, f: F) -> R
+pub(crate) fn with_cstr<R, F>(s: impl AsRef<OsStr>, f: F) -> R
 where
     F: FnOnce(*const c_char) -> R,
 {
+    let s = s.as_ref().to_str().unwrap();
     let allocated;
     let mut buffer: [u8; 256] = unsafe { mem::uninitialized() };
     let ptr: *const c_char = if s.len() < buffer.len() {
@@ -19,7 +21,7 @@ where
     f(ptr)
 }
 
-pub(crate) fn with_opt_cstr<R, F>(s: Option<&str>, f: F) -> R
+pub(crate) fn with_opt_cstr<R, F>(s: Option<impl AsRef<OsStr>>, f: F) -> R
 where
     F: FnOnce(*const c_char) -> R,
 {

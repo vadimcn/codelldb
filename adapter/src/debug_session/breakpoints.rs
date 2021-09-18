@@ -110,9 +110,9 @@ impl super::DebugSession {
                 id: bp.id(),
                 breakpoint: bp,
                 kind: BreakpointKind::Source,
-                condition: req.condition.clone(),
-                log_message: req.log_message.clone(),
-                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                condition: empty_to_none(&req.condition),
+                log_message: empty_to_none(&req.log_message),
+                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
                 hit_count: 0,
             };
 
@@ -157,9 +157,9 @@ impl super::DebugSession {
                 id: bp.id(),
                 breakpoint: bp,
                 kind: BreakpointKind::Disassembly,
-                condition: req.condition.clone(),
-                log_message: req.log_message.clone(),
-                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                condition: empty_to_none(&req.condition),
+                log_message: empty_to_none(&req.log_message),
+                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
@@ -191,9 +191,9 @@ impl super::DebugSession {
                 id: bp.id(),
                 breakpoint: bp,
                 kind: BreakpointKind::Disassembly,
-                condition: req.condition.clone(),
-                log_message: req.log_message.clone(),
-                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                condition: empty_to_none(&req.condition),
+                log_message: empty_to_none(&req.log_message),
+                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
@@ -232,9 +232,9 @@ impl super::DebugSession {
                 id: bp.id(),
                 breakpoint: bp,
                 kind: BreakpointKind::Function,
-                condition: req.condition,
+                condition: empty_to_none(&req.condition),
                 log_message: None,
-                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
+                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
                 hit_count: 0,
             };
             self.init_bp_actions(&bp_info);
@@ -613,5 +613,13 @@ impl super::DebugSession {
                 breakpoints.breakpoint_infos.remove(&bp.id());
             }
         }
+    }
+}
+
+fn empty_to_none(s: &Option<String>) -> Option<String> {
+    match s {
+        None => None,
+        Some(s) if s.is_empty() => None,
+        Some(s) => Some(s.clone()),
     }
 }

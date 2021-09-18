@@ -259,6 +259,7 @@ pub struct AdapterSettings {
     pub terminal_prompt_clear: Option<Vec<String>>,
     pub evaluate_for_hovers: Option<bool>,
     pub command_completions: Option<bool>,
+    pub reproducer: Option<Either<bool, String>>
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -315,6 +316,7 @@ pub enum Either<T1, T2> {
     First(T1),
     Second(T2),
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolsContinuation {

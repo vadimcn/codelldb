@@ -11,6 +11,7 @@ export class AdapterSettings {
     terminalPromptClear: string[];
     evaluateForHovers: boolean;
     commandCompletions: boolean;
+    reproducer: boolean | string;
 };
 
 export interface DisplayHtmlRequest {

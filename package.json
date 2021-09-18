@@ -199,6 +199,15 @@
 					"default": false,
 					"scope": "resource"
 				},
+				"lldb.reproducer": {
+					"markdownDescription": "Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).\nMay also contain a path of the directory to save the reproducer in.",
+					"type": [
+						"boolean",
+						"string"
+					],
+					"default": false,
+					"scope": "resource"
+				},
 				"lldb.suppressMissingSourceFiles": {
 					"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
 					"type": "boolean",

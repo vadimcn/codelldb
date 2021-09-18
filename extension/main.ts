@@ -274,6 +274,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             terminalPromptClear: config.get('terminalPromptClear'),
             evaluateForHovers: config.get('evaluateForHovers'),
             commandCompletions: config.get('commandCompletions'),
+            reproducer: config.get('reproducer'),
         };
         return settings;
     }

@@ -656,7 +656,8 @@ configurations when there is no existing `launch.json`.
 |**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
+|**lldb.reproducer**    |Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).  May also contain a path of the directory to save the reproducer in.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
-|**lldb.evaluateForHovers**|Enable value preview when cursor is hovering over a variable.
-|**lldb.commandCompletions**|Enable command completions in debug console.
-|**lldb.rpcServer**|See [RPC server](#rpc-server).
+|**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
+|**lldb.commandCompletions** |Enable command completions in debug console.
+|**lldb.rpcServer**          |See [RPC server](#rpc-server).

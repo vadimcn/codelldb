@@ -23,9 +23,12 @@ mod shared;
 mod terminal;
 mod vec_map;
 
+use crate::debug_protocol::{AdapterSettings, Either};
 use crate::prelude::*;
 use lldb::*;
 use std::net;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::net::TcpListener;
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
@@ -36,12 +39,24 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     hook_crashes();
     env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
-    SBDebugger::initialize();
-
-    let adapter_settings: debug_protocol::AdapterSettings = match adapter_params {
-        Some(s) => serde_json::from_str(s).unwrap(),
+    let adapter_settings: AdapterSettings = match adapter_params {
+        Some(s) => match serde_json::from_str(s) {
+            Ok(settings) => settings,
+            Err(err) => {
+                error!("{}", err);
+                Default::default()
+            }
+        },
         None => Default::default(),
     };
+
+    match adapter_settings.reproducer {
+        Some(Either::First(true)) => initialize_reproducer(None),
+        Some(Either::Second(ref path)) => initialize_reproducer(Some(Path::new(&path))),
+        _ => {}
+    }
+
+    SBDebugger::initialize();
 
     // Execute startup command
     if let Ok(command) = std::env::var("CODELLDB_STARTUP") {
@@ -61,6 +76,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     rt.block_on(run_debug_server(addr, adapter_settings, multi_session));
     rt.shutdown_timeout(Duration::from_millis(10));
 
+    finalize_reproducer();
     debug!("Exiting");
     #[cfg(not(windows))]
     SBDebugger::terminate();
@@ -105,6 +121,7 @@ fn hook_crashes() {
         let bt = backtrace::Backtrace::new();
         eprintln!("Received signal: {}", sig_name);
         eprintln!("{:?}", bt);
+        finalize_reproducer();
         std::process::exit(255);
     }
 
@@ -119,3 +136,24 @@ fn hook_crashes() {
 
 #[cfg(windows)]
 fn hook_crashes() {}
+
+static CREATING_REPRODUCER: AtomicBool = AtomicBool::new(false);
+
+fn initialize_reproducer(path: Option<&Path>) {
+    match SBReproducer::capture(path) {
+        Ok(()) => CREATING_REPRODUCER.store(true, Ordering::Release),
+        Err(err) => error!("initialize_reproducer: {}", err),
+    }
+}
+
+fn finalize_reproducer() {
+    if CREATING_REPRODUCER.load(Ordering::Acquire) {
+        if let Some(path) = SBReproducer::path() {
+            if SBReproducer::generate() {
+                info!("Reproducer saved to {:?}", path);
+            } else {
+                error!("finalize_reproducer: failed");
+            }
+        }
+    }
+}

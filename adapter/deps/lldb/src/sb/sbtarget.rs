@@ -103,10 +103,13 @@ impl SBTarget {
         })
         .check()
     }
-    pub fn breakpoint_create_by_location(&self, file: &str, line: u32) -> SBBreakpoint {
+    pub fn breakpoint_create_by_location(&self, file: &str, line: u32, column: Option<u32>) -> SBBreakpoint {
         with_cstr(file, |file| {
-            cpp!(unsafe [self as "SBTarget*", file as "const char*", line as "uint32_t"] -> SBBreakpoint as "SBBreakpoint" {
-                return self->BreakpointCreateByLocation(file, line);
+            let column = column.unwrap_or(0);
+            cpp!(unsafe [self as "SBTarget*", file as "const char*",
+                         line as "uint32_t", column as "uint32_t"] -> SBBreakpoint as "SBBreakpoint" {
+                SBFileSpecList empty_list;
+                return self->BreakpointCreateByLocation(file, line, column, 0, empty_list);
             })
         })
     }

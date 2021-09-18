@@ -101,7 +101,8 @@ impl super::DebugSession {
             let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
                 Some(bp) => bp,
                 None => {
-                    self.target.breakpoint_create_by_location(file_path_norm.to_str().ok_or("path")?, req.line as u32)
+                    let path = file_path_norm.to_str().ok_or("path")?;
+                    self.target.breakpoint_create_by_location(path, req.line as u32, req.column.map(|c| c as u32))
                 }
             };
 

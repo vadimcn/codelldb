@@ -28,8 +28,7 @@ and Zig.
 
 ## Target
 CodeLLDB supports AArch64, ARM, AVR, MSP430, RISCV, X86 architectures and may be used to debug on embedded platforms
-via [remote debugging](MANUAL.md#remote-debugging).  This includes Android, iOS, OpenOCD and pretty much anything else
-implementing the GDB remote debugging protocol.
+via [remote debugging](MANUAL.md#remote-debugging).
 
 # Quick Start
 Here's a minimal debug configuration to get you started:

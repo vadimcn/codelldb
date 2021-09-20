@@ -1,5 +1,19 @@
 # Release Notes
 
+# 1.6.7
+
+## Changed
+- Rolled the bundled LLDB back to v12, because crash reports started coming from users after upgrade to v13.
+
+## New
+- Added support for inline breakpoints.
+- Added support for LLDB [reproducers](https://lldb.llvm.org/design/reproducers.html).
+
+## Fixed
+- Bug #512: External terminal no longer works since updating to v1.6.6
+- Bug #519: Attaching to remote process using debugserver on Mac/iOS is not working.
+- Bug #522: Conditional breakpoints don't trigger when empty logMessage is supplied.
+
 # 1.6.6
 
 ## New

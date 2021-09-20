@@ -138,7 +138,7 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
         incref(pycode)
         result[0] = PyObjectResult.Ok(pycode)
     except Exception as err:
-        traceback.print_exc()
+        log.error(traceback.format_exc())
         error = lldb.SBError()
         error.SetErrorString(str(err))
         error = from_swig_wrapper(error, SBError)
@@ -153,7 +153,7 @@ def evaluate(result, pycode, is_simple_expr, context):
         value = to_sbvalue(value, context.target)
         result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
     except Exception as err:
-        traceback.print_exc()
+        log.error(traceback.format_exc())
         error = lldb.SBError()
         error.SetErrorString(str(err))
         error = from_swig_wrapper(error, SBError)
@@ -167,7 +167,7 @@ def evaluate_as_bool(result, code, is_simple_expr, context):
         value = bool(evaluate_in_context(code, is_simple_expr, context))
         result[0] = BoolResult.Ok(value)
     except Exception as err:
-        traceback.print_exc()
+        log.error(traceback.format_exc())
         error = lldb.SBError()
         error.SetErrorString(str(err))
         error = from_swig_wrapper(error, SBError)
@@ -236,6 +236,10 @@ def bytes_to_str(b):
 
 #============================================================================================
 
+class VariableNotFound(KeyError):
+    def __str__(self):
+        return 'Variable \'{}\' not found'.format(self.args[0])
+
 def find_var_in_frame(sbframe, name):
     val = sbframe.FindVariable(name)
     if not val.IsValid():
@@ -262,7 +266,7 @@ class PyEvalContext(dict):
             self.__setitem__(name, val)
             return val
         else:
-            raise KeyError(name)
+            raise VariableNotFound(name)
 
 def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()

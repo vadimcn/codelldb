@@ -669,8 +669,6 @@ impl DebugSession {
             }
         }
 
-        launch_info.set_listener(&self.event_listener);
-
         let result = match &self.debuggee_terminal {
             Some(t) => t.attach(|| self.target.launch(&launch_info)),
             None => self.target.launch(&launch_info),
@@ -729,7 +727,6 @@ impl DebugSession {
             self.exec_commands("processCreateCommands", &commands)?;
         }
         self.process = Initialized(self.target.process());
-        self.process.broadcaster().add_listener(&self.event_listener, !0);
         self.terminate_on_disconnect = true;
 
         // This is succeptible to race conditions, but probably the best we can do.
@@ -785,7 +782,6 @@ impl DebugSession {
         }
         attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
         attach_info.set_ignore_existing(false);
-        attach_info.set_listener(&self.event_listener);
 
         let process = match self.target.attach(&attach_info) {
             Ok(process) => process,
@@ -1004,10 +1000,6 @@ impl DebugSession {
     }
 
     fn handle_configuration_done(&mut self) -> Result<(), Error> {
-        self.target.broadcaster().add_listener(
-            &self.event_listener,
-            SBTargetEvent::BroadcastBitBreakpointChanged | SBTargetEvent::BroadcastBitModulesLoaded,
-        );
         Ok(())
     }
 

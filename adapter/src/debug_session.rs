@@ -1117,8 +1117,7 @@ impl DebugSession {
         match self.process.stop() {
             Ok(()) => Ok(()),
             Err(error) => {
-                let state = self.process.state();
-                if !state.is_running() {
+                if self.process.state().is_stopped() {
                     // Did we lose a 'stopped' event?
                     self.notify_process_stopped();
                     Ok(())
@@ -1191,6 +1190,9 @@ impl DebugSession {
         self.before_resume();
         let thread = self.process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
         thread.step_out();
+        if self.process.state().is_stopped() {
+            self.notify_process_stopped();
+        }
         Ok(())
     }
 

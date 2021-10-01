@@ -346,10 +346,14 @@ impl DebugSession {
             RequestArguments::initialize(args) =>
                 self.handle_initialize(args)
                     .map(|r| ResponseBody::initialize(r)),
-            RequestArguments::launch(args) =>
+            RequestArguments::launch(Either::First(args)) =>
                     self.handle_launch(args),
-            RequestArguments::attach(args) =>
-                self.handle_attach(args),
+            RequestArguments::launch(Either::Second(args)) =>
+                    self.report_launch_cfg_error(serde_json::from_value::<LaunchRequestArguments>(args).unwrap_err()),
+            RequestArguments::attach(Either::First(args)) =>
+                    self.handle_attach(args),
+            RequestArguments::attach(Either::Second(args)) =>
+                    self.report_launch_cfg_error(serde_json::from_value::<AttachRequestArguments>(args).unwrap_err()),
             RequestArguments::configurationDone(_) =>
                 self.handle_configuration_done()
                     .map(|_| ResponseBody::configurationDone),
@@ -550,6 +554,10 @@ impl DebugSession {
             });
         }
         filters
+    }
+
+    fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
+        bail!(as_user_error(format!("Could not parse launch configuration: {}", err)))
     }
 
     fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {

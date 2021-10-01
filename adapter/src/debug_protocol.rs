@@ -82,8 +82,8 @@ pub enum Command {
 pub enum RequestArguments {
     initialize(InitializeRequestArguments),
     cancel(CancelArguments),
-    launch(LaunchRequestArguments),
-    attach(AttachRequestArguments),
+    launch(Either<LaunchRequestArguments, serde_json::Value>),
+    attach(Either<AttachRequestArguments, serde_json::Value>),
     setBreakpoints(SetBreakpointsArguments),
     setFunctionBreakpoints(SetFunctionBreakpointsArguments),
     setExceptionBreakpoints(SetExceptionBreakpointsArguments),

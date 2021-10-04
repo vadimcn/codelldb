@@ -55,9 +55,11 @@ add_custom_target(codelldb_syms
 )
 
 set(PATH $ENV{PATH}) # keep
-string(JOIN ${PathSep} PATH ${PATH} ${CMAKE_BINARY_DIR}/lldb/bin)
-string(JOIN ${PathSep} LD_LIBRARY_PATH $ENV{LD_LIBRARY_PATH} ${LLDB_LinkSearch})
+string(JOIN ${PathSep} PATH ${CMAKE_BINARY_DIR}/lldb/bin ${PATH} )
+string(JOIN ${PathSep} LD_LIBRARY_PATH ${LLDB_LinkSearch} $ENV{LD_LIBRARY_PATH})
 add_custom_target(cargo_test
+    COMMAND echo PATH=${PATH}
+    COMMAND echo LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
     COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
             ${Cargo} test --lib -p=lldb -p=debug-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

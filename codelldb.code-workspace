@@ -6,6 +6,15 @@
 	],
 	"settings": {
 		"window.title": "${rootName}",
-		"git.ignoredRepositories": ["adapter/deps/schemafy"],
+		"rust-analyzer.debug.engine": "vadimcn.vscode-lldb",
+		"rust-analyzer.debug.engineSettings": {
+			"lldb": {
+				"cwd": "${workspaceFolder}/build/adapter",
+				"env": {
+					"PATH": "${env:PATH};${workspaceFolder}/build/lldb/bin",
+					"LD_LIBRARY_PATH": "${workspaceFolder}/build/lldb/lib"
+				}
+			}
+		}
 	}
 }

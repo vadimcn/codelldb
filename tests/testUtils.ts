@@ -216,8 +216,10 @@ export class DebugTestSession extends DebugClient {
         prefix: string = ''
     ) {
         if (typeof vars == 'number') {
-            assert.notEqual(vars, 0, 'Expected non-zero.');
-            vars = await this.readVariables(vars);
+            if (vars != 0)
+                vars = await this.readVariables(vars);
+            else
+                vars = {}
         }
 
         for (let key of Object.keys(expected)) {

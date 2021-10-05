@@ -475,17 +475,17 @@ function generateSuite(triple: string) {
                 let response1 = await ds.evaluateRequest({
                     expression: '/py type(debugger.evaluate("s1"))', frameId: frameId, context: 'watch'
                 });
-                assert.ok(response1.body.result.includes('value.Value'), `Actual: ${ response1.body.result } `);
+                assert.ok(response1.body.result.includes('value.Value'), `Actual: ${response1.body.result} `);
 
                 let response2 = await ds.evaluateRequest({
                     expression: '/py type(debugger.evaluate("s1", unwrap=True))', frameId: frameId, context: 'watch'
                 });
-                assert.ok(response2.body.result.includes('lldb.SBValue'), `Actual: ${ response2.body.result } `);
+                assert.ok(response2.body.result.includes('lldb.SBValue'), `Actual: ${response2.body.result} `);
 
                 let response3 = await ds.evaluateRequest({
                     expression: '/py type(debugger.wrap(debugger.evaluate("s1", unwrap=True)))', frameId: frameId, context: 'watch'
                 });
-                assert.ok(response3.body.result.includes('value.Value'), `Actual: ${ response3.body.result } `);
+                assert.ok(response3.body.result.includes('value.Value'), `Actual: ${response3.body.result} `);
 
                 await ds.terminate();
             });
@@ -586,29 +586,45 @@ function generateSuite(triple: string) {
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust enums', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
-                        reg_enum2: '{0:100, 1:200}',
-                        reg_enum3: '{x:11.35, y:20.5}',
+                        reg_enum1: {},
+                        reg_enum2: { $: '{0:100, 1:200}', 0: 100, 1: 200 },
+                        reg_enum3: { $: '{x:11.35, y:20.5}', x: 11.35, y: 20.5 },
                         reg_enum_ref: '{x:11.35, y:20.5}',
-
                         cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
                         cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
-
+                        enc_enum1: { 0: '"string"' },
+                        enc_enum2: {},
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', '0': '"ok"' },
-                        result_err: { $: 'Err("err")', '0': '"err"' },
+                        result_ok: { $: 'Ok("ok")', 0: '"ok"' },
+                        result_err: { $: 'Err("err")', 0: '"err"' },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
+                        opt_reg_struct1: { 0: { a: 1, c: 12 } },
+                        opt_reg_struct2: 'None',
+                    });
+                } else {
+                    await ds.compareVariables(localVars, {
+                        reg_enum1: 'A',
+                        reg_enum2: { $: 'B(100, 200)', 0: 100, 1: 200 },
+                        reg_enum3: { x: 11.35, y: 20.5 },
+                        reg_enum_ref: { x: 11.35, y: 20.5 },
+                        cstyle_enum1: 'A',
+                        cstyle_enum2: 'B',
+                        enc_enum1: { $: 'Some("string")', 0: '"string"' },
+                        enc_enum2: 'Nothing',
+                        opt_str1: 'Some("string")',
+                        opt_str2: 'None',
+                        result_ok: { $: 'Ok("ok")', 0: '"ok"' },
+                        result_err: { $: 'Err("err")', 0: '"err"' },
+                        cow1: 'Borrowed("their cow")',
+                        cow2: 'Owned("my cow")',
+                        opt_reg_struct1: { $: 'Some({...})', 0: { a: 1, c: 12 } },
+                        opt_reg_struct2: 'None',
                     });
                 }
-                // reg_enum1: 'A',
-                // enc_enum1: 'Some("string")',
-                // enc_enum2: 'Nothing',
-                // opt_reg_struct1: 'Some({...})',
-                // opt_reg_struct2: 'None',
                 await ds.terminate();
             })
-
 
             test('rust structs', async function () {
                 let ds = await DebugTestSession.start();
@@ -623,7 +639,6 @@ function generateSuite(triple: string) {
                 })
                 await ds.terminate();
             })
-
 
             test('rust arrays', async function () {
                 let ds = await DebugTestSession.start();

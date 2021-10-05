@@ -561,10 +561,9 @@ class MsvcEnumSynthProvider(EnumSynthProvider):
     def initialize_enum(self):
         tparams = get_template_params(self.valobj.GetTypeName())
         if len(tparams) == 1:  # Regular enum
-            discr = gcm(self.valobj, 'variant0', 'variant$')
+            discr = gcm(self.valobj, 'discriminant')
             self.variant = gcm(self.valobj, 'variant' + str(discr.GetValueAsUnsigned()))
             variant_name = discr.GetValue()
-            self.skip_first = 1
         else:  # Niche enum
             dataful_min = int(tparams[1])
             dataful_max = int(tparams[2])

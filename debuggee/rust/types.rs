@@ -70,7 +70,7 @@ fn enums() {
 
     let enc_enum1: EncodedEnum<&str> = EncodedEnum::Some("string");
     let enc_enum2: EncodedEnum<&str> = EncodedEnum::Nothing;
-    
+
     let opt_str1: Option<&str> = Some("string");
     let opt_str2: Option<&str> = None;
 
@@ -148,6 +148,7 @@ fn arrays() {
     let empty_vec = Vec::<i32>::new();
     let vec_int = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let vec_str = vec!["111", "2222", "3333", "4444", "5555"];
+    let vec_tuple = vec![(1, 2), (2, 3), (3, 4)];
     let large_vec: Vec<i32> = (0..20000).collect();
 
     println!("---"); // #BP_arrays

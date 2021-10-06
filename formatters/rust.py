@@ -115,16 +115,15 @@ def gcm(valobj, *chain):
 
 
 def read_unique_ptr(valobj):
-    # Rust-enabled LLDB using DWARF debug info will strip tuple field prefixes.
-    # If LLDB is not Rust-enalbed or if using PDB debug info, they will be underscore-prefixed.
     pointer = valobj.GetChildMemberWithName('pointer')
-    child = pointer.GetChildMemberWithName('__0')  # Plain lldb
-    if child.IsValid():
-        return child
-    child = pointer.GetChildMemberWithName('0')  # rust-lldb
-    if child.IsValid():
-        return child
-    return pointer  # pointer no longer contains NonZero since Rust 1.33
+    if not pointer.TypeIsPointerType():  # Before 1.33, pointer was a NonZero<*const T>, after - just *const T
+        child = pointer.GetChildMemberWithName('__0')  # Plain lldb or PDB
+        if child.IsValid():
+            return child
+        child = pointer.GetChildMemberWithName('0')  # rust-lldb
+        if child.IsValid():
+            return child
+    return pointer
 
 
 def string_from_ptr(pointer, length):

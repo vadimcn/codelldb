@@ -1,7 +1,14 @@
 # Release Notes
 
 # 1.6.8
-...
+
+## Changed
+- Okay, LLDB 12.0.1 seems too broken.  Restored it to v13.0.0.
+
+## Fixed
+- #527: Breakpoints no longer triggering in library when using version 1.6.7
+- #540: Rust printing of enums not working [for -windows-msvc targets]
+- #337: Visualizing Vec<(f32,f32)> is showing as pointer
 
 # 1.6.7
 

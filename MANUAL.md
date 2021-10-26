@@ -63,7 +63,7 @@ Note that many of the launch parameters may be given default values via user, wo
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 Flow during the launch sequence:
 1. Debug session is created.
@@ -109,7 +109,7 @@ stdout to "log.txt",
 |**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
 |**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 Flow during the attach sequence:
 1. Debug session is created.

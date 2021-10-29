@@ -22,7 +22,7 @@ variables:
 jobs:
 - job: Linux
   pool:
-    vmImage: 'Ubuntu 16.04'
+    vmImage: 'ubuntu-20.04'
 
   strategy:
     matrix:
@@ -130,7 +130,7 @@ jobs:
 
 - job: OSX
   pool:
-    vmImage: 'macOS-10.15'
+    vmImage: 'macOS-11'
 
   strategy:
     matrix:
@@ -230,7 +230,7 @@ jobs:
 
 - job: Windows
   pool:
-    vmImage: 'VS2017-Win2016'
+    vmImage: 'windows-2019'
 
   variables:
     PlatformId: 'x86_64-windows'
@@ -272,7 +272,7 @@ jobs:
 
   - task: BatchScript@1
     inputs:
-      filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Enterprise\\Common7\\Tools\\VsDevCmd.bat"
+      filename: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise\\Common7\\Tools\\VsDevCmd.bat"
       arguments: -arch=amd64 -host_arch=amd64
       modifyEnvironment: true
     displayName: VsDevCmd

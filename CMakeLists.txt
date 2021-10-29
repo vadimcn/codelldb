@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.6.8") # Base version
+set(VERSION "1.6.9") # Base version
 
 include(cmake/CopyFiles.cmake)
 
@@ -54,7 +54,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
     set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll  NTDLL.dll ADVAPI32.dll VCRUNTIME140.dll MSVCP140.dll
-                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll SHLWAPI.dll  RPCRT4.dll
+                            USER32.dll VERSION.dll DBGHELP.dll PSAPI.DLL OLEAUT32.dll SHLWAPI.dll  RPCRT4.dll OLE32.dll
                             python3.*.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")

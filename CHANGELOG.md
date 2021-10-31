@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.6.9
+
+## Fixed
+- #465: Incompatibility with arm64 macOS Monterey.
+
 # 1.6.8
 
 ## Changed

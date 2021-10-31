@@ -129,10 +129,10 @@ on some systems.  You may need to adjust system configuration to enable it.
 
 The custom launch method allows user to fully specify how the debug session is initiated.  The flow of a custom launch is as follows:
 
-1. The `targetCreateCommands` command sequence is executed.  It is expected that a debug target will have been created upon completion.
-2. Debugger inserts source breakpoints.
-3. The `processCreateCommands` command sequence is executed.  This sequence is expected to create the debuggee process.
-4. Debugger reports current state of the debuggee process to VSCode and starts accepting user commands.
+1. The `targetCreateCommands` command sequence is executed. This sequence is expected to create a debug target (see `target create` command).
+2. Debugger uses the target to insert breakpoints.
+3. The `processCreateCommands` command sequence is executed.  This sequence is expected to create the debuggee process (see `process launch` command).
+4. The debugger reports the current state of the debuggee to VSCode and starts accepting user commands.
 
 |parameter          |type    |req |         |
 |-------------------|--------|:--:|---------|

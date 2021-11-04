@@ -200,14 +200,10 @@ export class DebugTestSession extends DebugClient {
         assert.equal(topFrame.line, line);
     }
 
-    async readVariables(variablesReference: number): Promise<Dict<dp.Variable>> {
+    async readVariables(variablesReference: number): Promise<Array<dp.Variable>> {
         logWithStack('Awaiting variables');
         let response = await this.variablesRequest({ variablesReference: variablesReference });
-        let vars: Dict<dp.Variable> = {};
-        for (let v of response.body.variables) {
-            vars[v.name] = v;
-        }
-        return vars;
+        return response.body.variables;
     }
 
     async compareVariables(
@@ -217,7 +213,7 @@ export class DebugTestSession extends DebugClient {
     ) {
         if (typeof vars == 'number') {
             if (vars != 0)
-                vars = await this.readVariables(vars);
+                vars = variablesAsDict(await this.readVariables(vars));
             else
                 vars = {}
         }
@@ -306,7 +302,7 @@ export class DebugTestSession extends DebugClient {
         let frames = await this.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
         let scopes = await this.scopesRequest({ frameId: frames.body.stackFrames[0].id });
         let localVars = await this.readVariables(scopes.body.scopes[0].variablesReference);
-        return localVars;
+        return variablesAsDict(localVars);
     }
 
     async getTopFrameId(threadId: number): Promise<number> {
@@ -334,3 +330,12 @@ export function char(ch: string): ValidatorFn {
     assert.equal(ch.length, 1);
     return v => parseInt(v.value) == ch.charCodeAt(0) || v.value == `'${ch}'`;
 }
+
+export function variablesAsDict(varsList: Array<dp.Variable>) {
+    let vars: Dict<dp.Variable> = {};
+    for (let v of varsList) {
+        vars[v.name] = v;
+    }
+    return vars;
+}
+

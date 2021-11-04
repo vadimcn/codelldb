@@ -11,7 +11,6 @@ use futures::future;
 use lldb::*;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::time;
 
@@ -166,19 +165,11 @@ impl super::DebugSession {
         container_handle: Option<Handle>,
     ) -> Result<Vec<Variable>, Error> {
         let mut variables = vec![];
-        let mut variables_idx = HashMap::new();
 
         let start = time::SystemTime::now();
         for var in vars_iter {
             let variable = self.var_to_variable(&var, container_eval_name, container_handle);
-
-            // Ensure proper shadowing
-            if let Some(idx) = variables_idx.get(&variable.name) {
-                variables[*idx] = variable;
-            } else {
-                variables_idx.insert(variable.name.clone(), variables.len());
-                variables.push(variable);
-            }
+            variables.push(variable);
 
             if self.current_cancellation.is_cancelled() {
                 bail!(as_user_error("<cancelled>"));

@@ -1,5 +1,11 @@
 # Release Notes
 
+# 1.6.10
+
+## Fixed
+- #568: Viewing a struct with union:s in C++ doesn't show all the member variables
+- #573: Installing package flags "Unauthorized"
+
 # 1.6.9
 
 ## Fixed

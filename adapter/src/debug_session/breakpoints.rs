@@ -1,4 +1,3 @@
-use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
@@ -12,6 +11,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use adapter_protocol::*;
 use lldb::*;
 
 #[derive(Debug, Clone)]

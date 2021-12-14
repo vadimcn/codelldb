@@ -3,7 +3,7 @@
 use crate::vec_map::VecMap;
 use serde_derive::*;
 
-pub use raw_debug_protocol::{
+pub use crate::dap::{
     Breakpoint, BreakpointEventBody, CancelArguments, Capabilities, CapabilitiesEventBody, CompletionItem,
     CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
     DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
@@ -21,21 +21,27 @@ pub use raw_debug_protocol::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
-pub enum ProtocolMessage {
-    #[serde(rename = "request")]
-    Request(Request),
-    #[serde(rename = "response")]
-    Response(Response),
-    #[serde(rename = "event")]
-    Event(Event),
+
+pub struct ProtocolMessage {
+    pub seq: u32,
+    #[serde(flatten)]
+    pub type_: ProtocolMessageType,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Request {
-    pub seq: u32,
-    #[serde(flatten)]
-    pub command: Command,
+#[serde(tag = "type")]
+pub enum ProtocolMessageType {
+    #[serde(rename = "request")]
+    Request(RequestArguments),
+    #[serde(rename = "response")]
+    Response(Response),
+    #[serde(rename = "event")]
+    Event(EventBody),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UnknownRequest {
+    pub command: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,22 +64,6 @@ pub enum ResponseResult {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         show_user: Option<bool>,
-    },
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Event {
-    pub seq: u32,
-    #[serde(flatten)]
-    pub body: EventBody,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-pub enum Command {
-    Known(RequestArguments),
-    Unknown {
-        command: String,
     },
 }
 
@@ -117,6 +107,8 @@ pub enum RequestArguments {
     // Custom
     _adapterSettings(AdapterSettings),
     _symbols(SymbolsRequest),
+    #[serde(other)]
+    unknown,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -238,7 +230,7 @@ pub struct DisplayHtmlEventBody {
     pub reveal: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ConsoleMode {
     Commands,
@@ -259,7 +251,7 @@ pub struct AdapterSettings {
     pub terminal_prompt_clear: Option<Vec<String>>,
     pub evaluate_for_hovers: Option<bool>,
     pub command_completions: Option<bool>,
-    pub reproducer: Option<Either<bool, String>>
+    pub reproducer: Option<Either<bool, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -364,21 +356,24 @@ mod tests {
         let request = parse(br#"{"command":"initialize","arguments":{"clientID":"vscode","clientName":"Visual Studio Code","adapterID":"lldb","pathFormat":"path","linesStartAt1":true,"columnsStartAt1":true,"supportsVariableType":true,"supportsVariablePaging":true,"supportsRunInTerminalRequest":true,"locale":"en-us"},"type":"request","seq":1}"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::initialize(..)),
-                ..
-            })
+            ProtocolMessage {
+                seq: 1,
+                type_: ProtocolMessageType::Request(RequestArguments::initialize(..))
+            }
         );
 
-        let response = parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#);
+        let response = parse(br#"{"seq":2, "request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#);
         assert_matches!(
             response,
-            ProtocolMessage::Response(Response {
-                result: ResponseResult::Success {
-                    body: ResponseBody::initialize(..)
-                },
-                ..
-            })
+            ProtocolMessage {
+                seq: 2,
+                type_: ProtocolMessageType::Response(Response {
+                    result: ResponseResult::Success {
+                        body: ResponseBody::initialize(..)
+                    },
+                    ..
+                })
+            }
         );
     }
 
@@ -397,21 +392,25 @@ mod tests {
                       }"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::launch(..)),
-                ..
-            })
+            ProtocolMessage {
+                seq: 2,
+                type_: ProtocolMessageType::Request(RequestArguments::launch(..))
+            }
         );
 
-        let response = parse(br#"{"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
+        let response =
+            parse(br#"{"seq": 3, "request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
         assert_matches!(
             response,
-            ProtocolMessage::Response(Response {
-                result: ResponseResult::Success {
-                    body: ResponseBody::launch,
-                },
-                ..
-            })
+            ProtocolMessage {
+                seq: 3,
+                type_: ProtocolMessageType::Response(Response {
+                    result: ResponseResult::Success {
+                        body: ResponseBody::launch,
+                    },
+                    ..
+                })
+            }
         );
     }
 
@@ -420,19 +419,19 @@ mod tests {
         let event = parse(br#"{"type":"event","event":"initialized","seq":0}"#);
         assert_matches!(
             event,
-            ProtocolMessage::Event(Event {
-                body: EventBody::initialized,
-                ..
-            })
+            ProtocolMessage {
+                seq: 0,
+                type_: ProtocolMessageType::Event(EventBody::initialized)
+            }
         );
 
         let event = parse(br#"{"body":{"reason":"started","threadId":7537},"type":"event","event":"thread","seq":0}"#);
         assert_matches!(
             event,
-            ProtocolMessage::Event(Event {
-                body: EventBody::thread(..),
-                ..
-            })
+            ProtocolMessage {
+                seq: 0,
+                type_: ProtocolMessageType::Event(EventBody::thread(..))
+            }
         );
     }
 
@@ -441,22 +440,26 @@ mod tests {
         let request = parse(br#"{"command":"scopes","arguments":{"frameId":1000},"type":"request","seq":12}"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::scopes(..)),
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::scopes(..)),
+            }
         );
 
-        let response = parse(br#"{"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
+        let response = parse(br#"{"seq":34,"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
         assert_matches!(
             response,
-            ProtocolMessage::Response(Response {
-                success: true,
-                result: ResponseResult::Success {
-                    body: ResponseBody::scopes(..),
-                },
-                ..
-            })
+            ProtocolMessage {
+                seq: 34,
+                type_: ProtocolMessageType::Response(Response {
+                    request_seq: 12,
+                    success: true,
+                    result: ResponseResult::Success {
+                        body: ResponseBody::scopes(..),
+                    },
+                    ..
+                })
+            }
         );
     }
 
@@ -466,20 +469,21 @@ mod tests {
         println!("{:?}", request);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::configurationDone(None)),
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::configurationDone(None)),
+            }
         );
+
         let request =
             parse(br#"{"type":"request", "seq":12, "command":"configurationDone", "arguments": {"foo": "bar"}}"#);
         println!("{:?}", request);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::configurationDone(Some(_))),
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::configurationDone(Some(_)))
+            }
         );
     }
 
@@ -489,19 +493,19 @@ mod tests {
             parse(br#"{"type":"request", "seq":12, "command":"disconnect", "arguments":{"terminateDebuggee":true} }"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::disconnect(Some(..))),
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::disconnect(Some(..)))
+            }
         );
 
         let request = parse(br#"{"type":"request", "seq":12, "command":"disconnect"}"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Known(RequestArguments::disconnect(None)),
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::disconnect(None))
+            }
         );
     }
 
@@ -510,10 +514,10 @@ mod tests {
         let request = parse(br#"{"type":"request", "seq":12, "command":"foobar"}"#);
         assert_matches!(
             request,
-            ProtocolMessage::Request(Request {
-                command: Command::Unknown { .. },
-                ..
-            })
+            ProtocolMessage {
+                seq: 12,
+                type_: ProtocolMessageType::Request(RequestArguments::unknown)
+            }
         );
     }
 }

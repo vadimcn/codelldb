@@ -10,7 +10,6 @@ mod cancellation;
 mod dap_codec;
 mod dap_session;
 mod debug_event_listener;
-mod debug_protocol;
 mod debug_session;
 mod disassembly;
 mod expressions;
@@ -21,10 +20,9 @@ mod platform;
 mod python;
 mod shared;
 mod terminal;
-mod vec_map;
 
-use crate::debug_protocol::{AdapterSettings, Either};
 use crate::prelude::*;
+use adapter_protocol::{AdapterSettings, Either};
 use lldb::*;
 use std::net;
 use std::path::Path;
@@ -84,7 +82,7 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
 
 async fn run_debug_server(
     addr: net::SocketAddr,
-    adapter_settings: debug_protocol::AdapterSettings,
+    adapter_settings: adapter_protocol::AdapterSettings,
     multi_session: bool,
 ) {
     let listener = TcpListener::bind(&addr).await.unwrap();

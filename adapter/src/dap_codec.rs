@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::debug_protocol::ProtocolMessage;
+use adapter_protocol::ProtocolMessage;
 use bytes::BytesMut;
 use serde_json;
 use std::fmt::Write;

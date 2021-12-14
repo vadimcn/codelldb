@@ -1,7 +1,6 @@
 use crate::expressions::{FormatSpec, PreparedExpression};
 use crate::{expressions, prelude::*};
 
-use crate::debug_protocol::*;
 use crate::handles::{self, Handle};
 
 use super::into_string_lossy;
@@ -9,6 +8,8 @@ use super::AsyncResponse;
 
 use futures::future;
 use lldb::*;
+use adapter_protocol::*;
+
 
 use std::borrow::Cow;
 use std::fmt::Write;

@@ -1,4 +1,4 @@
-use crate::debug_protocol::Expressions;
+use adapter_protocol::Expressions;
 
 #[macro_use]
 pub mod prelude {

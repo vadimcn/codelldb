@@ -1,8 +1,9 @@
 use crate::prelude::*;
 
-use crate::debug_protocol::{DisplayHtmlEventBody, EventBody};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use adapter_protocol::{DisplayHtmlEventBody, EventBody};
 use lldb::*;
+
 use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};

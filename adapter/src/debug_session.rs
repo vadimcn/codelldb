@@ -6,7 +6,6 @@ use crate::prelude::*;
 use crate::cancellation;
 use crate::dap_session::DAPSession;
 use crate::debug_event_listener;
-use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
@@ -30,6 +29,7 @@ use std::rc::Rc;
 use std::str;
 use std::time;
 
+use adapter_protocol::*;
 use futures;
 use futures::prelude::*;
 use lldb::*;
@@ -184,8 +184,8 @@ impl DebugSession {
                     // Requests from VSCode
                     request = requests_receiver.recv() => {
                         match request {
-                            Some((request, cancellation)) => shared_session.map(
-                                    |s| s.handle_request(request, cancellation)).await,
+                            Some((seq, request, cancellation)) => shared_session.map(
+                                    |s| s.handle_request(seq, request, cancellation)).await,
                             None => {
                                 debug!("End of the requests stream");
                                 break;
@@ -233,11 +233,14 @@ impl DebugSession {
     }
 
     /// Handle request cancellations.
-    fn cancellation_filter(dap_session: &DAPSession) -> mpsc::Receiver<(Request, cancellation::Receiver)> {
+    fn cancellation_filter(
+        dap_session: &DAPSession,
+    ) -> mpsc::Receiver<(u32, RequestArguments, cancellation::Receiver)> {
         use tokio::sync::broadcast::error::RecvError;
 
         let mut raw_requests_stream = dap_session.subscribe_requests().unwrap();
-        let (requests_sender, requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+        let (requests_sender, requests_receiver) =
+            mpsc::channel::<(u32, RequestArguments, cancellation::Receiver)>(100);
 
         // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
         let filter = async move {
@@ -246,46 +249,43 @@ impl DebugSession {
 
             loop {
                 match raw_requests_stream.recv().await {
-                    Ok(request) => {
+                    Ok((seq, request)) => {
                         let sender = cancellation::Sender::new();
                         let receiver = sender.subscribe();
 
-                        match &request.command {
-                            Command::Known(request_args) => match request_args {
-                                RequestArguments::cancel(args) => {
-                                    info!("Cancellation {:?}", args);
-                                    if let Some(id) = args.request_id {
-                                        if let Some(sender) = pending_requests.remove(&(id as u32)) {
-                                            sender.send();
-                                        }
-                                    }
-                                    continue; // Dont forward to the main event loop.
-                                }
-                                // Requests that may be canceled.
-                                RequestArguments::scopes(_)
-                                | RequestArguments::variables(_)
-                                | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
-                                // Requests that will cancel the above.
-                                RequestArguments::continue_(_)
-                                | RequestArguments::pause(_)
-                                | RequestArguments::next(_)
-                                | RequestArguments::stepIn(_)
-                                | RequestArguments::stepOut(_)
-                                | RequestArguments::stepBack(_)
-                                | RequestArguments::reverseContinue(_)
-                                | RequestArguments::terminate(_)
-                                | RequestArguments::disconnect(_) => {
-                                    for sender in &mut cancellable_requests {
+                        match request {
+                            RequestArguments::cancel(args) => {
+                                info!("Cancellation {:?}", args);
+                                if let Some(id) = args.request_id {
+                                    if let Some(sender) = pending_requests.remove(&(id as u32)) {
                                         sender.send();
                                     }
                                 }
-                                _ => (),
-                            },
+                                continue; // Dont forward to the main event loop.
+                            }
+                            // Requests that may be canceled.
+                            RequestArguments::scopes(_)
+                            | RequestArguments::variables(_)
+                            | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
+                            // Requests that will cancel the above.
+                            RequestArguments::continue_(_)
+                            | RequestArguments::pause(_)
+                            | RequestArguments::next(_)
+                            | RequestArguments::stepIn(_)
+                            | RequestArguments::stepOut(_)
+                            | RequestArguments::stepBack(_)
+                            | RequestArguments::reverseContinue(_)
+                            | RequestArguments::terminate(_)
+                            | RequestArguments::disconnect(_) => {
+                                for sender in &mut cancellable_requests {
+                                    sender.send();
+                                }
+                            }
                             _ => (),
                         }
 
-                        pending_requests.insert(request.seq, sender);
-                        log_errors!(requests_sender.send((request, receiver)).await);
+                        pending_requests.insert(seq, sender);
+                        log_errors!(requests_sender.send((seq, request, receiver)).await);
 
                         // Clean out entries which don't have any receivers.
                         pending_requests.retain(|_k, v| v.receiver_count() > 0);
@@ -301,38 +301,32 @@ impl DebugSession {
         requests_receiver
     }
 
-    fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {
-        let seq = request.seq;
-        match request.command {
-            Command::Known(args) => {
-                if cancellation.is_cancelled() {
-                    self.send_response(seq, Err("canceled".into()));
-                } else {
-                    self.current_cancellation = cancellation;
-                    let result = self.handle_request_args(args);
-                    self.current_cancellation = cancellation::dummy();
-                    match result {
-                        // Spawn async responses as tasks
-                        Err(err) if err.is::<AsyncResponse>() => {
-                            let self_ref = self.self_ref.clone();
-                            tokio::task::spawn_local(async move {
-                                let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
-                                let result = fut.await;
-                                self_ref.map(|s| s.send_response(seq, result)).await;
-                            });
-                        }
-                        // Send synchronous results immediately
-                        _ => {
-                            self.send_response(seq, result);
-                        }
+    fn handle_request(&mut self, seq: u32, request_args: RequestArguments, cancellation: cancellation::Receiver) {
+        if cancellation.is_cancelled() {
+            self.send_response(seq, Err("canceled".into()));
+        } else {
+            self.current_cancellation = cancellation;
+            if let RequestArguments::unknown = request_args {
+                info!("Received an unknown command");
+                self.send_response(seq, Err("Not implemented.".into()));
+            } else {
+                let result = self.handle_request_args(request_args);
+                self.current_cancellation = cancellation::dummy();
+                match result {
+                    // Spawn async responses as tasks
+                    Err(err) if err.is::<AsyncResponse>() => {
+                        let self_ref = self.self_ref.clone();
+                        tokio::task::spawn_local(async move {
+                            let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
+                            let result = fut.await;
+                            self_ref.map(|s| s.send_response(seq, result)).await;
+                        });
+                    }
+                    // Send synchronous results immediately
+                    _ => {
+                        self.send_response(seq, result);
                     }
                 }
-            }
-            Command::Unknown {
-                command,
-            } => {
-                info!("Received an unknown command: {}", command);
-                self.send_response(seq, Err("Not implemented.".into()));
             }
         }
     }
@@ -591,12 +585,9 @@ impl DebugSession {
         let result = self.dap_session.subscribe_requests();
         async move {
             let mut receiver = result?;
-            while let Ok(request) = receiver.recv().await {
-                match request.command {
-                    Command::Known(RequestArguments::configurationDone(_)) => {
-                        return Ok(());
-                    }
-                    _ => {}
+            while let Ok((_seq, request)) = receiver.recv().await {
+                if let RequestArguments::configurationDone(_) = request {
+                    return Ok(());
                 }
             }
             bail!("Did not receive configurationDone");
@@ -1632,7 +1623,6 @@ impl DebugSession {
         self.show_disassembly = settings.show_disassembly.unwrap_or(self.show_disassembly);
         self.deref_pointers = settings.dereference_pointers.unwrap_or(self.deref_pointers);
         self.suppress_missing_files = settings.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
-        self.console_mode = settings.console_mode.unwrap_or(self.console_mode);
         self.evaluate_for_hovers = settings.evaluate_for_hovers.unwrap_or(self.evaluate_for_hovers);
         self.command_completions = settings.command_completions.unwrap_or(self.command_completions);
         if let Some(timeout) = settings.evaluation_timeout {

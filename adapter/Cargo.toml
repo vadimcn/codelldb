@@ -27,7 +27,7 @@ tokio-util = { version = "0.6.0", features = ["codec"] }
 
 lldb = { path = "deps/lldb" }
 loading = { path = "deps/loading" }
-raw_debug_protocol = { package = "debug-protocol", path = "deps/debug-protocol" }
+adapter_protocol = { package = "adapter-protocol", path = "deps/adapter-protocol" }
 
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"

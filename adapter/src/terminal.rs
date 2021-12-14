@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::dap_session::DAPSession;
-use crate::debug_protocol::*;
+use adapter_protocol::*;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;

@@ -88,6 +88,11 @@
 			},
 			{
 				"category": "LLDB",
+				"title": "Toggle Debug Console Mode",
+				"command": "lldb.toggleConsoleMode"
+			},
+			{
+				"category": "LLDB",
 				"title": "Run Diagnostics",
 				"command": "lldb.diagnose"
 			},

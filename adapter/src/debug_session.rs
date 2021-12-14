@@ -949,11 +949,21 @@ impl DebugSession {
             self.update_adapter_settings_and_caps(settings);
         }
 
+        self.print_console_mode();
+
         if let Some(commands) = &args_common.init_commands {
             self.exec_commands("initCommands", &commands)?;
         }
 
         Ok(())
+    }
+
+    fn print_console_mode(&self) {
+        let message = match self.console_mode {
+            ConsoleMode::Commands => "Console is in 'commands' mode, prefix expressions with '?'.",
+            ConsoleMode::Evaluate => "Console is in 'evaluation' mode, prefix commands with '/cmd ' or '`'.",
+        };
+        self.console_message(message);
     }
 
     fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
@@ -1588,7 +1598,11 @@ impl DebugSession {
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
+        let old_console_mode = self.console_mode;
         self.update_adapter_settings_and_caps(&args);
+        if self.console_mode != old_console_mode {
+            self.print_console_mode();
+        }
         if self.process.state().is_stopped() {
             self.refresh_client_display(None);
         }
@@ -1629,6 +1643,9 @@ impl DebugSession {
         }
         if let Some(ref source_languages) = settings.source_languages {
             self.source_languages = source_languages.clone();
+        }
+        if let Some(console_mode) = settings.console_mode {
+            self.console_mode = console_mode;
         }
     }
 

@@ -82,6 +82,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         }));
 
+        this.registerDisplaySettingCommand('lldb.toggleConsoleMode', async (settings) => {
+            settings.consoleMode = (settings.consoleMode == 'commands') ? 'evaluate' : 'commands';
+        });
         this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
             settings.showDisassembly = <AdapterSettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
         });
@@ -286,6 +289,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         await config.update('displayFormat', settings.displayFormat);
         await config.update('showDisassembly', settings.showDisassembly);
         await config.update('dereferencePointers', settings.dereferencePointers);
+        await config.update('consoleMode', settings.consoleMode);
     }
 
     // This is called When configuration change is detected. Updates UI, and if a debug session
@@ -296,7 +300,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         this.status.text =
             `Format: ${settings.displayFormat}  ` +
             `Disasm: ${settings.showDisassembly}  ` +
-            `Deref: ${settings.dereferencePointers ? 'on' : 'off'}`;
+            `Deref: ${settings.dereferencePointers ? 'on' : 'off'}  ` +
+            `Console: ${settings.consoleMode == 'commands' ? 'cmd' : 'eval'}`;
 
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
             await debug.activeDebugSession.customRequest('_adapterSettings', settings);
@@ -322,6 +327,11 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 label: `Dereference pointers: ${settings.dereferencePointers ? 'on' : 'off'}`,
                 detail: 'Whether to show a summary of the pointee or a numeric pointer value.',
                 command: 'lldb.toggleDerefPointers'
+            },
+            {
+                label: `Console mode: ${settings.consoleMode}`,
+                detail: 'Whether Debug Console input is treated as debugger commands or as expressions to evaluate.',
+                command: 'lldb.toggleConsoleMode'
             }
         ];
         qpick.title = 'Debugger display settings';

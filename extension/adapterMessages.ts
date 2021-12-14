@@ -6,7 +6,7 @@ export class AdapterSettings {
     dereferencePointers: boolean = true;
     evaluationTimeout: number;
     suppressMissingSourceFiles: boolean;
-    consoleMode: 'commands' | 'expressions';
+    consoleMode: 'commands' | 'evaluate';
     sourceLanguages: string[];
     terminalPromptClear: string[];
     evaluateForHovers: boolean;

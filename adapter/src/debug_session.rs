@@ -76,6 +76,7 @@ pub struct DebugSession {
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
     terminal_prompt_clear: Option<Vec<String>>,
+    response_seq: u32,
 }
 
 // AsyncResponse is used to "smuggle" futures out of request handlers
@@ -160,6 +161,7 @@ impl DebugSession {
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
+            response_seq: 0
         };
 
         DebugSession::pipe_console_events(&debug_session.dap_session, con_reader);
@@ -446,9 +448,11 @@ impl DebugSession {
         }
     }
 
-    fn send_response(&self, request_seq: u32, result: Result<ResponseBody, Error>) {
+    fn send_response(&mut self, request_seq: u32, result: Result<ResponseBody, Error>) {
+        self.response_seq += 1;
         let response = match result {
             Ok(body) => Response {
+                seq: self.response_seq,
                 request_seq: request_seq,
                 success: true,
                 result: ResponseResult::Success {
@@ -463,6 +467,7 @@ impl DebugSession {
                 };
                 error!("{}", message);
                 Response {
+                    seq: self.response_seq,
                     request_seq: request_seq,
                     success: false,
                     result: ResponseResult::Error {

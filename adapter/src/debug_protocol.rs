@@ -40,6 +40,7 @@ pub struct Request {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Response {
+    pub seq: u32,
     pub request_seq: u32,
     pub success: bool,
     #[serde(flatten)]
@@ -370,7 +371,7 @@ mod tests {
             })
         );
 
-        let response = parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true}"#);
+        let response = parse(br#"{"request_seq":1,"command":"initialize","body":{"supportsDelayedStackTraceLoading":true,"supportsEvaluateForHovers":true,"exceptionBreakpointFilters":[{"filter":"rust_panic","default":true,"label":"Rust: on panic"}],"supportsCompletionsRequest":true,"supportsConditionalBreakpoints":true,"supportsStepBack":false,"supportsConfigurationDoneRequest":true,"supportTerminateDebuggee":true,"supportsLogPoints":true,"supportsFunctionBreakpoints":true,"supportsHitConditionalBreakpoints":true,"supportsSetVariable":true},"type":"response","success":true,"seq":0}"#);
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {
@@ -403,7 +404,7 @@ mod tests {
             })
         );
 
-        let response = parse(br#"{"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
+        let response = parse(br#"{"seq":0,"request_seq":2,"command":"launch","body":null,"type":"response","success":true}"#);
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {
@@ -447,7 +448,7 @@ mod tests {
             })
         );
 
-        let response = parse(br#"{"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
+        let response = parse(br#"{"seq":0,"request_seq":12,"command":"scopes","body":{"scopes":[{"variablesReference":1001,"name":"Local","expensive":false},{"variablesReference":1002,"name":"Static","expensive":false},{"variablesReference":1003,"name":"Global","expensive":false},{"variablesReference":1004,"name":"Registers","expensive":false}]},"type":"response","success":true}"#);
         assert_matches!(
             response,
             ProtocolMessage::Response(Response {

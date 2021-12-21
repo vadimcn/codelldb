@@ -602,6 +602,7 @@ to use this feature, replace `program` property in your launch configuration wit
     "type": "lldb",
     "request": "launch",
     "cargo": {
+        // "overrideCargo": "mold -run cargo", Command to be executed instead of 'cargo'.
         "args": ["test", "--no-run", "--lib"], // Cargo command line to build the debug target
         // "args": ["build", "--bin=foo"] is another possibility
         "filter": { // Filter applied to compilation artifacts (optional)

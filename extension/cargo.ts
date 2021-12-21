@@ -13,7 +13,8 @@ export interface CargoConfig {
     filter?: {
         name?: string;
         kind?: string;
-    }
+    },
+    overrideCargo?: string
 }
 
 interface CompilationArtifact {
@@ -33,12 +34,13 @@ export class Cargo {
 
     public async getProgramFromCargoConfig(cargoConfig: CargoConfig): Promise<string> {
         let cargoArgs = cargoConfig.args;
+        let cargoProg = cargoConfig.overrideCargo || "cargo";
         let pos = cargoArgs.indexOf('--');
         // Insert either before `--` or at the end.
         cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
 
-        output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
-        let artifacts = await this.getCargoArtifacts(cargoArgs);
+        output.appendLine(`Running \`${cargoProg} ${cargoArgs.join(' ')}\`...`);
+        let artifacts = await this.getCargoArtifacts(cargoProg, cargoArgs);
 
         output.appendLine('Raw artifacts:');
         for (let artifact of artifacts) {
@@ -75,10 +77,10 @@ export class Cargo {
     }
 
     // Runs cargo, returns a list of compilation artifacts.
-    async  getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
+    async  getCargoArtifacts(cargoProg: string, cargoArgs: string[]): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
         try {
-            await this.runCargo(cargoArgs,
+            await this.runCargo(cargoProg, cargoArgs,
                 message => {
                     if (message.reason == 'compiler-artifact') {
                         let isBinary = message.target.crate_types.includes('bin');
@@ -123,7 +125,7 @@ export class Cargo {
 
         let metadata: any = null;
 
-        await this.runCargo(['metadata', '--no-deps', '--format-version=1'],
+        await this.runCargo('cargo', ['metadata', '--no-deps', '--format-version=1'],
             m => { metadata = m },
             stderr => { output.append(stderr); }
         );
@@ -194,12 +196,14 @@ export class Cargo {
 
     // Runs cargo, invokes stdout/stderr callbacks as data comes in, returns the exit code.
     runCargo(
+        cargoProg: string,
         cargoArgs: string[],
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void
     ): Promise<number> {
         return new Promise<number>((resolve, reject) => {
-            let cargo = cp.spawn('cargo', cargoArgs, {
+            const fullCommand = [...cargoProg.split(" "), ...cargoArgs];
+            let cargo = cp.spawn(fullCommand[0], fullCommand.slice(1), {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 cwd: this.cargoTomlFolder,
                 env: mergedEnvironment(this.extraEnv),

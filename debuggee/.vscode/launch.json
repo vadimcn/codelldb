@@ -208,6 +208,25 @@
 			"sourceLanguages": [
 				"rust"
 			]
-		}
+		},
+		{
+			"name": "cargo override",
+			"type": "lldb",
+			"request": "launch",
+			"cargo": {
+				"args": [
+					"build",
+					"--bin=rust-debuggee",
+					"--package=rust-debuggee"
+				],
+				"filter": {
+					"name": "rust-debuggee",
+					"kind": "bin"
+				},
+				"overrideCargo": "./wrapper.sh cargo"
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
 	]
 }

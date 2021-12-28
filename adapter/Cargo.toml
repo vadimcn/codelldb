@@ -25,9 +25,9 @@ futures = "0.3.0"
 tokio = { version = "1.0.0", features = ["full"] }
 tokio-util = { version = "0.6.0", features = ["codec"] }
 
-lldb = { path = "deps/lldb" }
-loading = { path = "deps/loading" }
-adapter_protocol = { package = "adapter-protocol", path = "deps/adapter-protocol" }
+lldb = { path = "crates/lldb" }
+loading = { path = "crates/loading" }
+adapter_protocol = { package = "adapter-protocol", path = "crates/adapter-protocol" }
 
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"

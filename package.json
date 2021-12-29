@@ -44,7 +44,6 @@
 		"typescript": "^4.2.4",
 		"mocha": "^8.4.0",
 		"source-map-support": "^0.5.12",
-		"memory-streams": "^0.1.3",
 		"vscode-debugprotocol": "^1.47.0",
 		"vscode-debugadapter-testsupport": "^1.47.0",
 		"vsce": "^1.88.0",

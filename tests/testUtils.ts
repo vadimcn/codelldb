@@ -6,23 +6,51 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as assert from 'assert';
 import { inspect } from 'util';
-import { WritableStream } from 'memory-streams';
 import { Dict } from 'extension/novsc/commonTypes';
 import { DebugClient } from 'vscode-debugadapter-testsupport';
 import { DebugProtocol as dp } from 'vscode-debugprotocol';
-import { type } from 'os';
 
 let extensionRoot: string = null;
-let testLog: stream.Writable = null;
-let testDataLog: stream.Writable = null;
-let adapterLog: stream.Writable = null;
+let testLog: MemoryStream = null;
+let testDataLog: MemoryStream = null;
+let adapterLog: MemoryStream = null;
+
+
+export class MemoryStream extends stream.Writable {
+    buffer: Buffer;
+    size: number;
+    increment: number;
+
+    static readonly DEFAULT_INCREMENT = 8 * 1024;
+    constructor(initialSize: number = MemoryStream.DEFAULT_INCREMENT, increment: number = MemoryStream.DEFAULT_INCREMENT) {
+        super({ decodeStrings: true })
+        this.buffer = Buffer.alloc(initialSize);
+        this.increment = increment;
+        this.size = 0;
+    }
+
+    _write(chunk: Buffer, encoding: string, callback: () => void) {
+        if (this.size + chunk.length > this.buffer.length) {
+            let factor = Math.ceil((chunk.length - (this.buffer.length - this.size)) / this.increment);
+            let newBuffer = new Buffer(this.buffer.length + (this.increment * factor));
+            this.buffer.copy(newBuffer, 0, 0, this.size);
+            this.buffer = newBuffer;
+        }
+        chunk.copy(this.buffer, this.size, 0);
+        this.size += chunk.length;
+        callback();
+    }
+
+    public getContentsAsString(): string {
+        return this.buffer.toString('utf8', 0, this.size);
+    }
+}
 
 export function initUtils(extensionRoot_: string) {
-    const maxMessage = 1024 * 1024;
     extensionRoot = extensionRoot_;
-    testLog = new WritableStream({ highWaterMark: maxMessage });
-    //testDataLog = new WritableStream({ highWaterMark: maxMessage });
-    adapterLog = new WritableStream({ highWaterMark: maxMessage });
+    testLog = new MemoryStream();
+    //testDataLog = new MemoryStream();
+    adapterLog = new MemoryStream();
 }
 
 export function findMarker(file: string, marker: string): number {
@@ -87,17 +115,16 @@ export function logWithStack(message: string) {
 
 export function dumpLogs(dest: stream.Writable) {
     dest.write('\n=== Test log ===\n');
-    dest.write(testLog.toString());
+    dest.write(testLog.getContentsAsString());
     if (testDataLog) {
         dest.write('\n=== Received data log ===\n');
-        dest.write(testDataLog.toString());
+        dest.write(testDataLog.getContentsAsString());
     }
     dest.write('\n=== Adapter log ===\n');
     // Filter out "module-loaded" events
     let filter = /(Debug event:.*modules-(un)?loaded)|("event":"module")/;
     let lines = (adapterLog.getContentsAsString() || '').split('\n');
-    for (let line of lines)
-    {
+    for (let line of lines) {
         if (!filter.test(line))
             dest.write(line + '\n');
     }
@@ -156,9 +183,11 @@ export class DebugTestSession extends DebugClient {
     async terminate() {
         log('Stopping adapter.');
         await super.stop();
-        // Check that adapter process exits
-        let adapterExit = new Promise((resolve) => this.adapter.on('exit', resolve));
-        await withTimeout(3000, adapterExit);
+        if (this.adapter) {
+            // Make sure adapter process exits if we had started it.
+            let adapterExit = new Promise((resolve) => this.adapter.on('exit', resolve));
+            await withTimeout(3000, adapterExit);
+        }
     }
 
     async launch(launchArgs: any, configurator: ConfiguratorFn = null): Promise<dp.LaunchResponse> {

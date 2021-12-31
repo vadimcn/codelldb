@@ -1543,48 +1543,55 @@ impl DebugSession {
     }
 
     fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {
-        let (mut next_module, mut next_symbol) = match args.continuation_token {
-            Some(token) => (token.next_module, token.next_symbol),
-            None => (0, 0),
-        };
-        let num_modules = self.target.num_modules();
+        use fuzzy_matcher::FuzzyMatcher;
+        let matcher = fuzzy_matcher::clangd::ClangdMatcher::default().ignore_case();
         let mut symbols = vec![];
-        while next_module < num_modules {
-            let module = self.target.module_at_index(next_module);
-            let num_symbols = module.num_symbols();
-            while next_symbol < num_symbols {
-                let symbol = module.symbol_at_index(next_symbol);
+        'outer: for imodule in 0..self.target.num_modules() {
+            let module = self.target.module_at_index(imodule);
+            for isymbol in 0..module.num_symbols() {
+                let symbol = module.symbol_at_index(isymbol);
                 let ty = symbol.type_();
                 match ty {
                     SymbolType::Code | SymbolType::Data => {
-                        let start_addr = symbol.start_address().load_address(&self.target);
-                        symbols.push(Symbol {
-                            name: symbol.display_name().into(),
-                            type_: format!("{:?}", ty),
-                            address: format!("0x{:X}", start_addr),
-                        });
+                        let name = symbol.display_name();
+                        if let Some(_) = matcher.fuzzy_match(name, &args.filter) {
+                            let start_addr = symbol.start_address().load_address(&self.target);
+
+                            let location = if let Some(le) = symbol.start_address().line_entry() {
+                                let fs = le.file_spec();
+                                if let Some(local_path) = self.map_filespec_to_local(&fs) {
+                                    let source = Source {
+                                        name: Some(local_path.file_name().unwrap().to_string_lossy().into_owned()),
+                                        path: Some(local_path.to_string_lossy().into_owned()),
+                                        ..Default::default()
+                                    };
+                                    Some((source, le.line()))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            let symbol = Symbol {
+                                name: name.into(),
+                                type_: format!("{:?}", ty),
+                                address: format!("0x{:X}", start_addr),
+                                location: location,
+                            };
+                            symbols.push(symbol);
+                        }
                     }
                     _ => {}
                 }
-                next_symbol += 1;
 
-                if symbols.len() > 1000 {
-                    return Ok(SymbolsResponse {
-                        symbols,
-                        continuation_token: Some(SymbolsContinuation {
-                            next_module,
-                            next_symbol,
-                        }),
-                    });
+                if symbols.len() >= args.max_results as usize {
+                    break 'outer;
                 }
             }
-            next_symbol = 0;
-            next_module += 1;
         }
-
         Ok(SymbolsResponse {
             symbols,
-            continuation_token: None,
         })
     }
 

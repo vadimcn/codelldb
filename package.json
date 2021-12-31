@@ -128,7 +128,7 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Symbols...",
+				"title": "Search Symbols...",
 				"command": "lldb.symbols",
 				"enablement": "debugType == 'lldb'"
 			},

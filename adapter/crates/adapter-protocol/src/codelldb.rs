@@ -311,31 +311,25 @@ pub enum Either<T1, T2> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct SymbolsContinuation {
-    pub next_module: u32,
-    pub next_symbol: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct Symbol {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: String,
     pub address: String,
+    pub location: Option<(Source, u32)>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolsRequest {
-    pub continuation_token: Option<SymbolsContinuation>,
+    pub filter: String,
+    pub max_results: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolsResponse {
     pub symbols: Vec<Symbol>,
-    pub continuation_token: Option<SymbolsContinuation>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

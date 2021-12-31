@@ -25,13 +25,14 @@ export class Symbol {
     name: string;
     type: string;
     address: string;
+    location: any
 }
 
 export interface SymbolsRequest {
-    continuationToken: object;
+    filter: string,
+    maxResults: number
 }
 
 export interface SymbolsResponse {
     symbols: Symbol[];
-    continuationToken: object;
 }

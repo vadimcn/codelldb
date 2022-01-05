@@ -38,6 +38,9 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)  # Before 1.20
     attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)  # Since 1.20
 
+    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^collections::vec_deque::VecDeque<.+>$', True)  # Before 1.20
+    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^alloc::collections::vec_deque::VecDeque<.+>$', True)  # Since 1.20
+
     attach_synthetic_to_type(MsvcEnumSynthProvider, r'^enum\$<.+>$', True)
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
@@ -274,6 +277,42 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
 
     def get_summary(self):
         return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
+
+class StdVecDequeSynthProvider(RustSynthProvider):
+    def initialize(self):
+        self.ptr = read_unique_ptr(gcm(self.valobj, 'buf', 'ptr'))
+        self.cap = gcm(self.valobj, 'buf', 'cap').GetValueAsUnsigned()
+        self.tail = gcm(self.valobj, 'tail').GetValueAsUnsigned()
+        self.head = gcm(self.valobj, 'head').GetValueAsUnsigned()
+        self.item_type = self.ptr.GetType().GetPointeeType()
+        self.item_size = self.item_type.GetByteSize()
+
+    def num_children(self):
+        return (self.head - self.tail) % self.cap
+
+    def has_children(self):
+        return True
+
+    def get_child_at_index(self, index):
+        try:
+            if not 0 <= index < self.num_children():
+                return None
+            offset = ((self.tail + index) % self.cap) * self.item_size
+            return self.ptr.CreateChildAtOffset('[%s]' % index, offset, self.item_type)
+        except Exception as e:
+            log.error('%s', e)
+            raise
+
+    def get_child_index(self, name):
+        try:
+            return int(name.lstrip('[').rstrip(']'))
+        except Exception as e:
+            log.error('%s', e)
+            raise
+
+
+    def get_summary(self):
+        return '(%d) VecDeque[%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
 ##################################################################################################################
 

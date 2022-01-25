@@ -1,3 +1,4 @@
+use raw_debug_protocol::DisassembledInstruction;
 use crate::prelude::*;
 use serde_derive::*;
 use std::borrow::Cow;
@@ -51,6 +52,11 @@ impl AddressSpace {
     }
 
     pub fn from_address(&self, load_addr: Address) -> Result<Rc<DisassembledRange>, Error> {
+      const NO_SYMBOL_INSTRUCTIONS: u32 = 32;
+      self.from_address_and_max_count( load_addr, NO_SYMBOL_INSTRUCTIONS )
+    }
+
+    pub fn from_address_and_max_count(&self, load_addr: Address, max_count: u32 ) -> Result<Rc<DisassembledRange>,Error> {
         if let Some(dasm) = self.find_by_address(load_addr) {
             return Ok(dasm);
         }
@@ -69,9 +75,8 @@ impl AddressSpace {
             }
             None => {
                 // How many instructions to put into DisassembledRange if the address is not in scope of any symbol.
-                const NO_SYMBOL_INSTRUCTIONS: u32 = 32;
                 start_addr = addr.clone();
-                instructions = self.target.read_instructions(&start_addr, NO_SYMBOL_INSTRUCTIONS + 1);
+                instructions = self.target.read_instructions(&start_addr, max_count + 1);
                 end_addr = if instructions.len() > 0 {
                     let last_instr = instructions.instruction_at_index((instructions.len() - 1) as u32);
                     last_instr.address()
@@ -178,6 +183,58 @@ impl DisassembledRange {
                 Some(*addr)
             }))
             .collect()
+    }
+
+    pub fn get_disassembled_instructions(&self) -> Vec<DisassembledInstruction> {
+        let mut instructions = vec![];
+
+        const MAX_INSTR_BYTES: usize = 8;
+        let mut instr_data = vec![];
+        let mut dump = String::new();
+        let mut text = String::new();
+
+        for instr in self.instructions.iter() {
+            let load_addr = instr.address().load_address(&self.target);
+            instr_data.resize(instr.byte_size(), 0);
+            instr.data(&self.target).read_raw_data(0, &mut instr_data).unwrap();
+            dump.clear();
+            text.clear();
+ 
+            for (i, b) in instr_data.iter().enumerate() {
+                if i >= MAX_INSTR_BYTES {
+                    let _ = write!(dump, ">");
+                    break;
+                }
+                let _ = write!(dump, "{:02X} ", b);
+            }
+            let mnemonic = instr.mnemonic(&self.target);
+            let operands = instr.operands(&self.target);
+            let comment = instr.comment(&self.target);
+            let comment_sep = if comment.is_empty() {
+                ""
+            } else {
+                "  ; "
+            };
+            #[rustfmt::skip]
+            let _ = writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}", //.
+                load_addr, dump, mnemonic, operands, comment_sep, comment,
+                dumpwidth=MAX_INSTR_BYTES * 3 + 2
+            );
+
+            instructions.push( DisassembledInstruction {
+                address: format!("0x{:X}", load_addr),
+                instruction: text.clone(),
+                column: None,
+                end_column: None,
+                end_line: None,
+                instruction_bytes: None,
+                line: None,
+                location: None,
+                symbol: None,
+            } )
+        }
+
+        instructions
     }
 
     pub fn get_source_text(&self) -> String {

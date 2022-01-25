@@ -7,7 +7,8 @@ pub use raw_debug_protocol::{
     Breakpoint, BreakpointEventBody, CancelArguments, Capabilities, CapabilitiesEventBody, CompletionItem,
     CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
     DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
-    DisconnectArguments, EvaluateArguments, EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody,
+    DisassembleArguments, DisassembleResponseBody, DisassembledInstruction, DisconnectArguments, EvaluateArguments,
+    EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody,
     GotoArguments, GotoTarget, GotoTargetsArguments, GotoTargetsResponseBody, InitializeRequestArguments,
     InvalidatedAreas, InvalidatedEventBody, Module, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments,
     ReadMemoryArguments, ReadMemoryResponseBody, RestartFrameArguments, ReverseContinueArguments,
@@ -112,6 +113,7 @@ pub enum RequestArguments {
     readMemory(ReadMemoryArguments),
     terminate(Option<TerminateArguments>),
     disconnect(Option<DisconnectArguments>),
+    disassemble(DisassembleArguments),
     // Reverse
     runInTerminal(RunInTerminalRequestArguments),
     // Custom
@@ -155,6 +157,7 @@ pub enum ResponseBody {
     readMemory(ReadMemoryResponseBody),
     terminate,
     disconnect,
+    disassemble(DisassembleResponseBody),
     // Reverse
     runInTerminal(RunInTerminalResponseBody),
     // Custom

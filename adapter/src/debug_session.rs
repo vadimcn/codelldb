@@ -439,6 +439,9 @@ impl DebugSession {
                         RequestArguments::_symbols(args) =>
                             self.handle_symbols(args)
                                 .map(|r| ResponseBody::_symbols(r)),
+                        RequestArguments::disassemble(args) =>
+                            self.handle_disassemble(args)
+                                .map(|r| ResponseBody::disassemble(r)),
                         _=> bail!("Not implemented.")
                     }
                 }
@@ -525,6 +528,7 @@ impl DebugSession {
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
+            supports_disassemble_request: Some(true),
             ..Default::default()
         }
     }
@@ -1076,6 +1080,9 @@ impl DebugSession {
                             path: Some(local_path.to_string_lossy().into_owned()),
                             ..Default::default()
                         });
+                        stack_frame.instruction_pointer_reference =
+                          Some(format!("0x{:X}",
+                               pc_address.load_address(&self.target)))
                     }
                 }
             } else {
@@ -1539,6 +1546,23 @@ impl DebugSession {
             unreadable_bytes: Some((count - bytes_read) as i64),
             data: Some(base64::encode(buffer)),
         })
+    }
+
+    fn handle_disassemble(&mut self, args: DisassembleArguments) -> Result<DisassembleResponseBody, Error> {
+      let mem_ref = parse_int::parse::<i64>(&args.memory_reference)?;
+      let offset = args.offset.unwrap_or(0);
+      let count = args.instruction_count as usize;
+      let address = (mem_ref + offset) as lldb::Address;
+      if let Ok(dasm) = self.disassembly.from_address_and_max_count( address,
+        count as u32 ) {
+        Ok( DisassembleResponseBody {
+          instructions: dasm.get_disassembled_instructions(),
+        } )
+      } else {
+        Ok( DisassembleResponseBody {
+          instructions: vec![]
+        } )
+      }
     }
 
     fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {

@@ -1096,6 +1096,8 @@ impl DebugSession {
                     ..Default::default()
                 });
                 stack_frame.presentation_hint = Some("subtle".to_owned());
+                stack_frame.instruction_pointer_reference =
+                  Some(format!("0x{:X}", pc_addr ));
             }
             stack_frames.push(stack_frame);
         }

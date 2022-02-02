@@ -172,13 +172,12 @@ set(PackagedFilesBootstrap
 set(PackagedFilesFull
     ${PackagedFilesBootstrap}
     platform.ok
-    adapter/*.py
     adapter/codelldb
     adapter/codelldb.exe
-    adapter/libcodelldb.so
-    adapter/libcodelldb.dylib
-    adapter/codelldb.dll
-    adapter/codelldb_python.dll
+    adapter/*.so
+    adapter/*.dylib
+    adapter/*.dll
+    adapter/*.py
     lldb/bin/**/*
     lldb/lib/**/*
     lldb/DLLs/**/*

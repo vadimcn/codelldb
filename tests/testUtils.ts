@@ -93,7 +93,14 @@ export function dumpLogs(dest: stream.Writable) {
         dest.write(testDataLog.toString());
     }
     dest.write('\n=== Adapter log ===\n');
-    dest.write(adapterLog.toString());
+    // Filter out "module-loaded" events
+    let filter = /(Debug event:.*modules-(un)?loaded)|("event":"module")/;
+    let lines = (adapterLog.getContentsAsString() || '').split('\n');
+    for (let line of lines)
+    {
+        if (!filter.test(line))
+            dest.write(line + '\n');
+    }
     dest.write('\n===================\n');
 }
 

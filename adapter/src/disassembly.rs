@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::str;
 
 use crate::handles::Handle;
-use adapter_protocol::DisassembledInstruction;
+use adapter_protocol::{DisassembledInstruction, Source};
 use lldb::*;
 use superslice::Ext;
 
@@ -274,9 +274,10 @@ pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_sym
     let operands = instr.operands(target);
     let comment = instr.comment(target);
     let comment_sep = if comment.is_empty() { "" } else { "  ; " };
+    let address = instr.address();
     let instruction_str = format!("{:<6} {}{}{}", mnemonic, operands, comment_sep, comment);
     let mut dis_instr = DisassembledInstruction {
-        address: format!("0x{:X}", instr.address().load_address(target)),
+        address: format!("0x{:X}", address.load_address(target)),
         instruction: instruction_str,
         ..Default::default()
     };
@@ -288,6 +289,16 @@ pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_sym
             let _ = write!(bytes_str, "{:02X} ", b);
         }
         dis_instr.instruction_bytes = Some(bytes_str);
+    }
+
+    if let Some(line_entry) = address.line_entry() {
+        dis_instr.location = Some(Source {
+            name: Some(line_entry.file_spec().filename().display().to_string()),
+            path: Some(line_entry.file_spec().path().display().to_string()),
+            ..Default::default()
+        });
+        dis_instr.line = Some(line_entry.line() as i64);
+        dis_instr.column = Some(line_entry.column() as i64);
     }
 
     if resolve_symbols {

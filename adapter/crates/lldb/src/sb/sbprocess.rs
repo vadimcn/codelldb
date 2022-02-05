@@ -116,6 +116,18 @@ impl SBProcess {
             return self->GetSTDERR((char*)ptr, len);
         })
     }
+    pub fn get_memory_region_info(&self, load_addr: Address) -> Result<SBMemoryRegionInfo, SBError> {
+        let mut region_info = SBMemoryRegionInfo::new();
+        let error = cpp!(unsafe [self as "SBProcess*", load_addr as "addr_t",
+                                 mut region_info as "SBMemoryRegionInfo"] -> SBError as "SBError" {
+            return self->GetMemoryRegionInfo(load_addr, region_info);
+        });
+        if error.is_success() {
+            Ok(region_info)
+        } else {
+            Err(error)
+        }
+    }
     pub fn read_memory(&self, addr: Address, buffer: &mut [u8]) -> Result<usize, SBError> {
         let ptr = buffer.as_mut_ptr();
         let len = buffer.len();
@@ -126,6 +138,20 @@ impl SBProcess {
         });
         if error.is_success() {
             Ok(bytes_read)
+        } else {
+            Err(error)
+        }
+    }
+    pub fn write_memory(&self, addr: Address, buffer: &[u8]) -> Result<usize, SBError> {
+        let ptr = buffer.as_ptr();
+        let len = buffer.len();
+        let mut error = SBError::new();
+        let bytes_written = cpp!(unsafe [self as "SBProcess*", addr as "addr_t", ptr as "const uint8_t*", len as "size_t",
+                                         mut error as "SBError"] -> usize as "size_t" {
+            return self->WriteMemory(addr, (void*)ptr, len, error);
+        });
+        if error.is_success() {
+            Ok(bytes_written)
         } else {
             Err(error)
         }

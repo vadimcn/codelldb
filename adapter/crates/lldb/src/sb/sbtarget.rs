@@ -207,6 +207,20 @@ impl SBTarget {
             return self->ReadInstructions(*base_addr, count);
         })
     }
+    pub fn read_memory(&self, base_addr: &SBAddress, buffer: &mut [u8]) -> Result<usize, SBError> {
+        let ptr = buffer.as_mut_ptr();
+        let len = buffer.len();
+        let mut error = SBError::new();
+        let bytes_read = cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*", ptr as "uint8_t*", len as "size_t",
+                                      mut error as "SBError"] -> usize as "size_t" {
+            return self->ReadMemory(*base_addr, (void*)ptr, len, error);
+        });
+        if error.is_success() {
+            Ok(bytes_read)
+        } else {
+            Err(error)
+        }
+    }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {
             cpp!(unsafe [self as "SBTarget*", expr as "const char*"] -> SBValue as "SBValue" {

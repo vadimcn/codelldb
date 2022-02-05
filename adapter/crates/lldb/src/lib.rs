@@ -139,6 +139,7 @@ mod sb {
     pub mod sblaunchinfo;
     pub mod sblinenetry;
     pub mod sblistener;
+    pub mod sbmemoryregioninfo;
     pub mod sbmodule;
     pub mod sbmodulespec;
     pub mod sbplatform;
@@ -176,6 +177,7 @@ pub use sb::sbinstructionlist::*;
 pub use sb::sblaunchinfo::*;
 pub use sb::sblinenetry::*;
 pub use sb::sblistener::*;
+pub use sb::sbmemoryregioninfo::*;
 pub use sb::sbmodule::*;
 pub use sb::sbmodulespec::*;
 pub use sb::sbplatform::*;

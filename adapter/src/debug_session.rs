@@ -20,6 +20,7 @@ use variables::Container;
 use std;
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::CStr;
@@ -430,6 +431,9 @@ impl DebugSession {
                         RequestArguments::readMemory(args) =>
                             self.handle_read_memory(args)
                                 .map(|r| ResponseBody::readMemory(r)),
+                        RequestArguments::writeMemory(args) =>
+                            self.handle_write_memory(args)
+                                .map(|r| ResponseBody::writeMemory(r)),
                         RequestArguments::_symbols(args) =>
                             self.handle_symbols(args)
                                 .map(|r| ResponseBody::_symbols(r)),
@@ -516,6 +520,7 @@ impl DebugSession {
             supports_restart_frame: Some(true),
             supports_cancel_request: Some(true),
             supports_read_memory_request: Some(true),
+            supports_write_memory_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
@@ -1531,15 +1536,55 @@ impl DebugSession {
         let offset = args.offset.unwrap_or(0);
         let count = args.count as usize;
         let address = (mem_ref + offset) as lldb::Address;
-        let mut buffer = Vec::with_capacity(count);
-        buffer.resize(count, 0);
-        let bytes_read = self.process.read_memory(address, buffer.as_mut_slice())?;
-        buffer.truncate(bytes_read);
+        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+            if region_info.is_readable() {
+                let to_read = cmp::min(count, (region_info.region_end() - address) as usize);
+                let mut buffer = Vec::new();
+                buffer.resize(to_read, 0);
+                if let Ok(bytes_read) = self.process.read_memory(address, buffer.as_mut_slice()) {
+                    buffer.resize(bytes_read, 0);
+                    return Ok(ReadMemoryResponseBody {
+                        address: format!("0x{:X}", address),
+                        unreadable_bytes: Some((count - bytes_read) as i64),
+                        data: Some(base64::encode(buffer)),
+                    });
+                }
+            }
+        }
         Ok(ReadMemoryResponseBody {
             address: format!("0x{:X}", address),
-            unreadable_bytes: Some((count - bytes_read) as i64),
-            data: Some(base64::encode(buffer)),
+            unreadable_bytes: Some(args.count),
+            data: None,
         })
+    }
+
+    fn handle_write_memory(&mut self, args: WriteMemoryArguments) -> Result<WriteMemoryResponseBody, Error> {
+        let mem_ref = parse_int::parse::<i64>(&args.memory_reference)?;
+        let offset = args.offset.unwrap_or(0);
+        let address = (mem_ref + offset) as lldb::Address;
+        let data = base64::decode(&args.data)?;
+        let allow_partial = args.allow_partial.unwrap_or(false);
+        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+            if region_info.is_writable() {
+                let to_write = cmp::min(data.len(), (region_info.region_end() - address) as usize);
+                if allow_partial || to_write == data.len() {
+                    if let Ok(bytes_written) = self.process.write_memory(address, &data) {
+                        return Ok(WriteMemoryResponseBody {
+                            bytes_written: Some(bytes_written as i64),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+        }
+        if allow_partial {
+            Ok(WriteMemoryResponseBody {
+                bytes_written: Some(0),
+                ..Default::default()
+            })
+        } else {
+            Err(as_user_error(format!("Cannot write {} bytes at {:08X}", data.len(), address)).into())
+        }
     }
 
     fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {

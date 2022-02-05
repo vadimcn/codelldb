@@ -17,7 +17,7 @@ pub use crate::dap::{
     Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments,
     StackTraceResponseBody, StepBackArguments, StepInArguments, StepOutArguments, StoppedEventBody, TerminateArguments,
     TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments,
-    VariablesResponseBody,
+    VariablesResponseBody, WriteMemoryArguments, WriteMemoryResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -100,6 +100,7 @@ pub enum RequestArguments {
     dataBreakpointInfo(DataBreakpointInfoArguments),
     setDataBreakpoints(SetDataBreakpointsArguments),
     readMemory(ReadMemoryArguments),
+    writeMemory(WriteMemoryArguments),
     terminate(Option<TerminateArguments>),
     disconnect(Option<DisconnectArguments>),
     // Reverse
@@ -145,6 +146,7 @@ pub enum ResponseBody {
     dataBreakpointInfo(DataBreakpointInfoResponseBody),
     setDataBreakpoints(SetDataBreakpointsResponseBody),
     readMemory(ReadMemoryResponseBody),
+    writeMemory(WriteMemoryResponseBody),
     terminate,
     disconnect,
     // Reverse
@@ -316,7 +318,7 @@ pub struct Symbol {
     #[serde(rename = "type")]
     pub type_: String,
     pub address: String,
-    pub location: Option<(Source, u32)>
+    pub location: Option<(Source, u32)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

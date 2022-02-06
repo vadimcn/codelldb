@@ -1881,15 +1881,15 @@ impl DebugSession {
             format!("{:X}", header_addr.load_address(&self.target))
         } else {
             // header_addr not available on Windows, fall back to path
-            module.filespec().path().display().to_string()
+            module.file_spec().path().display().to_string()
         }
     }
 
     fn make_module_detail(&self, module: &SBModule) -> Module {
         let mut msg = Module {
             id: serde_json::Value::String(self.module_id(&module)),
-            name: module.filespec().filename().display().to_string(),
-            path: Some(module.filespec().path().display().to_string()),
+            name: module.file_spec().filename().display().to_string(),
+            path: Some(module.file_spec().path().display().to_string()),
             ..Default::default()
         };
 
@@ -1898,10 +1898,10 @@ impl DebugSession {
             msg.address_range = Some(format!("{:X}", header_addr.load_address(&self.target)));
         }
 
-        let symbols = module.symbol_filespec();
+        let symbols = module.symbol_file_spec();
         if symbols.is_valid() {
             msg.symbol_status = Some("Symbols loaded.".into());
-            msg.symbol_file_path = Some(module.symbol_filespec().path().display().to_string());
+            msg.symbol_file_path = Some(module.symbol_file_spec().path().display().to_string());
         } else {
             msg.symbol_status = Some("Symbols not found".into())
         }

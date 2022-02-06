@@ -15,22 +15,22 @@ impl SBModule {
             unsafe { Some(get_str(ptr)) }
         }
     }
-    pub fn filespec(&self) -> SBFileSpec {
+    pub fn file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetFileSpec();
         })
     }
-    pub fn platform_filespec(&self) -> SBFileSpec {
+    pub fn platform_file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetPlatformFileSpec();
         })
     }
-    pub fn remote_install_filespec(&self) -> SBFileSpec {
+    pub fn remote_install_file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetRemoteInstallFileSpec();
         })
     }
-    pub fn symbol_filespec(&self) -> SBFileSpec {
+    pub fn symbol_file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetSymbolFileSpec();
         })

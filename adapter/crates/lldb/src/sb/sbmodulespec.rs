@@ -13,32 +13,32 @@ impl SBModuleSpec {
             self->Clear();
         })
     }
-    pub fn filespec(&self) -> SBFileSpec {
+    pub fn file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModuleSpec*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetFileSpec();
         })
     }
-    pub fn set_filespec(&self, filespec: &SBFileSpec) {
+    pub fn set_file_spec(&self, filespec: &SBFileSpec) {
         cpp!(unsafe [self as "SBModuleSpec*", filespec as "const SBFileSpec*"] {
             self->SetFileSpec(*filespec);
         })
     }
-    pub fn platform_filespec(&self) -> SBFileSpec {
+    pub fn platform_file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModuleSpec*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetPlatformFileSpec();
         })
     }
-    pub fn set_platform_filespec(&self, filespec: &SBFileSpec) {
+    pub fn set_platform_file_spec(&self, filespec: &SBFileSpec) {
         cpp!(unsafe [self as "SBModuleSpec*", filespec as "const SBFileSpec*"] {
             self->SetPlatformFileSpec(*filespec);
         })
     }
-    pub fn symbol_filespec(&self) -> SBFileSpec {
+    pub fn symbol_file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModuleSpec*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetSymbolFileSpec();
         })
     }
-    pub fn set_symbol_filespec(&self, filespec: &SBFileSpec) {
+    pub fn set_symbol_file_spec(&self, filespec: &SBFileSpec) {
         cpp!(unsafe [self as "SBModuleSpec*", filespec as "const SBFileSpec*"] {
             self->SetSymbolFileSpec(*filespec);
         })

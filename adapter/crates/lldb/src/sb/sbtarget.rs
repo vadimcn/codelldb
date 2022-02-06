@@ -352,6 +352,16 @@ pub enum LanguageType {
     ExtRenderScript = 0x0025, // RenderScript.
 }
 
+impl From<u32> for LanguageType {
+    fn from(lang_type: u32) -> LanguageType {
+        if lang_type <= 0x0025 {
+            unsafe { std::mem::transmute(lang_type) }
+        } else {
+            LanguageType::Unknown
+        }
+    }
+}
+
 bitflags! {
     pub struct FunctionNameType : u32 {
         const None = 0;

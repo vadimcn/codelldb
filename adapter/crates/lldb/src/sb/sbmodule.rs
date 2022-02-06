@@ -53,6 +53,19 @@ impl SBModule {
     pub fn symbols<'a>(&'a self) -> impl Iterator<Item = SBSymbol> + 'a {
         SBIterator::new(self.num_symbols(), move |index| self.symbol_at_index(index))
     }
+    pub fn num_compile_units(&self) -> u32 {
+        cpp!(unsafe [self as "SBModule*"] -> u32 as "uint32_t" {
+                return self->GetNumCompileUnits();
+        })
+    }
+    pub fn compile_unit_at_index(&self, index: u32) -> SBCompileUnit {
+        cpp!(unsafe [self as "SBModule*", index as "uint32_t"] -> SBCompileUnit as "SBCompileUnit" {
+            return self->GetCompileUnitAtIndex(index);
+        })
+    }
+    pub fn compile_units<'a>(&'a self) -> impl Iterator<Item = SBCompileUnit> + 'a {
+        SBIterator::new(self.num_compile_units(), move |index| self.compile_unit_at_index(index))
+    }
 }
 
 impl IsValid for SBModule {

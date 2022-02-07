@@ -2,7 +2,6 @@ import { suite, test } from 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as fs from 'fs';
 import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack, char, variablesAsDict } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';

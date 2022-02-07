@@ -7,8 +7,8 @@ import * as net from 'net';
 import * as assert from 'assert';
 import { inspect } from 'util';
 import { Dict } from 'extension/novsc/commonTypes';
-import { DebugClient } from 'vscode-debugadapter-testsupport';
-import { DebugProtocol as dp } from 'vscode-debugprotocol';
+import { DebugClient } from '@vscode/debugadapter-testsupport';
+import { DebugProtocol as dp } from '@vscode/debugprotocol';
 
 let extensionRoot: string = null;
 let testLog: MemoryStream = null;
@@ -109,7 +109,7 @@ export function logWithStack(message: string) {
     log(message);
     let stack = Error().stack;
     let lines = stack.split('\n');
-    for (let i = 2; i < lines.length; ++i)
+    for (let i = 2; i < lines.length - 1; ++i)
         testLog.write(`${lines[i]}\n`);
 }
 

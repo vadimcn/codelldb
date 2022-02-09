@@ -9,48 +9,19 @@ import { inspect } from 'util';
 import { Dict } from 'extension/novsc/commonTypes';
 import { DebugClient } from '@vscode/debugadapter-testsupport';
 import { DebugProtocol as dp } from '@vscode/debugprotocol';
+import { WritableBuffer } from 'extension/novsc/writableBuffer';
 
 let extensionRoot: string = null;
-let testLog: MemoryStream = null;
-let testDataLog: MemoryStream = null;
-let adapterLog: MemoryStream = null;
+let testLog: WritableBuffer = null;
+let testDataLog: WritableBuffer = null;
+let adapterLog: WritableBuffer = null;
 
-
-export class MemoryStream extends stream.Writable {
-    buffer: Buffer;
-    size: number;
-    increment: number;
-
-    static readonly DEFAULT_INCREMENT = 8 * 1024;
-    constructor(initialSize: number = MemoryStream.DEFAULT_INCREMENT, increment: number = MemoryStream.DEFAULT_INCREMENT) {
-        super({ decodeStrings: true })
-        this.buffer = Buffer.alloc(initialSize);
-        this.increment = increment;
-        this.size = 0;
-    }
-
-    _write(chunk: Buffer, encoding: string, callback: () => void) {
-        if (this.size + chunk.length > this.buffer.length) {
-            let factor = Math.ceil((chunk.length - (this.buffer.length - this.size)) / this.increment);
-            let newBuffer = new Buffer(this.buffer.length + (this.increment * factor));
-            this.buffer.copy(newBuffer, 0, 0, this.size);
-            this.buffer = newBuffer;
-        }
-        chunk.copy(this.buffer, this.size, 0);
-        this.size += chunk.length;
-        callback();
-    }
-
-    public getContentsAsString(): string {
-        return this.buffer.toString('utf8', 0, this.size);
-    }
-}
 
 export function initUtils(extensionRoot_: string) {
     extensionRoot = extensionRoot_;
-    testLog = new MemoryStream();
-    //testDataLog = new MemoryStream();
-    adapterLog = new MemoryStream();
+    testLog = new WritableBuffer();
+    //testDataLog = new WritableBuffer();
+    adapterLog = new WritableBuffer();
 }
 
 export function findMarker(file: string, marker: string): number {
@@ -115,15 +86,15 @@ export function logWithStack(message: string) {
 
 export function dumpLogs(dest: stream.Writable) {
     dest.write('\n=== Test log ===\n');
-    dest.write(testLog.getContentsAsString());
+    dest.write(testLog.contents.toString('utf8'));
     if (testDataLog) {
         dest.write('\n=== Received data log ===\n');
-        dest.write(testDataLog.getContentsAsString());
+        dest.write(testDataLog.contents.toString('utf8'));
     }
     dest.write('\n=== Adapter log ===\n');
     // Filter out "module-loaded" events
     let filter = /(Debug event:.*modules-(un)?loaded)|("event":"module")/;
-    let lines = (adapterLog.getContentsAsString() || '').split('\n');
+    let lines = (adapterLog.contents.toString('utf8') || '').split('\n');
     for (let line of lines) {
         if (!filter.test(line))
             dest.write(line + '\n');
@@ -136,32 +107,46 @@ type ValidatorFn = (v: dp.Variable) => boolean;
 
 export class DebugTestSession extends DebugClient {
     adapter: cp.ChildProcess;
-    port: number;
+    connection: net.Socket;
 
     static async start(): Promise<DebugTestSession> {
         let session = new DebugTestSession('', '', 'lldb');
 
         if (process.env.DEBUG_SERVER) {
-            session.port = parseInt(process.env.DEBUG_SERVER)
+            let port = parseInt(process.env.DEBUG_SERVER)
+            await session.start(port);
         } else {
             let liblldb = await adapter.findLibLLDB(path.join(extensionRoot, 'lldb'));
-            session.adapter = await adapter.start(liblldb, {
-                extensionRoot: extensionRoot,
-                extraEnv: { RUST_LOG: 'error,codelldb=debug' },
-                adapterParameters: {},
-                workDir: undefined,
-                verboseLogging: true,
+            session.connection = await new Promise<net.Socket>(resolve => {
+                let server = net.createServer();
+                server.on('connection', socket => {
+                    resolve(socket);
+                })
+                server.listen(0, '127.0.0.1', async () => {
+                    let address = <net.AddressInfo>server.address();
+
+                    session.adapter = await adapter.start(liblldb, {
+                        extensionRoot: extensionRoot,
+                        extraEnv: { RUST_LOG: 'error,codelldb=debug' },
+                        adapterParameters: {},
+                        workDir: undefined,
+                        port: address.port,
+                        connect: true,
+                        verboseLogging: true,
+                    });
+
+                    session.adapter.on('error', (err) => log(`Adapter error: ${err} `));
+                    session.adapter.on('exit', (code, signal) => {
+                        if (code != 0)
+                            log(`Adapter exited with code ${code}, signal = ${signal} `);
+                    });
+
+                    session.adapter.stdout.pipe(adapterLog);
+                    session.adapter.stderr.pipe(adapterLog);
+                })
             });
 
-            session.adapter.on('error', (err) => log(`Adapter error: ${err} `));
-            session.adapter.on('exit', (code, signal) => {
-                if (code != 0)
-                    log(`Adapter exited with code ${code}, signal = ${signal} `);
-            });
-
-            session.adapter.stdout.pipe(adapterLog);
-            session.adapter.stderr.pipe(adapterLog);
-            session.port = await adapter.getDebugServerPort(session.adapter);
+            session.connect(session.connection, session.connection);
         }
 
         let logger = (event: dp.Event) => log(`Received event: ${inspect(event, { breakLength: Infinity })}`);
@@ -169,7 +154,6 @@ export class DebugTestSession extends DebugClient {
         session.addListener('stopped', logger);
         session.addListener('continued', logger);
         session.addListener('exited', logger);
-        await session.start(session.port);
 
         if (testDataLog) {
             let socket = <net.Socket>((<any>session)._socket);
@@ -183,6 +167,8 @@ export class DebugTestSession extends DebugClient {
     async terminate() {
         log('Stopping adapter.');
         await super.stop();
+        if (this.connection)
+            this.connection.destroy();
         if (this.adapter) {
             // Make sure adapter process exits if we had started it.
             let adapterExit = new Promise((resolve) => this.adapter.on('exit', resolve));

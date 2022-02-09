@@ -2,7 +2,7 @@ import {
     workspace, window, commands, debug, env,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
+    DebugAdapterDescriptor, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget, DebugAdapterInlineImplementation,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -12,7 +12,6 @@ import * as querystring from 'querystring';
 import * as net from 'net';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
-import * as async from './novsc/async';
 import * as htmlView from './htmlView';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
@@ -24,6 +23,7 @@ import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
+import { ReverseAdapterConnector } from './novsc/reverseConnector';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -445,10 +445,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             delete session.configuration.sourceLanguages;
         }
 
+        let connector = new ReverseAdapterConnector();
+        let port = await connector.listen();
+
         try {
-            let [adapter, port] = await this.startDebugAdapter(session.workspaceFolder, adapterParams);
-            let descriptor = new DebugAdapterServer(port);
-            return descriptor;
+            await this.startDebugAdapter(session.workspaceFolder, adapterParams, port);
+            await connector.accept();
+            return new DebugAdapterInlineImplementation(connector);
         } catch (err) {
             this.analyzeStartupError(err);
             throw err;
@@ -518,8 +521,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async startDebugAdapter(
         folder: WorkspaceFolder | undefined,
-        adapterParams: Dict<string>
-    ): Promise<[ChildProcess, number]> {
+        adapterParams: Dict<string>,
+        connectPort: number
+    ): Promise<ChildProcess> {
         let config = this.getExtensionConfig(folder);
         let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
@@ -535,12 +539,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             extensionRoot: this.context.extensionPath,
             extraEnv: adapterEnv,
             workDir: workspace.rootPath,
+            port: connectPort,
+            connect: true,
             adapterParameters: adapterParams,
             verboseLogging: verboseLogging
         });
 
         util.logProcessOutput(adapterProcess, output);
-        let port = await adapter.getDebugServerPort(adapterProcess);
 
         adapterProcess.on('exit', async (code, signal) => {
             output.appendLine(`Debug adapter exit code=${code}, signal=${signal}.`);
@@ -551,7 +556,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 }
             }
         });
-        return [adapterProcess, port];
+        return adapterProcess;
     }
 
     // Resolve paths of the native adapter libraries and cache them.
@@ -578,9 +583,17 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async runDiagnostics(folder?: WorkspaceFolder) {
         let succeeded;
         try {
-            let [_, port] = await this.startDebugAdapter(folder, {});
-            let socket = await async.net.createConnection({ port: port, timeout: 1000 });
-            socket.destroy()
+            let connector = new ReverseAdapterConnector();
+            let port = await connector.listen();
+            let adapter = await this.startDebugAdapter(folder, {}, port);
+            let adapterExitAsync = new Promise((resolve, reject) => {
+                adapter.on('exit', resolve);
+                adapter.on('error', reject);
+            });
+            await connector.accept();
+            connector.handleMessage({ seq: 1, type: 'request', command: 'disconnect' });
+            connector.dispose();
+            await adapterExitAsync;
             succeeded = true;
         } catch (err) {
             succeeded = false;

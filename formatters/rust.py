@@ -822,7 +822,6 @@ class StdBTreeMapSynthProvider(RustSynthProvider):
             idx = len(self.cache_keys)
             self.cache_keys.append(keys.CreateChildAtOffset("[%d]" % self._child_index(idx, False), self.index * self.keytype.GetByteSize(), self.keytype))
             self.cache_vals.append(vals.CreateChildAtOffset("[%d]" % self._child_index(idx, True),  self.index * self.valtype.GetByteSize(), self.valtype))
-            print(f'added {self.cache_keys[-1]}')
 
             if self.height == 0:
                 self.index += 1

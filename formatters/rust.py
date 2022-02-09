@@ -66,6 +66,9 @@ def initialize_category(debugger):
     attach_synthetic_to_type(StdHashMapSynthProvider, r'^std::collections::hash::map::HashMap<.+>$', True)
     attach_synthetic_to_type(StdHashSetSynthProvider, r'^std::collections::hash::set::HashSet<.+>$', True)
 
+    attach_synthetic_to_type(StdBTreeMapSynthProvider, r'^alloc::collections::btree::map::BTreeMap<.+>$', True)
+    attach_synthetic_to_type(StdBTreeSetSynthProvider, r'^alloc::collections::btree::set::BTreeSet<.+>$', True)
+
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^core::option::Option<.+>$', True)
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^core::result::Result<.+>$', True)
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
@@ -737,6 +740,135 @@ class StdHashSetSynthProvider(StdHashMapSynthProvider):
         bucket_idx = self.valid_indices[index]
         item = self.buckets.GetChildAtIndex(bucket_idx).GetChildAtIndex(0)
         return item.CreateChildAtOffset('[%d]' % index, 0, item.GetType())
+
+class StdBTreeMapSynthProvider(RustSynthProvider):
+    def initialize(self):
+        self._initialize_tree(self.valobj)
+
+    def _initialize_tree(self, tree):
+        self.length = gcm(tree, 'length').GetValueAsUnsigned()
+
+        root = gcm(tree, 'root').GetChildAtIndex(0)
+        rootheight = gcm(root, 'height').GetValueAsUnsigned()
+        rootnode = gcm(root, 'node', 'pointer')
+
+        self.iterator = rootnode
+        self.index = -1
+        self.height = rootheight
+
+        # cached children
+        self.cache_keys = []
+        self.cache_vals = []
+
+        option_nonnull_internalnode_ty = gcm(rootnode.Dereference(), 'parent').GetType()
+        nonnull_internode_ty = option_nonnull_internalnode_ty.GetTemplateArgumentType(0).GetCanonicalType()
+
+        # *mut LeafNode<K, V>
+        self.leaf_type = rootnode.GetType()
+
+        # *mut InternalNode<K, V>
+        self.internal_type = nonnull_internode_ty.GetTemplateArgumentType(0).GetCanonicalType().GetPointerType()
+
+        # K
+        self.keytype = tree.GetType().GetTemplateArgumentType(0).GetCanonicalType()
+
+        # V
+        self.valtype = tree.GetType().GetTemplateArgumentType(1).GetCanonicalType()
+
+    def has_children(self):
+        True
+
+    def num_children(self):
+        return self.length * 2
+
+    def _get_key_index(self, idx):
+        self._ensure_cache_idx(idx)
+        return self.cache_keys[idx]
+
+    def _get_value_index(self, idx):
+        self._ensure_cache_idx(idx)
+        return self.cache_vals[idx]
+
+    def _ensure_cache_idx(self, cacheidx):
+        # precondition: everything before iterator->index has been pushed onto the cache
+        # index=-1 is node is fully unprocessed
+        while cacheidx >= len(self.cache_keys):
+
+            leaf = self.iterator.Dereference()
+            nodelen = gcm(leaf, 'len').GetValueAsUnsigned()
+            keys = gcm(leaf, 'keys').AddressOf()
+            vals = gcm(leaf, 'vals').AddressOf()
+
+            if self.height != 0:
+                edges = gcm(self.iterator.Cast(self.internal_type).Dereference(), 'edges').AddressOf()
+
+            if self.index == -1:
+                if self.height != 0:
+                    self.iterator = edges.CreateChildAtOffset('', 0*self.leaf_type.GetByteSize(), self.leaf_type)
+                    self.height -= 1
+                    self.index = -1
+                    continue
+                else:
+                    # nothing below this
+                    self.index = 0
+
+            # go up
+            if self.index >= nodelen:
+                self.index = gcm(leaf, 'parent_idx', 'value', 'value').GetValueAsUnsigned()
+                self.height += 1
+                self.iterator = gcm(gcm(leaf, 'parent').GetChildAtIndex(0), 'pointer').Cast(self.leaf_type)
+                continue
+
+            idx = len(self.cache_keys)
+            self.cache_keys.append(keys.CreateChildAtOffset("[%d]" % self._child_index(idx, False), self.index * self.keytype.GetByteSize(), self.keytype))
+            self.cache_vals.append(vals.CreateChildAtOffset("[%d]" % self._child_index(idx, True),  self.index * self.valtype.GetByteSize(), self.valtype))
+            print(f'added {self.cache_keys[-1]}')
+
+            if self.height == 0:
+                self.index += 1
+            else:
+                self.iterator = edges.CreateChildAtOffset('', (self.index + 1)*self.leaf_type.GetByteSize(), self.leaf_type)
+                self.index = -1
+                self.height -= 1
+
+    # meant to be override by the Set
+    def _child_index(self, idx, isval):
+        return idx*2 + (1 if isval else 0)
+
+    def get_child_at_index(self, absidx):
+        idx = absidx // 2
+        if absidx % 2 == 0:
+            return self._get_key_index(idx)
+        else:
+            return self._get_value_index(idx)
+
+    def get_child_index(self, name):
+        try:
+            return int(name.lstrip('[').rstrip(']'))
+        except Exception as e:
+            log.error('%s', e)
+            raise
+
+    def get_summary(self):
+        return 'BTreeMap (%d)' % self.length
+
+
+class StdBTreeSetSynthProvider(StdBTreeMapSynthProvider):
+    def initialize(self):
+        self._initialize_tree(gcm(self.valobj, 'map'))
+
+    def get_child_at_index(self, index):
+        return self._get_key_index(index)
+
+    def _child_index(self, idx, isval):
+        return idx
+
+    def num_children(self):
+        return self.length
+
+    def get_summary(self):
+        return 'BTreeSet (%d)' % self.length
+
 
 ##################################################################################################################
 

@@ -4,7 +4,7 @@ mod tests;
 
 use std::borrow::Cow;
 use std::cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap, BTreeSet};
 use std::path;
 use std::rc;
 use std::sync;
@@ -240,6 +240,22 @@ fn hashes() {
     println!("---");
 }
 
+fn btree() {
+    let empty = BTreeMap::<i32, i32>::new();
+    let tree = BTreeMap::from([
+        ("Mercury".to_string(), 1),
+        ("Venus".to_string(), 2),
+        ("Earth".to_string(), 3),
+        ("Mars".to_string(), 4),
+    ]);
+    let large = (0..200).map(|i| (i, i.to_string())).collect::<BTreeMap<_, _>>();
+    let set = tree.iter().map(|(name, age)| name.to_string()).collect::<BTreeSet<String>>();
+
+    println!("---"); // #BP_btree
+    println!("---");
+    println!("---");
+}
+
 struct PyKeywords {
     finally: i32,
     import: i32,
@@ -272,5 +288,6 @@ fn main() {
     boxes();
     strings();
     hashes();
+    btree();
     misc();
 }

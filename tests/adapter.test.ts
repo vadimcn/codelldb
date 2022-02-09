@@ -760,6 +760,47 @@ function generateSuite(triple: string) {
                 await ds.terminate();
             })
 
+            test('rust btree', async function () {
+                let ds = await DebugTestSession.start();
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_btree');
+                let localVars = await ds.launchStopAndGetVars({ name: 'rust btree', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+
+                await ds.compareVariables(localVars, {
+                    tree: {
+                        $: "BTreeMap (4)",
+                        '[0]': '"Earth"',
+                        '[1]': '3',
+                        '[2]': '"Mars"',
+                        '[3]': '4',
+                        '[4]': '"Mercury"',
+                        '[5]': '1',
+                        '[6]': '"Venus"',
+                        '[7]': '2',
+                    },
+                    empty: {$: "BTreeMap (0)"},
+                    large: {
+                        $: "BTreeMap (200)",
+                        '[0]': '0',
+                        '[1]': '"0"',
+                        '[24]': '12',
+                        '[25]': '"12"',
+                        '[240]': '120',
+                        '[241]': '"120"',
+                        '[398]': '199',
+                        '[399]': '"199"',
+                    },
+                    set: {
+                        $: "BTreeSet (4)",
+                        '[0]': '"Earth"',
+                        '[1]': '"Mars"',
+                        '[2]': '"Mercury"',
+                        '[3]': '"Venus"',
+                    }
+                });
+
+                await ds.terminate();
+            })
+
             test('rust misc', async function () {
                 let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');

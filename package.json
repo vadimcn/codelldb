@@ -193,6 +193,12 @@
 					"default": {},
 					"scope": "resource"
 				},
+				"lldb.overrideCargo": {
+					"markdownDescription": "Which cargo binary to use.",
+					"type": "string",
+					"default": "cargo",
+					"scope": "resource"
+				},
 				"lldb.verboseLogging": {
 					"description": "Turns on verbose logging.",
 					"type": "boolean",

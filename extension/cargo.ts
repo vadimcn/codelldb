@@ -1,4 +1,4 @@
-import { window, DebugConfiguration, env } from 'vscode';
+import { window, DebugConfiguration, workspace, env } from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -25,9 +25,12 @@ interface CompilationArtifact {
 export class Cargo {
     cargoTomlFolder: string;
     extraEnv: Dict<string>;
+    command: string;
 
-    public constructor(cargoTomlFolder: string, extraEnv: Dict<string>) {
+    public constructor(cargoTomlFolder: string, command: string, extraEnv: Dict<string>) {
         this.cargoTomlFolder = cargoTomlFolder;
+        let folder = workspace.workspaceFolders.length ? workspace.workspaceFolders[0] : null;
+        this.command = command.replace(/\${workspaceFolder}/g, folder?.uri.fsPath);
         this.extraEnv = extraEnv;
     }
 
@@ -37,7 +40,7 @@ export class Cargo {
         // Insert either before `--` or at the end.
         cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
 
-        output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
+        output.appendLine('Running `' + this.command + ' ' + cargoArgs.join(' ') + '`...');
         let artifacts = await this.getCargoArtifacts(cargoArgs);
 
         output.appendLine('Raw artifacts:');
@@ -199,7 +202,7 @@ export class Cargo {
         onStderrString: (data: string) => void
     ): Promise<number> {
         return new Promise<number>((resolve, reject) => {
-            let cargo = cp.spawn('cargo', cargoArgs, {
+            let cargo = cp.spawn(this.command, cargoArgs, {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 cwd: this.cargoTomlFolder,
                 env: mergedEnvironment(this.extraEnv),

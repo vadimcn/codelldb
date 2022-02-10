@@ -340,7 +340,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         try {
             let config = this.getExtensionConfig(workspaceFolder);
             let folder = workspaceFolder ? workspaceFolder.uri.fsPath : workspace.rootPath;
-            let cargo = new Cargo(folder, config.get('adapterEnv', {}));
+            let cargo = new Cargo(folder, config.get('overrideCargo', 'cargo'), config.get('adapterEnv', {}));
             let debugConfigs = await cargo.getLaunchConfigs();
             if (debugConfigs.length > 0) {
                 let response = await window.showInformationMessage(
@@ -403,7 +403,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         // Deal with Cargo
         if (launchConfig.cargo != undefined) {
             let cargoTomlFolder = folder ? folder.uri.fsPath : workspace.rootPath;
-            let cargo = new Cargo(cargoTomlFolder, config.get('adapterEnv', {}));
+            let cargo = new Cargo(cargoTomlFolder, config.get('overrideCargo', 'cargo'), config.get('adapterEnv', {}));
             let cargoDict = { program: await cargo.getProgramFromCargoConfig(launchConfig.cargo) };
             delete launchConfig.cargo;
 
@@ -493,7 +493,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async getCargoLaunchConfigs() {
         try {
             let config = this.getExtensionConfig();
-            let cargo = new Cargo(workspace.rootPath, config.get('adapterEnv'));
+            let cargo = new Cargo(workspace.rootPath, config.get('overrideCargo', 'cargo'), config.get('adapterEnv'));
             let debugConfigs = await cargo.getLaunchConfigs();
             let doc = await workspace.openTextDocument({
                 content: JSON.stringify(debugConfigs, null, 4),

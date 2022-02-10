@@ -4,7 +4,7 @@ mod tests;
 
 use std::borrow::Cow;
 use std::cell;
-use std::collections::{HashMap, HashSet, VecDequeBTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet, VecDeque, BTreeMap, BTreeSet};
 use std::path;
 use std::rc;
 use std::sync;

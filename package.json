@@ -929,7 +929,7 @@
 				},
 				"configurationSnippets": [
 					{
-						"label": "LLDB: Launch",
+						"label": "CodeLLDB: Launch",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -940,7 +940,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Attach by PID",
+						"label": "CodeLLDB: Attach by PID",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -949,7 +949,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Attach by Name",
+						"label": "CodeLLDB: Attach by Name",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -958,7 +958,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Custom Launch",
+						"label": "CodeLLDB: Custom Launch",
 						"body": {
 							"type": "lldb",
 							"request": "custom",
@@ -973,7 +973,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Debug Cargo Output",
+						"label": "CodeLLDB: Debug Cargo Output",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -989,7 +989,7 @@
 						}
 					},
 					{
-						"label": "LLDB: Debug Cargo Tests",
+						"label": "CodeLLDB: Debug Cargo Tests",
 						"body": {
 							"type": "lldb",
 							"request": "launch",

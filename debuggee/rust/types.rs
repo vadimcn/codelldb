@@ -4,7 +4,7 @@ mod tests;
 
 use std::borrow::Cow;
 use std::cell;
-use std::collections::{HashMap, HashSet, BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet, VecDequeBTreeMap, BTreeSet};
 use std::path;
 use std::rc;
 use std::sync;
@@ -150,6 +150,10 @@ fn arrays() {
     let vec_str = vec!["111", "2222", "3333", "4444", "5555"];
     let vec_tuple = vec![(1, 2), (2, 3), (3, 4)];
     let large_vec: Vec<i32> = (0..20000).collect();
+    let vecdeque_int = VecDeque::from(vec_int.clone());
+
+    let mut vecdeque_popped = vecdeque_int.clone();
+    vecdeque_popped.pop_front();
 
     println!("---"); // #BP_arrays
     println!("---");

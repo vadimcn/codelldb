@@ -30,6 +30,7 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
 
     constructor(context: ExtensionContext) {
         context.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
+        context.subscriptions.push(debug.onDidStartDebugSession(this.onStartDebugSession, this));
         context.subscriptions.push(debug.onDidChangeActiveDebugSession(this.onChangedActiveDebugSession, this));
         context.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
     }
@@ -49,7 +50,7 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
 
     getChildren(element?: Element): ProviderResult<Element[]> {
         if (element == undefined) {
-            return this.sessions[this.activeSessionId];
+            return this.activeSessionId ? this.sessions[this.activeSessionId] : [];
         } else if (element instanceof ModuleProperty) {
             return [];
         } else {
@@ -85,8 +86,15 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
         return new AdapterTracker(session, this);
     }
 
-    onChangedActiveDebugSession(session: DebugSession) {
-        this.activeSessionId = session.id;
+    onStartDebugSession(session: DebugSession) {
+        if (!this.activeSessionId) {
+            this.activeSessionId = session?.id;
+            this.onDidChangeTreeDataEmitter.fire(null);
+        }
+    }
+
+    onChangedActiveDebugSession(session: DebugSession | undefined) {
+        this.activeSessionId = session?.id;
         this.onDidChangeTreeDataEmitter.fire(null);
     }
 }

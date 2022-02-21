@@ -225,7 +225,7 @@ def to_sbvalue(value, target):
     else: # Fall back to string representation
         value = str(value)
         data = lldb.SBData.CreateDataFromCString(target.GetByteOrder(), target.GetAddressByteSize(), value)
-        sbtype_arr = target.GetBasicType(lldb.eBasicTypeChar).GetArrayType(len(value))
+        sbtype_arr = target.GetBasicType(lldb.eBasicTypeChar).GetArrayType(len(str_to_bytes(value)))
         return target.CreateValueFromData('result', data, sbtype_arr)
 
 def str_to_bytes(s):

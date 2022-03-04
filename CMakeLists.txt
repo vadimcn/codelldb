@@ -53,8 +53,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
-    set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll  NTDLL.dll ADVAPI32.dll USER32.dll VERSION.dll DBGHELP.dll
-                            PSAPI.DLL OLEAUT32.dll SHLWAPI.dll  RPCRT4.dll OLE32.dll
+    set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll NTDLL.dll ADVAPI32.dll USER32.dll VERSION.dll DBGHELP.dll
+                            PSAPI.DLL OLEAUT32.dll SHLWAPI.dll RPCRT4.dll OLE32.dll BCRYPT.dll
                             VCRUNTIME140.dll VCRUNTIME140_1.dll MSVCP140.dll
                             python3.*.dll liblldb.dll)
 else()

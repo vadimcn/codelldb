@@ -1,5 +1,12 @@
 # Release Notes
 
+# 1.7.0
+
+## New
+- Updated LLDB to 14.0.0
+- Added support for VSCode [memory viewer](https://code.visualstudio.com/updates/v1_64#_viewing-and-editing-binary-data).
+- Added UI for [console mode](MANUAL.md#debug-console) switching.
+
 # 1.6.10
 
 ## Fixed

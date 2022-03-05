@@ -18,7 +18,6 @@ use breakpoints::BreakpointsState;
 use variables::Container;
 
 use std;
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
@@ -749,45 +748,58 @@ impl DebugSession {
             bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
         }
 
-        self.target = match &args.program {
-            Some(program) => Initialized(self.create_target_from_program(program)?),
-            None => Initialized(self.debugger.create_target("", None, None, false)?),
-        };
-        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
-        self.send_event(EventBody::initialized);
-
-        let self_ref = self.self_ref.clone();
-        let fut = async move {
-            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
-            self_ref.map(|s| s.complete_attach(args)).await
-        };
-        Err(AsyncResponse(Box::new(fut)).into())
-    }
-
-    fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(ref commands) = args.common.pre_run_commands {
-            self.exec_commands("preRunCommands", commands)?;
-        }
-
         let attach_info = SBAttachInfo::new();
-        if let Some(pid) = args.pid {
+        if let Some(ref pid) = args.pid {
             let pid = match pid {
-                Pid::Number(n) => n as ProcessID,
+                Pid::Number(n) => *n as ProcessID,
                 Pid::String(s) => match s.parse() {
                     Ok(n) => n,
                     Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
                 },
             };
             attach_info.set_process_id(pid);
-        } else if let Some(program) = args.program {
-            attach_info.set_executable(&self.find_executable(&program));
+        } else if let Some(ref program) = args.program {
+            attach_info.set_executable(Path::new(program));
         } else {
             unreachable!()
         }
         attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
         attach_info.set_ignore_existing(false);
 
-        let process = match self.target.attach(&attach_info) {
+        // Create target using the "program" attribute, if possible,
+        let target = match args.program {
+            Some(ref program) => match self.create_target_from_program(program) {
+                Ok(target) => {
+                    attach_info.set_executable(&target.executable().path());
+                    Some(target)
+                }
+                Err(_) => None,
+            },
+            None => None,
+        };
+        // ...else fall back to a dummy target.
+        let target = match target {
+            Some(target) => target,
+            None => self.debugger.create_target("", None, None, false)?,
+        };
+        self.target = Initialized(target);
+
+        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
+        self.send_event(EventBody::initialized);
+
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            self_ref.map(|s| s.complete_attach(args, attach_info)).await
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
+    }
+
+    fn complete_attach(&mut self, args: AttachRequestArguments, info: SBAttachInfo) -> Result<ResponseBody, Error> {
+        if let Some(ref commands) = args.common.pre_run_commands {
+            self.exec_commands("preRunCommands", commands)?;
+        }
+        let process = match self.target.attach(&info) {
             Ok(process) => process,
             Err(err) => bail!(as_user_error(err)),
         };
@@ -822,20 +834,6 @@ impl DebugSession {
             }
         }
         .map_err(|e| as_user_error(e).into())
-    }
-
-    fn find_executable<'a>(&self, program: &'a str) -> Cow<'a, str> {
-        // On Windows, also try program + '.exe'
-        // TODO: use selected platform instead of cfg!(windows)
-        if cfg!(windows) {
-            if !Path::new(program).is_file() {
-                let program = format!("{}.exe", program);
-                if Path::new(&program).is_file() {
-                    return program.into();
-                }
-            }
-        }
-        program.into()
     }
 
     fn create_terminal(&mut self, args: &LaunchRequestArguments) -> impl Future {

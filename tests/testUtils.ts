@@ -42,7 +42,7 @@ function asyncTimer(timeoutMillis: number): Promise<void> {
     return new Promise<void>((resolve) => setTimeout(resolve));
 }
 
-function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
+export function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {
     let error = new Error('Timed out');
     return new Promise<T>((resolve, reject) => {
         let timer = setTimeout(() => {

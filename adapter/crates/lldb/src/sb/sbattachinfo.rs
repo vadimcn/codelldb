@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 cpp_class!(pub unsafe struct SBAttachInfo as "SBAttachInfo");
 
@@ -25,7 +26,7 @@ impl SBAttachInfo {
             return self->GetProcessID();
         })
     }
-    pub fn set_executable(&self, path: &str) {
+    pub fn set_executable(&self, path: &Path) {
         with_cstr(path, |path| {
             cpp!(unsafe [self as "SBAttachInfo*", path as "const char*"] {
                 self->SetExecutable(path);

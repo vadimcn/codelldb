@@ -6,12 +6,12 @@ use crate::handles::{self, Handle};
 use super::into_string_lossy;
 use super::AsyncResponse;
 
+use adapter_protocol::*;
 use futures::future;
 use lldb::*;
-use adapter_protocol::*;
-
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::time;
 
@@ -79,7 +79,7 @@ impl super::DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter();
-                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?;
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), true)?;
                     // Prepend last function return value, if any.
                     if let Some(ret_val) = ret_val {
                         let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
@@ -96,7 +96,7 @@ impl super::DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableStatic);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
                 }
                 Container::Globals(frame) => {
                     let variables = frame.variables(&VariableOptions {
@@ -106,19 +106,19 @@ impl super::DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableGlobal);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
                 }
                 Container::Registers(frame) => {
                     let list = frame.registers();
                     let mut vars_iter = list.iter();
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle))?
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
                 }
                 Container::SBValue(var) => {
                     let container_eval_name = self.compose_container_eval_name(container_handle);
                     let var = var.clone();
                     let mut vars_iter = var.children();
                     let mut variables =
-                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle))?;
+                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle), false)?;
                     // If synthetic, add [raw] view.
                     if var.is_synthetic() {
                         let raw_var = var.non_synthetic_value();
@@ -164,13 +164,25 @@ impl super::DebugSession {
         vars_iter: &mut dyn Iterator<Item = SBValue>,
         container_eval_name: &str,
         container_handle: Option<Handle>,
+        deduplicate: bool,
     ) -> Result<Vec<Variable>, Error> {
         let mut variables = vec![];
+        let mut variables_idx = HashMap::new();
 
         let start = time::SystemTime::now();
         for var in vars_iter {
             let variable = self.var_to_variable(&var, container_eval_name, container_handle);
-            variables.push(variable);
+
+            if deduplicate {
+                if let Some(idx) = variables_idx.get(&variable.name) {
+                    variables[*idx] = variable;
+                } else {
+                    variables_idx.insert(variable.name.clone(), variables.len());
+                    variables.push(variable);
+                }
+            } else {
+                variables.push(variable);
+            }
 
             if self.current_cancellation.is_cancelled() {
                 bail!(as_user_error("<cancelled>"));

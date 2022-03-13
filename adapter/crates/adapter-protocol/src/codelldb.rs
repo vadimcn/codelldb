@@ -40,11 +40,6 @@ pub enum ProtocolMessageType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UnknownRequest {
-    pub command: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Response {
     pub request_seq: u32,
     pub success: bool,

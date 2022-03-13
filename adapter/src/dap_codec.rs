@@ -27,11 +27,20 @@ impl DAPCodec {
     }
 }
 
+pub type DecoderResult = Result<ProtocolMessage, DecoderError>;
+
+pub enum DecoderError {
+    SerdeError {
+        error: serde_json::error::Error,
+        value: serde_json::value::Value,
+    },
+}
+
 impl codec::Decoder for DAPCodec {
-    type Item = ProtocolMessage;
+    type Item = DecoderResult;
     type Error = io::Error;
 
-    fn decode(&mut self, buffer: &mut BytesMut) -> Result<Option<ProtocolMessage>, Self::Error> {
+    fn decode(&mut self, buffer: &mut BytesMut) -> Result<Option<DecoderResult>, Self::Error> {
         loop {
             match self.state {
                 State::ReadingHeaders => match buffer.windows(2).position(|b| b == &[b'\r', b'\n']) {
@@ -59,10 +68,16 @@ impl codec::Decoder for DAPCodec {
 
                         debug!("--> {}", str::from_utf8(&message_bytes).unwrap());
                         match serde_json::from_slice(&message_bytes) {
-                            Ok(message) => return Ok(Some(message)),
+                            Ok(message) => return Ok(Some(Ok(message))),
                             Err(err) => {
-                                error!("Could not deserialize: {}", err);
-                                return Err(io::Error::new(io::ErrorKind::InvalidData, Box::new(err)));
+                                let value = match serde_json::from_slice(&message_bytes) {
+                                    Ok(value) => value,
+                                    Err(_) => serde_json::value::Value::Null,
+                                };
+                                return Ok(Some(Err(DecoderError::SerdeError {
+                                    error: err,
+                                    value: value,
+                                })));
                             }
                         }
                     }

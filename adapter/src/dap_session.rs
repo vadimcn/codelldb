@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::dap_codec::{DecoderError, DecoderResult};
 
 use adapter_protocol::*;
 use futures::prelude::*;
@@ -9,12 +10,12 @@ use std::sync::{Arc, Weak};
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 pub trait DAPChannel:
-    Stream<Item = Result<ProtocolMessage, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send
+    Stream<Item = Result<DecoderResult, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send
 {
 }
 
 impl<T> DAPChannel for T where
-    T: Stream<Item = Result<ProtocolMessage, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send
+    T: Stream<Item = Result<DecoderResult, io::Error>> + Sink<ProtocolMessage, Error = io::Error> + Send
 {
 }
 
@@ -43,26 +44,68 @@ impl DAPSession {
         let worker = async move {
             loop {
                 tokio::select! {
-                    maybe_message = channel.next() => {
-                        match maybe_message {
-                            Some(Ok(message)) => {
-                                match message.type_ {
-                                    ProtocolMessageType::Request(request) => log_errors!(requests_sender.send((message.seq, request))),
-                                    ProtocolMessageType::Event(event) => log_errors!(events_sender.send(event)),
-                                    ProtocolMessageType::Response(response) => match pending_requests.entry(response.request_seq) {
-                                        Entry::Vacant(_) => {
-                                            error!("Received response without a pending request (request_seq={})", response.request_seq);
-                                        }
-                                        Entry::Occupied(entry) => {
-                                            let sender = entry.remove();
-                                            if let Err(_) = sender.send(response.result) {
-                                                error!("Requestor is gone (request_seq={})", response.request_seq);
+                    maybe_result = channel.next() => {
+                        match maybe_result {
+                            Some(Ok(decoder_result)) => {
+                                match decoder_result {
+                                    Ok(message) => match message.type_ {
+                                        ProtocolMessageType::Request(request) => log_errors!(requests_sender.send((message.seq, request))),
+                                        ProtocolMessageType::Event(event) => log_errors!(events_sender.send(event)),
+                                        ProtocolMessageType::Response(response) => match pending_requests.entry(response.request_seq) {
+                                            Entry::Vacant(_) => {
+                                                error!("Received response without a pending request (request_seq={})", response.request_seq);
+                                            }
+                                            Entry::Occupied(entry) => {
+                                                let sender = entry.remove();
+                                                if let Err(_) = sender.send(response.result) {
+                                                    error!("Requestor is gone (request_seq={})", response.request_seq);
+                                                }
+                                            }
+                                        },
+                                    }
+                                    Err(err) => match err {
+                                        DecoderError::SerdeError { error, value } => {
+                                            // The decoder read a complete frame, but failed to deserialize it
+                                            error!("Deserialization error: {}", error);
+
+                                            // Try to extract request seq
+                                            use serde_json::value::*;
+                                            let request_seq = match value {
+                                                Value::Object(obj) => {
+                                                    match obj.get("seq") {
+                                                        Some(Value::Number(seq)) => seq.as_u64(),
+                                                        _ => None,
+                                                    }
+                                                },
+                                                _ => None
+                                            };
+                                            // If succeeded, send error response
+                                            if let Some(request_seq) = request_seq {
+                                                message_seq += 1;
+                                                let message = ProtocolMessage {
+                                                    seq: message_seq,
+                                                    type_: ProtocolMessageType::Response(
+                                                        Response {
+                                                            request_seq: request_seq as u32,
+                                                            success: false,
+                                                            result: ResponseResult::Error {
+                                                                message: "Malformed message".into(),
+                                                                command: "".into(),
+                                                                show_user: None
+                                                            }
+                                                        }
+                                                    )
+                                                };
+                                                log_errors!(channel.send(message).await);
                                             }
                                         }
-                                    },
+                                    }
                                 }
                             },
-                            Some(Err(_)) => {break},
+                            Some(Err(err)) => {
+                                error!("Frame decoder error: {}", err);
+                                break;
+                            },
                             None => {
                                 debug!("Client has disconnected");
                                 break

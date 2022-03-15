@@ -2,8 +2,7 @@ import { suite, test } from 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as fs from 'fs';
-import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack, char } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack, char, variablesAsDict, withTimeout } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
@@ -240,7 +239,8 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
 
-                await ds.compareVariables(localsRef, {
+                let locals = variablesAsDict(await ds.readVariables(localsRef));
+                await ds.compareVariables(locals, {
                     a: 30,
                     b: 40,
                     pi: 3.141592,
@@ -267,15 +267,18 @@ function generateSuite(triple: string) {
                     wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
 
                     invalid_utf8: '"ABC\\xff\\U00000001\\xfeXYZ"',
-                    anon_union: {
-                        '': { x: 4, y: 4 }
-                    },
 
                     null_s_ptr: '<null>',
                     null_s_ptr_ptr: v => v.value.startsWith('{0x'),
                     invalid_s_ptr: '<invalid address>',
                     void_ptr: v => v.value.startsWith('0x'),
                 });
+
+                let fields = await ds.readVariables(locals['anon_union'].variablesReference);
+                assert.equal(fields[0].name, '')
+                ds.compareVariables(fields[0].variablesReference, { x: 4, w: 4 });
+                assert.equal(fields[1].name, '')
+                ds.compareVariables(fields[1].variablesReference, { y: 5, h: 5 });
 
                 let response1 = await ds.evaluateRequest({
                     expression: 'vec_int', context: 'watch', frameId: frameId
@@ -512,11 +515,13 @@ function generateSuite(triple: string) {
 
             suiteSetup(() => {
                 debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
+                debuggeeProc.on('error', err => log(`Debuggee error: ${err}`));
             })
 
-            suiteTeardown(() => {
-                if (debuggeeProc)
-                    debuggeeProc.kill()
+            suiteTeardown(async () => {
+                let debuggeeExit = new Promise((resolve) => debuggeeProc.on('exit', resolve));
+                debuggeeProc.kill();
+                await withTimeout(3000, debuggeeExit);
             })
 
             test('attach by pid', async function () {
@@ -539,10 +544,20 @@ function generateSuite(triple: string) {
                 await ds.terminate();
             });
 
-            test('attach by name', async function () {
+            test('attach by path', async function () {
                 let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
+                assert.ok(attachResp.success);
+                await asyncWaitStopped;
+                await ds.terminate();
+            });
+
+            test('attach by name', async function () {
+                let ds = await DebugTestSession.start();
+                let asyncWaitStopped = ds.waitForEvent('stopped');
+                let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
+                let attachResp = await ds.attach({ name: 'attach by name', program: program, stopOnEntry: true });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
                 await ds.terminate();
@@ -651,6 +666,14 @@ function generateSuite(triple: string) {
                     vec_int: {
                         $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
                         '[0]': 1, '[1]': 2, '[9]': 10
+                    },
+                    vecdeque_int: {
+                        $: '(10) VecDeque[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        '[0]': 1, '[1]': 2, '[9]': 10
+                    },
+                    vecdeque_popped: {
+                        $: '(9) VecDeque[2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        '[0]': 2, '[1]': 3, '[8]': 10
                     },
                     large_vec: '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
                     vec_str: {

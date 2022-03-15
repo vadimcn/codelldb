@@ -78,7 +78,7 @@ export class Cargo {
     }
 
     // Runs cargo, returns a list of compilation artifacts.
-    async  getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
+    async getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
         try {
             await this.runCargo(cargoArgs,
@@ -219,7 +219,7 @@ export class Cargo {
             let rl = readline.createInterface({ input: cargo.stdout });
             rl.on('line', line => {
                 const message = JSON.parse(line);
-                    onStdoutJson(message);
+                onStdoutJson(message);
             });
 
             cargo.on('exit', (exitCode, signal) => {

@@ -107,13 +107,11 @@ impl AddressSpace {
             handle: handle,
             target: self.target.clone(),
             start_addr: start_addr,
-            end_addr: end_addr,
             start_load_addr: start_load_addr,
             end_load_addr: end_load_addr,
             source_name: source_name,
             instructions: instructions,
             instruction_addresses: instruction_addrs,
-            source_text: RefCell::new(None),
         });
         ranges.by_handle.insert(handle, dasm.clone());
         let idx = ranges.by_address.lower_bound_by_key(&dasm.start_load_addr, |dasm| dasm.start_load_addr);
@@ -135,13 +133,11 @@ pub struct DisassembledRange {
     handle: Handle,
     target: SBTarget,
     start_addr: SBAddress,
-    end_addr: SBAddress,
     start_load_addr: Address,
     end_load_addr: Address,
     source_name: String,
     instructions: SBInstructionList,
     instruction_addresses: Vec<Address>,
-    source_text: RefCell<Option<String>>,
 }
 
 impl DisassembledRange {

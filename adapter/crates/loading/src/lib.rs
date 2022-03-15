@@ -82,19 +82,21 @@ mod platform {
 #[cfg(windows)]
 mod platform {
     use super::{Error, Handle};
-    use std::env;
     use std::ffi::{CString, OsStr, OsString};
     use std::os::raw::{c_char, c_void};
     use std::os::windows::ffi::*;
     use std::path::Path;
+    use std::{env, ptr};
 
     pub const DYLIB_PREFIX: &str = "";
     pub const DYLIB_EXTENSION: &str = "dll";
     pub const DYLIB_SUBDIR: &str = "bin";
 
+    const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x0008;
+
     #[link(name = "kernel32")]
     extern "system" {
-        fn LoadLibraryW(filename: *const u16) -> Handle;
+        fn LoadLibraryExW(filename: *const u16, hfile: Handle, flags: u32) -> Handle;
         fn FreeLibrary(handle: Handle) -> u32;
         fn GetProcAddress(handle: Handle, symbol: *const c_char) -> *const c_void;
         fn GetLastError() -> u32;
@@ -117,13 +119,9 @@ mod platform {
         Ok(())
     }
 
-    pub unsafe fn load_library(path: &Path, global_symbols: bool) -> Result<Handle, Error> {
-        if global_symbols {
-            if let Some(dir) = path.parent() {
-                add_library_directory(dir)?;
-            }
-        }
-        let handle = LoadLibraryW(to_wstr(path.as_os_str()).as_ptr());
+    pub unsafe fn load_library(path: &Path, _global_symbols: bool) -> Result<Handle, Error> {
+        let flags = if path.is_absolute() { LOAD_WITH_ALTERED_SEARCH_PATH } else { 0 };
+        let handle = LoadLibraryExW(to_wstr(path.as_os_str()).as_ptr(), ptr::null(), flags);
         if handle.is_null() {
             Err(format!("Could not load {:?} (err={:08X})", path, GetLastError()).into())
         } else {

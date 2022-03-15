@@ -6,7 +6,6 @@ use crate::prelude::*;
 use crate::cancellation;
 use crate::dap_session::DAPSession;
 use crate::debug_event_listener;
-use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
@@ -19,8 +18,8 @@ use breakpoints::BreakpointsState;
 use variables::Container;
 
 use std;
-use std::borrow::Cow;
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::CStr;
@@ -30,6 +29,7 @@ use std::rc::Rc;
 use std::str;
 use std::time;
 
+use adapter_protocol::*;
 use futures;
 use futures::prelude::*;
 use lldb::*;
@@ -184,8 +184,8 @@ impl DebugSession {
                     // Requests from VSCode
                     request = requests_receiver.recv() => {
                         match request {
-                            Some((request, cancellation)) => shared_session.map(
-                                    |s| s.handle_request(request, cancellation)).await,
+                            Some((seq, request, cancellation)) => shared_session.map(
+                                    |s| s.handle_request(seq, request, cancellation)).await,
                             None => {
                                 debug!("End of the requests stream");
                                 break;
@@ -233,11 +233,14 @@ impl DebugSession {
     }
 
     /// Handle request cancellations.
-    fn cancellation_filter(dap_session: &DAPSession) -> mpsc::Receiver<(Request, cancellation::Receiver)> {
+    fn cancellation_filter(
+        dap_session: &DAPSession,
+    ) -> mpsc::Receiver<(u32, RequestArguments, cancellation::Receiver)> {
         use tokio::sync::broadcast::error::RecvError;
 
         let mut raw_requests_stream = dap_session.subscribe_requests().unwrap();
-        let (requests_sender, requests_receiver) = mpsc::channel::<(Request, cancellation::Receiver)>(100);
+        let (requests_sender, requests_receiver) =
+            mpsc::channel::<(u32, RequestArguments, cancellation::Receiver)>(100);
 
         // This task pairs incoming requests with a cancellation token, which is activated upon receiving a "cancel" request.
         let filter = async move {
@@ -246,46 +249,43 @@ impl DebugSession {
 
             loop {
                 match raw_requests_stream.recv().await {
-                    Ok(request) => {
+                    Ok((seq, request)) => {
                         let sender = cancellation::Sender::new();
                         let receiver = sender.subscribe();
 
-                        match &request.command {
-                            Command::Known(request_args) => match request_args {
-                                RequestArguments::cancel(args) => {
-                                    info!("Cancellation {:?}", args);
-                                    if let Some(id) = args.request_id {
-                                        if let Some(sender) = pending_requests.remove(&(id as u32)) {
-                                            sender.send();
-                                        }
-                                    }
-                                    continue; // Dont forward to the main event loop.
-                                }
-                                // Requests that may be canceled.
-                                RequestArguments::scopes(_)
-                                | RequestArguments::variables(_)
-                                | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
-                                // Requests that will cancel the above.
-                                RequestArguments::continue_(_)
-                                | RequestArguments::pause(_)
-                                | RequestArguments::next(_)
-                                | RequestArguments::stepIn(_)
-                                | RequestArguments::stepOut(_)
-                                | RequestArguments::stepBack(_)
-                                | RequestArguments::reverseContinue(_)
-                                | RequestArguments::terminate(_)
-                                | RequestArguments::disconnect(_) => {
-                                    for sender in &mut cancellable_requests {
+                        match request {
+                            RequestArguments::cancel(args) => {
+                                info!("Cancellation {:?}", args);
+                                if let Some(id) = args.request_id {
+                                    if let Some(sender) = pending_requests.remove(&(id as u32)) {
                                         sender.send();
                                     }
                                 }
-                                _ => (),
-                            },
+                                continue; // Dont forward to the main event loop.
+                            }
+                            // Requests that may be canceled.
+                            RequestArguments::scopes(_)
+                            | RequestArguments::variables(_)
+                            | RequestArguments::evaluate(_) => cancellable_requests.push(sender.clone()),
+                            // Requests that will cancel the above.
+                            RequestArguments::continue_(_)
+                            | RequestArguments::pause(_)
+                            | RequestArguments::next(_)
+                            | RequestArguments::stepIn(_)
+                            | RequestArguments::stepOut(_)
+                            | RequestArguments::stepBack(_)
+                            | RequestArguments::reverseContinue(_)
+                            | RequestArguments::terminate(_)
+                            | RequestArguments::disconnect(_) => {
+                                for sender in &mut cancellable_requests {
+                                    sender.send();
+                                }
+                            }
                             _ => (),
                         }
 
-                        pending_requests.insert(request.seq, sender);
-                        log_errors!(requests_sender.send((request, receiver)).await);
+                        pending_requests.insert(seq, sender);
+                        log_errors!(requests_sender.send((seq, request, receiver)).await);
 
                         // Clean out entries which don't have any receivers.
                         pending_requests.retain(|_k, v| v.receiver_count() > 0);
@@ -301,38 +301,32 @@ impl DebugSession {
         requests_receiver
     }
 
-    fn handle_request(&mut self, request: Request, cancellation: cancellation::Receiver) {
-        let seq = request.seq;
-        match request.command {
-            Command::Known(args) => {
-                if cancellation.is_cancelled() {
-                    self.send_response(seq, Err("canceled".into()));
-                } else {
-                    self.current_cancellation = cancellation;
-                    let result = self.handle_request_args(args);
-                    self.current_cancellation = cancellation::dummy();
-                    match result {
-                        // Spawn async responses as tasks
-                        Err(err) if err.is::<AsyncResponse>() => {
-                            let self_ref = self.self_ref.clone();
-                            tokio::task::spawn_local(async move {
-                                let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
-                                let result = fut.await;
-                                self_ref.map(|s| s.send_response(seq, result)).await;
-                            });
-                        }
-                        // Send synchronous results immediately
-                        _ => {
-                            self.send_response(seq, result);
-                        }
+    fn handle_request(&mut self, seq: u32, request_args: RequestArguments, cancellation: cancellation::Receiver) {
+        if cancellation.is_cancelled() {
+            self.send_response(seq, Err("canceled".into()));
+        } else {
+            self.current_cancellation = cancellation;
+            if let RequestArguments::unknown = request_args {
+                info!("Received an unknown command");
+                self.send_response(seq, Err("Not implemented.".into()));
+            } else {
+                let result = self.handle_request_args(request_args);
+                self.current_cancellation = cancellation::dummy();
+                match result {
+                    // Spawn async responses as tasks
+                    Err(err) if err.is::<AsyncResponse>() => {
+                        let self_ref = self.self_ref.clone();
+                        tokio::task::spawn_local(async move {
+                            let fut: std::pin::Pin<Box<_>> = err.downcast::<AsyncResponse>().unwrap().0.into();
+                            let result = fut.await;
+                            self_ref.map(|s| s.send_response(seq, result)).await;
+                        });
+                    }
+                    // Send synchronous results immediately
+                    _ => {
+                        self.send_response(seq, result);
                     }
                 }
-            }
-            Command::Unknown {
-                command,
-            } => {
-                info!("Received an unknown command: {}", command);
-                self.send_response(seq, Err("Not implemented.".into()));
             }
         }
     }
@@ -436,6 +430,9 @@ impl DebugSession {
                         RequestArguments::readMemory(args) =>
                             self.handle_read_memory(args)
                                 .map(|r| ResponseBody::readMemory(r)),
+                        RequestArguments::writeMemory(args) =>
+                            self.handle_write_memory(args)
+                                .map(|r| ResponseBody::writeMemory(r)),
                         RequestArguments::_symbols(args) =>
                             self.handle_symbols(args)
                                 .map(|r| ResponseBody::_symbols(r)),
@@ -522,6 +519,7 @@ impl DebugSession {
             supports_restart_frame: Some(true),
             supports_cancel_request: Some(true),
             supports_read_memory_request: Some(true),
+            supports_write_memory_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
@@ -591,12 +589,9 @@ impl DebugSession {
         let result = self.dap_session.subscribe_requests();
         async move {
             let mut receiver = result?;
-            while let Ok(request) = receiver.recv().await {
-                match request.command {
-                    Command::Known(RequestArguments::configurationDone(_)) => {
-                        return Ok(());
-                    }
-                    _ => {}
+            while let Ok((_seq, request)) = receiver.recv().await {
+                if let RequestArguments::configurationDone(_) = request {
+                    return Ok(());
                 }
             }
             bail!("Did not receive configurationDone");
@@ -753,45 +748,58 @@ impl DebugSession {
             bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
         }
 
-        self.target = match &args.program {
-            Some(program) => Initialized(self.create_target_from_program(program)?),
-            None => Initialized(self.debugger.create_target("", None, None, false)?),
-        };
-        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
-        self.send_event(EventBody::initialized);
-
-        let self_ref = self.self_ref.clone();
-        let fut = async move {
-            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
-            self_ref.map(|s| s.complete_attach(args)).await
-        };
-        Err(AsyncResponse(Box::new(fut)).into())
-    }
-
-    fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(ref commands) = args.common.pre_run_commands {
-            self.exec_commands("preRunCommands", commands)?;
-        }
-
         let attach_info = SBAttachInfo::new();
-        if let Some(pid) = args.pid {
+        if let Some(ref pid) = args.pid {
             let pid = match pid {
-                Pid::Number(n) => n as ProcessID,
+                Pid::Number(n) => *n as ProcessID,
                 Pid::String(s) => match s.parse() {
                     Ok(n) => n,
                     Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
                 },
             };
             attach_info.set_process_id(pid);
-        } else if let Some(program) = args.program {
-            attach_info.set_executable(&self.find_executable(&program));
+        } else if let Some(ref program) = args.program {
+            attach_info.set_executable(Path::new(program));
         } else {
             unreachable!()
         }
         attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
         attach_info.set_ignore_existing(false);
 
-        let process = match self.target.attach(&attach_info) {
+        // Create target using the "program" attribute, if possible,
+        let target = match args.program {
+            Some(ref program) => match self.create_target_from_program(program) {
+                Ok(target) => {
+                    attach_info.set_executable(&target.executable().path());
+                    Some(target)
+                }
+                Err(_) => None,
+            },
+            None => None,
+        };
+        // ...else fall back to a dummy target.
+        let target = match target {
+            Some(target) => target,
+            None => self.debugger.create_target("", None, None, false)?,
+        };
+        self.target = Initialized(target);
+
+        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
+        self.send_event(EventBody::initialized);
+
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            self_ref.map(|s| s.complete_attach(args, attach_info)).await
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
+    }
+
+    fn complete_attach(&mut self, args: AttachRequestArguments, info: SBAttachInfo) -> Result<ResponseBody, Error> {
+        if let Some(ref commands) = args.common.pre_run_commands {
+            self.exec_commands("preRunCommands", commands)?;
+        }
+        let process = match self.target.attach(&info) {
             Ok(process) => process,
             Err(err) => bail!(as_user_error(err)),
         };
@@ -826,20 +834,6 @@ impl DebugSession {
             }
         }
         .map_err(|e| as_user_error(e).into())
-    }
-
-    fn find_executable<'a>(&self, program: &'a str) -> Cow<'a, str> {
-        // On Windows, also try program + '.exe'
-        // TODO: use selected platform instead of cfg!(windows)
-        if cfg!(windows) {
-            if !Path::new(program).is_file() {
-                let program = format!("{}.exe", program);
-                if Path::new(&program).is_file() {
-                    return program.into();
-                }
-            }
-        }
-        program.into()
     }
 
     fn create_terminal(&mut self, args: &LaunchRequestArguments) -> impl Future {
@@ -949,11 +943,21 @@ impl DebugSession {
             self.update_adapter_settings_and_caps(settings);
         }
 
+        self.print_console_mode();
+
         if let Some(commands) = &args_common.init_commands {
             self.exec_commands("initCommands", &commands)?;
         }
 
         Ok(())
+    }
+
+    fn print_console_mode(&self) {
+        let message = match self.console_mode {
+            ConsoleMode::Commands => "Console is in 'commands' mode, prefix expressions with '?'.",
+            ConsoleMode::Evaluate => "Console is in 'evaluation' mode, prefix commands with '/cmd ' or '`'.",
+        };
+        self.console_message(message);
     }
 
     fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
@@ -1530,65 +1534,116 @@ impl DebugSession {
         let offset = args.offset.unwrap_or(0);
         let count = args.count as usize;
         let address = (mem_ref + offset) as lldb::Address;
-        let mut buffer = Vec::with_capacity(count);
-        buffer.resize(count, 0);
-        let bytes_read = self.process.read_memory(address, buffer.as_mut_slice())?;
-        buffer.truncate(bytes_read);
-        Ok(ReadMemoryResponseBody {
-            address: format!("0x{:X}", address),
-            unreadable_bytes: Some((count - bytes_read) as i64),
-            data: Some(base64::encode(buffer)),
-        })
-    }
-
-    fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {
-        let (mut next_module, mut next_symbol) = match args.continuation_token {
-            Some(token) => (token.next_module, token.next_symbol),
-            None => (0, 0),
-        };
-        let num_modules = self.target.num_modules();
-        let mut symbols = vec![];
-        while next_module < num_modules {
-            let module = self.target.module_at_index(next_module);
-            let num_symbols = module.num_symbols();
-            while next_symbol < num_symbols {
-                let symbol = module.symbol_at_index(next_symbol);
-                let ty = symbol.type_();
-                match ty {
-                    SymbolType::Code | SymbolType::Data => {
-                        let start_addr = symbol.start_address().load_address(&self.target);
-                        symbols.push(Symbol {
-                            name: symbol.display_name().into(),
-                            type_: format!("{:?}", ty),
-                            address: format!("0x{:X}", start_addr),
-                        });
-                    }
-                    _ => {}
-                }
-                next_symbol += 1;
-
-                if symbols.len() > 1000 {
-                    return Ok(SymbolsResponse {
-                        symbols,
-                        continuation_token: Some(SymbolsContinuation {
-                            next_module,
-                            next_symbol,
-                        }),
+        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+            if region_info.is_readable() {
+                let to_read = cmp::min(count, (region_info.region_end() - address) as usize);
+                let mut buffer = Vec::new();
+                buffer.resize(to_read, 0);
+                if let Ok(bytes_read) = self.process.read_memory(address, buffer.as_mut_slice()) {
+                    buffer.resize(bytes_read, 0);
+                    return Ok(ReadMemoryResponseBody {
+                        address: format!("0x{:X}", address),
+                        unreadable_bytes: Some((count - bytes_read) as i64),
+                        data: Some(base64::encode(buffer)),
                     });
                 }
             }
-            next_symbol = 0;
-            next_module += 1;
         }
+        Ok(ReadMemoryResponseBody {
+            address: format!("0x{:X}", address),
+            unreadable_bytes: Some(args.count),
+            data: None,
+        })
+    }
 
+    fn handle_write_memory(&mut self, args: WriteMemoryArguments) -> Result<WriteMemoryResponseBody, Error> {
+        let mem_ref = parse_int::parse::<i64>(&args.memory_reference)?;
+        let offset = args.offset.unwrap_or(0);
+        let address = (mem_ref + offset) as lldb::Address;
+        let data = base64::decode(&args.data)?;
+        let allow_partial = args.allow_partial.unwrap_or(false);
+        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+            if region_info.is_writable() {
+                let to_write = cmp::min(data.len(), (region_info.region_end() - address) as usize);
+                if allow_partial || to_write == data.len() {
+                    if let Ok(bytes_written) = self.process.write_memory(address, &data) {
+                        return Ok(WriteMemoryResponseBody {
+                            bytes_written: Some(bytes_written as i64),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+        }
+        if allow_partial {
+            Ok(WriteMemoryResponseBody {
+                bytes_written: Some(0),
+                ..Default::default()
+            })
+        } else {
+            Err(as_user_error(format!("Cannot write {} bytes at {:08X}", data.len(), address)).into())
+        }
+    }
+
+    fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {
+        use fuzzy_matcher::FuzzyMatcher;
+        let matcher = fuzzy_matcher::clangd::ClangdMatcher::default().ignore_case();
+        let mut symbols = vec![];
+        'outer: for imodule in 0..self.target.num_modules() {
+            let module = self.target.module_at_index(imodule);
+            for isymbol in 0..module.num_symbols() {
+                let symbol = module.symbol_at_index(isymbol);
+                let ty = symbol.type_();
+                match ty {
+                    SymbolType::Code | SymbolType::Data => {
+                        let name = symbol.display_name();
+                        if let Some(_) = matcher.fuzzy_match(name, &args.filter) {
+                            let start_addr = symbol.start_address().load_address(&self.target);
+
+                            let location = if let Some(le) = symbol.start_address().line_entry() {
+                                let fs = le.file_spec();
+                                if let Some(local_path) = self.map_filespec_to_local(&fs) {
+                                    let source = Source {
+                                        name: Some(local_path.file_name().unwrap().to_string_lossy().into_owned()),
+                                        path: Some(local_path.to_string_lossy().into_owned()),
+                                        ..Default::default()
+                                    };
+                                    Some((source, le.line()))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            let symbol = Symbol {
+                                name: name.into(),
+                                type_: format!("{:?}", ty),
+                                address: format!("0x{:X}", start_addr),
+                                location: location,
+                            };
+                            symbols.push(symbol);
+                        }
+                    }
+                    _ => {}
+                }
+
+                if symbols.len() >= args.max_results as usize {
+                    break 'outer;
+                }
+            }
+        }
         Ok(SymbolsResponse {
             symbols,
-            continuation_token: None,
         })
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
+        let old_console_mode = self.console_mode;
         self.update_adapter_settings_and_caps(&args);
+        if self.console_mode != old_console_mode {
+            self.print_console_mode();
+        }
         if self.process.state().is_stopped() {
             self.refresh_client_display(None);
         }
@@ -1618,7 +1673,6 @@ impl DebugSession {
         self.show_disassembly = settings.show_disassembly.unwrap_or(self.show_disassembly);
         self.deref_pointers = settings.dereference_pointers.unwrap_or(self.deref_pointers);
         self.suppress_missing_files = settings.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
-        self.console_mode = settings.console_mode.unwrap_or(self.console_mode);
         self.evaluate_for_hovers = settings.evaluate_for_hovers.unwrap_or(self.evaluate_for_hovers);
         self.command_completions = settings.command_completions.unwrap_or(self.command_completions);
         if let Some(timeout) = settings.evaluation_timeout {
@@ -1629,6 +1683,9 @@ impl DebugSession {
         }
         if let Some(ref source_languages) = settings.source_languages {
             self.source_languages = source_languages.clone();
+        }
+        if let Some(console_mode) = settings.console_mode {
+            self.console_mode = console_mode;
         }
     }
 
@@ -1822,15 +1879,15 @@ impl DebugSession {
             format!("{:X}", header_addr.load_address(&self.target))
         } else {
             // header_addr not available on Windows, fall back to path
-            module.filespec().path().display().to_string()
+            module.file_spec().path().display().to_string()
         }
     }
 
     fn make_module_detail(&self, module: &SBModule) -> Module {
         let mut msg = Module {
             id: serde_json::Value::String(self.module_id(&module)),
-            name: module.filespec().filename().display().to_string(),
-            path: Some(module.filespec().path().display().to_string()),
+            name: module.file_spec().filename().display().to_string(),
+            path: Some(module.file_spec().path().display().to_string()),
             ..Default::default()
         };
 
@@ -1839,10 +1896,10 @@ impl DebugSession {
             msg.address_range = Some(format!("{:X}", header_addr.load_address(&self.target)));
         }
 
-        let symbols = module.symbol_filespec();
+        let symbols = module.symbol_file_spec();
         if symbols.is_valid() {
             msg.symbol_status = Some("Symbols loaded.".into());
-            msg.symbol_file_path = Some(module.symbol_filespec().path().display().to_string());
+            msg.symbol_file_path = Some(module.symbol_file_spec().path().display().to_string());
         } else {
             msg.symbol_status = Some("Symbols not found".into())
         }

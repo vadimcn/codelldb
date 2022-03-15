@@ -6,7 +6,7 @@ export class AdapterSettings {
     dereferencePointers: boolean = true;
     evaluationTimeout: number;
     suppressMissingSourceFiles: boolean;
-    consoleMode: 'commands' | 'expressions';
+    consoleMode: 'commands' | 'evaluate';
     sourceLanguages: string[];
     terminalPromptClear: string[];
     evaluateForHovers: boolean;
@@ -25,13 +25,14 @@ export class Symbol {
     name: string;
     type: string;
     address: string;
+    location: any
 }
 
 export interface SymbolsRequest {
-    continuationToken: object;
+    filter: string,
+    maxResults: number
 }
 
 export interface SymbolsResponse {
     symbols: Symbol[];
-    continuationToken: object;
 }

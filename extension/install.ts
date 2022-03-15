@@ -110,10 +110,11 @@ async function getPlatformPackageUrl(): Promise<Uri> {
 async function download(srcUrl: Uri, destPath: string,
     progress?: (downloaded: number, contentLength?: number) => void) {
 
+    let url = srcUrl.toString(true);
     for (let i = 0; i < MaxRedirects; ++i) {
-        let response = await async.https.get(srcUrl.toString(true));
+        let response = await async.https.get(url);
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            srcUrl = Uri.parse(response.headers.location);
+            url = response.headers.location;
         } else {
             return new Promise(async (resolve, reject) => {
                 if (response.statusCode < 200 || response.statusCode >= 300) {

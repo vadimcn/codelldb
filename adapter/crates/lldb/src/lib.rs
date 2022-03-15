@@ -3,7 +3,7 @@
 
 use std::ffi::{CStr, CString};
 use std::fmt;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_int, c_uint};
 use std::ptr;
 use std::slice;
 use std::str;
@@ -104,10 +104,10 @@ mod cfile;
 mod strings;
 
 mod sb {
-    use cpp::{cpp, cpp_class};
-    use bitflags::bitflags;
     use super::strings::*;
     use super::*;
+    use bitflags::bitflags;
+    use cpp::{cpp, cpp_class};
 
     cpp! {{
         #ifdef _WIN32
@@ -127,6 +127,7 @@ mod sb {
     pub mod sbbroadcaster;
     pub mod sbcommandinterpreter;
     pub mod sbcommandreturnobject;
+    pub mod sbcompileunit;
     pub mod sbdata;
     pub mod sbdebugger;
     pub mod sberror;
@@ -139,6 +140,7 @@ mod sb {
     pub mod sblaunchinfo;
     pub mod sblinenetry;
     pub mod sblistener;
+    pub mod sbmemoryregioninfo;
     pub mod sbmodule;
     pub mod sbmodulespec;
     pub mod sbplatform;
@@ -164,6 +166,7 @@ pub use sb::sbbreakpointlocation::*;
 pub use sb::sbbroadcaster::*;
 pub use sb::sbcommandinterpreter::*;
 pub use sb::sbcommandreturnobject::*;
+pub use sb::sbcompileunit::*;
 pub use sb::sbdata::*;
 pub use sb::sbdebugger::*;
 pub use sb::sberror::*;
@@ -176,6 +179,7 @@ pub use sb::sbinstructionlist::*;
 pub use sb::sblaunchinfo::*;
 pub use sb::sblinenetry::*;
 pub use sb::sblistener::*;
+pub use sb::sbmemoryregioninfo::*;
 pub use sb::sbmodule::*;
 pub use sb::sbmodulespec::*;
 pub use sb::sbplatform::*;

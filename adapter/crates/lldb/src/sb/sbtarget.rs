@@ -207,6 +207,20 @@ impl SBTarget {
             return self->ReadInstructions(*base_addr, count);
         })
     }
+    pub fn read_memory(&self, base_addr: &SBAddress, buffer: &mut [u8]) -> Result<usize, SBError> {
+        let ptr = buffer.as_mut_ptr();
+        let len = buffer.len();
+        let mut error = SBError::new();
+        let bytes_read = cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*", ptr as "uint8_t*", len as "size_t",
+                                      mut error as "SBError"] -> usize as "size_t" {
+            return self->ReadMemory(*base_addr, (void*)ptr, len, error);
+        });
+        if error.is_success() {
+            Ok(bytes_read)
+        } else {
+            Err(error)
+        }
+    }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {
             cpp!(unsafe [self as "SBTarget*", expr as "const char*"] -> SBValue as "SBValue" {
@@ -336,6 +350,16 @@ pub enum LanguageType {
     // assume these can be used as indexes into array g_languages.
     MipsAssembler = 0x0024,   // Mips_Assembler.
     ExtRenderScript = 0x0025, // RenderScript.
+}
+
+impl From<u32> for LanguageType {
+    fn from(lang_type: u32) -> LanguageType {
+        if lang_type <= 0x0025 {
+            unsafe { std::mem::transmute(lang_type) }
+        } else {
+            LanguageType::Unknown
+        }
+    }
 }
 
 bitflags! {

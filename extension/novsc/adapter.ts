@@ -10,6 +10,8 @@ export interface AdapterStartOptions {
     extensionRoot: string;
     workDir: string;
     extraEnv: Dict<string>; // extra environment to be set for adapter
+    port: number,
+    connect: boolean, // Whether to connect or to listen on the port
     adapterParameters: Dict<any>; // feature parameters to pass on to the adapter
     verboseLogging: boolean;
 }
@@ -20,7 +22,8 @@ export async function start(
 ): Promise<cp.ChildProcess> {
 
     let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
-    let args = ['--liblldb', liblldb];
+    let portAction = options.connect ? '--connect' : '--port';
+    let args = ['--liblldb', liblldb, portAction, options.port.toString()];
     if (options.adapterParameters) {
         args = args.concat(['--params', JSON.stringify(options.adapterParameters)]);
     }
@@ -57,64 +60,6 @@ export async function spawnDebugAdapter(
         stdio: ['ignore', 'pipe', 'pipe'],
         env: env,
         cwd: workDir
-    });
-}
-
-export async function getDebugServerPort(adapter: cp.ChildProcess): Promise<number> {
-    let regex = /^Listening on port (\d+)\s/m;
-    let match = await waitForPattern(adapter, adapter.stdout, regex);
-    return parseInt(match[1]);
-}
-
-export function waitForPattern(
-    process: cp.ChildProcess,
-    channel: Readable,
-    pattern: RegExp,
-    timeoutMillis = 10000
-): Promise<RegExpExecArray> {
-    return new Promise<RegExpExecArray>((resolve, reject) => {
-        let promisePending = true;
-        let processOutput = '';
-        // Wait for expected pattern in channel.
-        channel.on('data', chunk => {
-            let chunkStr = chunk.toString();
-            if (promisePending) {
-                processOutput += chunkStr;
-                let match = pattern.exec(processOutput);
-                if (match) {
-                    clearTimeout(timer);
-                    processOutput = null;
-                    promisePending = false;
-                    resolve(match);
-                }
-            }
-        });
-        // On spawn error.
-        process.on('error', err => {
-            promisePending = false;
-            reject(err);
-        });
-        // Bail if LLDB does not start within the specified timeout.
-        let timer = setTimeout(() => {
-            if (promisePending) {
-                process.kill();
-                let err = Error('The debugger did not start within the allotted time.');
-                (<any>err).code = 'Timeout';
-                (<any>err).stdout = processOutput;
-                promisePending = false;
-                reject(err);
-            }
-        }, timeoutMillis);
-        // Premature exit.
-        process.on('exit', (code, signal) => {
-            if (promisePending) {
-                let err = Error('The debugger exited without completing startup handshake.');
-                (<any>err).code = 'Handshake';
-                (<any>err).stdout = processOutput;
-                promisePending = false;
-                reject(err);
-            }
-        });
     });
 }
 

@@ -124,6 +124,7 @@ impl Default for CompletionItem {
             length: None,
             start: None,
             text: None,
+            detail: None,
             type_: None,
             sort_text: None,
             selection_start: None,

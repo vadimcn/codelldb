@@ -348,8 +348,15 @@
 						"properties": {
 							"category": {
 								"type": "string",
-								"description": "The output category. If not specified, 'console' is assumed.",
-								"_enum": [ "console", "stdout", "stderr", "telemetry" ]
+								"description": "The output category. If not specified or if the category is not understand by the client, 'console' is assumed.",
+								"_enum": [ "console", "important", "stdout", "stderr", "telemetry" ],
+								"enumDescriptions": [
+									"Show the output in the client's default message UI, e.g. a 'debug console'. This category should only be used for informational output from the debugger (as opposed to the debuggee).",
+									"A hint for the client to show the ouput in the client's UI for important and highly visible information, e.g. as a popup notification. This category should only be used for important messages from the debugger (as opposed to the debuggee). Since this category value is a hint, clients might ignore the hint and assume the 'console' category.",
+									"Show the output as normal program output from the debuggee.",
+									"Show the output as error program output from the debuggee.",
+									"Send the output to telemetry instead of showing it to the user."
+								]
 							},
 							"output": {
 								"type": "string",
@@ -691,6 +698,38 @@
 			}]
 		},
 
+		"MemoryEvent": {
+			"allOf": [ { "$ref": "#/definitions/Event" }, {
+				"type": "object",
+				"description": "This event indicates that some memory range has been updated. It should only be sent if the debug adapter has received a value true for the `supportsMemoryEvent` capability of the `initialize` request.\nClients typically react to the event by re-issuing a `readMemory` request if they show the memory identified by the `memoryReference` and if the updated memory range overlaps the displayed range. Clients should not make assumptions how individual memory references relate to each other, so they should not assume that they are part of a single continuous address range and might overlap.\nDebug adapters can use this event to indicate that the contents of a memory range has changed due to some other DAP request like `setVariable` or `setExpression`. Debug adapters are not expected to emit this event for each and every memory change of a running program, because that information is typically not available from debuggers and it would flood clients with too many events.",
+				"properties": {
+					"event": {
+						"type": "string",
+						"enum": [ "memory" ]
+					},
+					"body": {
+						"type": "object",
+						"properties": {
+							"memoryReference": {
+								"type": "string",
+								"description": "Memory reference of a memory range that has been updated."
+							},
+							"offset": {
+								"type": "integer",
+								"description": "Starting offset in bytes where memory has been updated. Can be negative."
+							},
+							"count": {
+								"type": "integer",
+								"description": "Number of bytes updated."
+							}
+						},
+						"required": [ "memoryReference", "offset", "count" ]
+					}
+				},
+				"required": [ "event", "body" ]
+			}]
+		},
+
 		"RunInTerminalRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
@@ -839,6 +878,10 @@
 				"supportsInvalidatedEvent": {
 					"type": "boolean",
 					"description": "Client supports the invalidated event."
+				},
+				"supportsMemoryEvent": {
+					"type": "boolean",
+					"description": "Client supports the memory event."
 				}
 			},
 			"required": [ "adapterID" ]
@@ -971,7 +1014,16 @@
 		},
 		"RestartArguments": {
 			"type": "object",
-			"description": "Arguments for 'restart' request."
+			"description": "Arguments for 'restart' request.",
+			"properties": {
+				"arguments": {
+					"oneOf": [
+						{ "$ref": "#/definitions/LaunchRequestArguments" },
+						{ "$ref": "#/definitions/AttachRequestArguments" }
+					],
+					"description": "The latest version of the 'launch' or 'attach' configuration."
+				}
+			}
 		},
 		"RestartResponse": {
 			"allOf": [ { "$ref": "#/definitions/Response" }, {
@@ -1007,6 +1059,10 @@
 				"terminateDebuggee": {
 					"type": "boolean",
 					"description": "Indicates whether the debuggee should be terminated when the debugger is disconnected.\nIf unspecified, the debug adapter is free to do whatever it thinks is best.\nThe attribute is only honored by a debug adapter if the capability 'supportTerminateDebuggee' is true."
+				},
+				"suspendDebuggee": {
+					"type": "boolean",
+					"description": "Indicates whether the debuggee should stay suspended when the debugger is disconnected.\nIf unspecified, the debuggee should resume execution.\nThe attribute is only honored by a debug adapter if the capability 'supportSuspendDebuggee' is true."
 				}
 			}
 		},
@@ -1241,7 +1297,7 @@
 		"SetExceptionBreakpointsRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request configures the debuggers response to thrown exceptions.\nIf an exception is configured to break, a 'stopped' event is fired (with reason 'exception').\nClients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.\nIf a filter or filter option is invalid (e.g. due to an invalid 'condition'), the request should fail with an 'ErrorResponse' explaining the problem(s).",
+				"description": "The request configures the debuggers response to thrown exceptions.\nIf an exception is configured to break, a 'stopped' event is fired (with reason 'exception').\nClients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1285,7 +1341,21 @@
 		"SetExceptionBreakpointsResponse": {
 			"allOf": [ { "$ref": "#/definitions/Response" }, {
 				"type": "object",
-				"description": "Response to 'setExceptionBreakpoints' request. This is just an acknowledgement, so no body field is required."
+				"description": "Response to 'setExceptionBreakpoints' request.\nThe response contains an array of Breakpoint objects with information about each exception breakpoint or filter. The Breakpoint objects are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays given as arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.\nThe mandatory 'verified' property of a Breakpoint object signals whether the exception breakpoint or filter could be successfully created and whether the optional condition or hit count expressions are valid. In case of an error the 'message' property explains the problem. An optional 'id' property can be used to introduce a unique ID for the exception breakpoint or filter so that it can be updated subsequently by sending breakpoint events.\nFor backward compatibility both the 'breakpoints' array and the enclosing 'body' are optional. If these elements are missing a client will not be able to show problems for individual exception breakpoints or filters.",
+				"properties": {
+					"body": {
+						"type": "object",
+						"properties": {
+							"breakpoints": {
+								"type": "array",
+								"items": {
+									"$ref": "#/definitions/Breakpoint"
+								},
+								"description": "Information about the exception breakpoints or filters.\nThe breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information."
+							}
+						}
+					}
+				}
 			}]
 		},
 
@@ -1315,7 +1385,7 @@
 				},
 				"name": {
 					"type": "string",
-					"description": "The name of the Variable's child to obtain data breakpoint information for.\nIf variablesReference isn’t provided, this can be an expression."
+					"description": "The name of the Variable's child to obtain data breakpoint information for.\nIf variablesReference isn't provided, this can be an expression."
 				}
 			},
 			"required": [ "name" ]
@@ -1468,7 +1538,7 @@
 		"ContinueRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to run again.",
+				"description": "The request resumes execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1487,7 +1557,11 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Continue execution for the specified thread (if possible).\nIf the backend cannot continue on a single thread but will continue on all threads, it should set the 'allThreadsContinued' attribute in the response to true."
+					"description": "Specifies the active thread. If the debug adapter supports single thread execution (see 'supportsSingleThreadExecutionRequests') and the optional argument 'singleThread' is true, only the thread with this ID is resumed."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, execution is resumed only for the thread with given 'threadId'."
 				}
 			},
 			"required": [ "threadId" ]
@@ -1502,7 +1576,7 @@
 						"properties": {
 							"allThreadsContinued": {
 								"type": "boolean",
-								"description": "If true, the 'continue' request has ignored the specified thread and continued all threads instead.\nIf this attribute is missing a value of 'true' is assumed for backward compatibility."
+								"description": "The value true (or a missing property) signals to the client that all threads have been resumed. The value false must be returned if not all threads were resumed."
 							}
 						}
 					}
@@ -1514,7 +1588,7 @@
 		"NextRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to run again for one step.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.",
+				"description": "The request executes one step (in the given granularity) for the specified thread and allows all other threads to run freely by resuming them.\nIf the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1533,7 +1607,11 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Execute 'next' for this thread."
+					"description": "Specifies the thread for which to resume execution for one step (of the given granularity)."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, all other suspended threads are not resumed."
 				},
 				"granularity": {
 					"$ref": "#/definitions/SteppingGranularity",
@@ -1552,7 +1630,7 @@
 		"StepInRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to step into a function/method if possible.\nIf it cannot step into a target, 'stepIn' behaves like 'next'.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.\nIf there are multiple function/method calls (or other targets) on the source line,\nthe optional argument 'targetId' can be used to control into which target the 'stepIn' should occur.\nThe list of possible targets for a given source line can be retrieved via the 'stepInTargets' request.",
+				"description": "The request resumes the given thread to step into a function/method and allows all other threads to run freely by resuming them.\nIf the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.\nIf the request cannot step into a target, 'stepIn' behaves like the 'next' request.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.\nIf there are multiple function/method calls (or other targets) on the source line,\nthe optional argument 'targetId' can be used to control into which target the 'stepIn' should occur.\nThe list of possible targets for a given source line can be retrieved via the 'stepInTargets' request.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1571,7 +1649,11 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Execute 'stepIn' for this thread."
+					"description": "Specifies the thread for which to resume execution for one step-into (of the given granularity)."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, all other suspended threads are not resumed."
 				},
 				"targetId": {
 					"type": "integer",
@@ -1594,7 +1676,7 @@
 		"StepOutRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to run again for one step.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.",
+				"description": "The request resumes the given thread to step out (return) from a function/method and allows all other threads to run freely by resuming them.\nIf the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1613,7 +1695,11 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Execute 'stepOut' for this thread."
+					"description": "Specifies the thread for which to resume execution for one step-out (of the given granularity)."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, all other suspended threads are not resumed."
 				},
 				"granularity": {
 					"$ref": "#/definitions/SteppingGranularity",
@@ -1632,7 +1718,7 @@
 		"StepBackRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to run one step backwards.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.\nClients should only call this request if the capability 'supportsStepBack' is true.",
+				"description": "The request executes one backward step (in the given granularity) for the specified thread and allows all other threads to run backward freely by resuming them.\nIf the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true prevents other suspended threads from resuming.\nThe debug adapter first sends the response and then a 'stopped' event (with reason 'step') after the step has completed.\nClients should only call this request if the capability 'supportsStepBack' is true.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1651,7 +1737,11 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Execute 'stepBack' for this thread."
+					"description": "Specifies the thread for which to resume execution for one step backwards (of the given granularity)."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, all other suspended threads are not resumed."
 				},
 				"granularity": {
 					"$ref": "#/definitions/SteppingGranularity",
@@ -1670,7 +1760,7 @@
 		"ReverseContinueRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "The request starts the debuggee to run backward.\nClients should only call this request if the capability 'supportsStepBack' is true.",
+				"description": "The request resumes backward execution of all threads. If the debug adapter supports single thread execution (see capability 'supportsSingleThreadExecutionRequests') setting the 'singleThread' argument to true resumes only the specified thread. If not all threads were resumed, the 'allThreadsContinued' attribute of the response must be set to false.\nClients should only call this request if the capability 'supportsStepBack' is true.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -1689,8 +1779,13 @@
 			"properties": {
 				"threadId": {
 					"type": "integer",
-					"description": "Execute 'reverseContinue' for this thread."
+					"description": "Specifies the active thread. If the debug adapter supports single thread execution (see 'supportsSingleThreadExecutionRequests') and the optional argument 'singleThread' is true, only the thread with this ID is resumed."
+				},
+				"singleThread": {
+					"type": "boolean",
+					"description": "If this optional flag is true, backward execution is resumed only for the thread with given 'threadId'."
 				}
+
 			},
 			"required": [ "threadId" ]
 		},
@@ -1993,7 +2088,7 @@
 		"SetVariableRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "Set the variable with the given name in the variable container to a new value. Clients should only call this request if the capability 'supportsSetVariable' is true.",
+				"description": "Set the variable with the given name in the variable container to a new value. Clients should only call this request if the capability 'supportsSetVariable' is true.\nIf a debug adapter implements both setVariable and setExpression, a client will only use setExpression if the variable has an evaluateName property.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -2385,7 +2480,7 @@
 		"SetExpressionRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
-				"description": "Evaluates the given 'value' expression and assigns it to the 'expression' which must be a modifiable l-value.\nThe expressions have access to any variables and arguments that are in scope of the specified frame.\nClients should only call this request if the capability 'supportsSetExpression' is true.",
+				"description": "Evaluates the given 'value' expression and assigns it to the 'expression' which must be a modifiable l-value.\nThe expressions have access to any variables and arguments that are in scope of the specified frame.\nClients should only call this request if the capability 'supportsSetExpression' is true.\nIf a debug adapter implements both setExpression and setVariable, a client will only use setExpression if the variable has an evaluateName property.",
 				"properties": {
 					"command": {
 						"type": "string",
@@ -2752,6 +2847,67 @@
 			}]
 		},
 
+		"WriteMemoryRequest": {
+			"allOf": [ { "$ref": "#/definitions/Request" }, {
+				"type": "object",
+				"description": "Writes bytes to memory at the provided location.\nClients should only call this request if the capability 'supportsWriteMemoryRequest' is true.",
+				"properties": {
+					"command": {
+						"type": "string",
+						"enum": [ "writeMemory" ]
+					},
+					"arguments": {
+						"$ref": "#/definitions/WriteMemoryArguments"
+					}
+				},
+				"required": [ "command", "arguments" ]
+			}]
+		},
+		"WriteMemoryArguments": {
+			"type": "object",
+			"description": "Arguments for 'writeMemory' request.",
+			"properties": {
+				"memoryReference": {
+					"type": "string",
+					"description": "Memory reference to the base location to which data should be written."
+				},
+				"offset": {
+					"type": "integer",
+					"description": "Optional offset (in bytes) to be applied to the reference location before writing data. Can be negative."
+				},
+				"allowPartial": {
+					"type": "boolean",
+					"description": "Optional property to control partial writes. If true, the debug adapter should attempt to write memory even if the entire memory region is not writable. In such a case the debug adapter should stop after hitting the first byte of memory that cannot be written and return the number of bytes written in the response via the 'offset' and 'bytesWritten' properties.\nIf false or missing, a debug adapter should attempt to verify the region is writable before writing, and fail the response if it is not."
+				},
+				"data": {
+					"type": "string",
+					"description": "Bytes to write, encoded using base64."
+				}
+			},
+			"required": [ "memoryReference", "data" ]
+		},
+		"WriteMemoryResponse": {
+			"allOf": [ { "$ref": "#/definitions/Response" }, {
+				"type": "object",
+				"description": "Response to 'writeMemory' request.",
+				"properties": {
+					"body": {
+						"type": "object",
+						"properties": {
+							"offset": {
+								"type": "integer",
+								"description": "Optional property that should be returned when 'allowPartial' is true to indicate the offset of the first byte of data successfully written. Can be negative."
+							},
+							"bytesWritten": {
+								"type": "integer",
+								"description": "Optional property that should be returned when 'allowPartial' is true to indicate the number of bytes starting from address that were successfully written."
+							}
+						}
+					}
+				}
+			}]
+		},
+
 		"DisassembleRequest": {
 			"allOf": [ { "$ref": "#/definitions/Request" }, {
 				"type": "object",
@@ -2918,6 +3074,10 @@
 					"type": "boolean",
 					"description": "The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request."
 				},
+				"supportSuspendDebuggee": {
+					"type": "boolean",
+					"description": "The debug adapter supports the 'suspendDebuggee' attribute on the 'disconnect' request."
+				},
 				"supportsDelayedStackTraceLoading": {
 					"type": "boolean",
 					"description": "The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported."
@@ -2950,6 +3110,10 @@
 					"type": "boolean",
 					"description": "The debug adapter supports the 'readMemory' request."
 				},
+				"supportsWriteMemoryRequest": {
+					"type": "boolean",
+					"description": "The debug adapter supports the 'writeMemory' request."
+				},
 				"supportsDisassembleRequest": {
 					"type": "boolean",
 					"description": "The debug adapter supports the 'disassemble' request."
@@ -2977,6 +3141,10 @@
 				"supportsExceptionFilterOptions": {
 					"type": "boolean",
 					"description": "The debug adapter supports 'filterOptions' as an argument on the 'setExceptionBreakpoints' request."
+				},
+				"supportsSingleThreadExecutionRequests": {
+					"type": "boolean",
+					"description": "The debug adapter supports the 'singleThread' property on the execution requests ('continue', 'next', 'stepIn', 'stepOut', 'reverseContinue', 'stepBack')."
 				}
 			}
 		},
@@ -3327,7 +3495,7 @@
 				},
 				"value": {
 					"type": "string",
-					"description": "The variable's value. This can be a multi-line text, e.g. for a function the body of a function."
+					"description": "The variable's value.\nThis can be a multi-line text, e.g. for a function the body of a function.\nFor structured variables (which do not have a simple value), it is recommended to provide a one line representation of the structured object. This helps to identify the structured object in the collapsed state when its children are not yet visible.\nAn empty string can be used if no value should be shown in the UI."
 				},
 				"type": {
 					"type": "string",
@@ -3661,6 +3829,10 @@
 				"sortText": {
 					"type": "string",
 					"description": "A string that should be used when comparing this item with other items. When `falsy` the label is used."
+				},
+				"detail": {
+					"type": "string",
+					"description": "A human-readable string with additional information about this item, like type or symbol information."
 				},
 				"type": {
 					"$ref": "#/definitions/CompletionItemType",

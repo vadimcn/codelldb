@@ -2,7 +2,7 @@ import {
     workspace, window, commands, debug, env,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, DebugAdapterServer, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
+    DebugAdapterDescriptor, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget, DebugAdapterInlineImplementation,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -12,7 +12,6 @@ import * as querystring from 'querystring';
 import * as net from 'net';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
-import * as async from './novsc/async';
 import * as htmlView from './htmlView';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
@@ -24,6 +23,7 @@ import { AdapterSettings } from './adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
+import { ReverseAdapterConnector } from './novsc/reverseConnector';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -82,6 +82,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             }
         }));
 
+        this.registerDisplaySettingCommand('lldb.toggleConsoleMode', async (settings) => {
+            settings.consoleMode = (settings.consoleMode == 'commands') ? 'evaluate' : 'commands';
+        });
         this.registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
             settings.showDisassembly = <AdapterSettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
         });
@@ -116,20 +119,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async onActivate() {
-        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
-        let currVersion = pkg.version;
-        let lastVersion = this.context.globalState.get('lastLaunchedVersion');
-        if (currVersion != lastVersion) {
-            this.context.globalState.update('lastLaunchedVersion', currVersion);
-            if (lastVersion != undefined) {
-                let choice = await window.showInformationMessage('CodeLLDB extension has been updated', 'What\'s new?');
-                if (choice != null) {
-                    let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
-                    let uri = Uri.file(changelog);
-                    await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
-                }
-            }
-        }
         this.propagateDisplaySettings();
         install.ensurePlatformPackage(this.context, output, false);
     }
@@ -286,6 +275,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         await config.update('displayFormat', settings.displayFormat);
         await config.update('showDisassembly', settings.showDisassembly);
         await config.update('dereferencePointers', settings.dereferencePointers);
+        await config.update('consoleMode', settings.consoleMode);
     }
 
     // This is called When configuration change is detected. Updates UI, and if a debug session
@@ -296,7 +286,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         this.status.text =
             `Format: ${settings.displayFormat}  ` +
             `Disasm: ${settings.showDisassembly}  ` +
-            `Deref: ${settings.dereferencePointers ? 'on' : 'off'}`;
+            `Deref: ${settings.dereferencePointers ? 'on' : 'off'}  ` +
+            `Console: ${settings.consoleMode == 'commands' ? 'cmd' : 'eval'}`;
 
         if (debug.activeDebugSession && debug.activeDebugSession.type == 'lldb') {
             await debug.activeDebugSession.customRequest('_adapterSettings', settings);
@@ -322,6 +313,11 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 label: `Dereference pointers: ${settings.dereferencePointers ? 'on' : 'off'}`,
                 detail: 'Whether to show a summary of the pointee or a numeric pointer value.',
                 command: 'lldb.toggleDerefPointers'
+            },
+            {
+                label: `Console mode: ${settings.consoleMode}`,
+                detail: 'Whether Debug Console input is treated as debugger commands or as expressions to evaluate.',
+                command: 'lldb.toggleConsoleMode'
             }
         ];
         qpick.title = 'Debugger display settings';
@@ -435,10 +431,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             delete session.configuration.sourceLanguages;
         }
 
+        let connector = new ReverseAdapterConnector();
+        let port = await connector.listen();
+
         try {
-            let [adapter, port] = await this.startDebugAdapter(session.workspaceFolder, adapterParams);
-            let descriptor = new DebugAdapterServer(port);
-            return descriptor;
+            await this.startDebugAdapter(session.workspaceFolder, adapterParams, port);
+            await connector.accept();
+            return new DebugAdapterInlineImplementation(connector);
         } catch (err) {
             this.analyzeStartupError(err);
             throw err;
@@ -508,8 +507,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async startDebugAdapter(
         folder: WorkspaceFolder | undefined,
-        adapterParams: Dict<string>
-    ): Promise<[ChildProcess, number]> {
+        adapterParams: Dict<string>,
+        connectPort: number
+    ): Promise<ChildProcess> {
         let config = this.getExtensionConfig(folder);
         let adapterEnv = config.get('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
@@ -525,12 +525,13 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             extensionRoot: this.context.extensionPath,
             extraEnv: adapterEnv,
             workDir: workspace.rootPath,
+            port: connectPort,
+            connect: true,
             adapterParameters: adapterParams,
             verboseLogging: verboseLogging
         });
 
         util.logProcessOutput(adapterProcess, output);
-        let port = await adapter.getDebugServerPort(adapterProcess);
 
         adapterProcess.on('exit', async (code, signal) => {
             output.appendLine(`Debug adapter exit code=${code}, signal=${signal}.`);
@@ -541,7 +542,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 }
             }
         });
-        return [adapterProcess, port];
+        return adapterProcess;
     }
 
     // Resolve paths of the native adapter libraries and cache them.
@@ -568,9 +569,17 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async runDiagnostics(folder?: WorkspaceFolder) {
         let succeeded;
         try {
-            let [_, port] = await this.startDebugAdapter(folder, {});
-            let socket = await async.net.createConnection({ port: port, timeout: 1000 });
-            socket.destroy()
+            let connector = new ReverseAdapterConnector();
+            let port = await connector.listen();
+            let adapter = await this.startDebugAdapter(folder, {}, port);
+            let adapterExitAsync = new Promise((resolve, reject) => {
+                adapter.on('exit', resolve);
+                adapter.on('error', reject);
+            });
+            await connector.accept();
+            connector.handleMessage({ seq: 1, type: 'request', command: 'disconnect' });
+            connector.dispose();
+            await adapterExitAsync;
             succeeded = true;
         } catch (err) {
             succeeded = false;

@@ -1,4 +1,3 @@
-use crate::debug_protocol::*;
 use crate::disassembly;
 use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
@@ -12,6 +11,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use adapter_protocol::*;
 use lldb::*;
 
 #[derive(Debug, Clone)]
@@ -181,25 +181,27 @@ impl super::DebugSession {
         adapter_data: &disassembly::AdapterData,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let mut new_bps = HashMap::new();
         let mut result = vec![];
         let line_addresses = disassembly::DisassembledRange::lines_from_adapter_data(adapter_data);
         for req in requested_bps {
-            let address = line_addresses[req.line as usize] as Address;
-            let bp = self.target.breakpoint_create_by_load_address(address);
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Disassembly,
-                condition: empty_to_none(&req.condition),
-                log_message: empty_to_none(&req.log_message),
-                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
-                hit_count: 0,
-            };
-            self.init_bp_actions(&bp_info);
-            result.push(self.make_bp_response(&bp_info, false));
-            new_bps.insert(req.line, bp_info.id);
-            self.breakpoints.get_mut().breakpoint_infos.insert(bp_info.id, bp_info);
+            if req.line >= 0 && req.line < line_addresses.len() as i64 {
+                let address = line_addresses[req.line as usize] as Address;
+                let bp = self.target.breakpoint_create_by_load_address(address);
+                let bp_info = BreakpointInfo {
+                    id: bp.id(),
+                    breakpoint: bp,
+                    kind: BreakpointKind::Disassembly,
+                    condition: empty_to_none(&req.condition),
+                    log_message: empty_to_none(&req.log_message),
+                    hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
+                    hit_count: 0,
+                };
+                self.init_bp_actions(&bp_info);
+                result.push(self.make_bp_response(&bp_info, false));
+                self.breakpoints.get_mut().breakpoint_infos.insert(bp_info.id, bp_info);
+            } else {
+                result.push(Default::default());
+            }
         }
         Ok(result)
     }

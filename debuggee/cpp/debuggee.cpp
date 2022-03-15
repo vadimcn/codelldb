@@ -142,10 +142,8 @@ void vars()
 
     struct AnonUnion
     {
-        union {
-            int x;
-            int y;
-        };
+        union { int x; int w; };
+        union { int y; int h; };
     };
 
     int a = 10;
@@ -172,7 +170,7 @@ void vars()
         Struct** null_s_ptr_ptr = &null_s_ptr;
         Struct* invalid_s_ptr = (Struct *)1;
         void* void_ptr = &s1;
-        AnonUnion anon_union = { 4 };
+        AnonUnion anon_union = { 4, 5 };
         DeepStruct ds1 = {13, "foo", 3.14f,                  //
                           {i, 'd', 4.0f, {1, 2, 3, i}},      //
                           {{i * 2, 's', 5.0f, {4, 5, 6, i}}, //

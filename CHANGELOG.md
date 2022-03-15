@@ -1,5 +1,30 @@
 # Release Notes
 
+# 1.7.0
+
+## Changed
+- CodeLLDB configuration settings are now split into three groups: basic, advanced, and launch configuration defaults.
+
+## New
+- Updated LLDB to 14.0.0
+- Added support for VSCode [memory viewer](https://code.visualstudio.com/updates/v1_64#_viewing-and-editing-binary-data).
+- Added UI for [console mode](MANUAL.md#debug-console) switching.
+
+## Fixed
+- #584: Rust - With Simple Function, LLDB Debugger variables duplicated and random?
+- #633: Rust now emits with a new PDB language identifier, breaking debugging on Windows
+
+# 1.6.10
+
+## Fixed
+- #568: Viewing a struct with union:s in C++ doesn't show all the member variables
+- #573: Installing package flags "Unauthorized"
+
+# 1.6.9
+
+## Fixed
+- #465: Incompatibility with arm64 macOS Monterey.
+
 # 1.6.8
 
 ## Changed

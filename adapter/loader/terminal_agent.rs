@@ -19,7 +19,7 @@ pub fn terminal_agent(matches: &ArgMatches) -> Result<(), Error> {
         data = std::process::id();
     }
 
-    let port: u16 = matches.value_of("port").unwrap().parse().unwrap();
+    let port: u16 = matches.value_of("connect").unwrap().parse().unwrap();
     let addr = net::SocketAddr::new(net::Ipv4Addr::new(127, 0, 0, 1).into(), port);
     let mut stream = net::TcpStream::connect(addr)?;
     writeln!(stream, "{}", data)?;

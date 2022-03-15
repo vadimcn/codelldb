@@ -10,7 +10,6 @@ mod cancellation;
 mod dap_codec;
 mod dap_session;
 mod debug_event_listener;
-mod debug_protocol;
 mod debug_session;
 mod disassembly;
 mod expressions;
@@ -21,21 +20,20 @@ mod platform;
 mod python;
 mod shared;
 mod terminal;
-mod vec_map;
 
-use crate::debug_protocol::{AdapterSettings, Either};
 use crate::prelude::*;
+use adapter_protocol::{AdapterSettings, Either};
 use lldb::*;
 use std::net;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&str>) {
+pub extern "C" fn entry(port: u16, connect: bool, multi_session: bool, adapter_params: Option<&str>) {
     hook_crashes();
     env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
@@ -73,7 +71,23 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
         .enable_all()
         .build()
         .unwrap();
-    rt.block_on(run_debug_server(addr, adapter_settings, multi_session));
+
+    rt.block_on(async {
+        if connect {
+            let tcp_stream = TcpStream::connect(addr).await?;
+            run_debug_session(tcp_stream, adapter_settings.clone()).await;
+        } else {
+            let listener = TcpListener::bind(&addr).await?;
+            while {
+                let (tcp_stream, _) = listener.accept().await?;
+                run_debug_session(tcp_stream, adapter_settings.clone()).await;
+                multi_session
+            } {}
+        }
+        Ok::<(), Error>(())
+    })
+    .unwrap();
+
     rt.shutdown_timeout(Duration::from_millis(10));
 
     finalize_reproducer();
@@ -82,29 +96,15 @@ pub extern "C" fn entry(port: u16, multi_session: bool, adapter_params: Option<&
     SBDebugger::terminate();
 }
 
-async fn run_debug_server(
-    addr: net::SocketAddr,
-    adapter_settings: debug_protocol::AdapterSettings,
-    multi_session: bool,
-) {
-    let listener = TcpListener::bind(&addr).await.unwrap();
-
-    println!("Listening on port {}", listener.local_addr().unwrap().port());
-
-    loop {
-        let (tcp_stream, _) = listener.accept().await.unwrap();
-        debug!("New debug session");
-        tcp_stream.set_nodelay(true).unwrap();
-        let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
-        let (dap_session, dap_fut) = dap_session::DAPSession::new(Box::new(framed_stream));
-        let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
-        tokio::spawn(dap_fut);
-        session_fut.await;
-        debug!("Session has ended");
-        if !multi_session {
-            break;
-        }
-    }
+async fn run_debug_session(tcp_stream: TcpStream, adapter_settings: adapter_protocol::AdapterSettings) {
+    debug!("New debug session");
+    tcp_stream.set_nodelay(true).unwrap();
+    let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+    let (dap_session, dap_fut) = dap_session::DAPSession::new(Box::new(framed_stream));
+    let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
+    tokio::spawn(dap_fut);
+    session_fut.await;
+    debug!("End of debug session");
 }
 
 #[cfg(unix)]

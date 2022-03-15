@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::dap_session::DAPSession;
-use crate::debug_protocol::*;
+use adapter_protocol::*;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
@@ -43,7 +43,7 @@ impl Terminal {
             // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
             // or its own process id (Windows), then waits till the socket gets closed from our end.
             let executable = std::env::current_exe()?.to_str().unwrap().into();
-            let args = vec![executable, "terminal-agent".into(), format!("--port={}", addr.port())];
+            let args = vec![executable, "terminal-agent".into(), format!("--connect={}", addr.port())];
             let req_args = RunInTerminalRequestArguments {
                 args: args,
                 cwd: String::new(),

@@ -23,6 +23,11 @@ else()
     message(FATAL_ERROR "LLDB_PACKAGE not set." )
 endif()
 
+if (CMAKE_SYSROOT)
+    set(CMAKE_C_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_CXX_FLAGS}")
+endif()
+
 set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
 
 # General OS-specific definitions

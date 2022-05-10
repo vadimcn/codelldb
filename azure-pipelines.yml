@@ -15,7 +15,6 @@ variables:
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
       set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
       set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
-      echo "$(publicRelease)"
 
 ########################################################################################################################
 
@@ -86,6 +85,7 @@ jobs:
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
+            -DCMAKE_SYSROOT=/stretch\
             ..
       cat CMakeCache.txt
     displayName: 'Configure'

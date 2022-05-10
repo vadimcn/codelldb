@@ -54,7 +54,7 @@ Note that many of the launch parameters may be given default values via user, wo
 |**cwd**            |string| | Working directory.
 |**env**            |dictionary| | Additional environment variables.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| | See [Stdio Configuration](#stdio).
-|**terminal**       |string| | Destination for debuggee's stdio streams: <ul><li>`console` (default) for Debug Console</li><li>`integrated` for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**terminal**       |string| | Destination for debuggee's stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| | Whether to stop debuggee immediately after launching.
 |**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
 |**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.

@@ -46,7 +46,7 @@
 		"typescript": "^4.2.4",
 		"mocha": "^8.4.0",
 		"source-map-support": "^0.5.12",
-		"vsce": "^1.88.0",
+		"vsce": "^2.8.0",
 		"webpack": "^5.37.1",
 		"webpack-cli": "^4.7.0",
 		"ts-loader": "^8.0.0"
@@ -130,11 +130,6 @@
 				"title": "Search Symbols...",
 				"command": "lldb.symbols",
 				"enablement": "debugType == 'lldb'"
-			},
-			{
-				"category": "LLDB",
-				"title": "Show Memory...",
-				"command": "lldb.showMemory"
 			}
 		],
 		"languages": [
@@ -379,7 +374,7 @@
 						"scope": "resource"
 					},
 					"lldb.dbgconfig": {
-						"description": "Common used-defined settings that can be inserted into launch configurations using ${dbgconfig:name} syntax.",
+						"description": "Common user-defined settings that can be inserted into launch configurations using ${dbgconfig:name} syntax.",
 						"type": "object",
 						"patternProperties": {
 							".*": {

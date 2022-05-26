@@ -11,6 +11,7 @@ add_library(debuggee2 SHARED
 # debuggee
 add_executable(debuggee
     cpp/debuggee.cpp
+    cpp/types.cpp
     cpp/no_line_info.cpp # without debug info, for testing disassembly
     cpp/denorm_path.cpp  # test debugger's path normalization
     cpp/relative_path.cpp  # test source map

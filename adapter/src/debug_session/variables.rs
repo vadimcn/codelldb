@@ -263,40 +263,16 @@ impl super::DebugSession {
         }
 
         let mut var = Cow::Borrowed(var);
-        if self.deref_pointers && format == Format::Default {
+        if self.deref_pointers
+            && format == Format::Default
+            && var.type_().type_class().intersects(TypeClass::Pointer | TypeClass::Reference)
+        {
             // Rather than showing pointer's numeric value, which is rather uninteresting,
             // we prefer to display summary of the object it points to.
-            let var_type = var.type_();
-            if var_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
-                let pointee_type = var_type.pointee_type();
-                // If the pointer has an associated synthetic, or if it's a pointer to a basic
-                // type such as `char`, use summary of the pointer itself;
-                // otherwise prefer to dereference and use summary of the pointee.
-                if var.is_synthetic() || pointee_type.basic_type() != BasicType::Invalid {
-                    if let Some(value_str) = var.summary().map(|s| into_string_lossy(s)) {
-                        return value_str;
-                    }
-                }
-
-                let pointee = var.dereference();
-                // If pointee is a pointer too, display its value in curly braces, otherwise it gets rather confusing.
-                if pointee_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
-                    if let Some(value_str) = pointee.value().map(|s| into_string_lossy(s)) {
-                        return format!("{{{}}}", value_str);
-                    }
-                }
-
-                let pointee_type_size = pointee_type.byte_size() as usize;
-                if pointee.is_valid() && pointee_type_size == pointee.data().byte_size() {
-                    // If pointee is valid and its data can be read, we'll display pointee summary instead of var's.
-                    var = Cow::Owned(pointee);
-                } else {
-                    if var.value_as_unsigned(0) == 0 {
-                        return "<null>".to_owned();
-                    } else if pointee_type_size > 0 {
-                        return "<invalid address>".to_owned();
-                    }
-                }
+            match self.try_deref_pointer(var.as_ref()) {
+                Either::First(summary) => return summary,
+                Either::Second(Some(pointee)) => var = Cow::Owned(pointee),
+                _ => {}
             }
         }
 
@@ -315,6 +291,47 @@ impl super::DebugSession {
         };
         var.set_format(prev_format);
         summary
+    }
+
+    // This may return either a summary string or a pointee
+    fn try_deref_pointer(&self, ptr: &SBValue) -> Either<String, Option<SBValue>> {
+        // If the pointer has an associated synthetic, or if it's a pointer to a basic
+        // type such as `char`, use summary of the pointer itself;
+        // otherwise prefer to dereference and use summary of the pointee.
+        let pointee_type = ptr.type_().pointee_type();
+        if ptr.is_synthetic() || pointee_type.basic_type() != BasicType::Invalid {
+            if let Some(value_str) = ptr.summary().map(|s| into_string_lossy(s)) {
+                return Either::First(value_str);
+            }
+        }
+
+        if ptr.value_as_unsigned(0) == 0 {
+            return Either::First("<null>".to_owned());
+        }
+
+        let pointee = ptr.dereference();
+        if pointee.is_valid() {
+            if pointee.data().byte_size() > 0 {
+                if pointee_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
+                    // If pointee is a pointer too, display its value in curly braces, otherwise it gets rather confusing.
+                    if let Some(value_str) = pointee.value().map(|s| into_string_lossy(s)) {
+                        return Either::First(format!("{{{}}}", value_str));
+                    }
+                }
+                return Either::Second(Some(pointee)); // The replacement value
+            } else {
+                return Either::First("<invalid address>".to_owned());
+            }
+        } else {
+            // Could be a void*.  Try reading one byte to determine wheter the address is valid.
+            let addr = ptr.value_as_unsigned(0);
+            let mut buff = [0u8];
+            if let Ok(1) = self.process.read_memory(addr, &mut buff) {
+                return Either::Second(None);
+            } else {
+                return Either::First("<invalid address>".to_owned());
+            }
+        }
     }
 
     fn get_container_summary(var: &SBValue) -> String {

@@ -18,6 +18,7 @@ else if (triple.endsWith('pc-windows-msvc'))
 const debuggee = path.join(debuggeeDir, 'debuggee');
 const debuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'debuggee.cpp'));
 const debuggeeHeader = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
+const debuggeeTypes = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'types.cpp'));
 const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'denorm_path.cpp'));
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
@@ -230,12 +231,12 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                        await ds.setBreakpoint(debuggeeTypes, bpLine);
                     });
-                await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
+                await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeTypes, bpLine);
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
 
@@ -271,7 +272,10 @@ function generateSuite(triple: string) {
                     null_s_ptr: '<null>',
                     null_s_ptr_ptr: v => v.value.startsWith('{0x'),
                     invalid_s_ptr: '<invalid address>',
+
                     void_ptr: v => v.value.startsWith('0x'),
+                    null_void_ptr: '<null>',
+                    invalid_void_ptr: '<invalid address>',
                 });
 
                 let fields = await ds.readVariables(locals['anon_union'].variablesReference);
@@ -293,7 +297,7 @@ function generateSuite(triple: string) {
 
                 // Read a class-qualified static.
                 let response2 = await ds.evaluateRequest({
-                    expression: 'Klazz::m1', context: 'watch', frameId: frameId
+                    expression: 'Class::ms', context: 'watch', frameId: frameId
                 });
                 assert.equal(response2.body.result, '42');
 
@@ -315,17 +319,17 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP4');
+                let bpLine = findMarker(debuggeeTypes, '#BP4');
                 let stopAsync = ds.launchAndWaitForStop({ name: 'variables update', program: debuggee, args: ['vars_update'] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                        await ds.setBreakpoint(debuggeeTypes, bpLine);
                     });
                 let vectorExpect: { [key: string]: number; } = {};
                 for (let i = 0; i < 10; ++i) {
                     vectorExpect[`[${i}]`] = i;
 
                     let stoppedEvent = await stopAsync;
-                    await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeSource, bpLine);
+                    await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeTypes, bpLine);
                     let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                     let localsRef = await ds.getFrameLocalsRef(frameId);
                     await ds.compareVariables(localsRef, { i: i, vector: vectorExpect });
@@ -339,10 +343,10 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                        await ds.setBreakpoint(debuggeeTypes, bpLine);
                     });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
@@ -389,12 +393,12 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /se', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /se',
                     program: debuggee, args: ['vars']
                 }, async () => {
-                    await ds.setBreakpoint(debuggeeSource, bpLine, '/se i == 5');
+                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/se i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -404,12 +408,12 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /py', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /py',
                     program: debuggee, args: ['vars']
                 }, async () => {
-                    await ds.setBreakpoint(debuggeeSource, bpLine, '/py $i == 5');
+                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/py $i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -420,12 +424,12 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /nat', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /nat',
                     program: debuggee, args: ['vars']
                 }, async () => {
-                    await ds.setBreakpoint(debuggeeSource, bpLine, '/nat i == 5');
+                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/nat i == 5');
                 });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -468,10 +472,10 @@ function generateSuite(triple: string) {
 
             test('debugger api', async function () {
                 let ds = await DebugTestSession.start();
-                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
+                        await ds.setBreakpoint(debuggeeTypes, bpLine);
                     });
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 

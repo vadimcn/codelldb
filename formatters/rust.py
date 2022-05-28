@@ -47,13 +47,13 @@ def initialize_category(debugger):
     attach_synthetic_to_type(MsvcSliceSynthProvider, r'^(mut *)?slice\$?<.+>.*$', True)
 
     attach_synthetic_to_type(StdCStringSynthProvider, 'std::ffi::c_str::CString')
-    attach_synthetic_to_type(StdCStrSynthProvider, 'std::ffi::c_str::CStr')
+    attach_synthetic_to_type(StdCStrSynthProvider, '^&?std::ffi::c_str::CStr', True)
 
     attach_synthetic_to_type(StdOsStringSynthProvider, 'std::ffi::os_str::OsString')
-    attach_synthetic_to_type(StdOsStrSynthProvider, 'std::ffi::os_str::OsStr')
+    attach_synthetic_to_type(StdOsStrSynthProvider, '^&?std::ffi::os_str::OsStr', True)
 
     attach_synthetic_to_type(StdPathBufSynthProvider, 'std::path::PathBuf')
-    attach_synthetic_to_type(StdPathSynthProvider, 'std::path::Path')
+    attach_synthetic_to_type(StdPathSynthProvider, '^&?std::path::Path', True)
 
     attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Rc<.+>$', True)
     attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Weak<.+>$', True)

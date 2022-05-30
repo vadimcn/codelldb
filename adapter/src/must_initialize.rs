@@ -25,6 +25,7 @@ impl<T> MustInitialize<T> {
 impl<T> Deref for MustInitialize<T> {
     type Target = T;
 
+    #[track_caller]
     fn deref(&self) -> &T {
         match self {
             Initialized(ref r) => r,
@@ -36,6 +37,7 @@ impl<T> Deref for MustInitialize<T> {
 }
 
 impl<T> DerefMut for MustInitialize<T> {
+    #[track_caller]
     fn deref_mut(&mut self) -> &mut T {
         match self {
             Initialized(ref mut r) => r,

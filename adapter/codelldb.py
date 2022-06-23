@@ -290,14 +290,19 @@ def evaluate_in_context(code, simple_expr, execution_context):
 # ============================================================================================
 
 
-@lldb.command('debug_info')
-def debug_info(debugger, command, result, internal_dict):
-    '''Display compilation units found in each module's debug info.\nUsage: debug_info [module name]'''
+@lldb.command('show_debug_info')
+def show_debug_info(debugger, command, result, internal_dict):
+    '''Display compilation units found in each module's debug info.\nUsage: debug_info [-v|--verbose] [module name]'''
+    import argparse
     import shlex
-    args = shlex.split(command)
-    if len(args) > 0:
+    parser = argparse.ArgumentParser('show_debug_info')
+    parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('mod_name', nargs='?')
+    args = parser.parse_args(shlex.split(command))
+    print(args)
+    if args.mod_name:
         import re
-        regex = re.compile(args[0])
+        regex = re.compile(args.mod_name)
         filter = lambda mod: regex.search(mod.platform_file.fullpath)
     else:
         filter = lambda mod: True
@@ -305,11 +310,10 @@ def debug_info(debugger, command, result, internal_dict):
     target = debugger.GetSelectedTarget()
     for module in target.modules:
         if filter(module):
-            result.write('Module {}\n'.format(module.platform_file.fullpath))
-            if len(module.compile_units) == 0:
-                result.write('    No compile units found.\n')
-            else:
+            result.write('Module {} : {} compile units with debug info\n'.format(
+                            module.platform_file.fullpath, len(module.compile_units)))
+            if args.verbose:
                 for cu in module.compile_units:
                     result.write('    {}\n'.format(cu.file.fullpath))
-            result.write('\n')
+                result.write('\n')
             result.flush()

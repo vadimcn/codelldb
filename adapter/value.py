@@ -1,8 +1,9 @@
 import lldb
 import operator
 
-# A wrapper around SBValue that overloads Python operators to do the right thing (well, mostly).
+
 class Value(object):
+    '''A wrapper around SBValue that implements standard Python operators.'''
     __slots__ = ['__sbvalue']
 
     def __init__(self, sbvalue):
@@ -55,15 +56,17 @@ class Value(object):
         return complex(get_value(self))
 
     def __int__(self):
-        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue.GetType().GetCanonicalType().GetBasicType())
-        if is_num and not is_signed: return self.__sbvalue.GetValueAsUnsigned()
-        return self.__sbvalue.GetValueAsSigned()
+        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue)
+        if is_num and is_signed:
+            return self.__sbvalue.GetValueAsSigned()
+        else:
+            return self.__sbvalue.GetValueAsUnsigned()
 
     def __long__(self):
         return self.__int__()
 
     def __float__(self):
-        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue.GetType().GetCanonicalType().GetBasicType())
+        is_num, is_signed, is_float = is_numeric_type(self.__sbvalue)
         if is_num and is_float:
             return float(self.__sbvalue.GetValue())
         else:
@@ -80,6 +83,9 @@ class Value(object):
 
     def __len__(self):
         return self.__sbvalue.GetNumChildren()
+
+    def __contains__(self, other):
+        return get_value(self).__contains__(other)
 
     # On-the-left ops
     def __add__(self, other):
@@ -230,6 +236,7 @@ class Value(object):
     def __ne__(self, other):
         return get_value(self) != get_value(other)
 
+
 class ValueIter(object):
     __slots__ = ['index', 'sbvalue', 'length']
 
@@ -248,13 +255,14 @@ class ValueIter(object):
         self.index += 1
         return Value(child_sbvalue)
 
-    next = __next__ # PY2 compatibility.
+    next = __next__  # PY2 compatibility.
 
-# Converts a Value to an int, a float or a string
+
 def get_value(v):
+    '''Convert a Value to an int, a float or a string'''
     if type(v) is Value:
         sbvalue = Value.unwrap(v)
-        is_num, is_signed, is_float = is_numeric_type(sbvalue.GetType().GetCanonicalType().GetBasicType())
+        is_num, is_signed, is_float = is_numeric_type(sbvalue)
         if is_num:
             if is_float:
                 return float(sbvalue.GetValue())
@@ -268,11 +276,14 @@ def get_value(v):
                 str_val = str_val[1:-1]
             return str_val
     else:
-        return v # passthrough
+        return v  # passthrough
 
-# given an lldb.SBBasicType it returns a tuple (is_numeric, is_signed, is_float)
-def is_numeric_type(basic_type):
-    return type_traits.get(basic_type, (False, False, False))
+
+def is_numeric_type(sbvalue):
+    return type_traits.get(sbvalue.GetType().GetCanonicalType().GetBasicType(), (False, False, False))
+
+
+# lldb.SBBasicType => (is_numeric, is_signed, is_float)
 type_traits = {
     lldb.eBasicTypeInvalid: (False, False, False),
     lldb.eBasicTypeVoid: (False, False, False),

@@ -335,36 +335,35 @@ impl super::DebugSession {
     }
 
     fn get_container_summary(var: &SBValue) -> String {
+        // Summary evaluation is supposed to be quick, so cap it at 10ms.
+        const MAX_EVALUATION_TIME: time::Duration = time::Duration::from_millis(10);
         const MAX_LENGTH: usize = 32;
 
+        let start = time::SystemTime::now();
         let mut summary = String::from("{");
-        let mut empty = true;
+        let mut sep = "";
         for child in var.children() {
-            if summary.len() > MAX_LENGTH {
-                summary.push_str(", ...");
+            if summary.len() > MAX_LENGTH || start.elapsed().unwrap_or_default() > MAX_EVALUATION_TIME {
+                log_errors!(write!(summary, "{}...", sep));
                 break;
             }
 
             if let Some(name) = child.name() {
                 if let Some(Ok(value)) = child.value().map(|s| s.to_str()) {
-                    if empty {
-                        empty = false;
-                    } else {
-                        summary.push_str(", ");
-                    }
-
                     if name.starts_with("[") {
-                        summary.push_str(value);
+                        log_errors!(write!(summary, "{}{}", sep, value));
                     } else {
-                        log_errors!(write!(summary, "{}:{}", name, value));
+                        log_errors!(write!(summary, "{}{}:{}", sep, name, value));
                     }
+                    sep = ", ";
                 }
             }
         }
 
-        if empty {
+        if summary.len() <= 1 {
             summary.push_str("...");
         }
+
         summary.push_str("}");
         summary
     }

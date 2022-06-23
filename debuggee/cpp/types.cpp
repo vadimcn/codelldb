@@ -60,7 +60,7 @@ void vars()
         static int sss = 555;
         const char c[] = "foobar";
         const char c2[] = { 'F', 'o', 'o', 'B', 'a', 'r' };
-        char buffer[10240] = {0};
+        int large_array[100000] = {0};
         int array_int[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         int* array_int_ptr = array_int;
         std::vector<std::vector<int>> vec_int(10, {i * 1, i * 2, i * 3, i * 4, i * 5});

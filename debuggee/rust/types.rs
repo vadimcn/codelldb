@@ -217,6 +217,7 @@ fn boxes() {
 
     let cell = cell::Cell::new(10);
     let ref_cell = cell::RefCell::new(10);
+    let ref_ref_cell = &ref_cell;
 
     let ref_cell2 = cell::RefCell::new(11);
     let ref_cell2_borrow1 = ref_cell2.borrow();

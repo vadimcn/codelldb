@@ -24,6 +24,7 @@ import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
+import { SimpleServer } from './simpleServer';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -44,7 +45,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     htmlViewer: htmlView.DebuggerHtmlView;
     status: StatusBarItem;
     loadedModules: ModuleTreeDataProvider;
-    rpcServer: net.Server;
+    rpcServer: SimpleServer;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -204,38 +205,28 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let rpcOptions: any = config.get('rpcServer');
         if (rpcOptions) {
             output.appendLine(`Starting RPC server with: ${inspect(rpcOptions)}`);
-            this.rpcServer = net.createServer({
-                allowHalfOpen: true
-            });
-            this.rpcServer.on('error', err => {
-                output.appendLine(err.toString())
-            });
-            this.rpcServer.on('connection', socket => {
-                let request = '';
-                socket.on('data', chunk => request += chunk);
-                socket.on('end', async () => {
-                    let debugConfig: DebugConfiguration = {
-                        type: 'lldb',
-                        request: 'launch',
-                        name: '',
-                    };
-                    Object.assign(debugConfig, YAML.parse(request));
-                    debugConfig.name = debugConfig.name || debugConfig.program;
-                    if (rpcOptions.token) {
-                        if (debugConfig.token != rpcOptions.token)
-                            return;
-                        delete debugConfig.token;
-                    }
-                    let result;
-                    try {
-                        let success = await debug.startDebugging(undefined, debugConfig);
-                        result = { success: success };
-                    } catch (err) {
-                        result = { success: false, message: err.toString() };
-                    }
-                    socket.end(JSON.stringify(result));
-                });
-            });
+
+            this.rpcServer = new SimpleServer({ allowHalfOpen: true });
+            this.rpcServer.processRequest = async (request) => {
+                let debugConfig: DebugConfiguration = {
+                    type: 'lldb',
+                    request: 'launch',
+                    name: '',
+                };
+                Object.assign(debugConfig, YAML.parse(request));
+                debugConfig.name = debugConfig.name || debugConfig.program;
+                if (rpcOptions.token) {
+                    if (debugConfig.token != rpcOptions.token)
+                        return '';
+                    delete debugConfig.token;
+                }
+                try {
+                    let success = await debug.startDebugging(undefined, debugConfig);
+                    return JSON.stringify({ success: success });
+                } catch (err) {
+                    return JSON.stringify({ success: false, message: err.toString() });
+                }
+            };
             this.rpcServer.listen(rpcOptions);
         }
     }

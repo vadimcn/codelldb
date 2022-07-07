@@ -117,16 +117,12 @@ def gcm(valobj, *chain):
     return valobj
 
 
+# Get a pointer out of core::ptr::Unique<T>
 def read_unique_ptr(valobj):
     pointer = valobj.GetChildMemberWithName('pointer')
-    if not pointer.TypeIsPointerType():  # Before 1.33, pointer was a NonZero<*const T>, after - just *const T
-        child = pointer.GetChildMemberWithName('__0')  # Plain lldb or PDB
-        if child.IsValid():
-            return child
-        child = pointer.GetChildMemberWithName('0')  # rust-lldb
-        if child.IsValid():
-            return child
-    return pointer
+    if pointer.TypeIsPointerType(): # Between 1.33 and 1.63 pointer was just *const T
+        return pointer
+    return pointer.GetChildAtIndex(0)
 
 
 def string_from_ptr(pointer, length):

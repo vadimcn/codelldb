@@ -16,10 +16,16 @@ export interface AdapterStartOptions {
     verboseLogging: boolean;
 }
 
-export async function start(
+export interface ProcessSpawnParams {
+    command: string,
+    args: string[],
+    options: cp.SpawnOptions
+}
+
+export async function getSpawnParams(
     liblldb: string,
     options: AdapterStartOptions
-): Promise<cp.ChildProcess> {
+): Promise<ProcessSpawnParams> {
 
     let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
     let portAction = options.connect ? '--connect' : '--port';
@@ -33,16 +39,8 @@ export async function start(
         env['RUST_LOG'] = 'error,codelldb=debug';
     }
 
-    return spawnDebugAdapter(executable, args, env, options.workDir);
-}
-
-export async function spawnDebugAdapter(
-    executable: string,
-    args: string[],
-    env: Environment,
-    workDir: string
-): Promise<cp.ChildProcess> {
     // Check if workDir exists and is a directory, otherwise launch with default cwd.
+    let workDir = options.workDir;
     if (workDir) {
         let stat = await async.fs.stat(workDir).catch(_ => null);
         if (!stat || !stat.isDirectory())
@@ -56,11 +54,24 @@ export async function spawnDebugAdapter(
         executable = 'arch';
     }
 
-    return cp.spawn(executable, args, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: env,
-        cwd: workDir
-    });
+    return {
+        command: executable,
+        args: args,
+        options: {
+            env: env,
+            cwd: workDir
+        }
+    }
+}
+
+export async function start(
+    liblldb: string,
+    options: AdapterStartOptions
+): Promise<cp.ChildProcess> {
+
+    let spawnParams = await getSpawnParams(liblldb, options);
+    spawnParams.options.stdio = ['ignore', 'pipe', 'pipe'];
+    return cp.spawn(spawnParams.command, spawnParams.args, spawnParams.options);
 }
 
 export async function findLibLLDB(pathHint: string): Promise<string | null> {

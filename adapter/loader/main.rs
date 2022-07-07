@@ -8,13 +8,15 @@ fn main() -> Result<(), Error> {
     env_logger::Builder::from_default_env().init();
 
     let matches = App::new("codelldb")
+        .arg(Arg::with_name("preload").long("preload").multiple(true).takes_value(true))
+        .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("port").long("port").takes_value(true))
         .arg(Arg::with_name("connect").long("connect").takes_value(true))
         .arg(Arg::with_name("multi-session").long("multi-session"))
-        .arg(Arg::with_name("preload").long("preload").multiple(true).takes_value(true))
-        .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("params").long("params").takes_value(true))
-        .subcommand(SubCommand::with_name("terminal-agent").arg(Arg::with_name("connect").long("connect").takes_value(true)))
+        .subcommand(
+            SubCommand::with_name("terminal-agent").arg(Arg::with_name("connect").long("connect").takes_value(true)),
+        )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("terminal-agent") {
@@ -28,18 +30,6 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     use loading::*;
     use std::mem::transmute;
     use std::path::{Path, PathBuf};
-
-    let (port, connect) = if let Some(port) = matches.value_of("connect") {
-        (port, true)
-    } else if let Some(port) = matches.value_of("port") {
-        (port, false)
-    } else {
-        return Err("Either --connect or --port must be specified".into());
-    };
-    let port: u16 = port.parse()?;
-
-    let multi_session = matches.is_present("multi-session");
-    let adapter_params = matches.value_of("params");
 
     unsafe {
         // Preload anything passed via --preload
@@ -70,8 +60,8 @@ fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         let codelldb = load_library(&codelldb_path, false)?;
 
         // Find codelldb's entry point and call it.
-        let entry: unsafe extern "C" fn(u16, bool, bool, Option<&str>) = transmute(find_symbol(codelldb, "entry")?);
-        entry(port, connect, multi_session, adapter_params);
+        let entry: unsafe extern "C" fn(&ArgMatches) -> Result<(), Error> = transmute(find_symbol(codelldb, "entry")?);
+        entry(matches)?;
     }
 
     Ok(())

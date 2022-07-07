@@ -1,9 +1,20 @@
+use crate::prelude::*;
+use adapter_protocol::{AdapterSettings, Either};
+use clap::ArgMatches;
+use dap_session::DAPChannel;
+use lldb::*;
+use std::net;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::time::Duration;
+use tokio_util::codec::Decoder;
+
 #[allow(unused_imports)]
 mod prelude {
     pub use crate::error::{as_user_error, Error};
     pub use log::{debug, error, info};
 }
-
 #[macro_use]
 mod error;
 mod cancellation;
@@ -21,23 +32,13 @@ mod python;
 mod shared;
 mod terminal;
 
-use crate::prelude::*;
-use adapter_protocol::{AdapterSettings, Either};
-use lldb::*;
-use std::net;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::time::Duration;
-use tokio_util::codec::Decoder;
-
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-pub extern "C" fn entry(port: u16, connect: bool, multi_session: bool, adapter_params: Option<&str>) {
+pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
     hook_crashes();
     env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
-    let adapter_settings: AdapterSettings = match adapter_params {
+    let adapter_settings: AdapterSettings = match matches.value_of("params") {
         Some(s) => match serde_json::from_str(s) {
             Ok(settings) => settings,
             Err(err) => {
@@ -63,6 +64,15 @@ pub extern "C" fn entry(port: u16, connect: bool, multi_session: bool, adapter_p
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
     }
 
+    let (port, connect) = if let Some(port) = matches.value_of("connect") {
+        (port.parse()?, true)
+    } else if let Some(port) = matches.value_of("port") {
+        (port.parse()?, false)
+    } else {
+        return Err("Either --connect or --port must be specified".into());
+    };
+    let multi_session = matches.is_present("multi-session");
+
     let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
     let addr = net::SocketAddr::new(localhost.into(), port);
 
@@ -75,12 +85,16 @@ pub extern "C" fn entry(port: u16, connect: bool, multi_session: bool, adapter_p
     rt.block_on(async {
         if connect {
             let tcp_stream = TcpStream::connect(addr).await?;
-            run_debug_session(tcp_stream, adapter_settings.clone()).await;
+            tcp_stream.set_nodelay(true).unwrap();
+            let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+            run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
         } else {
             let listener = TcpListener::bind(&addr).await?;
             while {
                 let (tcp_stream, _) = listener.accept().await?;
-                run_debug_session(tcp_stream, adapter_settings.clone()).await;
+                tcp_stream.set_nodelay(true).unwrap();
+                let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+                run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
                 multi_session
             } {}
         }
@@ -94,13 +108,12 @@ pub extern "C" fn entry(port: u16, connect: bool, multi_session: bool, adapter_p
     debug!("Exiting");
     #[cfg(not(windows))]
     SBDebugger::terminate();
+    Ok(())
 }
 
-async fn run_debug_session(tcp_stream: TcpStream, adapter_settings: adapter_protocol::AdapterSettings) {
+async fn run_debug_session(framed_stream: Box<dyn DAPChannel>, adapter_settings: adapter_protocol::AdapterSettings) {
     debug!("New debug session");
-    tcp_stream.set_nodelay(true).unwrap();
-    let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
-    let (dap_session, dap_fut) = dap_session::DAPSession::new(Box::new(framed_stream));
+    let (dap_session, dap_fut) = dap_session::DAPSession::new(framed_stream);
     let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
     tokio::spawn(dap_fut);
     session_fut.await;

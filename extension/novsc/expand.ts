@@ -1,8 +1,11 @@
 import { Dict, Environment } from "./commonTypes";
 
+// Returning null means "keep the original text".
+type Expander = (type: string | null, key: string) => string | null;
+
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
-export function expandVariables(str: string | String, expander: (type: string, key: string) => string): string {
+export function expandVariables(str: string | String, expander: Expander): string {
     let result = str.replace(expandVarRegex, (all: string, type: string, key: string): string => {
         let replacement = expander(type, key);
         return replacement != null ? replacement : all;
@@ -10,7 +13,7 @@ export function expandVariables(str: string | String, expander: (type: string, k
     return result;
 }
 
-export function expandVariablesInObject(obj: any, expander: (type: string, key: string) => string): any {
+export function expandVariablesInObject(obj: any, expander: Expander): any {
     if (typeof obj == 'string' || obj instanceof String)
         return expandVariables(obj, expander);
 

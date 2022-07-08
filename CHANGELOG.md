@@ -1,5 +1,23 @@
 # Release Notes
 
+# 1.7.1
+
+## Changed
+- Renamed `debug_info` command to `show_debug_info`.
+
+## New
+- Cargo is now executed as a task, which allows applying problem matchers to its output.
+- Added `lldb.cargo` configuration setting to allow overriding command invoked as Cargo.
+- Added `cargo.env` attribute in launch configs to allow passing custom environment variables to Cargo.
+- Added "View Memory" command, which allows viewing raw memory at an arbitrary address.
+- Added "Search Symbols" command, which allows searching target's symbols.
+- Initialize LLDB's `target.process.thread.step-avoid-regexp` setting for Rust programs, to avoid stepping into Rust std library.
+
+## Fixed
+- #647: Cannot display Python string containing non-ASCII characters.
+- #718: Large containers take too long to display.
+- #726: Cannot display Rust String's and Vec's (due to data layout change in std).
+
 # 1.7.0
 
 ## Changed

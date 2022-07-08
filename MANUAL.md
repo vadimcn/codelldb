@@ -33,48 +33,61 @@
 
 # Starting a New Debug Session
 
-To start a debug session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.
-The `request` property of launch configuration chooses how the debug session will be created, it may be one of `launch`, `attach` or `custom`.
-Please see the following sections for a detailed description of each of the options.
+To start a debugging session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.   Here's a minimal one:
 
-Note that many of the launch parameters may be given default values via user, workspace or folder-level VSCode configuration files
-(see [Default Launch Configuration Settings](#default-launch-configuration-settings)).
+```javascript
+{
+    "name": "Launch",
+    "type": "lldb",
+    "request": "launch",
+    "program": "${workspaceFolder}/<executable file>",
+    "args": ["-arg1", "-arg2"],
+}
+```
+
+ These attributes are common to all CodeLLDB launch configurations:
+
+|attribute          |type  |         |
+|-------------------|------|---------|
+|**name**           |string| *Required.* Launch configuration name, as you want it to appear in the Run and Debug panel.
+|**type**           |string| *Required.* Set to `lldb`.
+|**request**        |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process),<br><li>`custom` to [configure session "manually" using LLDB commands](#custom-launch).
+|**initCommands**   |[string]| LLDB commands executed upon debugger startup.
+|**exitCommands**   |[string]| LLDB commands executed at the end of the debugging session.
+|**expressions**    |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
+|**sourceMap**      |dictionary| See [Source Path Remapping](#source-path-remapping).
+|**relativePathBase**|string | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**sourceLanguages**|[string]| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**reverseDebugging**|bool   | Enable [reverse debugging](#reverse-debugging).
+
 
 
 ## Launching a New Process
 
-|parameter          |type|req |         |
-|-------------------|----|:--:|---------|
-|**name**           |string|Y| Launch configuration name.
-|**type**           |string|Y| Set to `lldb`.
-|**request**        |string|Y| Set to `launch`.
-|**program**        |string|Y| Path to the debuggee executable.
-|**cargo**          |string|Y| See [Cargo support](#cargo-support).
-|**args**           |string &#10072; [string]| | Command line parameters.  If this is a string, it will be split using shell-like syntax.
-|**cwd**            |string| | Working directory.
-|**env**            |dictionary| | Additional environment variables.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
-|**stdio**          |string &#10072; [string] &#10072; dictionary| | See [Stdio Configuration](#stdio).
-|**terminal**       |string| | Destination for debuggee's stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
-|**stopOnEntry**    |boolean| | Whether to stop debuggee immediately after launching.
-|**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
-|**preRunCommands** |[string]| | LLDB commands executed just before launching the debuggee.
-|**postRunCommands**|[string]| | LLDB commands executed just after launching the debuggee.
-|**exitCommands**   |[string]| | LLDB commands executed at the end of the debugging session.
-|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
-|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
+These attributes are applicable when the "launch" initiation method is selected:
 
-Flow during the launch sequence:
-1. Debug session is created.
-2. The `initCommands` sequence is executed.
-3. Debug target is created using launch configuration parameters (`program`, `args`, `env`, `cwd`, `stdio`).
-4. Breakpoints are set.
-5. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
-6. Debuggee is launched.
-7. The `postRunCommands` sequence is executed.
+|attribute          |type|         |
+|-------------------|----|---------|
+|**program**        |string| Path of the executable file.  *Required*, unless using `cargo` attribute.
+|**cargo**          |string| See [Cargo support](#cargo-support).
+|**args**           |string &#10072; [string]| Command line parameters.  If this is a string, it will be split using shell-like syntax.
+|**cwd**            |string| Working directory.
+|**env**            |dictionary| Additional environment variables.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
+|**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
+|**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
+|**preRunCommands** |[string]| LLDB commands executed just before launching the debuggee.
+|**postRunCommands**|[string]| LLDB commands executed just after launching the debuggee.
 
-At the end of the debug session `exitCommands` sequence is executed.
+Flow during a launch sequence:
+1. The `initCommands` sequence is executed.
+2. The debugging target object is created using launch configuration attributes (`program`, `args`, `env`, `cwd`, `stdio`).
+3. Breakpoints are set.
+4. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. alter args or env).
+5. The debuggee is launched.
+6. The `postRunCommands` sequence is executed.
+
+At the end of the debugging session `exitCommands` sequence is executed.
 
 ### Stdio Redirection
 The **stdio** property is a list of redirection targets for each of the debuggee's stdio streams:
@@ -93,32 +106,24 @@ stdout to "log.txt",
 
 ## Attaching to a Running Process
 
-|parameter          |type    |req |         |
-|-------------------|--------|:--:|---------|
-|**name**           |string  |Y| Launch configuration name.
-|**type**           |string  |Y| Set to `lldb`.
-|**request**        |string  |Y| Set to `attach`.
-|**program**        |string  |Y| Path to debuggee executable.
-|**pid**            |number  | | Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command:pickProcess}` or `${command:pickMyProcess}` here to choose a process interactively.
-|**stopOnEntry**    |boolean | | Whether to stop the debuggee immediately after attaching.
-|**waitFor**        |boolean | | Wait for the process to launch.
-|**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
-|**preRunCommands** |[string]| | LLDB commands executed just before attaching to the debuggee.
-|**postRunCommands**|[string]| | LLDB commands executed just after attaching to the debuggee.
-|**exitCommands**   |[string]| | LLDB commands executed at the end of the debugging session.
-|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
-|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**sourceLanguages**|[string]| | A list of source languages used in the program.  This is used to enable language-specific debugger features.
+These attributes are applicable when the "attach" initiation method is selected:
 
-Flow during the attach sequence:
-1. Debug session is created.
-2. The `initCommands` sequence is executed.
-3. Debug target is created using launch configuration parameters  (`program`).
-4. Breakpoints are set.
-5. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
-6. The debugger attaches to the specified debuggee process.
-7. The `postRunCommands` sequence is executed.
+|attribute          |type    |         |
+|-------------------|--------|---------|
+|**program**        |string  |Path of the executable file.
+|**pid**            |number  |Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command:pickProcess}` or `${command:pickMyProcess}` here to choose a process interactively.
+|**stopOnEntry**    |boolean |Whether to stop the debuggee immediately after attaching.
+|**waitFor**        |boolean |Wait for the process to launch.
+|**preRunCommands** |[string]|LLDB commands executed just before attaching to the debuggee.
+|**postRunCommands**|[string]|LLDB commands executed just after attaching to the debuggee.
+
+Flow during an attach sequence:
+1. The `initCommands` sequence is executed.
+2. The debugging target object is created using the `program` attribute.
+3. Breakpoints are set.
+4. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
+5. The debugger attaches to the specified process.
+6. The `postRunCommands` sequence is executed.
 
 At the end of the debug session `exitCommands` sequence is executed.
 
@@ -128,26 +133,15 @@ on some systems.  You may need to adjust system configuration to enable it.
 ## Custom Launch
 
 The custom launch method allows user to fully specify how the debug session is initiated.  The flow of a custom launch is as follows:
-
-1. The `targetCreateCommands` command sequence is executed. This sequence is expected to create a debug target (see `target create` command).
+1. The `targetCreateCommands` command sequence is executed. This sequence is expected to create the debugging target object (see `target create` command).
 2. Debugger uses the target to insert breakpoints.
 3. The `processCreateCommands` command sequence is executed.  This sequence is expected to create the debuggee process (see `process launch` command).
-4. The debugger reports the current state of the debuggee to VSCode and starts accepting user commands.
+4. The debugger reports current state of the debuggee to VSCode and starts accepting user commands.
 
-|parameter          |type    |req |         |
-|-------------------|--------|:--:|---------|
-|**name**           |string  |Y| Launch configuration name.
-|**type**           |string  |Y| Set to `lldb`.
-|**request**        |string  |Y| Set to `custom`.
-|**initCommands**   |[string]| | LLDB commands executed upon debugger startup.
-|**targetCreateCommands**  |[string]| | Commands that create the debug target.
-|**processCreateCommands** |[string]| | Commands that create the debuggee process.
-|**exitCommands**   |[string]| | LLDB commands executed at the end of debugging session.
-|**expressions**    |string| | The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
-|**sourceMap**      |dictionary| | See [Source Path Remapping](#source-path-remapping).
-|**relativePathBase**|string| | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**sourceLanguages**| A list of source languages used in the program.  This is used to enable language-specific debugger features.
-|**reverseDebugging**|bool| | Enable [reverse debugging](#reverse-debugging).
+|attribute          |type    |         |
+|-------------------|--------|---------|
+|**targetCreateCommands**  |[string]|Commands that create the debug target.
+|**processCreateCommands** |[string]|Commands that create the debuggee process.
 
 
 ## Debugging Externally Launched Code
@@ -261,16 +255,16 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
     "initCommands": [
         "platform select <platform>", // Execute `platform list` for a list of available remote platform plugins.
         "platform connect connect://<remote_host>:<port>",
-        "settings set target.inherit-env false", // See the note below.
+        "settings set target.inherit-env false", // See note below.
     ],
     "env": {
-        "PATH": "...", // See the note below.
+        "PATH": "...", // See note below.
     }
 }
 ```
 Note: By default, debuggee will inherit environment from the debugger.  However, this environment  will be of your
-**local** machine.  In most cases these values will not be suiteble on the remote
-system, so you should consider disabling environment inheritance with `settings set target.inherit-env false` and
+**local** machine.  In most cases these values will not be suitable on the remote system,
+so you should consider disabling environment inheritance with `settings set target.inherit-env false` and
 initializing them as appropriate, starting with `PATH`.
 
 ### Connecting to a gdbserver-style agent
@@ -395,17 +389,19 @@ Example:
 |**Attach to Process...**         |Choose a process to attach to from the list of currently running processes.
 |**Use Alternate Backend...**     |Choose alternate LLDB instance to be used instead of the bundled one. See [Alternate LLDB backends](#alternate-lldb-backends)
 |**Run Diagnostics**              |Run diagnostic test to make sure that the debugger is functional.
-|**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste the desired sections into `launch.json`.|
+|**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste desired sections into `launch.json`.|
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
+|**View Memory...**               |View raw memory starting at the specified address.|
+|**Search Symbols...**            |Search for a substring among the debug target's symbols.|
 
 
 ## Debugger Commands
 
 CodeLLDB also adds in-debugger commands that may be executed in the Debug Console during a debug dession:
 
-|                |                                                         |
-|----------------|---------------------------------------------------------|
-|**debug_info**  |Display compilation units found in each module's debug info.  This list may be filtered by a module name.
+|                    |                                                         |
+|--------------------|---------------------------------------------------------|
+|**show_debug_info** |Display compilation units found in each module's debug info.  This list may be filtered by a module name.
 
 For more details about each command please use `help <command>`.
 
@@ -593,7 +589,7 @@ To enable this feature, add `"sourceLanguages": ["rust"]` into your launch confi
 
 ## Cargo support
 
-Several Rust users had pointed out that debugging tests and benches in Cargo-based projects is somewhat
+Several Rust users had pointed out that debugging tests and benchmarks in Cargo-based projects is somewhat
 difficult since names of the output test/bench binary generated by Cargo is not deterministic.
 To cope with this problem, CodeLLDB can query Cargo for a list of its compilation outputs.  In order
 to use this feature, replace `program` property in your launch configuration with `cargo`:
@@ -602,9 +598,12 @@ to use this feature, replace `program` property in your launch configuration wit
     "type": "lldb",
     "request": "launch",
     "cargo": {
-        "args": ["test", "--no-run", "--lib"], // Cargo command line to build the debug target
-        // "args": ["build", "--bin=foo"] is another possibility
-        "filter": { // Filter applied to compilation artifacts (optional)
+        "args": ["test", "--no-run", "--lib"],      // Cargo command line to build the debug target
+                                                    // "args": ["build", "--bin=foo"] is another possibility
+        // The rest are optional
+        "env": { "RUSTFLAGS": "-Clinker=ld.mold" }, // Extra environment variables.
+        "problemMatcher": "$rustc",                 // Problem matcher(s) to apply to cargo output.
+        "filter": {                                 // Filter applied to compilation artifacts.
             "name": "mylib",
             "kind": "lib"
         }
@@ -654,6 +653,7 @@ configurations when there is no existing `launch.json`.
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
 |**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.cargo**         |Name of the command to invoke as Cargo.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
 |**lldb.reproducer**    |Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).  May also contain a path of the directory to save the reproducer in.

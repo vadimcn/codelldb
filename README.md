@@ -30,22 +30,10 @@ and Zig.
 CodeLLDB supports AArch64, ARM, AVR, MSP430, RISCV, X86 architectures and may be used to debug on embedded platforms
 via [remote debugging](MANUAL.md#remote-debugging).
 
-# Quick Start
-Here's a minimal debug configuration to get you started:
-```javascript
-{
-    "name": "Launch",
-    "type": "lldb",
-    "request": "launch",
-    "program": "${workspaceFolder}/<my program>",
-    "args": ["-arg1", "-arg2"],
-}
-```
-
-# Links
-- [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging) - if you are new to VSCode debugging.
+# More information
 - [CodeLLDB User's Manual](MANUAL.md) - how to use this extension.
-- [LLDB Homepage](https://lldb.llvm.org/) - all of LLDB's CLI commands and scripting features may be used in CodeLLDB.
+- [Debugging in VS Code](https://code.visualstudio.com/docs/editor/debugging) - if you are new to VSCode debugging.
+- [LLDB Tutorial](https://lldb.llvm.org/use/tutorial.html) - all of LLDB's CLI commands and scripting features may be used in CodeLLDB.
 - [Wiki pages](https://github.com/vadimcn/vscode-lldb/wiki) - [troubleshooting](https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting) and other tips and tricks.
 - [Discussions](https://github.com/vadimcn/vscode-lldb/discussions) - for questions and discussions.
 

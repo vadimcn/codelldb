@@ -400,6 +400,12 @@
 						"type": "string",
 						"scope": "resource"
 					},
+					"lldb.cargo": {
+						"markdownDescription": "Name of the command to invoke as Cargo.",
+						"type": "string",
+						"scope": "resource",
+						"default": "cargo"
+					},
 					"lldb.adapterEnv": {
 						"description": "Extra environment variables for the debug adapter.",
 						"type": "object",
@@ -589,6 +595,10 @@
 											}
 										},
 										"default": {}
+									},
+									"problemMatcher": {
+										"description": "Problem matcher(s) to apply to cargo output.",
+										"type": ["string", "array"]
 									},
 									"filter": {
 										"description": "Filter applied to compilation artifacts.",

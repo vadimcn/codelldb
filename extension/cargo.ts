@@ -1,15 +1,21 @@
-import { window, DebugConfiguration, env } from 'vscode';
+import {
+    tasks, workspace, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder,
+    CancellationToken, ConfigurationScope, Uri
+} from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as readline from 'readline';
 import { inspect } from 'util';
 import * as async from './novsc/async';
-import { Dict } from './novsc/commonTypes';
+import { Dict, Environment } from './novsc/commonTypes';
 import { output } from './main';
 import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
 
 export interface CargoConfig {
-    args: string[];
+    type: string,
+    args?: string[];
+    env?: Dict<string>;
+    problemMatcher?: string | string[];
     filter?: {
         name?: string;
         kind?: string;
@@ -23,30 +29,80 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
-    cargoTomlFolder: string;
-    extraEnv: Dict<string>;
+    folder: WorkspaceFolder;
+    cancellation?: CancellationToken
 
-    public constructor(cargoTomlFolder: string, extraEnv: Dict<string>) {
-        this.cargoTomlFolder = cargoTomlFolder;
-        this.extraEnv = extraEnv;
+    public constructor(folder: WorkspaceFolder, cancellation?: CancellationToken) {
+        this.folder = folder;
+        this.cancellation = cancellation;
     }
 
-    public async getProgramFromCargoConfig(cargoConfig: CargoConfig): Promise<string> {
-        let cargoArgs = cargoConfig.args;
-        let pos = cargoArgs.indexOf('--');
-        // Insert either before `--` or at the end.
-        cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
+    getCargoTomlDir(): string {
+        return this.folder?.uri?.fsPath;
+    }
 
-        output.appendLine('Running `cargo ' + cargoArgs.join(' ') + '`...');
-        let artifacts = await this.getCargoArtifacts(cargoArgs);
+    public async getProgramFromCargoConfig(
+        cargoConfig: CargoConfig,
+    ): Promise<string> {
 
+        let artifacts: CompilationArtifact[] = [];
+
+        let execution = new CustomExecution(async taskDef => {
+            let outputEmitter = new EventEmitter<string>();
+            let doneEmitter = new EventEmitter<number>();
+            let pty: Pseudoterminal = {
+                onDidWrite: outputEmitter.event,
+                onDidClose: doneEmitter.event,
+                open: async () => {
+                    let cargoArgs = taskDef.args;
+                    let pos = cargoArgs.indexOf('--');
+                    // Insert either before `--` or at the end.
+                    cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
+
+                    outputEmitter.fire('Running `cargo ' + cargoArgs.join(' ') + '`...\r\n');
+                    let newline = /\n/g;
+                    try {
+                        artifacts = await this.getCargoArtifacts(
+                            taskDef.args,
+                            taskDef.env,
+                            message => outputEmitter.fire(message.replace(newline, '\r\n'))
+                        );
+                        doneEmitter.fire(0);
+                    } catch (error) {
+                        output.appendLine(error);
+                        doneEmitter.fire(1);
+                    }
+                },
+                close: () => { }
+            };
+            return pty;
+        });
+
+        let problemMatchers = cargoConfig.problemMatcher || '$rustc';
+        cargoConfig.type = 'cargo';
+        let task = new Task(cargoConfig, this.folder, 'cargo', 'CodeLLDB', execution, problemMatchers);
+        task.presentationOptions.clear = true;
+        let taskExecution = await tasks.executeTask(task);
+
+        // Wait for the task to end
+        await new Promise<void>(resolve => {
+            tasks.onDidEndTask(e => {
+                if (e.execution == taskExecution) {
+                    resolve();
+                }
+            });
+        });
+
+        return this.getProgramFromArtifacts(artifacts);
+    }
+
+    getProgramFromArtifacts(artifacts: CompilationArtifact[], filter?: { name?: string; kind?: string }): string {
         output.appendLine('Raw artifacts:');
         for (let artifact of artifacts) {
             output.appendLine(inspect(artifact));
         }
 
-        if (cargoConfig.filter != undefined) {
-            let filter = cargoConfig.filter;
+        if (filter != undefined) {
             artifacts = artifacts.filter(a => {
                 if (filter.name != undefined && a.name != filter.name)
                     return false;
@@ -54,31 +110,32 @@ export class Cargo {
                     return false;
                 return true;
             });
+        }
 
-            output.appendLine('Filtered artifacts: ');
-            for (let artifact of artifacts) {
-                output.appendLine(inspect(artifact));
-            }
+        output.appendLine('Filtered artifacts: ');
+        for (let artifact of artifacts) {
+            output.appendLine(inspect(artifact));
         }
 
         if (artifacts.length == 0) {
-            output.show();
-            window.showErrorMessage('Cargo has produced no matching compilation artifacts.', { modal: true });
-            throw new Error('Cannot start debugging.');
+            throw new Error('Cargo has produced no matching compilation artifacts.');
         } else if (artifacts.length > 1) {
-            output.show();
-            window.showErrorMessage('Cargo has produced more than one matching compilation artifact.', { modal: true });
-            throw new Error('Cannot start debugging.');
+            throw new Error('Cargo has produced more than one matching compilation artifact.');
         }
 
         return artifacts[0].fileName;
     }
 
     // Runs cargo, returns a list of compilation artifacts.
-    async getCargoArtifacts(cargoArgs: string[]): Promise<CompilationArtifact[]> {
+    async getCargoArtifacts(
+        cargoArgs: string[],
+        cargoEnv: Environment,
+        onMessage: (data: string) => void
+    ): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
         try {
-            await this.runCargo(cargoArgs,
+            let cargoCwd = this.getCargoTomlDir();
+            await this.runCargo(cargoArgs, cargoEnv, cargoCwd,
                 message => {
                     if (message.reason == 'compiler-artifact') {
                         let isBinary = message.target.crate_types.includes('bin');
@@ -105,30 +162,34 @@ export class Cargo {
                             }
                         }
                     } else if (message.reason == 'compiler-message') {
-                        output.appendLine(message.message.rendered);
+                        onMessage(message.message.rendered)
                     }
                 },
-                stderr => { output.append(stderr); }
+                onMessage
             );
         } catch (err) {
-            output.show();
             throw new Error(`Cargo invocation has failed: ${err}`);
         }
         return artifacts;
     }
 
     public async getLaunchConfigs(): Promise<DebugConfiguration[]> {
-        if (!await async.fs.exists(path.join(this.cargoTomlFolder, 'Cargo.toml')))
+
+        let cargoTomlFolder = this.getCargoTomlDir();
+        if (!await async.fs.exists(path.join(cargoTomlFolder, 'Cargo.toml')))
             return [];
 
         let metadata: any = null;
 
-        await this.runCargo(['metadata', '--no-deps', '--format-version=1'],
+        await this.runCargo(
+            ['metadata', '--no-deps', '--format-version=1'],
+            new Environment(),
+            cargoTomlFolder,
             m => { metadata = m },
-            stderr => { output.append(stderr); }
+            stderr => { output.append(stderr); },
         );
         if (!metadata)
-            throw new Error(`Cargo produced no metadata`);
+            throw new Error(`Cargo has produced no metadata`);
 
         let configs: DebugConfiguration[] = [];
         for (let pkg of metadata.packages) {
@@ -193,16 +254,21 @@ export class Cargo {
     }
 
     // Runs cargo, invokes stdout/stderr callbacks as data comes in, returns the exit code.
-    runCargo(
-        cargoArgs: string[],
+    async runCargo(
+        args: string[],
+        env: Environment,
+        cwd: string,
         onStdoutJson: (obj: any) => void,
-        onStderrString: (data: string) => void
+        onStderrString: (data: string) => void,
     ): Promise<number> {
+        let config = workspace.getConfiguration('lldb', this.folder);
+        let cargoCmd = config.get<string>('cargo');
+
         return new Promise<number>((resolve, reject) => {
-            let cargo = cp.spawn('cargo', cargoArgs, {
+            let cargo = cp.spawn(cargoCmd, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                cwd: this.cargoTomlFolder,
-                env: mergedEnvironment(this.extraEnv),
+                cwd: cwd,
+                env: mergedEnvironment(env),
             });
 
             cargo.on('error', err => {
@@ -221,10 +287,14 @@ export class Cargo {
 
             cargo.on('exit', (exitCode, signal) => {
                 if (exitCode == 0)
-                    resolve(exitCode);
+                    resolve(0);
                 else
                     reject(new Error(`exit code: ${exitCode}.`));
             });
+
+            if (this.cancellation) {
+                this.cancellation.onCancellationRequested(e => cargo.kill('SIGINT'));
+            }
         });
     }
 }

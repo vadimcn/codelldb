@@ -1,15 +1,15 @@
 import {
-    workspace, window, commands, debug, env,
+    workspace, window, commands, debug,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, extensions, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget, DebugAdapterInlineImplementation,
+    DebugAdapterDescriptor, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
+    DebugAdapterInlineImplementation
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as querystring from 'querystring';
-import * as net from 'net';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
 import * as htmlView from './htmlView';
@@ -322,12 +322,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async provideDebugConfigurations(
         workspaceFolder: WorkspaceFolder | undefined,
-        token?: CancellationToken
+        cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
         try {
-            let config = this.getExtensionConfig(workspaceFolder);
-            let folder = workspaceFolder ? workspaceFolder.uri.fsPath : workspace.rootPath;
-            let cargo = new Cargo(folder, config.get('adapterEnv', {}));
+            let cargo = new Cargo(workspaceFolder, cancellation);
             let debugConfigs = await cargo.getLaunchConfigs();
             if (debugConfigs.length > 0) {
                 let response = await window.showInformationMessage(
@@ -345,7 +343,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             type: 'lldb',
             request: 'launch',
             name: 'Debug',
-            program: '${workspaceFolder}/<your program>',
+            program: '${workspaceFolder}/<executable file>',
             args: [],
             cwd: '${workspaceFolder}'
         }];
@@ -355,9 +353,11 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async resolveDebugConfiguration(
         folder: WorkspaceFolder | undefined,
         launchConfig: DebugConfiguration,
-        token?: CancellationToken
+        cancellation?: CancellationToken
     ): Promise<DebugConfiguration> {
         output.clear();
+
+        output.appendLine(`Initial debug configuration: ${inspect(launchConfig)}`);
 
         if (launchConfig.type === undefined) {
             await window.showErrorMessage('Cannot start debugging because no launch configuration has been provided.', { modal: true });
@@ -389,16 +389,15 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         // Deal with Cargo
         if (launchConfig.cargo != undefined) {
-            let cargoTomlFolder = folder ? folder.uri.fsPath : workspace.rootPath;
-            let cargo = new Cargo(cargoTomlFolder, config.get('adapterEnv', {}));
-            let cargoDict = { program: await cargo.getProgramFromCargoConfig(launchConfig.cargo) };
+            let cargo = new Cargo(folder, cancellation);
+            let program = await cargo.getProgramFromCargoConfig(launchConfig.cargo);
             delete launchConfig.cargo;
 
             // Expand ${cargo:program}.
-            launchConfig = expandCargo(launchConfig, cargoDict);
+            launchConfig = expandCargo(launchConfig, { program: program });
 
             if (launchConfig.program == undefined) {
-                launchConfig.program = cargoDict.program;
+                launchConfig.program = program;
             }
 
             // Add 'rust' to sourceLanguages, since this project obviously (ha!) involves Rust.
@@ -406,7 +405,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 launchConfig.sourceLanguages = [];
             launchConfig.sourceLanguages.push('rust');
         }
-        output.appendLine(`configuration: ${inspect(launchConfig)}`);
+        output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);
+
         launchConfig._adapterSettings = this.getAdapterSettings();
         return launchConfig;
     }
@@ -482,12 +482,18 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async getCargoLaunchConfigs() {
         try {
-            let config = this.getExtensionConfig();
-            let cargo = new Cargo(workspace.rootPath, config.get('adapterEnv'));
-            let debugConfigs = await cargo.getLaunchConfigs();
+            let folder = (workspace.workspaceFolders.length == 1) ?
+                workspace.workspaceFolders[0] :
+                await window.showWorkspaceFolderPick();
+            let cargo = new Cargo(folder);
+            let configurations = await cargo.getLaunchConfigs();
+            let debugConfigs = {
+                version: '0.2.0',
+                configurations: configurations,
+            }
             let doc = await workspace.openTextDocument({
+                language: 'jsonc',
                 content: JSON.stringify(debugConfigs, null, 4),
-                language: 'jsonc'
             });
             await window.showTextDocument(doc, 1, false);
         } catch (err) {

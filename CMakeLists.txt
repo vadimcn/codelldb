@@ -284,8 +284,9 @@ endif()
 # Tests
 
 set(MochaTest ${NPM} run mocha --
-    -u tdd --timeout ${TEST_TIMEOUT} --exit
+    --ui tdd --timeout ${TEST_TIMEOUT} --exit
     --require source-map-support/register
+    --require mocha-suppress-logs
     #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js
 )

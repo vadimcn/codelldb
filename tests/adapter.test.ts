@@ -2,12 +2,11 @@ import { suite, test } from 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as cp from 'child_process';
-import { initUtils, DebugTestSession, findMarker, log, dumpLogs, logWithStack, char, variablesAsDict, withTimeout } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, withTimeout } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
 const sourceDir = process.env.SOURCE_DIR || path.dirname(buildDir); // assume $sourceDir is the parent of $buildDir
-const dumpLogsWhen = (process.env.DUMP_LOGS || 'onerror').toLowerCase();
 
 let debuggeeDir = path.join(buildDir, 'debuggee');
 if (triple.endsWith('pc-windows-gnu'))
@@ -31,22 +30,34 @@ generateSuite(triple);
 
 function generateSuite(triple: string) {
     suite(`adapter:${triple}`, () => {
+        let ds: DebugTestSession = null;
 
-        setup(function () {
+        setup(async function () {
             initUtils(buildDir);
+            console.log('--- Log ---');
+            ds = await DebugTestSession.start();
         });
 
         teardown(async function () {
+            try {
+                await ds.terminate();
+            } catch (error) {
+                assert.fail(`DebugTestSession shutdown failed: ${error}`);
+            }
+            ds = null;
+
+            if (<string>this.currentTest.state == 'pending')
+                this.currentTest.state = 'passed'; // Suppress log output for skipped tests
+
             if (this.currentTest.state == 'failed')
-                process.stderr.write(`*** Test FAILED: ${this.currentTest.title}\n${this.currentTest.err.stack}\n`);
-            if (dumpLogsWhen != 'never' && (this.currentTest.state == 'failed' || dumpLogsWhen == 'always'))
-                dumpLogs(process.stderr);
+                log(`Test FAILED: ${this.currentTest.err.stack}`);
+
+            console.log('-----------');
         });
 
         suite('Basic', () => {
 
             test('check python', async function () {
-                let ds = await DebugTestSession.start();
                 await ds.launch({ name: 'check python', custom: true });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
@@ -62,20 +73,15 @@ function generateSuite(triple: string) {
                 });
                 let buildConfig = JSON.parse(result2.body.result);
                 assert.ok(buildConfig.xml.value);
-
-                await ds.terminate();
             });
 
             test('run program to the end', async function () {
-                let ds = await DebugTestSession.start();
                 let terminatedAsync = ds.waitForEvent('terminated');
                 await ds.launch({ name: 'run program to the end', program: debuggee });
                 await terminatedAsync;
-                await ds.terminate();
             });
 
             test('run program with modified environment', async function () {
-                let ds = await DebugTestSession.start();
                 let waitExitedAsync = ds.waitForEvent('exited');
                 await ds.launch({
                     name: 'run program with modified environment',
@@ -86,17 +92,13 @@ function generateSuite(triple: string) {
                 let exitedEvent = await waitExitedAsync;
                 // debuggee shall return 1 if env[argv[2]] == argv[3]
                 assert.equal(exitedEvent.body.exitCode, 1);
-                await ds.terminate();
             });
 
             test('stop on entry', async function () {
-                let ds = await DebugTestSession.start();
                 await ds.launchAndWaitForStop({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
-                await ds.terminate();
             });
 
             test('stop on a breakpoint (basic)', async function () {
-                let ds = await DebugTestSession.start();
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let stopEvent = await ds.launchAndWaitForStop({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) },
@@ -108,12 +110,9 @@ function generateSuite(triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
                 await waitForExitAsync;
-                await ds.terminate();
             });
 
             test('stop on a breakpoint (same file name)', async function () {
-                let ds = await DebugTestSession.start();
-
                 let waitForExitAsync = ds.waitForEvent('exited');
 
                 // let testcase = triple.endsWith('windows-gnu') ?
@@ -142,13 +141,11 @@ function generateSuite(triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
                 await waitForExitAsync;
-                await ds.terminate();
             });
 
             test('path mapping', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start();
                 let waitForExitAsync = ds.waitForEvent('exited');
 
                 let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
@@ -208,11 +205,9 @@ function generateSuite(triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 logWithStack('Wait for exit');
                 await waitForExitAsync;
-                await ds.terminate();
             });
 
             test('page stack', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP2');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'page stack', program: debuggee, args: ['deepstack'] },
                     async () => {
@@ -224,13 +219,11 @@ function generateSuite(triple: string) {
                 let response4 = await ds.variablesRequest({ variablesReference: response3.body.scopes[0].variablesReference });
                 assert.equal(response4.body.variables[0].name, 'levelsToGo');
                 assert.equal(response4.body.variables[0].value, '20');
-                await ds.terminate();
             });
 
             test('variables', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },
                     async () => {
@@ -312,13 +305,11 @@ function generateSuite(triple: string) {
                 // Set a variable and check that it has actually changed.
                 await ds.send('setVariable', { variablesReference: localsRef, name: 'a', value: '100' });
                 await ds.compareVariables(localsRef, { a: 100 });
-                await ds.terminate();
             });
 
             test('variables update', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP4');
                 let stopAsync = ds.launchAndWaitForStop({ name: 'variables update', program: debuggee, args: ['vars_update'] },
                     async () => {
@@ -336,13 +327,11 @@ function generateSuite(triple: string) {
                     stopAsync = ds.waitForStopEvent();
                     await ds.continueRequest({ threadId: 0 });
                 }
-                await ds.terminate();
             })
 
             test('expressions', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
                     async () => {
@@ -388,11 +377,9 @@ function generateSuite(triple: string) {
                         '[4]': { a: i * 2 + 4, b: "'e'", c: 4 }
                     });
                 }
-                await ds.terminate();
             });
 
             test('conditional breakpoint /se', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /se',
@@ -403,11 +390,9 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
-                await ds.terminate();
             });
 
             test('conditional breakpoint /py', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /py',
@@ -419,11 +404,9 @@ function generateSuite(triple: string) {
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 let vars = await ds.readVariables(localsRef);
                 await ds.compareVariables(localsRef, { i: 5 });
-                await ds.terminate();
             });
 
             test('conditional breakpoint /nat', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({
                     name: 'conditional breakpoint /nat',
@@ -434,13 +417,11 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
-                await ds.terminate();
             });
 
             test('disassembly', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip(); // With MSVC, we can't suppress debug info per-file.
 
-                let ds = await DebugTestSession.start();
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] },
                     async () => {
                         await ds.setFnBreakpoint('/re disassembly1');
@@ -467,11 +448,9 @@ function generateSuite(triple: string) {
                 });
                 assert.equal(stackTrace2.body.stackFrames[0].source.sourceReference, sourceRef);
                 assert.equal(stackTrace2.body.stackFrames[0].line, 5);
-                await ds.terminate();
             });
 
             test('debugger api', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
                     async () => {
@@ -493,12 +472,9 @@ function generateSuite(triple: string) {
                     expression: '/py type(debugger.wrap(debugger.evaluate("s1", unwrap=True)))', frameId: frameId, context: 'watch'
                 });
                 assert.ok(response3.body.result.includes('value.Value'), `Actual: ${response3.body.result} `);
-
-                await ds.terminate();
             });
 
             test('display_html', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(debuggeeSource, '#BP1');
                 let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
                 await ds.launchAndWaitForStop({ name: 'display_html', program: debuggee, args: ["mandelbrot"] },
@@ -510,7 +486,6 @@ function generateSuite(triple: string) {
                 assert.equal(ev.body.title, 'title');
                 assert.equal(ev.body.position, 1);
                 assert.equal(ev.body.reveal, false);
-                await ds.terminate();
             });
         });
 
@@ -518,59 +493,50 @@ function generateSuite(triple: string) {
             let debuggeeProc: cp.ChildProcess;
 
             suiteSetup(() => {
+                // NB: log is not initialized at this point yet
                 debuggeeProc = cp.spawn(debuggee, ['inf_loop'], {});
-                debuggeeProc.on('error', err => log(`Debuggee error: ${err}`));
             })
 
-            suiteTeardown(async () => {
-                let debuggeeExit = new Promise((resolve) => debuggeeProc.on('exit', resolve));
+            suiteTeardown(() => {
                 debuggeeProc.kill();
-                await withTimeout(3000, debuggeeExit);
             })
 
             test('attach by pid', async function () {
-                let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
+                log('Wait for attach');
                 let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
                 assert.ok(attachResp.success);
+                log('Wait for stop');
                 await asyncWaitStopped;
-                await ds.terminate();
             });
 
             test('attach by pid / nostop', async function () {
-                let ds = await DebugTestSession.start();
                 let stopCount = 0;
                 ds.addListener('stopped', () => stopCount += 1);
                 ds.addListener('continued', () => stopCount -= 1);
                 let attachResp = await ds.attach({ name: 'attach by pid / nostop', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
                 assert.ok(attachResp.success);
                 assert.ok(stopCount <= 0);
-                await ds.terminate();
             });
 
             test('attach by path', async function () {
-                let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
-                await ds.terminate();
             });
 
             test('attach by name', async function () {
-                let ds = await DebugTestSession.start();
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
                 let attachResp = await ds.attach({ name: 'attach by name', program: program, stopOnEntry: true });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
-                await ds.terminate();
             });
         })
 
         suite('Rust tests', () => {
             test('rust primitives', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_primitives');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust primitives', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
@@ -596,11 +562,9 @@ function generateSuite(triple: string) {
                         unit: '()',
                     })
                 }
-                await ds.terminate();
             })
 
             test('rust enums', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust enums', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 if (!triple.endsWith('pc-windows-msvc')) {
@@ -642,11 +606,9 @@ function generateSuite(triple: string) {
                         opt_reg_struct2: 'None',
                     });
                 }
-                await ds.terminate();
             })
 
             test('rust structs', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_structs');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust structs', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
@@ -656,11 +618,9 @@ function generateSuite(triple: string) {
                     reg_struct_ref: '{a:1, c:12}',
                     //tuple_struct: '(3, "xxx", -3)',
                 })
-                await ds.terminate();
             })
 
             test('rust arrays', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_arrays');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust arrays', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
@@ -697,11 +657,9 @@ function generateSuite(triple: string) {
                 // await ds.compareVariables(response3.body.variablesReference, {
                 //     '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
                 // });
-                await ds.terminate();
             })
 
             test('rust strings', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_strings');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust strings', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
@@ -735,11 +693,9 @@ function generateSuite(triple: string) {
                         },
                     })
                 }
-                await ds.terminate();
             })
 
             test('rust boxes', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust boxes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
@@ -757,11 +713,9 @@ function generateSuite(triple: string) {
                     ref_cell3: '(borrowed:mut) 12',
                     ref_cell3_borrow: 12,
                 })
-                await ds.terminate();
             })
 
             test('rust hashes', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_hashes');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust hashes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 let expected1 = [
@@ -784,17 +738,14 @@ function generateSuite(triple: string) {
                 for (let expectedValue of expected2) {
                     assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
                 }
-                await ds.terminate();
             })
 
             test('rust misc', async function () {
-                let ds = await DebugTestSession.start();
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust misc', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
                     class: { finally: 1, import: 2, lambda: 3, raise: 4 },
                 })
-                await ds.terminate();
             })
         });
     });

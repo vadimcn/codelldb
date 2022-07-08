@@ -12,16 +12,9 @@ import { DebugProtocol as dp } from '@vscode/debugprotocol';
 import { WritableBuffer } from 'extension/novsc/writableBuffer';
 
 let extensionRoot: string = null;
-let testLog: WritableBuffer = null;
-let testDataLog: WritableBuffer = null;
-let adapterLog: WritableBuffer = null;
-
 
 export function initUtils(extensionRoot_: string) {
     extensionRoot = extensionRoot_;
-    testLog = new WritableBuffer();
-    //testDataLog = new WritableBuffer();
-    adapterLog = new WritableBuffer();
 }
 
 export function findMarker(file: string, marker: string): number {
@@ -73,7 +66,7 @@ function timestamp(): string {
 }
 
 export function log(message: string) {
-    testLog.write(`[${timestamp()}] ${message}\n`);
+    console.log(`TEST: [${timestamp()}] ${message}`);
 }
 
 export function logWithStack(message: string) {
@@ -81,25 +74,7 @@ export function logWithStack(message: string) {
     let stack = Error().stack;
     let lines = stack.split('\n');
     for (let i = 2; i < lines.length - 1; ++i)
-        testLog.write(`${lines[i]}\n`);
-}
-
-export function dumpLogs(dest: stream.Writable) {
-    dest.write('\n=== Test log ===\n');
-    dest.write(testLog.contents.toString('utf8'));
-    if (testDataLog) {
-        dest.write('\n=== Received data log ===\n');
-        dest.write(testDataLog.contents.toString('utf8'));
-    }
-    dest.write('\n=== Adapter log ===\n');
-    // Filter out "module-loaded" events
-    let filter = /(Debug event:.*modules-(un)?loaded)|("event":"module")/;
-    let lines = (adapterLog.contents.toString('utf8') || '').split('\n');
-    for (let line of lines) {
-        if (!filter.test(line))
-            dest.write(line + '\n');
-    }
-    dest.write('\n===================\n');
+        console.log(`${lines[i]}`);
 }
 
 type ConfiguratorFn = () => Promise<any>;
@@ -141,8 +116,16 @@ export class DebugTestSession extends DebugClient {
                             log(`Adapter exited with code ${code}, signal = ${signal} `);
                     });
 
-                    session.adapter.stdout.pipe(adapterLog);
-                    session.adapter.stderr.pipe(adapterLog);
+                    let filter = /(Debug event:.*modules-(un)?loaded)|("event":"module")/;
+                    function logData(data: Buffer) {
+                        for (let chunk of data.toString('utf8').trim().split('\n')) {
+                            if (!filter.test(chunk)) {
+                                console.log(`${chunk}`);
+                            }
+                        }
+                    }
+                    session.adapter.stdout.on('data', logData);
+                    session.adapter.stderr.on('data', logData);
                 })
             });
 
@@ -155,12 +138,6 @@ export class DebugTestSession extends DebugClient {
         session.addListener('continued', logger);
         session.addListener('exited', logger);
 
-        if (testDataLog) {
-            let socket = <net.Socket>((<any>session)._socket);
-            socket.on('data', buffer => {
-                testDataLog.write(`[${timestamp()}] --> ${buffer} \n`)
-            });
-        }
         return session;
     }
 

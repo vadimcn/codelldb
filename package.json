@@ -130,6 +130,12 @@
 				"title": "Search Symbols...",
 				"command": "lldb.symbols",
 				"enablement": "debugType == 'lldb'"
+			},
+			{
+				"category": "LLDB",
+				"title": "View Memory...",
+				"command": "lldb.viewMemory",
+				"enablement": "debugType == 'lldb'"
 			}
 		],
 		"languages": [

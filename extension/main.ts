@@ -65,6 +65,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
         subscriptions.push(commands.registerCommand('lldb.commandPrompt', () => this.commandPrompt()));
         subscriptions.push(commands.registerCommand('lldb.symbols', () => pickSymbol(debug.activeDebugSession)));
+        subscriptions.push(commands.registerCommand('lldb.viewMemory', () => this.viewMemory()));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
@@ -648,6 +649,27 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             strictEnv: true
         });
         terminal.show()
+    }
+
+    async viewMemory(address?: bigint) {
+        if (address == undefined) {
+            let addressStr = await window.showInputBox({
+                title: 'Enter memory address',
+                prompt: 'Hex, octal or decmal '
+            });
+            try {
+                address = BigInt(addressStr);
+            } catch (error) {
+                window.showErrorMessage('Could not parse address', { modal: true });
+                return;
+            }
+        }
+        commands.executeCommand('workbench.debug.viewlet.action.viewMemory', {
+            sessionId: debug.activeDebugSession.id,
+            variable: {
+                memoryReference: `0x${address.toString(16)}`
+            }
+        });
     }
 
     getExtensionConfig(folder?: WorkspaceFolder, key: string = 'lldb'): WorkspaceConfiguration {

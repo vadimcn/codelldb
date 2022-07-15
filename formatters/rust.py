@@ -1,7 +1,6 @@
 from __future__ import print_function, division
 import sys
 import logging
-import re
 import lldb
 import weakref
 
@@ -18,7 +17,7 @@ module = sys.modules[__name__]
 rust_category = None
 
 
-def initialize_category(debugger):
+def initialize_category(debugger, internal_dict):
     global module, rust_category
 
     rust_category = debugger.CreateCategory('Rust')
@@ -73,6 +72,9 @@ def initialize_category(debugger):
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^core::result::Result<.+>$', True)
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
 
+    if 'rust' in internal_dict.get('source_languages', []):
+        lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp', '^<?(std|core|alloc)::', debugger.GetInstanceName())
+
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global module, rust_category
@@ -120,7 +122,7 @@ def gcm(valobj, *chain):
 # Get a pointer out of core::ptr::Unique<T>
 def read_unique_ptr(valobj):
     pointer = valobj.GetChildMemberWithName('pointer')
-    if pointer.TypeIsPointerType(): # Between 1.33 and 1.63 pointer was just *const T
+    if pointer.TypeIsPointerType():  # Between 1.33 and 1.63 pointer was just *const T
         return pointer
     return pointer.GetChildAtIndex(0)
 
@@ -274,6 +276,7 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
     def get_summary(self):
         return '(%d) vec![%s]' % (self.len, sequence_summary((self.get_child_at_index(i) for i in range(self.len))))
 
+
 class StdVecDequeSynthProvider(RustSynthProvider):
     def initialize(self):
         self.ptr = read_unique_ptr(gcm(self.valobj, 'buf', 'ptr'))
@@ -305,7 +308,6 @@ class StdVecDequeSynthProvider(RustSynthProvider):
         except Exception as e:
             log.error('%s', e)
             raise
-
 
     def get_summary(self):
         return '(%d) VecDeque[%s]' % (self.num_children(), sequence_summary((self.get_child_at_index(i) for i in range(self.num_children()))))
@@ -778,4 +780,4 @@ class StdHashSetSynthProvider(StdHashMapSynthProvider):
 
 def __lldb_init_module(debugger_obj, internal_dict):
     log.info('Initializing')
-    initialize_category(debugger_obj)
+    initialize_category(debugger_obj, internal_dict)

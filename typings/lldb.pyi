@@ -52,6 +52,9 @@ class SBModule:
 class SBTarget:
     def GetAddressByteSize(self) -> int: ...
 
+class SBDebugger:
+    ...
+
 eTypeOptionCascade: int
 
 eBasicTypeInvalid: int

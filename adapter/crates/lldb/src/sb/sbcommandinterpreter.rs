@@ -5,6 +5,11 @@ cpp_class!(pub unsafe struct SBCommandInterpreter as "SBCommandInterpreter");
 unsafe impl Send for SBCommandInterpreter {}
 
 impl SBCommandInterpreter {
+    pub fn debugger(&self) -> SBDebugger {
+        cpp!(unsafe [self as "SBCommandInterpreter*"] -> SBDebugger as "SBDebugger" {
+            return self->GetDebugger();
+        })
+    }
     pub fn handle_command(
         &self,
         command: &str,

@@ -406,9 +406,14 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 launchConfig.sourceLanguages = [];
             launchConfig.sourceLanguages.push('rust');
         }
-        output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);
 
         launchConfig._adapterSettings = this.getAdapterSettings();
+        if (launchConfig.sourceLanguages) {
+            launchConfig._adapterSettings.sourceLanguages = launchConfig.sourceLanguages;
+            delete launchConfig.sourceLanguages;
+        }
+
+        output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);
         return launchConfig;
     }
 
@@ -418,11 +423,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             evaluateForHovers: settings.evaluateForHovers,
             commandCompletions: settings.commandCompletions,
         };
-        if (session.configuration.sourceLanguages) {
-            adapterParams.sourceLanguages = session.configuration.sourceLanguages;
-            delete session.configuration.sourceLanguages;
-        }
-
         let connector = new ReverseAdapterConnector();
         let port = await connector.listen();
 

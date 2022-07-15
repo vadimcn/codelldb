@@ -1,12 +1,13 @@
 from __future__ import print_function
+import __main__
 import sys
 import os
 import lldb
 import logging
 import traceback
 import ctypes
-from ctypes import CFUNCTYPE, POINTER, pointer, py_object, sizeof, byref, memmove,\
-                   c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p, py_object
+from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove,
+                    c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
 from value import Value
 
 logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
@@ -20,6 +21,10 @@ try: from typing import Tuple
 except Exception: pass
 
 #============================================================================================
+
+class SBDebugger(ctypes.Structure):
+    _fields_ = [('_opaque', c_int64)]
+    swig_type = lldb.SBDebugger
 
 class SBError(ctypes.Structure):
     _fields_ = [('_opaque', c_int64)]
@@ -98,7 +103,7 @@ def initialize(log_level, init_callback_addr, display_html_addr, callback_contex
 
     logging.getLogger().setLevel(log_level)
 
-    args = [callback_context, postinit, shutdown, compile_code, evaluate, evaluate_as_bool, modules_loaded, drop_pyobject]
+    args = [callback_context, postinit, shutdown, compile_code, evaluate, evaluate_as_bool, execute_in_instance, modules_loaded, drop_pyobject]
     init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
     init_callback(*args)
 
@@ -161,11 +166,26 @@ def evaluate(result, pycode, is_simple_expr, context):
     return True
 
 @CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, c_bool, SBExecutionContext)
-def evaluate_as_bool(result, code, is_simple_expr, context):
+def evaluate_as_bool(result, pycode, is_simple_expr, context):
     try:
         context = into_swig_wrapper(context, SBExecutionContext)
-        value = bool(evaluate_in_context(code, is_simple_expr, context))
+        value = bool(evaluate_in_context(pycode, is_simple_expr, context))
         result[0] = BoolResult.Ok(value)
+    except Exception as err:
+        log.error(traceback.format_exc())
+        error = lldb.SBError()
+        error.SetErrorString(str(err))
+        error = from_swig_wrapper(error, SBError)
+        result[0] = BoolResult.Err(error)
+    return True
+
+@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, SBDebugger)
+def execute_in_instance(result, pycode, debugger):
+    try:
+        debugger = into_swig_wrapper(debugger, SBDebugger)
+        eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
+        exec(pycode, eval_globals)
+        result[0] = BoolResult.Ok(True)
     except Exception as err:
         log.error(traceback.format_exc())
         error = lldb.SBError()
@@ -270,13 +290,12 @@ class PyEvalContext(dict):
 
 def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()
-    debugger = execution_context.GetTarget().GetDebugger()
     if simple_expr:
         eval_globals = {}
         eval_locals = PyEvalContext(frame)
         eval_globals['__frame_vars'] = eval_locals
     else:
-        import __main__ # type: ignore
+        debugger = execution_context.GetTarget().GetDebugger()
         eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
         eval_globals['__frame_vars'] = PyEvalContext(frame)
         eval_locals = {}

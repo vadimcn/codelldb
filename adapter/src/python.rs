@@ -7,7 +7,7 @@ use lldb::*;
 use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_char, c_int, c_void};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 
 #[repr(C, i32)]
@@ -35,6 +35,8 @@ unsafe impl Send for PyObject {}
 // Interface through which the rest of CodeLLDB interacts with Python.
 pub struct PythonInterface {
     initialized: bool,
+    interpreter: SBCommandInterpreter,
+    adapter_dir: PathBuf,
     event_sender: mpsc::Sender<EventBody>,
     postinit_ptr: MustInitialize<unsafe extern "C" fn(console_fd: usize) -> bool>,
     compile_code_ptr: MustInitialize<
@@ -61,6 +63,9 @@ pub struct PythonInterface {
             is_simple_expr: bool,
             context: SBExecutionContext,
         ) -> bool,
+    >,
+    execute_in_instance_ptr: MustInitialize<
+        unsafe extern "C" fn(result: *mut PyResult<()>, pycode: *mut c_void, debugger: SBDebugger) -> bool,
     >,
     modules_loaded_ptr: MustInitialize<unsafe extern "C" fn(modules: *const SBModule, modules_len: usize) -> bool>,
     drop_pyobject_ptr: MustInitialize<unsafe extern "C" fn(obj: *mut c_void)>,
@@ -92,12 +97,15 @@ pub fn initialize(
     let (sender, receiver) = mpsc::channel(10);
     let interface = Box::new(PythonInterface {
         initialized: false,
+        interpreter: interpreter,
+        adapter_dir: adapter_dir.to_owned(),
         event_sender: sender,
         postinit_ptr: NotInitialized,
         compile_code_ptr: NotInitialized,
         shutdown_ptr: NotInitialized,
         evaluate_ptr: NotInitialized,
         evaluate_as_bool_ptr: NotInitialized,
+        execute_in_instance_ptr: NotInitialized,
         modules_loaded_ptr: NotInitialized,
         drop_pyobject_ptr: NotInitialized,
     });
@@ -109,6 +117,7 @@ pub fn initialize(
         compile_code_ptr: *const c_void,
         evaluate_ptr: *const c_void,
         evaluate_as_bool_ptr: *const c_void,
+        execute_in_instance_ptr: *const c_void,
         modules_loaded_ptr: *const c_void,
         drop_pyobject_ptr: *const c_void,
     ) {
@@ -117,6 +126,7 @@ pub fn initialize(
         (*interface).compile_code_ptr = Initialized(mem::transmute(compile_code_ptr));
         (*interface).evaluate_ptr = Initialized(mem::transmute(evaluate_ptr));
         (*interface).evaluate_as_bool_ptr = Initialized(mem::transmute(evaluate_as_bool_ptr));
+        (*interface).execute_in_instance_ptr = Initialized(mem::transmute(execute_in_instance_ptr));
         (*interface).modules_loaded_ptr = Initialized(mem::transmute(modules_loaded_ptr));
         (*interface).drop_pyobject_ptr = Initialized(mem::transmute(drop_pyobject_ptr));
         (*interface).initialized = true;
@@ -158,7 +168,7 @@ pub fn initialize(
         "script import codelldb; codelldb.initialize({}, {:p}, {:p}, {:p})",
         py_log_level, init_callback as *const c_void, display_html_callback as *const c_void, interface
     );
-    interpreter.handle_command(&command, &mut command_result, false);
+    interface.interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         bail!(format!("{:?}", command_result));
     }
@@ -172,14 +182,6 @@ pub fn initialize(
         unsafe {
             (*interface.postinit_ptr)(get_raw_fd(console_stream));
         }
-    }
-
-    // Init formatters
-    let formatters = adapter_dir.parent().unwrap().join("formatters");
-    let command = format!("command script import '{}'", formatters.to_str().unwrap());
-    interpreter.handle_command(&command, &mut command_result, false);
-    if !command_result.succeeded() {
-        error!("{:?}", command_result);
     }
 
     Ok((interface, receiver))
@@ -248,6 +250,46 @@ impl PythonInterface {
         unsafe {
             (*self.modules_loaded_ptr)(modules.as_ptr(), modules.len());
         }
+    }
+
+    // Execute compiled code in the context of debugger instance's dictionary.
+    fn execute_in_instance(&self, code: &PyObject, debugger: &SBDebugger) -> Result<(), String> {
+        let mut result = PyResult::Invalid;
+        unsafe {
+            (*self.execute_in_instance_ptr)(&mut result, code.object, debugger.clone());
+        }
+        match result {
+            PyResult::Ok(()) => Ok(()),
+            PyResult::Err(error) => Err(error.to_string()),
+            _ => Err("Evaluation failed".into()),
+        }
+    }
+
+    // Loads formatters.
+    // This invokes __lldb_init_module() of each formatter module.
+    pub fn load_formatters(&self) -> Result<(), String> {
+        let formatters = self.adapter_dir.parent().unwrap().join("formatters");
+        let command = format!("command script import '{}'", formatters.to_str().unwrap());
+        let mut command_result = SBCommandReturnObject::new();
+        self.interpreter.handle_command(&command, &mut command_result, false);
+        if command_result.succeeded() {
+            Ok(())
+        } else {
+            Err(format!("{:?}", command_result))
+        }
+    }
+
+    // Sets source_languages in the internal globals dictionary of SBDebugger
+    pub fn set_source_languages<T: AsRef<str>>(&self, langs: &[T]) -> Result<(), Error> {
+        let mut stmt = String::from("source_languages = [");
+        for lang in langs {
+            use std::fmt::Write;
+            write!(stmt, "'{}',", lang.as_ref())?;
+        }
+        stmt.push_str("]");
+        let code = self.compile_code(&stmt, "<string>")?;
+        self.execute_in_instance(&code, &self.interpreter.debugger())?;
+        Ok(())
     }
 }
 

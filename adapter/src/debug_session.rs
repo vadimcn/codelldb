@@ -925,6 +925,11 @@ impl DebugSession {
             self.init_source_map(source_map.iter().map(|(k, v)| (k, v.as_ref())));
         }
 
+        self.relative_path_base = Initialized(match &args_common.relative_path_base {
+            Some(base) => base.into(),
+            None => env::current_dir()?,
+        });
+
         if let Some(true) = &args_common.reverse_debugging {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
                 capabilities: Capabilities {
@@ -934,11 +939,6 @@ impl DebugSession {
             }));
         }
 
-        self.relative_path_base = Initialized(match &args_common.relative_path_base {
-            Some(base) => base.into(),
-            None => env::current_dir()?,
-        });
-
         if let Some(ref settings) = args_common.adapter_settings {
             self.update_adapter_settings_and_caps(settings);
         }
@@ -947,6 +947,10 @@ impl DebugSession {
 
         if let Some(commands) = &args_common.init_commands {
             self.exec_commands("initCommands", &commands)?;
+        }
+
+        if let Some(python) = &self.python {
+            log_errors!(python.load_formatters());
         }
 
         Ok(())
@@ -1651,18 +1655,16 @@ impl DebugSession {
     }
 
     fn update_adapter_settings_and_caps(&mut self, settings: &AdapterSettings) {
-        self.update_adapter_settings(&settings);
-        if settings.evaluate_for_hovers.is_some()
-            || settings.command_completions.is_some()
-            || settings.source_languages.is_some()
-        {
+        let new_caps = self.update_adapter_settings(&settings);
+        if new_caps != Default::default() {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
-                capabilities: self.make_capabilities(),
+                capabilities: new_caps,
             }));
         }
     }
 
-    fn update_adapter_settings(&mut self, settings: &AdapterSettings) {
+    // Returns capabilities that changed, if any.
+    fn update_adapter_settings(&mut self, settings: &AdapterSettings) -> Capabilities {
         self.global_format = match settings.display_format {
             None => self.global_format,
             Some(DisplayFormat::Auto) => Format::Default,
@@ -1673,20 +1675,39 @@ impl DebugSession {
         self.show_disassembly = settings.show_disassembly.unwrap_or(self.show_disassembly);
         self.deref_pointers = settings.dereference_pointers.unwrap_or(self.deref_pointers);
         self.suppress_missing_files = settings.suppress_missing_source_files.unwrap_or(self.suppress_missing_files);
-        self.evaluate_for_hovers = settings.evaluate_for_hovers.unwrap_or(self.evaluate_for_hovers);
-        self.command_completions = settings.command_completions.unwrap_or(self.command_completions);
+
         if let Some(timeout) = settings.evaluation_timeout {
             self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
         }
         if let Some(ref terminal_prompt_clear) = settings.terminal_prompt_clear {
             self.terminal_prompt_clear = Some(terminal_prompt_clear.clone());
         }
-        if let Some(ref source_languages) = settings.source_languages {
-            self.source_languages = source_languages.clone();
-        }
         if let Some(console_mode) = settings.console_mode {
             self.console_mode = console_mode;
         }
+        let mut caps = Capabilities::default();
+        if let Some(evaluate_for_hovers) = settings.evaluate_for_hovers {
+            if self.evaluate_for_hovers != evaluate_for_hovers {
+                self.evaluate_for_hovers = evaluate_for_hovers;
+                caps.supports_evaluate_for_hovers = Some(evaluate_for_hovers);
+            }
+        }
+        if let Some(command_completions) = settings.command_completions {
+            if self.command_completions != command_completions {
+                self.command_completions = command_completions;
+                caps.supports_completions_request = Some(command_completions);
+            }
+        }
+        if let Some(ref source_languages) = settings.source_languages {
+            if self.source_languages.iter().ne(source_languages) {
+                self.source_languages = source_languages.to_owned();
+                caps.exception_breakpoint_filters = Some(self.get_exception_filters(&self.source_languages));
+            }
+        }
+        if let Some(python) = &self.python {
+            log_errors!(python.set_source_languages(&self.source_languages));
+        }
+        caps
     }
 
     // Send fake stop event to force VSCode to refresh its UI state.

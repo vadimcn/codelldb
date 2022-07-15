@@ -1,4 +1,3 @@
-import sys
 import lldb
 import codelldb
 from value import Value

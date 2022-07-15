@@ -836,9 +836,14 @@ impl DebugSession {
         .map_err(|e| as_user_error(e).into())
     }
 
+    // Try to create a debuggee terminal, according to what was requested in the launch configuration.
+    // On success, initializes DebugSession::debuggee_terminal.
     fn create_terminal(&mut self, args: &LaunchRequestArguments) -> impl Future {
         if self.target.platform().name() != "host" {
             return future::ready(()).left_future(); // Can't attach to a terminal when remote-debugging.
+        }
+        if !self.client_caps.supports_run_in_terminal_request.unwrap_or(false) {
+            return future::ready(()).left_future(); // The client doesn't support "runInTerminal" request.
         }
 
         let terminal_kind = match args.terminal {

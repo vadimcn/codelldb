@@ -22,13 +22,15 @@ except Exception: pass
 
 #============================================================================================
 
-class SBDebugger(ctypes.Structure):
-    _fields_ = [('_opaque', c_int64)]
-    swig_type = lldb.SBDebugger
-
+# 8 bytes
 class SBError(ctypes.Structure):
     _fields_ = [('_opaque', c_int64)]
     swig_type = lldb.SBError
+
+# 16 bytes
+class SBDebugger(ctypes.Structure):
+    _fields_ = [('_opaque', c_int64 * 2)]
+    swig_type = lldb.SBDebugger
 
 class SBExecutionContext(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]

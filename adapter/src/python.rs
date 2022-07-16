@@ -319,6 +319,7 @@ fn get_raw_fd(stream: std::fs::File) -> usize {
 fn test_sizeof() {
     // codelldb.py makes assumptions about sizes of these types:
     assert_eq!(mem::size_of::<SBError>(), 8);
+    assert_eq!(mem::size_of::<SBDebugger>(), 16);
     assert_eq!(mem::size_of::<SBExecutionContext>(), 16);
     assert_eq!(mem::size_of::<SBValue>(), 16);
     assert_eq!(mem::size_of::<SBModule>(), 16);

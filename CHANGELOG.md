@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.7.2
+
+## Fixed
+- #731: Crash on debug session startup.
+
 # 1.7.1
 
 ## Changed

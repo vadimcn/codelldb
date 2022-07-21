@@ -659,7 +659,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             });
             try {
                 address = BigInt(addressStr);
-            } catch (error) {
+            } catch (err) {
                 window.showErrorMessage('Could not parse address', { modal: true });
                 return;
             }

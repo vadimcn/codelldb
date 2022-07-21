@@ -10,6 +10,7 @@ import * as async from './novsc/async';
 import { Dict, Environment } from './novsc/commonTypes';
 import { output } from './main';
 import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
+import { ErrorWithCause, formatError } from './novsc/error';
 
 export interface CargoConfig {
     type: string,
@@ -168,7 +169,7 @@ export class Cargo {
                 onMessage
             );
         } catch (err) {
-            throw new Error(`Cargo invocation has failed: ${err}`);
+            throw new ErrorWithCause('Cargo invocation failed.', { cause: err });
         }
         return artifacts;
     }
@@ -189,7 +190,7 @@ export class Cargo {
             stderr => { output.append(stderr); },
         );
         if (!metadata)
-            throw new Error(`Cargo has produced no metadata`);
+            throw new Error('Cargo has produced no metadata');
 
         let configs: DebugConfiguration[] = [];
         for (let pkg of metadata.packages) {
@@ -271,9 +272,7 @@ export class Cargo {
                 env: mergedEnvironment(env),
             });
 
-            cargo.on('error', err => {
-                reject(new Error(`could not launch cargo: ${err}`));
-            });
+            cargo.on('error', err => reject(err));
 
             cargo.stderr.on('data', chunk => {
                 onStderrString(chunk.toString());

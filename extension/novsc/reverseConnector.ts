@@ -51,8 +51,8 @@ export class ReverseAdapterConnector implements DebugAdapter {
                             let msg: DebugProtocolMessage = JSON.parse(message.toString('utf8'));
                             this.onDidSendMessageEmitter.fire(msg);
                         }
-                        catch (e) {
-                            console.log('Error handling data: ' + (e && e.message));
+                        catch (err) {
+                            console.log('Error handling data: ' + err.toString());
                         }
                     }
                     this.rawData.remove(this.contentLength);

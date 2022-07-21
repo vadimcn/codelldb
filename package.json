@@ -29,7 +29,7 @@
 	},
 	"qna": "https://github.com/vadimcn/vscode-lldb/discussions",
 	"engines": {
-		"vscode": "^1.31.0"
+		"vscode": "^1.60.0"
 	},
 	"dependencies": {
 		"string-argv": "^0.3.1",
@@ -37,13 +37,13 @@
 		"yauzl": "^2.10.0"
 	},
 	"devDependencies": {
-		"@types/vscode": "^1.31.0",
-		"@types/node": "^10.17.60",
+		"@types/vscode": "^1.60.0",
+		"@types/node": "^14.0.0",
 		"@types/mocha": "^8.2.2",
 		"@types/yauzl": "^2.9.2",
 		"@vscode/debugprotocol": "^1.53.0",
 		"@vscode/debugadapter-testsupport": "^1.51.0",
-		"typescript": "^4.2.4",
+		"typescript": "^4.7.0",
 		"mocha": "^8.4.0",
 		"source-map-support": "^0.5.12",
 		"mocha-suppress-logs": "^0.3.1",

@@ -46,7 +46,7 @@ export class Cargo {
         cargoConfig: CargoConfig,
     ): Promise<string> {
 
-        let artifacts: CompilationArtifact[] = [];
+        let artifacts: CompilationArtifact[] | Error = [];
 
         let execution = new CustomExecution(async taskDef => {
             let outputEmitter = new EventEmitter<string>();
@@ -55,22 +55,25 @@ export class Cargo {
                 onDidWrite: outputEmitter.event,
                 onDidClose: doneEmitter.event,
                 open: async () => {
-                    let cargoArgs = taskDef.args;
-                    let pos = cargoArgs.indexOf('--');
-                    // Insert either before `--` or at the end.
-                    cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
-
-                    outputEmitter.fire('Running `cargo ' + cargoArgs.join(' ') + '`...\r\n');
                     let newline = /\n/g;
                     try {
+                        let cargoArgs = taskDef.args || [];
+                        let pos = cargoArgs.indexOf('--');
+                        // Insert either before `--` or at the end.
+                        cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
+
+                        outputEmitter.fire('Running `cargo ' + cargoArgs.join(' ') + '`...\r\n');
                         artifacts = await this.getCargoArtifacts(
                             taskDef.args,
                             taskDef.env,
                             message => outputEmitter.fire(message.replace(newline, '\r\n'))
                         );
                         doneEmitter.fire(0);
-                    } catch (error) {
-                        output.appendLine(error);
+                    } catch (err) {
+                        artifacts = err;
+                        let msg = formatError(err);
+                        outputEmitter.fire(msg.replace(newline, '\r\n'));
+                        output.appendLine(msg);
                         doneEmitter.fire(1);
                     }
                 },
@@ -80,7 +83,7 @@ export class Cargo {
         });
 
         let problemMatchers = cargoConfig.problemMatcher || '$rustc';
-        cargoConfig.type = 'cargo';
+        cargoConfig.type = 'codelldb.cargo';
         let task = new Task(cargoConfig, this.folder, 'cargo', 'CodeLLDB', execution, problemMatchers);
         task.presentationOptions.clear = true;
         let taskExecution = await tasks.executeTask(task);
@@ -93,6 +96,9 @@ export class Cargo {
                 }
             });
         });
+
+        if (artifacts instanceof Error)
+            throw new ErrorWithCause('Cargo task failed.', { cause: artifacts });
 
         return this.getProgramFromArtifacts(artifacts);
     }

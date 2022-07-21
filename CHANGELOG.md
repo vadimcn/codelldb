@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.7.3
+
+## Fixed
+- #734: Cargo task hangs.
+
 # 1.7.2
 
 ## Fixed

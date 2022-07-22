@@ -4,6 +4,7 @@
 
 ## Fixed
 - #734: Cargo task hangs.
+- #738: Cargo artifacts are not filtered.
 
 # 1.7.2
 

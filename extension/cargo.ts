@@ -100,7 +100,7 @@ export class Cargo {
         if (artifacts instanceof Error)
             throw new ErrorWithCause('Cargo task failed.', { cause: artifacts });
 
-        return this.getProgramFromArtifacts(artifacts);
+        return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
     }
 
     getProgramFromArtifacts(artifacts: CompilationArtifact[], filter?: { name?: string; kind?: string }): string {

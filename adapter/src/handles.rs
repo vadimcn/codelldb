@@ -61,7 +61,7 @@ impl<Value> HandleTree<Value> {
                 ent.insert(triple);
             }
             Entry::Occupied(_) => {
-                error!("Parent/key combination is not unique ({:?}/{})", parent_handle, key);
+                warn!("Parent/key combination is not unique ({:?}/{})", parent_handle, key);
                 new_handle = self.create_new_handle();
                 self.obj_by_handle.insert(new_handle, triple);
             }

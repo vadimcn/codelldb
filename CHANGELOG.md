@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.7.4
+
+## Fixed
+- #745: Bug: didn't catch panics in Rust code
+
 # 1.7.3
 
 ## Fixed

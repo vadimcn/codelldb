@@ -605,7 +605,10 @@
 									},
 									"problemMatcher": {
 										"description": "Problem matcher(s) to apply to cargo output.",
-										"type": ["string", "array"]
+										"type": [
+											"string",
+											"array"
+										]
 									},
 									"filter": {
 										"description": "Filter applied to compilation artifacts.",
@@ -942,17 +945,19 @@
 				"configurationSnippets": [
 					{
 						"label": "CodeLLDB: Launch",
+						"description": "Launch a new instance of the specified program.",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
 							"name": "${2:Launch}",
-							"program": "^\"\\${workspaceFolder}/${1:<your program>}\"",
+							"program": "^\"\\${workspaceFolder}/${1:<program>}\"",
 							"args": [],
 							"cwd": "^\"\\${workspaceFolder}\""
 						}
 					},
 					{
 						"label": "CodeLLDB: Attach by PID",
+						"description": "Attach to a running process with the specified process id.",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -962,21 +967,23 @@
 					},
 					{
 						"label": "CodeLLDB: Attach by Name",
+						"description": "Attach to a running instance of the specified program.",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
 							"name": "${2:Attach}",
-							"program": "^\"\\${workspaceFolder}/${1:<your program>}\""
+							"program": "^\"\\${workspaceFolder}/${1:<program>}\""
 						}
 					},
 					{
-						"label": "CodeLLDB: Custom Launch",
+						"label": "CodeLLDB: Custom",
+						"description": "Launch or attach using raw LLDB commands.",
 						"body": {
 							"type": "lldb",
 							"request": "custom",
 							"name": "${2:Custom launch}",
 							"targetCreateCommands": [
-								"^\"target create \\${workspaceFolder}/${1:<your program>}\""
+								"^\"target create \\${workspaceFolder}/${1:<program>}\""
 							],
 							"processCreateCommands": [
 								"settings set target.run-args ${3:value1 value2 value3}",
@@ -985,7 +992,8 @@
 						}
 					},
 					{
-						"label": "CodeLLDB: Debug Cargo Output",
+						"label": "CodeLLDB: Debug a Cargo Target",
+						"description": "Debug an executable target in a Cargo package.",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -996,12 +1004,12 @@
 									"${1:--lib}"
 								]
 							},
-							"program": "^\"\\${cargo:program}\"",
 							"args": []
 						}
 					},
 					{
 						"label": "CodeLLDB: Debug Cargo Tests",
+						"description": "Debug unit tests in a Cargo package.",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -1013,7 +1021,6 @@
 									"${1:--lib}"
 								]
 							},
-							"program": "^\"\\${cargo:program}\"",
 							"args": []
 						}
 					}

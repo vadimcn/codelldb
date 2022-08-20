@@ -10,6 +10,7 @@ pub enum MustInitialize<T> {
 pub use self::MustInitialize::Initialized;
 pub use self::MustInitialize::NotInitialized;
 
+#[allow(dead_code)]
 impl<T> MustInitialize<T> {
     pub fn is_initialized(&self) -> bool {
         match self {

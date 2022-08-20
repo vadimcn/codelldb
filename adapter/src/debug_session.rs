@@ -48,7 +48,6 @@ pub struct DebugSession {
 
     debugger: SBDebugger,
     target: MustInitialize<SBTarget>,
-    process: MustInitialize<SBProcess>,
     terminate_on_disconnect: bool,
     no_debug: bool,
 
@@ -132,7 +131,6 @@ impl DebugSession {
 
             debugger: debugger,
             target: NotInitialized,
-            process: NotInitialized,
             terminate_on_disconnect: false,
             no_debug: false,
 
@@ -694,7 +692,6 @@ impl DebugSession {
             }
         };
         self.console_message(format!("Launched process {}", process.process_id()));
-        self.process = Initialized(process);
         self.terminate_on_disconnect = true;
 
         // LLDB sometimes loses the initial stop event.
@@ -729,11 +726,10 @@ impl DebugSession {
         if let Some(commands) = args.process_create_commands.as_ref().or(args.common.pre_run_commands.as_ref()) {
             self.exec_commands("processCreateCommands", &commands)?;
         }
-        self.process = Initialized(self.target.process());
         self.terminate_on_disconnect = true;
 
         // This is succeptible to race conditions, but probably the best we can do.
-        if self.process.state().is_stopped() {
+        if self.target.process().state().is_stopped() {
             self.notify_process_stopped();
         }
 
@@ -804,13 +800,12 @@ impl DebugSession {
             Err(err) => bail!(as_user_error(err)),
         };
         self.console_message(format!("Attached to process {}", process.process_id()));
-        self.process = Initialized(process);
         self.terminate_on_disconnect = false;
 
         if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
         } else {
-            log_errors!(self.process.resume());
+            log_errors!(self.target.process().resume());
         }
 
         if let Some(commands) = args.common.post_run_commands {
@@ -1025,16 +1020,10 @@ impl DebugSession {
     }
 
     fn handle_threads(&mut self) -> Result<ThreadsResponseBody, Error> {
-        if !self.process.is_initialized() {
-            // VSCode may send `threads` request after a failed launch.
-            return Ok(ThreadsResponseBody {
-                threads: vec![],
-            });
-        }
         let mut response = ThreadsResponseBody {
             threads: vec![],
         };
-        for thread in self.process.threads() {
+        for thread in self.target.process().threads() {
             let mut descr = format!("{}: tid={}", thread.index_id(), thread.thread_id());
             if let Some(name) = thread.name() {
                 log_errors!(write!(descr, " \"{}\"", name));
@@ -1048,7 +1037,7 @@ impl DebugSession {
     }
 
     fn handle_stack_trace(&mut self, args: StackTraceArguments) -> Result<StackTraceResponseBody, Error> {
-        let thread = match self.process.thread_by_id(args.thread_id as ThreadID) {
+        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in stack trace request.");
@@ -1127,10 +1116,10 @@ impl DebugSession {
     }
 
     fn handle_pause(&mut self, _args: PauseArguments) -> Result<(), Error> {
-        match self.process.stop() {
+        match self.target.process().stop() {
             Ok(()) => Ok(()),
             Err(error) => {
-                if self.process.state().is_stopped() {
+                if self.target.process().state().is_stopped() {
                     // Did we lose a 'stopped' event?
                     self.notify_process_stopped();
                     Ok(())
@@ -1143,12 +1132,13 @@ impl DebugSession {
 
     fn handle_continue(&mut self, _args: ContinueArguments) -> Result<ContinueResponseBody, Error> {
         self.before_resume();
-        match self.process.resume() {
+        let process = self.target.process();
+        match process.resume() {
             Ok(()) => Ok(ContinueResponseBody {
                 all_threads_continued: Some(true),
             }),
             Err(err) => {
-                if self.process.state().is_running() {
+                if process.state().is_running() {
                     // Did we lose a 'running' event?
                     self.notify_process_running();
                     Ok(ContinueResponseBody {
@@ -1162,7 +1152,7 @@ impl DebugSession {
     }
 
     fn handle_next(&mut self, args: NextArguments) -> Result<(), Error> {
-        let thread = match self.process.thread_by_id(args.thread_id as ThreadID) {
+        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step request.");
@@ -1181,7 +1171,7 @@ impl DebugSession {
     }
 
     fn handle_step_in(&mut self, args: StepInArguments) -> Result<(), Error> {
-        let thread = match self.process.thread_by_id(args.thread_id as ThreadID) {
+        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step-in request.");
@@ -1201,9 +1191,10 @@ impl DebugSession {
 
     fn handle_step_out(&mut self, args: StepOutArguments) -> Result<(), Error> {
         self.before_resume();
-        let thread = self.process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
+        let process = self.target.process();
+        let thread = process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
         thread.step_out();
-        if self.process.state().is_stopped() {
+        if process.state().is_stopped() {
             self.notify_process_stopped();
         }
         Ok(())
@@ -1347,7 +1338,7 @@ impl DebugSession {
             None => bail!("Unexpected goto message."),
             Some(ref goto_args) => {
                 let thread_id = args.thread_id as u64;
-                match self.process.thread_by_id(thread_id) {
+                match self.target.process().thread_by_id(thread_id) {
                     None => bail!("Invalid thread id"),
                     Some(thread) => match goto_args.source.source_reference {
                         // Disassembly
@@ -1517,20 +1508,23 @@ impl DebugSession {
         // Let go of the terminal helper connection
         self.debuggee_terminal = None;
 
-        if let Initialized(ref process) = self.process {
-            let state = process.state();
-            if state.is_alive() {
-                let terminate = match args {
-                    Some(args) => match args.terminate_debuggee {
-                        Some(terminate) => terminate,
+        if let Initialized(ref target) = self.target {
+            let process = target.process();
+            if process.is_valid() {
+                let state = process.state();
+                if state.is_alive() {
+                    let terminate = match args {
+                        Some(args) => match args.terminate_debuggee {
+                            Some(terminate) => terminate,
+                            None => self.terminate_on_disconnect,
+                        },
                         None => self.terminate_on_disconnect,
-                    },
-                    None => self.terminate_on_disconnect,
-                };
-                if terminate {
-                    process.kill()?;
-                } else {
-                    process.detach()?;
+                    };
+                    if terminate {
+                        process.kill()?;
+                    } else {
+                        process.detach()?;
+                    }
                 }
             }
         }
@@ -1543,12 +1537,13 @@ impl DebugSession {
         let offset = args.offset.unwrap_or(0);
         let count = args.count as usize;
         let address = (mem_ref + offset) as lldb::Address;
-        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+        let process = self.target.process();
+        if let Ok(region_info) = process.get_memory_region_info(address) {
             if region_info.is_readable() {
                 let to_read = cmp::min(count, (region_info.region_end() - address) as usize);
                 let mut buffer = Vec::new();
                 buffer.resize(to_read, 0);
-                if let Ok(bytes_read) = self.process.read_memory(address, buffer.as_mut_slice()) {
+                if let Ok(bytes_read) = process.read_memory(address, buffer.as_mut_slice()) {
                     buffer.resize(bytes_read, 0);
                     return Ok(ReadMemoryResponseBody {
                         address: format!("0x{:X}", address),
@@ -1571,11 +1566,12 @@ impl DebugSession {
         let address = (mem_ref + offset) as lldb::Address;
         let data = base64::decode(&args.data)?;
         let allow_partial = args.allow_partial.unwrap_or(false);
-        if let Ok(region_info) = self.process.get_memory_region_info(address) {
+        let process = self.target.process();
+        if let Ok(region_info) = process.get_memory_region_info(address) {
             if region_info.is_writable() {
                 let to_write = cmp::min(data.len(), (region_info.region_end() - address) as usize);
                 if allow_partial || to_write == data.len() {
-                    if let Ok(bytes_written) = self.process.write_memory(address, &data) {
+                    if let Ok(bytes_written) = process.write_memory(address, &data) {
                         return Ok(WriteMemoryResponseBody {
                             bytes_written: Some(bytes_written as i64),
                             ..Default::default()
@@ -1653,7 +1649,7 @@ impl DebugSession {
         if self.console_mode != old_console_mode {
             self.print_console_mode();
         }
-        if self.process.state().is_stopped() {
+        if self.target.process().state().is_stopped() {
             self.refresh_client_display(None);
         }
         Ok(())
@@ -1719,7 +1715,7 @@ impl DebugSession {
     fn refresh_client_display(&mut self, thread_id: Option<ThreadID>) {
         let thread_id = match thread_id {
             Some(tid) => tid,
-            None => self.process.selected_thread().thread_id(),
+            None => self.target.process().selected_thread().thread_id(),
         };
         self.send_event(EventBody::stopped(StoppedEventBody {
             thread_id: Some(thread_id as i64),
@@ -1748,6 +1744,7 @@ impl DebugSession {
 
     fn handle_process_event(&mut self, process_event: &SBProcessEvent) {
         let flags = process_event.as_event().flags();
+        let process = self.target.process();
         if flags & SBProcessEvent::BroadcastBitStateChanged != 0 {
             match process_event.process_state() {
                 ProcessState::Running | ProcessState::Stepping => self.notify_process_running(),
@@ -1758,7 +1755,7 @@ impl DebugSession {
                 }
                 ProcessState::Crashed | ProcessState::Suspended => self.notify_process_stopped(),
                 ProcessState::Exited => {
-                    let exit_code = self.process.exit_status() as i64;
+                    let exit_code = process.exit_status() as i64;
                     self.console_message(format!("Process exited with code {}.", exit_code));
                     self.send_event(EventBody::exited(ExitedEventBody {
                         exit_code,
@@ -1777,8 +1774,8 @@ impl DebugSession {
             }
         }
         if flags & (SBProcessEvent::BroadcastBitSTDOUT | SBProcessEvent::BroadcastBitSTDERR) != 0 {
-            let read_stdout = |b: &mut [u8]| self.process.read_stdout(b);
-            let read_stderr = |b: &mut [u8]| self.process.read_stderr(b);
+            let read_stdout = |b: &mut [u8]| process.read_stdout(b);
+            let read_stderr = |b: &mut [u8]| process.read_stderr(b);
             let (read_stream, category): (&dyn for<'r> Fn(&mut [u8]) -> usize, &str) =
                 if flags & SBProcessEvent::BroadcastBitSTDOUT != 0 {
                     (&read_stdout, "stdout")
@@ -1809,7 +1806,8 @@ impl DebugSession {
         // Find thread that has caused this stop
         let mut stopped_thread;
         // Check the currently selected thread first
-        let selected_thread = self.process.selected_thread();
+        let process = self.target.process();
+        let selected_thread = process.selected_thread();
         stopped_thread = match selected_thread.stop_reason() {
             StopReason::Invalid | //.
             StopReason::None => None,
@@ -1817,12 +1815,12 @@ impl DebugSession {
         };
         // Fall back to scanning all threads in the process
         if stopped_thread.is_none() {
-            for thread in self.process.threads() {
+            for thread in process.threads() {
                 match thread.stop_reason() {
                     StopReason::Invalid | //.
                     StopReason::None => (),
                     _ => {
-                        self.process.set_selected_thread(&thread);
+                        process.set_selected_thread(&thread);
                         stopped_thread = Some(thread);
                         break;
                     }
@@ -1983,16 +1981,16 @@ impl DebugSession {
     fn context_from_frame(&self, frame: Option<&SBFrame>) -> SBExecutionContext {
         match frame {
             Some(frame) => SBExecutionContext::from_frame(&frame),
-            None => match self.process {
-                Initialized(ref process) => {
+            None => {
+                let target = self.debugger.selected_target();
+                let process = target.process();
+                if process.is_valid() {
                     let thread = process.selected_thread();
                     SBExecutionContext::from_thread(&thread)
-                }
-                NotInitialized => {
-                    let target = self.debugger.selected_target();
+                } else {
                     SBExecutionContext::from_target(&target)
                 }
-            },
+            }
         }
     }
 }

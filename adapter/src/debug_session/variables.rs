@@ -326,7 +326,7 @@ impl super::DebugSession {
             // Could be a void*.  Try reading one byte to determine wheter the address is valid.
             let addr = ptr.value_as_unsigned(0);
             let mut buff = [0u8];
-            if let Ok(1) = self.process.read_memory(addr, &mut buff) {
+            if let Ok(1) = self.target.process().read_memory(addr, &mut buff) {
                 return Either::Second(None);
             } else {
                 return Either::First("<invalid address>".to_owned());

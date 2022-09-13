@@ -1,5 +1,15 @@
 # Release Notes
 
+# 1.8.0
+
+## New
+- Updated LLDB to 15.0.0
+
+## Changed
+- ["Simple" expressions](MANUAL.md#simple-expressions)" now use a proper parser, which should make syntax error messages less confusing.
+- `${`...`}`-delimited expressions embedded in Simple and Python expressions now may conatin full Native expressions,
+not just variable names, which the case previously.
+
 # 1.7.4
 
 ## Fixed

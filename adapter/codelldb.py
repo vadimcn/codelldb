@@ -258,48 +258,35 @@ def bytes_to_str(b):
 
 #============================================================================================
 
-class VariableNotFound(KeyError):
-    def __str__(self):
-        return 'Variable \'{}\' not found'.format(self.args[0])
-
-def find_var_in_frame(sbframe, name):
-    val = sbframe.FindVariable(name)
+def nat_eval(sbframe, expr):
+    val = sbframe.FindVariable(expr)
     if not val.IsValid():
         for val_type in [lldb.eValueTypeVariableGlobal,
                          lldb.eValueTypeVariableStatic,
                          lldb.eValueTypeRegister,
                          lldb.eValueTypeConstResult]:
-            val = sbframe.FindValue(name, val_type)
+            val = sbframe.FindValue(expr, val_type)
             if val.IsValid():
                 break
     if not val.IsValid():
-        val = sbframe.GetValueForVariablePath(name)
-    return val
-
-# A dictionary-like object that fetches values from SBFrame (and caches them).
-class PyEvalContext(dict):
-    def __init__(self, sbframe):
-        self.sbframe = sbframe
-
-    def __missing__(self, name):
-        val = find_var_in_frame(self.sbframe, name)
-        if val.IsValid():
-            val = Value(val)
-            self.__setitem__(name, val)
-            return val
-        else:
-            raise VariableNotFound(name)
+        val = sbframe.GetValueForVariablePath(expr)
+    if not val.IsValid():
+        val = sbframe.EvaluateExpression(expr)
+        err = val.GetError()
+        if err.Fail():
+            raise Exception(err.GetCString())
+    return Value(val)
 
 def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()
     if simple_expr:
         eval_globals = {}
-        eval_locals = PyEvalContext(frame)
-        eval_globals['__frame_vars'] = eval_locals
+        eval_locals = {}
+        eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
     else:
         debugger = execution_context.GetTarget().GetDebugger()
         eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
-        eval_globals['__frame_vars'] = PyEvalContext(frame)
+        eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
         eval_locals = {}
         lldb.frame = frame
         lldb.thread = frame.GetThread()

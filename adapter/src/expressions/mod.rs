@@ -6,13 +6,21 @@ pub mod prelude {
         character::complete::{digit1, space0},
         error::ParseError,
         sequence::delimited,
-        IResult,
+        AsChar, InputTakeAtPosition, Parser,
     };
+
+    pub use crate::error::{as_user_error, Error};
+
     pub type Span<'a> = &'a str;
 
-    pub fn ws<'a, F: 'a, O, E: ParseError<Span<'a>>>(parser: F) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, O, E>
+    pub use nom::IResult;
+    //pub type IResult<I, O, E = nom::error::VerboseError<I>> = Result<(I, O), nom::Err<E>>;
+
+    pub fn ws<I, O, E: ParseError<I>, P>(parser: P) -> impl FnMut(I) -> IResult<I, O, E>
     where
-        F: Fn(Span<'a>) -> IResult<Span<'a>, O, E>,
+        P: Parser<I, O, E>,
+        I: InputTakeAtPosition,
+        <I as InputTakeAtPosition>::Item: AsChar + Clone,
     {
         delimited(space0, parser, space0)
     }
@@ -30,6 +38,7 @@ mod expression_format;
 mod hit_condition;
 mod preprocess;
 mod qualified_ident;
+mod simple_expressions;
 
 pub use expression_format::{get_expression_format, FormatSpec};
 pub use hit_condition::{parse_hit_condition, HitCondition};
@@ -43,12 +52,12 @@ pub enum PreparedExpression {
 }
 
 // Parse expression type and preprocess it.
-pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpression {
+pub fn prepare(expression: &str, default_type: Expressions) -> Result<PreparedExpression, prelude::Error> {
     let (expr, ty) = get_expression_type(expression, default_type);
     match ty {
-        Expressions::Native => PreparedExpression::Native(expr.to_owned()),
-        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)),
-        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)),
+        Expressions::Native => Ok(PreparedExpression::Native(expr.to_owned())),
+        Expressions::Simple => Ok(PreparedExpression::Simple(preprocess_simple_expr(expr)?)),
+        Expressions::Python => Ok(PreparedExpression::Python(preprocess_python_expr(expr)?)),
     }
 }
 
@@ -57,13 +66,13 @@ pub fn prepare(expression: &str, default_type: Expressions) -> PreparedExpressio
 pub fn prepare_with_format(
     expression: &str,
     default_type: Expressions,
-) -> Result<(PreparedExpression, Option<FormatSpec>), String> {
+) -> Result<(PreparedExpression, Option<FormatSpec>), prelude::Error> {
     let (expr, ty) = get_expression_type(expression, default_type);
     let (expr, format) = get_expression_format(expr)?;
     let pp_expr = match ty {
         Expressions::Native => PreparedExpression::Native(expr.to_owned()),
-        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)),
-        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)),
+        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)?),
+        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)?),
     };
     Ok((pp_expr, format))
 }

@@ -5,7 +5,6 @@ use nom::{
     combinator::{opt, recognize},
     multi::{many0_count, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, terminated},
-    IResult,
 };
 
 use super::prelude::*;
@@ -24,7 +23,7 @@ pub enum QIdentParam<'a> {
     Other(&'a str),
 }
 
-fn ident(input: Span) -> IResult<Span, Span> {
+pub fn ident(input: Span) -> IResult<Span, Span> {
     recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_"))))))(input)
 }
 

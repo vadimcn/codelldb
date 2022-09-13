@@ -494,31 +494,45 @@ an explicit format, as described in the previous section.
 ## Expressions
 
 CodeLLDB implements three expression evaluator types: "simple", "python" and "native".  These are used
-wherever user-entered expression needs to be evaluated: in "Watch" panel, in the Debug Console (for input
+wherever user-entered expression needs to be evaluated: in the Watch panel, in the Debug Console (for input
 prefixed with `?`) and in breakpoint conditions.<br>
 By default, "simple" is assumed, however you may change this using the [expressions](#launching-a-new-process) launch
 configuration property.  The default type may also be overridden on a per-expression basis using a prefix.
 
 ### Simple expressions
 Prefix: `/se `<br>
-Simple expressions are a subset of Python expressions consisting of identifiers, arithmetic operators, indexing,
-and logical operators `and`, `or`, `not`.  All other identifiers (including Python keywords) will evaluate to the value
-of the corresponding debuggee variable in the currently selected stack frame.  These values are obtained after applying
-[LLDB data formatters](https://lldb.llvm.org/varformats.html), so you will get the the "formatted" view of variables.
-For example, things like indexing an `std::vector` with an integer or comparing `std::string` to a string literal should just work.
-Variables, whose names are not valid Python identifiers may be accessed by escaping them with `${`...`}`.
+Simple expressions are designed to enable performing basic arithmetic and logical operations on [formatted
+views](https://lldb.llvm.org/varformats.html) of the debuggee variables.  For example, things like indexing an
+`std::vector` or comparing `std::string` to a string literal should "just work".
+
+The followng features are supported:
+- References to variables: all identifiers are assumed to refer to variables in the debuggee's current stack frame.
+  The identifiers may be qualified with namespaces and template parameters (e.g. `std::numeric_limits<float>::digits`).
+- Embedded [native expressions](#native-expressions): these must be delimited with `${` and `}`.
+- Literals: integers, floats and strings, `True`, `False`.
+- Operators: `()`, `**`, `*`, `/`, `//`, `%`, `<<`, `>>`, `~`, `&`, `^`, `|`, `==`, `!=`, `>`, `>=`, `<`, `<=`,
+             `not`, `and`, `or` with the same precedence as in Python.
+- Attribute access: `<expr>.<attr>`.
+- Indexing: `<expr>[<expr>]`.
 
 ### Python expressions
 Prefix: `/py `<br>
-Python expressions use normal Python syntax.  In addition to that, any identifier prefixed by `$`
-(or enclosed in `${`...`}`), will be replaced with the value of the corresponding debuggee
-variable.  Such values may be mixed with regular Python variables.  For example, `/py [math.sqrt(x) for x in $arr]`
-will evaluate to a list of square roots of the values contained in array variable `arr`.
+Python expressions support full Python syntax.  In addition to that, any identifier prefixed by `$`, will be replaced
+with the value of the corresponding debuggee variable.  Such values may be mixed with regular Python variables.
+For example, `/py [math.sqrt(x) for x in $arr]` will evaluate to a list of square roots of the values contained in
+the array variable `arr`.
 
-The environment, in which Python expressions are executed, is shared with the internal Python interpreter of the debugger
-and is affected by `script ...` command.  This may be used to import Python modules you are going to use later.
+The environment in which Python expressions are executed is shared with the internal Python interpreter of the debugger
+and is affected by the `script ...` command.   This may be used to import Python modules you are going to use later.
 For example, in order to evaluate `math.sqrt(x)` above, you'll need to have imported the `math` package via
 `script import math`.  To import Python modules on debug session startup, use `"initCommands": ["script import ..."]`.
+
+**Technical note**<br>
+Evaluation of Python expressions is performed as follows:
+- First, the expression is preprocessed and all tokens starting with '$' are replaced with calls to the `__expr()` function,
+  For example, the expression `[math.sqrt(x) for x in $arr]` will be re-written as `[math.sqrt(x) for x in __eval('arr')]`
+- The resulting string is evaluated by the Python interpreter, with the `__eval()` function performing variable
+  lookups and evaluation of native expressions, returning instances of [`Value`](#value).
 
 ### Native expressions
 Prefix: `/nat `<br>
@@ -536,16 +550,20 @@ thus they are often not as convenient as "simple" or "python" expressions.
 
 CodeLLDB provides extended Python API via `codelldb` module (which is auto-imported into debugger's main script context).
 
-- **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Allows dynamic evaluation of [simple expressions](#simple-expressions). The returned `Value` object is a proxy wrapper around [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html), which adds implementations of standard Python operators.
+- **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
     - **expression**: The expression to evaluate.
     - **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
-- **unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) from `Value`.
-- **wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_reference/lldb.SBValue-class.html) in a `Value` object.
+- **unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) from [`Value`](#value).
+- **wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) in a [`Value`](#value) object.
 - **display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : Displays content in a VSCode WebView panel:
     - **html**: HTML markup to display.
     - **title**: Title of the panel.  Defaults to the name of the current launch configuration.
     - **position**: Position (column) of the panel.  The allowed range is 1 through 3.
     - **reveal**: Whether to reveal a panel if one already exists.
+
+## Value
+`Value` objects ([source](adapter/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),
+which add implementations of standard Python operators.
 
 ## Installing Packages
 

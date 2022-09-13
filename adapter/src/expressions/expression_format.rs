@@ -1,4 +1,4 @@
-use nom::{bytes::complete::tag, sequence::delimited, IResult, Parser};
+use nom::{bytes::complete::tag, sequence::delimited, Parser};
 
 use super::prelude::*;
 

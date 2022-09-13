@@ -3,8 +3,7 @@ import codelldb
 from value import Value
 
 def evaluate(expr, unwrap=False):
-    exec_context = lldb.SBExecutionContext(lldb.frame)
-    value = codelldb.evaluate_in_context(expr, True, exec_context)
+    value = codelldb.nat_eval(lldb.frame, expr)
     return Value.unwrap(value) if unwrap else value
 
 def wrap(obj):

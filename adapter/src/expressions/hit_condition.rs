@@ -1,6 +1,5 @@
 use nom::{
-    branch::alt, bytes::complete::tag, character::complete::space0, combinator::map, sequence::preceded, IResult,
-    Parser,
+    branch::alt, bytes::complete::tag, character::complete::space0, combinator::map, sequence::preceded, Parser,
 };
 
 use super::prelude::*;

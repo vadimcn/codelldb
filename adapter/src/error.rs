@@ -19,4 +19,4 @@ pub type Error = Box<dyn std::error::Error>;
 
 macro_rules! bail(($err:expr) => (return Err(From::from($err))));
 
-macro_rules! log_errors(($e:expr) => (if let Err(err) = $e { error!("{}", err); }));
+macro_rules! log_errors(($e:expr) => (if let Err(err) = $e { log::error!("{}", err); }));

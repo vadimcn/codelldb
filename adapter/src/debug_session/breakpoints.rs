@@ -417,7 +417,7 @@ impl super::DebugSession {
         let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
             let condition = condition.trim();
             if !condition.is_empty() {
-                let pp_expr = expressions::prepare(condition, self.default_expr_type);
+                let pp_expr = expressions::prepare(condition, self.default_expr_type).unwrap();
                 match &pp_expr {
                     // if native, use that directly,
                     PreparedExpression::Native(expr) => {
@@ -558,7 +558,7 @@ impl super::DebugSession {
         }
 
         replace_logpoint_expressions(&log_message, |expr| {
-            let (pp_expr, expr_format) = expressions::prepare_with_format(expr, self.default_expr_type)?;
+            let (pp_expr, expr_format) = expressions::prepare_with_format(expr, self.default_expr_type).unwrap();
             let format = match expr_format {
                 None | Some(FormatSpec::Array(_)) => self.global_format,
                 Some(FormatSpec::Format(format)) => format,

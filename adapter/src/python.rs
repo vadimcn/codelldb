@@ -88,7 +88,7 @@ pub fn initialize(
 
     // Import debugger.py into script interpreter's namespace.
     // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
-    let init_script = adapter_dir.join("debugger.py");
+    let init_script = adapter_dir.join("scripts/debugger.py");
     let command = format!("command script import '{}'", init_script.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {

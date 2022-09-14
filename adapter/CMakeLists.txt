@@ -1,3 +1,5 @@
+add_subdirectory(scripts)
+
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     find_file(MSDIA msdia140.dll PATHS "${CMAKE_SOURCE_DIR}" "$ENV{VSINSTALLDIR}/DIA SDK/bin/amd64" NO_DEFAULT_PATH)
     if (NOT MSDIA) # Search again with default paths
@@ -39,13 +41,6 @@ endif()
 
 set(Cargo ${WithEnv} CXX_${LLVM_TRIPLE}=${CMAKE_CXX_COMPILER} CXXFLAGS_${LLVM_TRIPLE}=${CMAKE_CXX_FLAGS} cargo)
 
-add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}
-        ${CMAKE_SOURCE_DIR}/adapter/codelldb.py
-        ${CMAKE_SOURCE_DIR}/adapter/value.py
-        ${CMAKE_SOURCE_DIR}/adapter/debugger.py
-        ${CMAKE_SOURCE_DIR}/adapter/console.py
-)
-
 add_custom_target(codelldb ALL
     DEPENDS codelldb_bin codelldb_lib ${DIAFiles}
 )
@@ -58,7 +53,7 @@ add_custom_target(codelldb_bin
 )
 
 add_custom_target(codelldb_lib
-    DEPENDS ${PythonFiles}
+    DEPENDS codelldb_scripts
     COMMAND ${Cargo} build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
     COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Building codelldb_lib"

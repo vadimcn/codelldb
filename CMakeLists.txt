@@ -183,7 +183,7 @@ set(PackagedFilesFull
     adapter/*.so
     adapter/*.dylib
     adapter/*.dll
-    adapter/*.py
+    adapter/scripts/**/*.py
     lldb/bin/**/*
     lldb/lib/**/*
     lldb/DLLs/**/*

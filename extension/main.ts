@@ -636,7 +636,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     commandPrompt() {
         let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
         let lldbPath = path.join(this.context.extensionPath, 'lldb', 'bin', lldb);
-        let consolePath = path.join(this.context.extensionPath, 'adapter', 'console.py');
+        let consolePath = path.join(this.context.extensionPath, 'adapter', 'scripts', 'console.py');
         let folder = workspace.workspaceFolders[0];
         let config = this.getExtensionConfig(folder);
         let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));

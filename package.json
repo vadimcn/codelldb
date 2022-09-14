@@ -62,7 +62,9 @@
 	"activationEvents": [
 		"onDebug",
 		"onUri",
-		"onStartupFinished"
+		"onStartupFinished",
+		"onCommand:lldb.attach",
+		"onCommand:lldb.commandPrompt"
 	],
 	"contributes": {
 		"commands": [

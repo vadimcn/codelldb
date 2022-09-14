@@ -9,6 +9,7 @@
 - ["Simple" expressions](MANUAL.md#simple-expressions)" now use a proper parser, which should make syntax error messages less confusing.
 - `${`...`}`-delimited expressions embedded in Simple and Python expressions now may conatin full Native expressions,
 not just variable names, which the case previously.
+- The `show_debug_info` [command](MANUAL.md#debugger-commands) has been renamed to `debug_info`, with sub-commands `list` and `show`.
 
 # 1.7.4
 

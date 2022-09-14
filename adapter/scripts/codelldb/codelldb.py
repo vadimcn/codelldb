@@ -1,4 +1,3 @@
-from __future__ import print_function
 import __main__
 import sys
 import os
@@ -8,14 +7,9 @@ import traceback
 import ctypes
 from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove,
                     c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
-from value import Value
-
-logging.basicConfig(level=logging.DEBUG, #filename='/tmp/codelldb.log',
-                    format='%(levelname)s(Python) %(asctime)s %(name)s: %(message)s', datefmt='%H:%M:%S')
+from .value import Value
 
 log = logging.getLogger('codelldb')
-
-import debugger
 
 try: from typing import Tuple
 except Exception: pass
@@ -294,34 +288,3 @@ def evaluate_in_context(code, simple_expr, execution_context):
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
     return eval(code, eval_globals, eval_locals)
-
-# ============================================================================================
-
-
-@lldb.command('show_debug_info')
-def show_debug_info(debugger, command, result, internal_dict):
-    '''Display compilation units found in each module's debug info.\nUsage: debug_info [-v|--verbose] [module name]'''
-    import argparse
-    import shlex
-    parser = argparse.ArgumentParser('show_debug_info')
-    parser.add_argument('--verbose', '-v', action='store_true')
-    parser.add_argument('mod_name', nargs='?')
-    args = parser.parse_args(shlex.split(command))
-    print(args)
-    if args.mod_name:
-        import re
-        regex = re.compile(args.mod_name)
-        filter = lambda mod: regex.search(mod.platform_file.fullpath)
-    else:
-        filter = lambda mod: True
-
-    target = debugger.GetSelectedTarget()
-    for module in target.modules:
-        if filter(module):
-            result.write('Module {} : {} compile units with debug info\n'.format(
-                            module.platform_file.fullpath, len(module.compile_units)))
-            if args.verbose:
-                for cu in module.compile_units:
-                    result.write('    {}\n'.format(cu.file.fullpath))
-                result.write('\n')
-            result.flush()

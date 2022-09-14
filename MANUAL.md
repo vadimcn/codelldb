@@ -399,9 +399,9 @@ Example:
 
 CodeLLDB also adds in-debugger commands that may be executed in the Debug Console during a debug dession:
 
-|                    |                                                         |
-|--------------------|---------------------------------------------------------|
-|**show_debug_info** |Display compilation units found in each module's debug info.  This list may be filtered by a module name.
+|                 |                                                         |
+|-----------------|---------------------------------------------------------|
+|**debug_info**   |Provides tools for investigation of debugging information.  See `debug_info -h` for options.
 
 For more details about each command please use `help <command>`.
 

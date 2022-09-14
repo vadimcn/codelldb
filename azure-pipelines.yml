@@ -2,7 +2,7 @@ variables:
   lldbBuildId: 1973
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'lldb-build'
-  rustcVersion: '1.55.0'
+  rustcVersion: '1.63.0'
   cachePrefix: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true

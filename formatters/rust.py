@@ -31,22 +31,17 @@ def initialize_category(debugger, internal_dict):
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str')  # *-windows-msvc uses this name since 1.5?
 
-    attach_synthetic_to_type(StdStringSynthProvider, 'collections::string::String')  # Before 1.20
-    attach_synthetic_to_type(StdStringSynthProvider, 'alloc::string::String')  # Since 1.20
-
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^collections::vec::Vec<.+>$', True)  # Before 1.20
-    attach_synthetic_to_type(StdVectorSynthProvider, r'^alloc::vec::Vec<.+>$', True)  # Since 1.20
-
-    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^collections::vec_deque::VecDeque<.+>$', True)  # Before 1.20
-    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^alloc::collections::vec_deque::VecDeque<.+>$', True)  # Since 1.20
+    attach_synthetic_to_type(StdStringSynthProvider, '^(collections|alloc)::string::String$', True)
+    attach_synthetic_to_type(StdVectorSynthProvider, r'^(collections|alloc)::vec::Vec<.+>$', True)
+    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^(collections|alloc::collections)::vec_deque::VecDeque<.+>$', True)
 
     attach_synthetic_to_type(MsvcEnumSynthProvider, r'^enum\$<.+>$', True)
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
     attach_synthetic_to_type(MsvcSliceSynthProvider, r'^(mut *)?slice\$?<.+>.*$', True)
 
-    attach_synthetic_to_type(StdCStringSynthProvider, 'std::ffi::c_str::CString')
-    attach_synthetic_to_type(StdCStrSynthProvider, '^&?std::ffi::c_str::CStr', True)
+    attach_synthetic_to_type(StdCStringSynthProvider, '^(std|alloc)::ffi::c_str::CString$', True)
+    attach_synthetic_to_type(StdCStrSynthProvider, '^&?(std|core)::ffi::c_str::CStr$', True)
 
     attach_synthetic_to_type(StdOsStringSynthProvider, 'std::ffi::os_str::OsString')
     attach_synthetic_to_type(StdOsStrSynthProvider, '^&?std::ffi::os_str::OsStr', True)
@@ -514,7 +509,7 @@ class StdRefCellSynthProvider(DerefSynthProvider):
 
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
     def initialize(self):
-        self.deref = gcm(self.valobj, 'value').Dereference()
+        self.deref = gcm(self.valobj, 'value', 'pointer').Dereference()
         self.deref.SetPreferSyntheticValue(True)
 
 ##################################################################################################################

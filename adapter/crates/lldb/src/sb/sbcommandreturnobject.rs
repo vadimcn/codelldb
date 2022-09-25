@@ -62,17 +62,15 @@ impl SBCommandReturnObject {
             unsafe { CStr::from_ptr(ptr) }
         }
     }
-    pub fn set_immediate_output_file(&self, file: File) -> Result<(), SBError> {
-        let cfile = cfile_from_file(file, true)?;
-        cpp!(unsafe [self as "SBCommandReturnObject*", cfile as "FILE*"] {
-            return self->SetImmediateOutputFile(cfile, true);
+    pub fn set_immediate_output_file(&self, file: SBFile) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBCommandReturnObject*", file as "SBFile"] {
+            return self->SetImmediateOutputFile(file);
         });
         Ok(())
     }
-    pub fn set_immediate_error_file(&self, file: File) -> Result<(), SBError> {
-        let cfile = cfile_from_file(file, true)?;
-        cpp!(unsafe [self as "SBCommandReturnObject*", cfile as "FILE*"] {
-            return self->SetImmediateErrorFile(cfile, true);
+    pub fn set_immediate_error_file(&self, file: SBFile) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBCommandReturnObject*", file as "SBFile"] {
+            return self->SetImmediateErrorFile(file);
         });
         Ok(())
     }

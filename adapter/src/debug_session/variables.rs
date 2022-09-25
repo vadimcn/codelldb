@@ -432,7 +432,7 @@ impl super::DebugSession {
     ) -> Result<EvaluateResponseBody, Error> {
         let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
-        result.set_immediate_output_file(self.console_pipe.try_clone()?)?;
+        result.set_immediate_output_file(SBFile::from(self.console_pipe.try_clone()?, "w"))?;
         let interp = self.debugger.command_interpreter();
         let ok = interp.handle_command_with_context(command, &context, &mut result, false);
         debug!("{} -> {:?}, {:?}", command, ok, result);

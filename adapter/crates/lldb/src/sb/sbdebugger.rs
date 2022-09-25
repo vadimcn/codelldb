@@ -37,26 +37,23 @@ impl SBDebugger {
             self->SetAsync(is_async);
         })
     }
-    pub fn set_input_stream(&self, file: File) -> Result<(), SBError> {
-        let cfile = cfile_from_file(file, false)?;
-        cpp!(unsafe [self as "SBDebugger*", cfile as "FILE*"] {
-            self->SetInputFileHandle(cfile, true);
-        });
-        Ok(())
+    pub fn set_input_file(&self, file: SBFile) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBDebugger*", file as "SBFile"] -> SBError as "SBError" {
+            return self->SetInputFile(file);
+        })
+        .into_result()
     }
-    pub fn set_output_stream(&self, file: File) -> Result<(), SBError> {
-        let cfile = cfile_from_file(file, true)?;
-        cpp!(unsafe [self as "SBDebugger*", cfile as "FILE*"] {
-            self->SetOutputFileHandle(cfile, true);
-        });
-        Ok(())
+    pub fn set_output_file(&self, file: SBFile) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBDebugger*", file as "SBFile"] -> SBError as "SBError" {
+            return self->SetOutputFile(file);
+        })
+        .into_result()
     }
-    pub fn set_error_stream(&self, file: File) -> Result<(), SBError> {
-        let cfile = cfile_from_file(file, true)?;
-        cpp!(unsafe [self as "SBDebugger*", cfile as "FILE*"] {
-            self->SetErrorFileHandle(cfile, true);
-        });
-        Ok(())
+    pub fn set_error_file(&self, file: SBFile) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBDebugger*", file as "SBFile"] -> SBError as "SBError" {
+            return self->SetErrorFile(file);
+        })
+        .into_result()
     }
     pub fn create_target(
         &self,

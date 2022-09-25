@@ -469,6 +469,7 @@ dependencies = [
  "cpp",
  "cpp_build",
  "lazy_static",
+ "libc",
  "regex",
 ]
 

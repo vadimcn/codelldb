@@ -133,6 +133,7 @@ mod sb {
     pub mod sberror;
     pub mod sbevent;
     pub mod sbexecutioncontext;
+    pub mod sbfile;
     pub mod sbfilespec;
     pub mod sbframe;
     pub mod sbinstruction;
@@ -172,6 +173,7 @@ pub use sb::sbdebugger::*;
 pub use sb::sberror::*;
 pub use sb::sbevent::*;
 pub use sb::sbexecutioncontext::*;
+pub use sb::sbfile::*;
 pub use sb::sbfilespec::*;
 pub use sb::sbframe::*;
 pub use sb::sbinstruction::*;

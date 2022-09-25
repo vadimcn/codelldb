@@ -117,7 +117,7 @@ async fn run_debug_session(framed_stream: Box<dyn DAPChannel>, adapter_settings:
     let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
     tokio::spawn(dap_fut);
     session_fut.await;
-    debug!("End of debug session");
+    debug!("End of the debug session");
 }
 
 #[cfg(unix)]

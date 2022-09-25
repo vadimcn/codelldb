@@ -1,6 +1,4 @@
 use super::*;
-use crate::cfile::cfile_from_file;
-use std::fs::File;
 
 cpp_class!(pub unsafe struct SBCommandReturnObject as "SBCommandReturnObject");
 

@@ -50,6 +50,7 @@ pub struct DebugSession {
     console_pipe: std::fs::File,
 
     debugger: SBDebugger,
+    debugger_terminal: Option<DebuggerTerminal>,
     target: MustInitialize<SBTarget>,
     terminate_on_disconnect: bool,
     no_debug: bool,
@@ -105,10 +106,9 @@ impl DebugSession {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
+        // Initialize Python
         let (con_reader, con_writer) = pipe().unwrap();
-        log_errors!(debugger.set_output_stream(con_writer.try_clone().unwrap()));
         let current_exe = env::current_exe().unwrap();
-
         let (python, python_events) = match python::initialize(
             debugger.command_interpreter(),
             current_exe.parent().unwrap(),
@@ -133,6 +133,7 @@ impl DebugSession {
             console_pipe: con_writer,
 
             debugger: debugger,
+            debugger_terminal: None,
             target: NotInitialized,
             terminate_on_disconnect: false,
             no_debug: false,
@@ -163,6 +164,8 @@ impl DebugSession {
             terminal_prompt_clear: None,
         };
 
+        debug_session.update_adapter_settings(&settings);
+
         DebugSession::pipe_console_events(&debug_session.dap_session, con_reader);
 
         if let Some(python_events) = python_events {
@@ -172,12 +175,13 @@ impl DebugSession {
         let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
 
-        debug_session.update_adapter_settings(&settings);
+        let con_writer = debug_session.console_pipe.try_clone().unwrap();
+        log_errors!(debug_session.debugger.set_output_file(SBFile::from(con_writer, false)));
 
-        // The main event loop, where we react to incoming events from different sources.
         let shared_session = Shared::new(debug_session);
         shared_session.try_map(|s| s.self_ref = Initialized(shared_session.clone())).unwrap();
 
+        // The main event loop, where we react to incoming events from different sources.
         let local_set = tokio::task::LocalSet::new();
         local_set.spawn_local(async move {
             loop {
@@ -199,12 +203,23 @@ impl DebugSession {
                     }
                 }
             }
-            SBBreakpoint::clear_all_callbacks(); // Callbacks hold references to the session
-            shared_session.map(|s| s.self_ref = NotInitialized).await;
+
+            // Session shutdown.
+            shared_session
+                .map(|s| {
+                    log_errors!(s.destroy_debugger_terminal());
+                    s.self_ref = NotInitialized;
+                })
+                .await;
+
+            SBBreakpoint::clear_all_callbacks(); // Callbacks hold references to the session.
+
+            // There shouldn't be any other references at this point.
             if shared_session.ref_count() > 1 {
                 error!("shared_session.ref_count={}", shared_session.ref_count());
             }
         });
+
         local_set
     }
 
@@ -214,6 +229,10 @@ impl DebugSession {
             let mut con_data = [0u8; 1024];
             loop {
                 if let Ok(bytes) = con_reader.read(&mut con_data).await {
+                    if bytes == 0 {
+                        debug!("End of the console stream");
+                        break;
+                    }
                     let event = EventBody::output(OutputEventBody {
                         output: String::from_utf8_lossy(&con_data[0..bytes]).into(),
                         ..Default::default()
@@ -811,7 +830,7 @@ impl DebugSession {
         }
         let (text, cursor_column) = match self.console_mode {
             ConsoleMode::Commands => (&args.text[..], args.column - 1),
-            ConsoleMode::Evaluate => {
+            ConsoleMode::Split | ConsoleMode::Evaluate => {
                 if args.text.starts_with('`') {
                     (&args.text[1..], args.column - 2)
                 } else if args.text.starts_with("/cmd ") {

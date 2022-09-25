@@ -40,16 +40,6 @@ pub fn pipe() -> Result<(fs::File, fs::File), Error> {
     }
 }
 
-// #[cfg(unix)]
-// pub fn sink() -> Result<fs::File, Error> {
-//     Ok(fs::File::create("/dev/null")?)
-// }
-
-// #[cfg(windows)]
-// pub fn sink() -> Result<fs::File, Error> {
-//     Ok(fs::File::create(r#"\\.\NUL"#)?)
-// }
-
 /// Returns the actual file path casing.
 #[cfg(windows)]
 pub fn get_fs_path_case(path: &Path) -> Result<PathBuf, std::io::Error> {

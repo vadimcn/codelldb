@@ -401,7 +401,7 @@ impl super::DebugSession {
                         self.handle_execute_command(&args.expression, frame, false)
                     }
                 }
-                ConsoleMode::Evaluate => {
+                ConsoleMode::Split | ConsoleMode::Evaluate => {
                     if args.expression.starts_with('`') {
                         self.handle_execute_command(&args.expression[1..], frame, false)
                     } else if args.expression.starts_with("/cmd ") {
@@ -432,7 +432,7 @@ impl super::DebugSession {
     ) -> Result<EvaluateResponseBody, Error> {
         let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
-        result.set_immediate_output_file(SBFile::from(self.console_pipe.try_clone()?, "w"))?;
+        result.set_immediate_output_file(SBFile::from(self.console_pipe.try_clone()?, true))?;
         let interp = self.debugger.command_interpreter();
         let ok = interp.handle_command_with_context(command, &context, &mut result, false);
         debug!("{} -> {:?}, {:?}", command, ok, result);

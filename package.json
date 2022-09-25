@@ -373,12 +373,14 @@
 						"type": "string",
 						"enum": [
 							"commands",
-							"evaluate"
+							"evaluate",
+							"split"
 						],
 						"default": "commands",
 						"enumDescriptions": [
 							"Treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",
-							"Treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick)."
+							"Treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).",
+							"(experimental) Use the debug console for warningevaluation of expressions, open a separate terminal for input of LLDB commands."
 						],
 						"scope": "resource"
 					},

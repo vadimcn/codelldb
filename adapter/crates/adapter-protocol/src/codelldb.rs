@@ -232,6 +232,7 @@ pub struct DisplayHtmlEventBody {
 pub enum ConsoleMode {
     Commands,
     Evaluate,
+    Split
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

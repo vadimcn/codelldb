@@ -90,28 +90,19 @@ impl Terminal {
         }
     }
 
-    pub fn attach<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        // Windows does not have an API for launching a child process attached to another console.
-        // Instead,
-        #[cfg(windows)]
-        {
-            use winapi::um::wincon::{AttachConsole, FreeConsole};
+    #[cfg(windows)]
+    pub fn attach_console(&self) {
+        unsafe {
             let pid = self.data.parse::<u32>().unwrap();
-            unsafe {
-                dbg!(FreeConsole());
-                dbg!(AttachConsole(pid));
-            }
-            let result = f();
-            unsafe {
-                dbg!(FreeConsole());
-            }
-            result
+            dbg!(winapi::um::wincon::FreeConsole());
+            dbg!(winapi::um::wincon::AttachConsole(pid));
         }
+    }
 
-        #[cfg(not(windows))]
-        f()
+    #[cfg(windows)]
+    pub fn detach_console(&self) {
+        unsafe {
+            dbg!(winapi::um::wincon::FreeConsole());
+        }
     }
 }

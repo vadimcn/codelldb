@@ -1,6 +1,4 @@
 use super::*;
-use crate::cfile::cfile_from_file;
-use std::fs::File;
 
 cpp_class!(pub unsafe struct SBDebugger as "SBDebugger");
 
@@ -20,6 +18,11 @@ impl SBDebugger {
     pub fn create(source_init_files: bool) -> SBDebugger {
         cpp!(unsafe [source_init_files as "bool"] -> SBDebugger as "SBDebugger" {
             return SBDebugger::Create(source_init_files);
+        })
+    }
+    pub fn destroy(debugger: &SBDebugger) {
+        cpp!(unsafe [debugger as "SBDebugger*"] {
+            SBDebugger::Destroy(*debugger);
         })
     }
     pub fn clear(&self) {
@@ -143,6 +146,28 @@ impl SBDebugger {
             })
         })
         .into_result()
+    }
+    pub fn run_command_interpreter(&self, auto_handle_events: bool, spawn_thread: bool) {
+        cpp!(unsafe [self as "SBDebugger*", auto_handle_events as "bool", spawn_thread as "bool"] {
+            self->RunCommandInterpreter(auto_handle_events, spawn_thread);
+        })
+    }
+    pub fn dispatch_input(&self, input: &str) {
+        let data = input.as_ptr();
+        let data_len = input.len();
+        cpp!(unsafe [self as "SBDebugger*", data as "const void*", data_len as "size_t"] {
+            self->DispatchInput(data, data_len);
+        })
+    }
+    pub fn dispatch_input_interrupt(&self) {
+        cpp!(unsafe [self as "SBDebugger*"] {
+            self->DispatchInputInterrupt();
+        })
+    }
+    pub fn dispatch_input_end_of_file(&self) {
+        cpp!(unsafe [self as "SBDebugger*"] {
+            self->DispatchInputEndOfFile();
+        })
     }
 }
 

@@ -4,6 +4,8 @@
 
 ## New
 - Updated LLDB to 15.0.0
+- Added experimental `split` option to the [`consoleMode`](MANUAL.md#general) config setting.  In this mode the debug console
+  will be used for evaluation of expressions and a separate terminal will be created for input of LLDB commands.
 
 ## Changed
 - ["Simple" expressions](MANUAL.md#simple-expressions)" now use a proper parser, which should make syntax error messages less confusing.

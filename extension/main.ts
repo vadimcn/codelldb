@@ -1,5 +1,5 @@
 import {
-    workspace, window, commands, debug,
+    workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
@@ -121,6 +121,24 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async onActivate() {
+        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
+        let currVersion = pkg.version;
+        let lastVersion = this.context.globalState.get('lastLaunchedVersion');
+        let lldbConfig = this.getExtensionConfig();
+        if (currVersion != lastVersion && !lldbConfig.get('suppressUpdateNotifications')) {
+            this.context.globalState.update('lastLaunchedVersion', currVersion);
+            if (lastVersion != undefined) {
+                let buttons = ['What\'s new?', 'Don\'t show this again'];
+                let choice = await window.showInformationMessage('CodeLLDB extension has been updated', ...buttons);
+                if (choice === buttons[0]) {
+                    let changelog = path.join(this.context.extensionPath, 'CHANGELOG.md')
+                    let uri = Uri.file(changelog);
+                    await commands.executeCommand('markdown.showPreview', uri, null, { locked: true });
+                } else if (choice == buttons[1]) {
+                    lldbConfig.update('suppressUpdateNotifications', true, ConfigurationTarget.Global);
+                }
+            }
+        }
         this.propagateDisplaySettings();
         install.ensurePlatformPackage(this.context, output, false);
     }

@@ -472,6 +472,11 @@
 						],
 						"default": null,
 						"scope": "window"
+					},
+					"lldb.suppressUpdateNotifications": {
+						"description": "Don't show extension update notifications.",
+						"type": "boolean",
+						"scope": "application"
 					}
 				}
 			}

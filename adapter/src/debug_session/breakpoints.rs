@@ -76,9 +76,7 @@ impl super::DebugSession {
             (None, None, Some(path)) => self.set_source_breakpoints(Path::new(path), requested_bps),
             _ => bail!("Unexpected"),
         }?;
-        Ok(SetBreakpointsResponseBody {
-            breakpoints,
-        })
+        Ok(SetBreakpointsResponseBody { breakpoints })
     }
 
     fn set_source_breakpoints(
@@ -102,7 +100,8 @@ impl super::DebugSession {
                 Some(bp) => bp,
                 None => {
                     let path = file_path_norm.to_str().ok_or("path")?;
-                    self.target.breakpoint_create_by_location(path, req.line as u32, req.column.map(|c| c as u32))
+                    self.target
+                        .breakpoint_create_by_location(path, req.line as u32, req.column.map(|c| c as u32))
                 }
             };
 
@@ -251,9 +250,7 @@ impl super::DebugSession {
         }
         drop(mem::replace(function, new_bps));
 
-        Ok(SetBreakpointsResponseBody {
-            breakpoints: result,
-        })
+        Ok(SetBreakpointsResponseBody { breakpoints: result })
     }
 
     pub(super) fn handle_set_exception_breakpoints(
@@ -288,7 +285,10 @@ impl super::DebugSession {
 
     // Generates debug_protocol::Breakpoint message from a BreakpointInfo
     fn make_bp_response(&self, bp_info: &BreakpointInfo, include_source: bool) -> Breakpoint {
-        let message = Some(format!("Resolved locations: {}", bp_info.breakpoint.num_resolved_locations()));
+        let message = Some(format!(
+            "Resolved locations: {}",
+            bp_info.breakpoint.num_resolved_locations()
+        ));
 
         if bp_info.breakpoint.num_locations() == 0 {
             Breakpoint {
@@ -399,7 +399,9 @@ impl super::DebugSession {
         let rust_panic = filters.iter().any(|x| x == "rust_panic");
         let mut bps = vec![];
         if cpp_throw || cpp_catch {
-            let bp = self.target.breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
+            let bp = self
+                .target
+                .breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
             bp.add_name("cpp_exception");
             bps.push(bp);
         }

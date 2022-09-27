@@ -145,11 +145,7 @@ pub fn initialize(
 
         let event = EventBody::displayHtml(DisplayHtmlEventBody {
             html: CStr::from_ptr(html).to_str().unwrap().to_string(),
-            title: if title.is_null() {
-                None
-            } else {
-                Some(CStr::from_ptr(title).to_str().unwrap().to_string())
-            },
+            title: if title.is_null() { None } else { Some(CStr::from_ptr(title).to_str().unwrap().to_string()) },
             position: Some(position as i32),
             reveal: reveal != 0,
         });

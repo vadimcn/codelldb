@@ -1,4 +1,5 @@
 use crate::prelude::*;
+
 use crate::dap_codec::{DecoderError, DecoderResult};
 
 use adapter_protocol::*;
@@ -151,13 +152,8 @@ impl DAPSession {
         self.out_sender.send((request, Some(sender))).await?;
         let result = receiver.await?;
         match result {
-            ResponseResult::Success {
-                body,
-            } => Ok(body),
-            ResponseResult::Error {
-                message,
-                ..
-            } => Err(message.into()),
+            ResponseResult::Success { body } => Ok(body),
+            ResponseResult::Error { message, .. } => Err(message.into()),
         }
     }
 

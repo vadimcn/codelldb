@@ -1,7 +1,7 @@
 use super::*;
 
-use std::mem;
 use std::ffi::OsStr;
+use std::mem;
 
 pub(crate) fn with_cstr<R, F>(s: impl AsRef<OsStr>, f: F) -> R
 where
@@ -52,11 +52,7 @@ where
     }
 
     let size_is_reliable = size > buffer.len();
-    let capacity = if size_is_reliable {
-        size + 1
-    } else {
-        buffer.len() * 2
-    };
+    let capacity = if size_is_reliable { size + 1 } else { buffer.len() * 2 };
     let mut buffer = Vec::with_capacity(capacity);
     loop {
         let c_ptr = buffer.as_ptr() as *mut c_char;

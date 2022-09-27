@@ -26,7 +26,8 @@ impl SBCompileUnit {
     pub fn language(&self) -> LanguageType {
         cpp!(unsafe [self as "SBCompileUnit*"] -> c_uint as "unsigned int" {
             return self->GetLanguage();
-        }).into()
+        })
+        .into()
     }
 }
 

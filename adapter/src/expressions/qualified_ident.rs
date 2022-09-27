@@ -24,7 +24,10 @@ pub enum QIdentParam<'a> {
 }
 
 pub fn ident(input: Span) -> IResult<Span, Span> {
-    recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_"))))))(input)
+    recognize(pair(
+        alt((alpha1, tag("_"))),
+        many0_count(alt((alphanumeric1, tag("_")))),
+    ))(input)
 }
 
 fn template_param(input: Span) -> IResult<Span, QIdentParam> {
@@ -48,17 +51,14 @@ fn qident_segment(input: Span) -> IResult<Span, QIdentSegment> {
         Some(parameters) => parameters,
         None => Vec::new(),
     };
-    Ok((
-        rest,
-        QIdentSegment {
-            ident,
-            parameters,
-        },
-    ))
+    Ok((rest, QIdentSegment { ident, parameters }))
 }
 
 pub fn qualified_ident(input: Span) -> IResult<Span, QIdent> {
-    preceded(opt(terminated(tag("::"), space0)), separated_list1(ws(tag("::")), qident_segment))(input)
+    preceded(
+        opt(terminated(tag("::"), space0)),
+        separated_list1(ws(tag("::")), qident_segment),
+    )(input)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ fn test_qident_segment() {
             "",
             QIdentSegment {
                 ident: "string",
-                parameters: vec![],
+                parameters: vec![]
             }
         ))
     );
@@ -117,6 +117,7 @@ fn test_qident_segment() {
 }
 
 #[test]
+#[rustfmt::skip::macros(assert_eq)]
 fn test_qualified_ident() {
     let expected = vec![
         QIdentSegment {

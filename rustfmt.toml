@@ -1,2 +1,3 @@
 max_width = 120
-use_small_heuristics = "Off"
+single_line_if_else_max_width = 100
+chain_width = 90

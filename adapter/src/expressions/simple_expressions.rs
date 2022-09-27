@@ -18,7 +18,10 @@ use super::preprocess::{native_expr, python_string};
 use super::qualified_ident::{ident, qualified_ident};
 
 fn python_number(input: Span) -> IResult<Span, Span> {
-    alt((recognize(pair(digit1, opt(pair(tag("."), digit0)))), recognize(pair(tag("."), digit1))))(input)
+    alt((
+        recognize(pair(digit1, opt(pair(tag("."), digit0)))),
+        recognize(pair(tag("."), digit1)),
+    ))(input)
 }
 
 // Parse <term> [<op> <term> [<op> <term> [...]]]
@@ -66,7 +69,10 @@ fn inversion(input: Span) -> IResult<Span, Cow<str>> {
 }
 
 fn comparison(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(alt((tag("=="), tag("!="), tag(">"), tag(">="), tag("<"), tag("<="))), bitwise_or)(input)
+    binary_op(
+        alt((tag("=="), tag("!="), tag(">"), tag(">="), tag("<"), tag("<="))),
+        bitwise_or,
+    )(input)
 }
 
 fn bitwise_or(input: Span) -> IResult<Span, Cow<str>> {
@@ -136,7 +142,9 @@ fn atom(i: Span) -> IResult<Span, Cow<str>> {
 }
 
 fn group(input: Span) -> IResult<Span, Cow<str>> {
-    map(delimited(char('('), expression, char(')')), |e| format!("({})", e).into())(input)
+    map(delimited(char('('), expression, char(')')), |e| {
+        format!("({})", e).into()
+    })(input)
 }
 
 pub fn expression(input: Span) -> IResult<Span, Cow<str>> {

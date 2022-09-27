@@ -319,7 +319,12 @@ impl super::DebugSession {
         };
 
         let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
-        let fut = Terminal::create(terminal_kind, title, self.terminal_prompt_clear.clone(), self.dap_session.clone());
+        let fut = Terminal::create(
+            terminal_kind,
+            title,
+            self.terminal_prompt_clear.clone(),
+            self.dap_session.clone(),
+        );
         let self_ref = self.self_ref.clone();
         async move {
             let result = fut.await;

@@ -43,6 +43,7 @@ pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, Option<Forma
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[test]
+#[rustfmt::skip::macros(assert_matches)]
 fn test_expression_format() {
     assert_matches!(get_expression_format("foo"), Ok(("foo", None)));
     assert_matches!(get_expression_format("foo,bar"), Ok(("foo,bar", None)));

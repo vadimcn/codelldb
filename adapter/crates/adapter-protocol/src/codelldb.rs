@@ -232,7 +232,7 @@ pub struct DisplayHtmlEventBody {
 pub enum ConsoleMode {
     Commands,
     Evaluate,
-    Split
+    Split,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -398,7 +398,7 @@ mod tests {
                 seq: 3,
                 type_: ProtocolMessageType::Response(Response {
                     result: ResponseResult::Success {
-                        body: ResponseBody::launch,
+                        body: ResponseBody::launch
                     },
                     ..
                 })
@@ -434,7 +434,7 @@ mod tests {
             request,
             ProtocolMessage {
                 seq: 12,
-                type_: ProtocolMessageType::Request(RequestArguments::scopes(..)),
+                type_: ProtocolMessageType::Request(RequestArguments::scopes(..))
             }
         );
 
@@ -447,7 +447,7 @@ mod tests {
                     request_seq: 12,
                     success: true,
                     result: ResponseResult::Success {
-                        body: ResponseBody::scopes(..),
+                        body: ResponseBody::scopes(..)
                     },
                     ..
                 })
@@ -463,7 +463,7 @@ mod tests {
             request,
             ProtocolMessage {
                 seq: 12,
-                type_: ProtocolMessageType::Request(RequestArguments::configurationDone(None)),
+                type_: ProtocolMessageType::Request(RequestArguments::configurationDone(None))
             }
         );
 

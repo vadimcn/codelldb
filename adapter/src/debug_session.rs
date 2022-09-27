@@ -468,9 +468,7 @@ impl DebugSession {
             Ok(body) => Response {
                 request_seq: request_seq,
                 success: true,
-                result: ResponseResult::Success {
-                    body: body,
-                },
+                result: ResponseResult::Success { body: body },
             },
             Err(err) => {
                 let message = if let Some(user_err) = err.downcast_ref::<crate::error::UserError>() {
@@ -517,9 +515,12 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
-        self.event_listener.start_listening_for_event_class(&self.debugger, SBTarget::broadcaster_class_name(), !0);
-        self.event_listener.start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
-        self.event_listener.start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
+        self.event_listener
+            .start_listening_for_event_class(&self.debugger, SBTarget::broadcaster_class_name(), !0);
+        self.event_listener
+            .start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
+        self.event_listener
+            .start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
         self.client_caps = Initialized(args);
         Ok(self.make_capabilities())
     }
@@ -600,9 +601,7 @@ impl DebugSession {
     }
 
     fn handle_threads(&mut self) -> Result<ThreadsResponseBody, Error> {
-        let mut response = ThreadsResponseBody {
-            threads: vec![],
-        };
+        let mut response = ThreadsResponseBody { threads: vec![] };
         for thread in self.target.process().threads() {
             let mut descr = format!("{}: tid={}", thread.index_id(), thread.thread_id());
             if let Some(name) = thread.name() {
@@ -837,9 +836,7 @@ impl DebugSession {
                     (&args.text[5..], args.column - 6)
                 } else {
                     // TODO: expression completions
-                    return Ok(CompletionsResponseBody {
-                        targets: vec![],
-                    });
+                    return Ok(CompletionsResponseBody { targets: vec![] });
                 }
             }
         };
@@ -847,9 +844,7 @@ impl DebugSession {
         // Work around LLDB crash when text starts with non-alphabetic character.
         if let Some(c) = text.chars().next() {
             if !c.is_alphabetic() {
-                return Ok(CompletionsResponseBody {
-                    targets: vec![],
-                });
+                return Ok(CompletionsResponseBody { targets: vec![] });
             }
         }
 
@@ -892,9 +887,7 @@ impl DebugSession {
             }
         };
 
-        Ok(CompletionsResponseBody {
-            targets,
-        })
+        Ok(CompletionsResponseBody { targets })
     }
 
     fn handle_goto_targets(&mut self, args: GotoTargetsArguments) -> Result<GotoTargetsResponseBody, Error> {
@@ -908,9 +901,7 @@ impl DebugSession {
             instruction_pointer_reference: None,
         }];
         self.last_goto_request = Some(args);
-        Ok(GotoTargetsResponseBody {
-            targets,
-        })
+        Ok(GotoTargetsResponseBody { targets })
     }
 
     fn handle_goto(&mut self, args: GotoArguments) -> Result<(), Error> {
@@ -1218,9 +1209,7 @@ impl DebugSession {
                 }
             }
         }
-        Ok(SymbolsResponse {
-            symbols,
-        })
+        Ok(SymbolsResponse { symbols })
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {
@@ -1337,18 +1326,12 @@ impl DebugSession {
                 ProcessState::Exited => {
                     let exit_code = process.exit_status() as i64;
                     self.console_message(format!("Process exited with code {}.", exit_code));
-                    self.send_event(EventBody::exited(ExitedEventBody {
-                        exit_code,
-                    }));
-                    self.send_event(EventBody::terminated(TerminatedEventBody {
-                        restart: None,
-                    }));
+                    self.send_event(EventBody::exited(ExitedEventBody { exit_code }));
+                    self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
                 }
                 ProcessState::Detached => {
                     self.console_message("Detached from debuggee.");
-                    self.send_event(EventBody::terminated(TerminatedEventBody {
-                        restart: None,
-                    }));
+                    self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
                 }
                 _ => (),
             }

@@ -63,7 +63,6 @@ pub fn dummy() -> Receiver {
     Sender::new().subscribe()
 }
 
-
 #[test]
 fn refcounts() {
     let sender = Sender::new();

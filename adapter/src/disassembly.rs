@@ -169,10 +169,12 @@ impl DisassembledRange {
     pub fn lines_from_adapter_data(adapter_data: &AdapterData) -> Vec<Address> {
         std::iter::repeat(adapter_data.start)
             .take(4) // lines are 1-based + 2 header lines + 1st instruction
-            .chain(adapter_data.line_offsets.iter().scan(adapter_data.start, |addr, &delta| {
-                *addr += delta as u64;
-                Some(*addr)
-            }))
+            .chain(
+                adapter_data.line_offsets.iter().scan(adapter_data.start, |addr, &delta| {
+                    *addr += delta as u64;
+                    Some(*addr)
+                }),
+            )
             .collect()
     }
 
@@ -220,11 +222,7 @@ impl DisassembledRange {
             let mnemonic = instr.mnemonic(&self.target);
             let operands = instr.operands(&self.target);
             let comment = instr.comment(&self.target);
-            let comment_sep = if comment.is_empty() {
-                ""
-            } else {
-                "  ; "
-            };
+            let comment_sep = if comment.is_empty() { "" } else { "  ; " };
             #[rustfmt::skip]
             let _ = writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}", //.
                 load_addr, dump, mnemonic, operands, comment_sep, comment,

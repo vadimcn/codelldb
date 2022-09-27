@@ -18,8 +18,12 @@ pub(crate) struct DebuggerTerminal {
 impl super::DebugSession {
     pub fn create_debugger_terminal(&self, session_name: &str) {
         let title = format!("CodeLLDB: {}", session_name);
-        let terminal_fut =
-            Terminal::create("integrated", title, self.terminal_prompt_clear.clone(), self.dap_session.clone());
+        let terminal_fut = Terminal::create(
+            "integrated",
+            title,
+            self.terminal_prompt_clear.clone(),
+            self.dap_session.clone(),
+        );
         let self_ref = self.self_ref.clone();
         let fut = async move {
             let result = terminal_fut.await;

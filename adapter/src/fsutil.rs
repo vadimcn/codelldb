@@ -34,5 +34,8 @@ fn test_normalize_path() {
     assert_eq!(normalize_path("/foo/bar/./baz/./../"), Path::new("/foo/bar"));
     assert_eq!(normalize_path(r"c:\foo\bar/./baz/./../"), Path::new(r"c:\foo\bar"));
     #[cfg(windows)]
-    assert_eq!(normalize_path(r"C:/QQQ/WWW/..\..\FOO/\bar.baz"), Path::new(r"c:\FOO/bar.baz"));
+    assert_eq!(
+        normalize_path(r"C:/QQQ/WWW/..\..\FOO/\bar.baz"),
+        Path::new(r"c:\FOO/bar.baz")
+    );
 }

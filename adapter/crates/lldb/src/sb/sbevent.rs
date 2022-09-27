@@ -229,7 +229,9 @@ impl<'a> SBBreakpointEvent<'a> {
         })
     }
     pub fn breakpoint_locations<'b>(&'b self) -> impl Iterator<Item = SBBreakpointLocation> + 'b {
-        SBIterator::new(self.num_breakpoint_locations() as u32, move |index| self.breakpoint_location_at_index(index))
+        SBIterator::new(self.num_breakpoint_locations() as u32, move |index| {
+            self.breakpoint_location_at_index(index)
+        })
     }
 }
 

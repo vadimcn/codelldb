@@ -70,7 +70,9 @@ impl SBLaunchInfo {
         unsafe { get_str(ptr) }
     }
     pub fn environment_entries<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
-        SBIterator::new(self.num_environment_entries(), move |index| self.environment_entry_at_index(index))
+        SBIterator::new(self.num_environment_entries(), move |index| {
+            self.environment_entry_at_index(index)
+        })
     }
     pub fn set_working_directory(&mut self, cwd: &Path) {
         with_cstr(cwd.to_str().unwrap(), |cwd| {

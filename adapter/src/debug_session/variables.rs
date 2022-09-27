@@ -135,9 +135,7 @@ impl super::DebugSession {
                 }
                 Container::StackFrame(_) => vec![],
             };
-            Ok(VariablesResponseBody {
-                variables: variables,
-            })
+            Ok(VariablesResponseBody { variables: variables })
         } else {
             Err(format!("Invalid variabes reference: {}", container_handle))?
         }

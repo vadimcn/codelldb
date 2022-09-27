@@ -39,10 +39,7 @@ fn primitives() {
 enum RegularEnum {
     A,
     B(i32, i32),
-    C {
-        x: f64,
-        y: f64,
-    },
+    C { x: f64, y: f64 },
 }
 
 enum CStyleEnum {
@@ -59,10 +56,7 @@ enum EncodedEnum<T> {
 fn enums() {
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
-    let reg_enum3 = RegularEnum::C {
-        x: 11.35,
-        y: 20.5,
-    };
+    let reg_enum3 = RegularEnum::C { x: 11.35, y: 20.5 };
     let reg_enum_ref = &reg_enum3;
 
     let cstyle_enum1 = CStyleEnum::A;

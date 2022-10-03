@@ -182,11 +182,6 @@
 				}
 			]
 		},
-		"taskDefinitions": [
-			{
-				"type": "codelldb.cargo"
-			}
-		],
 		"configuration": [
 			{
 				"title": "Launch configuration defaults",

@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.8.1
+
+## Fixed
+- #777: Json parsing error when debugging rust
+
 # 1.8.0
 
 ## New

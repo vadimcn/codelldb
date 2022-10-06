@@ -288,6 +288,12 @@ impl SBTarget {
             return self->GetPlatform();
         })
     }
+    pub fn triple(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBTarget*"] -> *const c_char as "const char*" {
+            return self->GetTriple();
+        });
+        unsafe { get_str(ptr) }
+    }
 }
 
 impl IsValid for SBTarget {

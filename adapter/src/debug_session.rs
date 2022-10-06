@@ -1150,8 +1150,9 @@ impl DebugSession {
             bail!("Invalid instruction_count");
         }
         let instruction_count = args.instruction_count as usize;
+        let resolve_symbols = args.resolve_symbols.unwrap_or(true);
 
-        let result = if instruction_offset >= 0 {
+        let mut result = if instruction_offset >= 0 {
             let start_addr = SBAddress::from_load_address(base_addr, &self.target);
             let instructions = self
                 .target
@@ -1159,27 +1160,85 @@ impl DebugSession {
 
             let mut dis_instructions = Vec::new();
             for instr in instructions.iter().skip(instruction_offset as usize) {
-                dis_instructions.push(disassembly::sbinstr_to_disinstr(&instr, &self.target, true));
-            }
-            if dis_instructions.len() < instruction_count {
-                // Pad to instruction_count at the end
-                dis_instructions.resize_with(instruction_count, invalid_instruction);
+                dis_instructions.push(disassembly::sbinstr_to_disinstr(
+                    &instr,
+                    &self.target,
+                    resolve_symbols,
+                    |fs| self.map_filespec_to_local(fs),
+                ));
             }
             dis_instructions
         } else {
-            let count = -instruction_offset * 16;
-            let start_addr = base_addr.wrapping_sub(count as u64);
+            let bytes_per_instruction = disassembly::max_instruction_bytes(&self.target);
+            let offset_bytes = -instruction_offset * bytes_per_instruction as i64;
+            let start_addr = base_addr.wrapping_sub(offset_bytes as u64);
+            let mut disassemble_bytes = instruction_count * bytes_per_instruction as usize;
 
-            let mut dis_instructions = disassembly::disassemble_byte_range(start_addr, count as usize, &self.process)?;
-            if dis_instructions.len() < instruction_count {
-                // Pad to instruction_count at the start
-                dis_instructions.splice(
-                    0..0,
-                    std::iter::repeat_with(invalid_instruction).take(instruction_count - dis_instructions.len()),
-                );
+            let mut dis_instructions = Vec::new();
+
+            let expected_index = -instruction_offset as usize;
+
+            // we make sure to extend disassemble_bytes to ensure that base_addr
+            // is always included
+            if start_addr + (disassemble_bytes as u64) < base_addr {
+                disassemble_bytes = (base_addr - start_addr + bytes_per_instruction) as usize;
+            }
+
+            for shuffle_count in 0..bytes_per_instruction {
+                let instructions = disassembly::disassemble_byte_range(
+                    start_addr - shuffle_count,
+                    disassemble_bytes,
+                    &self.target.process(),
+                )?;
+                // Find the entry for the requested instruction. If it exists
+                // (i.e. there is a valid instruction with the requested base
+                // address, then we're done and just need to splice the result
+                // array to match the required output. Otherwise, move back a
+                // byte and try again.
+                if let Some(index) =
+                    instructions.iter().position(|i| i.address().load_address(&self.target) == base_addr)
+                {
+                    // Found it. Convert to the DAP instruction representation.
+                    for instr in &instructions {
+                        dis_instructions.push(disassembly::sbinstr_to_disinstr(
+                            instr,
+                            &self.target,
+                            resolve_symbols,
+                            |fs| self.map_filespec_to_local(fs),
+                        ));
+                    }
+
+                    // we need to make sure that the entry for the requested
+                    // address, is precicely at the index expected, i.e.
+                    // -instruction_offset
+                    if index < expected_index {
+                        // pad the start with expected_index - index dummy
+                        // instructions
+                        dis_instructions.splice(
+                            0..0,
+                            std::iter::repeat_with(invalid_instruction).take(expected_index - index),
+                        );
+                    } else if index > expected_index {
+                        let new_first = index - expected_index;
+                        dis_instructions = dis_instructions.split_off(new_first);
+                    }
+
+                    // Confirm that we have the requested instruction at the
+                    // correct location. We have to parse the address, but it's
+                    // only in an assertion/debug build.
+                    assert!(
+                        dis_instructions.len() > expected_index
+                            && parse_int::parse::<u64>(&dis_instructions[expected_index].address).unwrap() == base_addr
+                    );
+                    break;
+                }
             }
             dis_instructions
         };
+
+        // Ensure we have _exactly_ instruction_count elements
+        result.resize_with(instruction_count, invalid_instruction);
+        result.truncate(instruction_count);
 
         Ok(DisassembleResponseBody { instructions: result })
     }

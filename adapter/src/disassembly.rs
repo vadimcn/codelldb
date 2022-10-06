@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 
@@ -235,11 +236,7 @@ impl DisassembledRange {
     }
 }
 
-pub fn disassemble_byte_range(
-    start: Address,
-    count: usize,
-    process: &SBProcess,
-) -> Result<Vec<DisassembledInstruction>, Error> {
+pub fn disassemble_byte_range(start: Address, count: usize, process: &SBProcess) -> Result<Vec<SBInstruction>, Error> {
     let target = process.target();
     let mut buffer = Vec::new();
     buffer.resize(count, 0);
@@ -251,25 +248,31 @@ pub fn disassemble_byte_range(
         let base_addr = SBAddress::from_load_address(start, &target);
         let instructions = target.get_instructions(&base_addr, &buffer[idx..]);
         if instructions.len() == 0 {
-            let dis_instr = DisassembledInstruction {
-                address: format!("0x{:X}", start as usize + idx),
-                instruction: format!("db 0x{:02x}", buffer[idx]),
-                instruction_bytes: Some(format!("{:02X}", buffer[idx])),
-                ..Default::default()
-            };
-            dis_instructions.push(dis_instr);
-            idx += 1;
+            // We were unable to disassemble _anything_ from the requested
+            // address. It's _probably_ an invalid address. Bail at this point.
+            // The caller must attempt to validate the result as best it can. (in
+            // practice, caller looks for a specific instruction at a specific
+            // address and adjusts the output based on that).
+            return Ok(dis_instructions);
         } else {
             for instr in instructions.iter() {
-                dis_instructions.push(sbinstr_to_disinstr(&instr, &target, false));
                 idx += instr.byte_size();
+                dis_instructions.push(instr);
             }
         }
     }
     Ok(dis_instructions)
 }
 
-pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_symbols: bool) -> DisassembledInstruction {
+pub fn sbinstr_to_disinstr<F>(
+    instr: &SBInstruction,
+    target: &SBTarget,
+    resolve_symbols: bool,
+    map_filespec_to_local: F,
+) -> DisassembledInstruction
+where
+    F: FnOnce(&SBFileSpec) -> Option<Rc<PathBuf>>,
+{
     let mnemonic = instr.mnemonic(target);
     let operands = instr.operands(target);
     let comment = instr.comment(target);
@@ -294,7 +297,10 @@ pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_sym
     if let Some(line_entry) = address.line_entry() {
         dis_instr.location = Some(Source {
             name: Some(line_entry.file_spec().filename().display().to_string()),
-            path: Some(line_entry.file_spec().path().display().to_string()),
+            path: match map_filespec_to_local(&line_entry.file_spec()) {
+                Some(local_path) => Some(local_path.display().to_string()),
+                _ => None,
+            },
             ..Default::default()
         });
         dis_instr.line = Some(line_entry.line() as i64);
@@ -307,6 +313,17 @@ pub fn sbinstr_to_disinstr(instr: &SBInstruction, target: &SBTarget, resolve_sym
         }
     }
     dis_instr
+}
+
+pub fn max_instruction_bytes(target: &SBTarget) -> u64 {
+    // NOTE: The max bytes for an intel instruction is 15 bytes
+    //        (technically, there's no limit, but anything over 15 = GPF)
+    //        arm instructions are 4 bytes (thumb 2 or 4 bytes).
+    let arch = target.triple().split("-").next().unwrap();
+    if arch == "arm" || arch == "aarch64" {
+        return 4;
+    }
+    return 16;
 }
 
 #[test]

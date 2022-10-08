@@ -28,7 +28,7 @@ subdirectories from build output.
 - On Mac, I recommend starting a new shell via `xcrun --sdk macosx zsh`
 
 ```
-cd codelleb
+cd codelldb
 mkdir build  # (the build directory may be changed, but tasks.json assumes it's "build" under the project root)
 cd build
 cmake .. -DLLDB_PACKAGE=<path to zip archive created in the previous step>

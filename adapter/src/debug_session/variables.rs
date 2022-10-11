@@ -224,10 +224,19 @@ impl super::DebugSession {
 
         let mem_ref = match self.client_caps.supports_memory_references {
             Some(true) => {
-                let load_addr = var.load_address();
-                match load_addr {
-                    lldb::INVALID_ADDRESS => None,
-                    _ => Some(format!("0x{:X}", load_addr)),
+                match var.value_type() {
+                    // Assume that the register value is an address, and use that.
+                    // So users can dump memory, e.g. as the SP, RIP+offset, etc.
+                    ValueType::Register => Some(format!("0x{:X}", var.value_as_unsigned(0))),
+                    // TODO: if it's a literal and looks like an address (e.g. some
+                    // sort of integer, use that as the addres)
+                    _ => {
+                        let load_addr = var.load_address();
+                        match load_addr {
+                            lldb::INVALID_ADDRESS => None,
+                            _ => Some(format!("0x{:X}", load_addr)),
+                        }
+                    }
                 }
             }
             _ => None,

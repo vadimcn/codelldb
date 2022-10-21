@@ -1134,7 +1134,7 @@ impl DebugSession {
     fn handle_disassemble(&mut self, args: DisassembleArguments) -> Result<DisassembleResponseBody, Error> {
         fn invalid_instruction() -> DisassembledInstruction {
             DisassembledInstruction {
-                address: "".into(),
+                address: "0".into(),
                 instruction: "<invalid>".into(),
                 ..Default::default()
             }

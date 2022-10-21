@@ -222,7 +222,9 @@ impl super::DebugSession {
         let mut result = vec![];
         for req in args.breakpoints {
             // Find an existing breakpoint or create a new one
-            let address = parse_int::parse(&req.instruction_reference)?;
+            let base_addr = parse_int::parse::<u64>(&req.instruction_reference)?;
+            let address = base_addr.wrapping_add(req.offset.unwrap_or(0) as u64);
+
             let bp = match instruction.get(&address).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
                 Some(bp) => bp,
                 None => self.target.breakpoint_create_by_load_address(address),

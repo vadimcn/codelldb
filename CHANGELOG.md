@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.8.2
+
+## New
+- Added support for VSCode native Disassembly View (thanks @puremourning!).
+
 # 1.8.1
 
 ## Fixed

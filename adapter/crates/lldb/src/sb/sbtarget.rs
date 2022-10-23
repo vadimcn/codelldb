@@ -221,6 +221,14 @@ impl SBTarget {
             Err(error)
         }
     }
+    pub fn get_instructions(&self, base_addr: &SBAddress, buffer: &[u8]) -> SBInstructionList {
+        let ptr = buffer.as_ptr();
+        let count = buffer.len();
+        cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*",
+                     ptr as "void*", count as "size_t"] -> SBInstructionList as "SBInstructionList" {
+            return self->GetInstructions(*base_addr, ptr, count);
+        })
+    }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {
             cpp!(unsafe [self as "SBTarget*", expr as "const char*"] -> SBValue as "SBValue" {
@@ -279,6 +287,12 @@ impl SBTarget {
         cpp!(unsafe [self as "SBTarget*"] -> SBPlatform as "SBPlatform" {
             return self->GetPlatform();
         })
+    }
+    pub fn triple(&self) -> &str {
+        let ptr = cpp!(unsafe [self as "SBTarget*"] -> *const c_char as "const char*" {
+            return self->GetTriple();
+        });
+        unsafe { get_str(ptr) }
     }
 }
 

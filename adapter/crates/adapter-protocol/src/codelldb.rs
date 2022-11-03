@@ -18,8 +18,8 @@ pub use crate::dap::{
     SetInstructionBreakpointsResponseBody, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
     SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
     StepInArguments, StepOutArguments, SteppingGranularity, StoppedEventBody, TerminateArguments, TerminatedEventBody,
-    Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablesArguments, VariablesResponseBody,
-    WriteMemoryArguments, WriteMemoryResponseBody,
+    Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablePresentationHint, VariablesArguments,
+    VariablesResponseBody, WriteMemoryArguments, WriteMemoryResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -179,6 +179,13 @@ pub enum EventBody {
 #[serde(rename_all = "camelCase")]
 pub struct NoArguments {}
 
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum BreakpointsMode {
+    Path,
+    File,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CommonLaunchFields {
@@ -193,6 +200,7 @@ pub struct CommonLaunchFields {
     pub source_languages: Option<Vec<String>>,
     pub reverse_debugging: Option<bool>,
     pub relative_path_base: Option<String>,
+    pub breakpoints_mode: Option<BreakpointsMode>,
     #[serde(rename = "_adapterSettings")]
     pub adapter_settings: Option<AdapterSettings>,
 }

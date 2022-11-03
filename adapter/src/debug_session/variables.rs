@@ -127,6 +127,7 @@ impl super::DebugSession {
                             name: "[raw]".to_owned(),
                             value: var.type_name().unwrap_or_default().to_owned(),
                             variables_reference: handles::to_i64(Some(handle)),
+                            presentation_hint: Some(presentation_hint(&["readOnly", "virtual"])),
                             ..Default::default()
                         };
                         variables.push(raw);
@@ -192,6 +193,7 @@ impl super::DebugSession {
                 variables.push(Variable {
                     name: "[timed out]".to_owned(),
                     type_: Some("Expansion of this list has timed out.".to_owned()),
+                    presentation_hint: Some(presentation_hint(&["readOnly", "virtual"])),
                     ..Default::default()
                 });
                 break;
@@ -242,6 +244,33 @@ impl super::DebugSession {
             _ => None,
         };
 
+        let is_settable = match var.type_().basic_type() {
+            BasicType::Char
+            | BasicType::SignedChar
+            | BasicType::UnsignedChar
+            | BasicType::WChar
+            | BasicType::SignedWChar
+            | BasicType::UnsignedWChar
+            | BasicType::Char16
+            | BasicType::Char32
+            | BasicType::Short
+            | BasicType::UnsignedShort
+            | BasicType::Int
+            | BasicType::UnsignedInt
+            | BasicType::Long
+            | BasicType::UnsignedLong
+            | BasicType::LongLong
+            | BasicType::UnsignedLongLong
+            | BasicType::Int128
+            | BasicType::UnsignedInt128
+            | BasicType::Bool
+            | BasicType::Half
+            | BasicType::Float
+            | BasicType::Double
+            | BasicType::LongDouble => true,
+            _ => false,
+        };
+
         Variable {
             name: name.to_owned(),
             value: value,
@@ -249,6 +278,7 @@ impl super::DebugSession {
             variables_reference: handles::to_i64(handle),
             evaluate_name: eval_name,
             memory_reference: mem_ref,
+            presentation_hint: if is_settable { None } else { Some(presentation_hint(&["readOnly"])) },
             ..Default::default()
         }
     }
@@ -583,5 +613,12 @@ where
         (prefix + suffix).into_owned()
     } else {
         (prefix + "." + suffix).into_owned()
+    }
+}
+
+fn presentation_hint(attributes: &[&str]) -> VariablePresentationHint {
+    VariablePresentationHint {
+        attributes: Some(attributes.iter().map(|a| (*a).into()).collect()),
+        ..Default::default()
     }
 }

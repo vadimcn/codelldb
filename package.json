@@ -513,6 +513,9 @@
 				"language": "haskell"
 			},
 			{
+				"language": "jai"
+			},
+			{
 				"language": "java"
 			},
 			{
@@ -571,6 +574,7 @@
 					"crystal",
 					"fortran-modern",
 					"fortran",
+					"jai",
 					"nim",
 					"objective-c",
 					"objective-cpp",

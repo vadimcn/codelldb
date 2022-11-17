@@ -1,7 +1,6 @@
 use super::*;
 
 use std::ffi::OsStr;
-use std::mem;
 
 pub(crate) fn with_cstr<R, F>(s: impl AsRef<OsStr>, f: F) -> R
 where
@@ -9,7 +8,7 @@ where
 {
     let s = s.as_ref().to_str().unwrap();
     let allocated;
-    let mut buffer: [u8; 256] = unsafe { mem::uninitialized() };
+    let mut buffer = [0u8; 256];
     let ptr: *const c_char = if s.len() < buffer.len() {
         buffer[0..s.len()].clone_from_slice(s.as_bytes());
         buffer[s.len()] = 0;
@@ -38,10 +37,10 @@ where
     // Some SB API return the required size of the full string (SBThread::GetStopDescription()),
     // while others return the number of bytes actually written into the buffer (SBPath::GetPath()).
     // In the latter case we have to increase buffer capacity in a loop until the string fits.
-    // There also seems to be lack of consensus on whether the terminating NUL should be included in the count or not...
+    // There also seems to be a lack of consensus if the terminating NUL should be included in the count or not...
 
-    let buffer: [u8; 1024] = unsafe { mem::uninitialized() };
-    let c_ptr = buffer.as_ptr() as *mut c_char;
+    let mut buffer = [0u8; 1024];
+    let c_ptr = buffer.as_mut_ptr() as *mut c_char;
     let size = f(c_ptr, buffer.len());
     assert!((size as isize) >= 0);
     if size < buffer.len() - 1 {
@@ -55,7 +54,7 @@ where
     let capacity = if size_is_reliable { size + 1 } else { buffer.len() * 2 };
     let mut buffer = Vec::with_capacity(capacity);
     loop {
-        let c_ptr = buffer.as_ptr() as *mut c_char;
+        let c_ptr = buffer.as_mut_ptr() as *mut c_char;
         let size = f(c_ptr, buffer.capacity());
         assert!((size as isize) >= 0);
         if size < buffer.capacity() - 1 || size_is_reliable {

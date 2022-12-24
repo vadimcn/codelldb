@@ -2,6 +2,9 @@
 
 # 1.8.2
 
+## Fixed
+- #813: Mixed GAS/Intel syntax in disassembly view.
+
 ## New
 - Added support for VSCode native Disassembly View (thanks @puremourning!).
 

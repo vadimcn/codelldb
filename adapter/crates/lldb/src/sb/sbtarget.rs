@@ -204,7 +204,11 @@ impl SBTarget {
     }
     pub fn read_instructions(&self, base_addr: &SBAddress, count: u32) -> SBInstructionList {
         cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*", count as "uint32_t"] -> SBInstructionList as "SBInstructionList" {
-            return self->ReadInstructions(*base_addr, count);
+            SBDebugger debugger = self->GetDebugger();
+            SBStringList value = SBDebugger::GetInternalVariableValue("target.x86-disassembly-flavor",
+                                                                      debugger.GetInstanceName());
+            const char* flavor = value.GetSize() > 0 ? value.GetStringAtIndex(0) : nullptr;
+            return self->ReadInstructions(*base_addr, count, flavor);
         })
     }
     pub fn read_memory(&self, base_addr: &SBAddress, buffer: &mut [u8]) -> Result<usize, SBError> {
@@ -226,7 +230,11 @@ impl SBTarget {
         let count = buffer.len();
         cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*",
                      ptr as "void*", count as "size_t"] -> SBInstructionList as "SBInstructionList" {
-            return self->GetInstructions(*base_addr, ptr, count);
+            SBDebugger debugger = self->GetDebugger();
+            SBStringList value = SBDebugger::GetInternalVariableValue("target.x86-disassembly-flavor",
+                                                                      debugger.GetInstanceName());
+            const char* flavor = value.GetSize() > 0 ? value.GetStringAtIndex(0) : nullptr;
+            return self->GetInstructionsWithFlavor(*base_addr, flavor, ptr, count);
         })
     }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {

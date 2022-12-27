@@ -146,6 +146,7 @@ mod sb {
     pub mod sbplatform;
     pub mod sbprocess;
     pub mod sbreproducer;
+    pub mod sbsection;
     pub mod sbstream;
     pub mod sbstringlist;
     pub mod sbsymbol;
@@ -186,6 +187,7 @@ pub use sb::sbmodulespec::*;
 pub use sb::sbplatform::*;
 pub use sb::sbprocess::*;
 pub use sb::sbreproducer::*;
+pub use sb::sbsection::*;
 pub use sb::sbstream::*;
 pub use sb::sbstringlist::*;
 pub use sb::sbsymbol::*;

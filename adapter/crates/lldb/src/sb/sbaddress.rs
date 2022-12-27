@@ -20,6 +20,12 @@ impl SBAddress {
             return self->GetLoadAddress(*target);
         })
     }
+    pub fn section(&self) -> Option<SBSection> {
+        cpp!(unsafe [self as "SBAddress*"] -> SBSection as "SBSection" {
+            return self->GetSection();
+        })
+        .check()
+    }
     pub fn offset(&self) -> usize {
         cpp!(unsafe [self as "SBAddress*"] -> usize as "size_t" {
             return self->GetOffset();
@@ -36,11 +42,6 @@ impl SBAddress {
             return self->GetSymbol();
         })
         .check()
-    }
-    pub fn get_description(&self, description: &mut SBStream) -> bool {
-        cpp!(unsafe [self as "SBAddress*", description as "SBStream*"] -> bool as "bool" {
-            return self->GetDescription(*description);
-        })
     }
 }
 

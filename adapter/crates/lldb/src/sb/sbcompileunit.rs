@@ -24,7 +24,7 @@ impl SBCompileUnit {
         SBIterator::new(self.num_line_entries(), move |index| self.line_entry_at_index(index))
     }
     pub fn language(&self) -> LanguageType {
-        cpp!(unsafe [self as "SBCompileUnit*"] -> c_uint as "unsigned int" {
+        cpp!(unsafe [self as "SBCompileUnit*"] -> u32 as "uint32_t" {
             return self->GetLanguage();
         })
         .into()

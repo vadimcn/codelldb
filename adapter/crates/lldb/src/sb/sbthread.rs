@@ -31,9 +31,10 @@ impl SBThread {
         })
     }
     pub fn stop_reason(&self) -> StopReason {
-        cpp!(unsafe [self as "SBThread*"] -> StopReason as "uint32_t" {
+        cpp!(unsafe [self as "SBThread*"] -> u32 as "uint32_t" {
             return self->GetStopReason();
         })
+        .into()
     }
     pub fn stop_description(&self) -> String {
         get_cstring(|ptr, size| {
@@ -144,9 +145,10 @@ pub enum RunMode {
     OnlyDuringStepping = 2,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum StopReason {
+    #[default]
     Invalid = 0,
     None = 1,
     Trace = 2,

@@ -3,7 +3,7 @@
 
 use std::ffi::{CStr, CString};
 use std::fmt;
-use std::os::raw::{c_char, c_int, c_uint};
+use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::slice;
 use std::str;
@@ -107,6 +107,7 @@ mod sb {
     use super::*;
     use bitflags::bitflags;
     use cpp::{cpp, cpp_class};
+    use num_enum::FromPrimitive;
 
     cpp! {{
         #ifdef _WIN32

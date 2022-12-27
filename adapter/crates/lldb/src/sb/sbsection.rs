@@ -6,9 +6,10 @@ unsafe impl Send for SBSection {}
 
 impl SBSection {
     pub fn section_type(&self) -> SectionType {
-        cpp!(unsafe [self as "SBSection*"] -> SectionType as "lldb::SectionType" {
+        cpp!(unsafe [self as "SBSection*"] -> u32 as "uint32_t" {
             return self->GetSectionType();
         })
+        .into()
     }
     pub fn name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBSection*"] -> *const c_char  as "const char*" {
@@ -56,9 +57,10 @@ impl fmt::Debug for SBSection {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum SectionType {
+    #[default]
     Invalid = 0,
     Code,
     Container,

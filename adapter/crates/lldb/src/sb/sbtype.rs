@@ -128,9 +128,10 @@ impl SBType {
         })
     }
     pub fn basic_type(&self) -> BasicType {
-        cpp!(unsafe [self as "SBType*"] -> BasicType as "BasicType" {
+        cpp!(unsafe [self as "SBType*"] -> u32 as "uint32_t" {
             return self->GetBasicType();
         })
+        .into()
     }
 }
 
@@ -208,7 +209,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum BasicType {
     Invalid = 0,
@@ -243,5 +244,6 @@ pub enum BasicType {
     ObjCClass,
     ObjCSel,
     NullPtr,
+    #[default]
     Other,
 }

@@ -23,10 +23,11 @@ impl SBSymbol {
         });
         unsafe { get_str(ptr) }
     }
-    pub fn type_(&self) -> SymbolType {
-        cpp!(unsafe [self as "SBSymbol*"] -> SymbolType as "lldb::SymbolType" {
+    pub fn symbol_type(&self) -> SymbolType {
+        cpp!(unsafe [self as "SBSymbol*"] -> u32 as "uint32_t" {
             return self->GetType();
         })
+        .into()
     }
     pub fn start_address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBSymbol*"] -> SBAddress as "SBAddress" {
@@ -69,7 +70,7 @@ impl fmt::Debug for SBSymbol {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum SymbolType {
     Any = 0,
@@ -102,4 +103,6 @@ pub enum SymbolType {
     ObjCMetaClass,
     ObjCIVar,
     ReExported,
+    #[default]
+    Invalid,
 }

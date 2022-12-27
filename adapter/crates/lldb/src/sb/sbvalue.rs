@@ -112,9 +112,10 @@ impl SBValue {
         })
     }
     pub fn value_type(&self) -> ValueType {
-        cpp!(unsafe [self as "SBValue*"] -> ValueType as "ValueType" {
+        cpp!(unsafe [self as "SBValue*"] -> u32 as "uint32_t" {
             return self->GetValueType();
         })
+        .into()
     }
     pub fn value(&self) -> Option<&CStr> {
         let ptr = cpp!(unsafe [self as "SBValue*"] -> *const c_char as "const char*" {
@@ -272,9 +273,10 @@ impl SBValue {
         })
     }
     pub fn format(&self) -> Format {
-        cpp!(unsafe [self as "SBValue*"] -> Format as "Format" {
+        cpp!(unsafe [self as "SBValue*"] -> u32 as "uint32_t" {
             return self->GetFormat();
         })
+        .into()
     }
     pub fn set_format(&self, format: Format) {
         cpp!(unsafe [self as "SBValue*", format as "Format"] {
@@ -301,9 +303,10 @@ impl fmt::Debug for SBValue {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum ValueType {
+    #[default]
     Invalid = 0,
     VariableGlobal = 1,      // globals variable
     VariableStatic = 2,      // static variable
@@ -315,9 +318,10 @@ pub enum ValueType {
     VariableThreadLocal = 8, // thread local storage variable
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum Format {
+    #[default]
     Default = 0,
     Boolean,
     Binary,

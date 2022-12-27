@@ -323,10 +323,11 @@ impl fmt::Debug for SBTarget {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 pub enum LanguageType {
+    #[default]
     Unknown = 0x0000,        // Unknown or invalid language value.
     C89 = 0x0001,            // ISO C:1989.
     C = 0x0002,              // Non-standardized C, such as K&R.
@@ -372,16 +373,6 @@ pub enum LanguageType {
     // assume these can be used as indexes into array g_languages.
     MipsAssembler = 0x0024,   // Mips_Assembler.
     ExtRenderScript = 0x0025, // RenderScript.
-}
-
-impl From<u32> for LanguageType {
-    fn from(lang_type: u32) -> LanguageType {
-        if lang_type <= 0x0025 {
-            unsafe { std::mem::transmute(lang_type) }
-        } else {
-            LanguageType::Unknown
-        }
-    }
 }
 
 bitflags! {

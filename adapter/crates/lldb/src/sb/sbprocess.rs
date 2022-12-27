@@ -29,9 +29,10 @@ impl SBProcess {
         SBIterator::new(self.num_threads(), move |index| self.thread_at_index(index))
     }
     pub fn state(&self) -> ProcessState {
-        cpp!(unsafe [self as "SBProcess*"] -> ProcessState as "uint32_t" {
+        cpp!(unsafe [self as "SBProcess*"] -> u32 as "uint32_t" {
             return self->GetState();
         })
+        .into()
     }
     pub fn exit_status(&self) -> i32 {
         cpp!(unsafe [self as "SBProcess*"] -> i32 as "int32_t" {
@@ -176,9 +177,10 @@ impl fmt::Debug for SBProcess {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum ProcessState {
+    #[default]
     Invalid = 0,
     Unloaded = 1,
     Connected = 2,

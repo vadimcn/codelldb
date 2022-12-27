@@ -1309,7 +1309,7 @@ impl DebugSession {
             let module = self.target.module_at_index(imodule);
             for isymbol in 0..module.num_symbols() {
                 let symbol = module.symbol_at_index(isymbol);
-                let ty = symbol.type_();
+                let ty = symbol.symbol_type();
                 match ty {
                     SymbolType::Code | SymbolType::Data => {
                         let name = symbol.display_name();

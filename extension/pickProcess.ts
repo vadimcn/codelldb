@@ -1,5 +1,8 @@
-import { QuickPickItem, window, Uri, ExtensionContext } from 'vscode';
+import { window, workspace, QuickPickItem, Uri, ExtensionContext } from 'vscode';
+import * as path from 'path';
+import * as os from 'os';
 import * as cp from 'child_process';
+import * as adapter from './novsc/adapter';
 
 type ProcessItem = QuickPickItem & { pid: number };
 
@@ -15,7 +18,6 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
         };
         let qpick = window.createQuickPick<ProcessItem>();
         qpick.title = 'Select a process:';
-        qpick.items = await getProcessList(allUsers);
         qpick.buttons = [allUsers ? showingAll : showingMy];
         qpick.onDidAccept(() => {
             if (qpick.selectedItems && qpick.selectedItems[0])
@@ -26,70 +28,55 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
         });
         qpick.onDidTriggerButton(async () => {
             allUsers = !allUsers;
-            qpick.items = await getProcessList(allUsers);
             qpick.buttons = [allUsers ? showingAll : showingMy];
+            qpick.busy = true;
+            qpick.items = await getProcessList(context, allUsers);
+            qpick.busy = false;
         });
         qpick.onDidHide(() => {
             resolve(undefined);
             qpick.dispose();
         });
+        qpick.matchOnDetail = true;
+        qpick.matchOnDescription = true;
+        qpick.busy = true;
         qpick.show();
+        qpick.items = await getProcessList(context, allUsers);
+        qpick.busy = false;
     });
 }
 
-async function getProcessList(allUsers: boolean): Promise<ProcessItem[]> {
-    let command: string;
-    let matchLine;
+async function getProcessList(context: ExtensionContext, allUsers: boolean): Promise<ProcessItem[]> {
+    let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
+    let lldbPath = path.join(context.extensionPath, 'lldb', 'bin', lldb);
+    let folder = workspace.workspaceFolders[0];
+    let config = workspace.getConfiguration('lldb', folder?.uri);
+    let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
+    let lldbCommand = 'platform process list --show-args';
+    if (allUsers)
+        lldbCommand += ' --all-users';
+    let command = `${lldbPath} --batch --no-lldbinit --one-line "${lldbCommand}"`;
 
-    if (process.platform != 'win32') {
-        if (allUsers)
-            command = 'ps ax';
-        else
-            command = 'ps x';
-
-        let regex = /^\s*(\d+)\s+.*?\s+.*?\s+.*?\s+(.*)()$/;
-        matchLine = (line: string) => {
-            let groups = regex.exec(line);
-            if (!groups)
-                return null;
-            let item = {
-                pid: parseInt(groups[1]),
-                name: groups[2],
-                description: groups[3]
-            };
-            // Filter out kernel threads
-            if (item.name.startsWith('[') && item.name.endsWith(']'))
-                return null;
-            return item;
-        };
-    } else {
-        if (allUsers)
-            command = 'tasklist /V /FO CSV';
-        else
-            command = 'tasklist /V /FO CSV /FI "USERNAME eq ' + process.env['USERNAME'] + '"';
-        // name, pid, ..., window title
-        let regex = /^"([^"]*)","([^"]*)",(?:"[^"]*",){6}"([^"]*)"/;
-        matchLine = (line: string) => {
-            let groups = regex.exec(line);
-            return groups == null ? null : {
-                pid: parseInt(groups[2]),
-                name: groups[1],
-                description: groups[3]
-            };
-        };
-    }
     let stdout = await new Promise<string>((resolve, reject) => {
-        cp.exec(command, (error, stdout) => {
+        cp.exec(command, { env: env }, (error, stdout) => {
             if (error) reject(error);
             else resolve(stdout)
         })
     });
     let lines = stdout.split('\n');
+
     let items = [];
-    for (let i = 1; i < lines.length; ++i) {
-        let item = matchLine(lines[i]);
-        if (item) {
-            items.push({ label: `${item.pid}: ${item.name}`, description: item.description, pid: item.pid });
+    for (let i = 0; i < lines.length; ++i) {
+        let argsOffset = lines[i].indexOf('ARGUMENTS')
+        if (argsOffset > 0) {
+            for (let line of lines.slice(i + 2)) {
+                let pid = parseInt(line);
+                let args = line.substring(argsOffset).trim();
+                if (args.length > 0) {
+                    items.push({ label: `${pid}`, description: args, pid: pid });
+                }
+            }
+            break;
         }
     }
     return items;

@@ -4,6 +4,7 @@
 
 ## Fixed
 - #813: Mixed GAS/Intel syntax in disassembly view.
+- #842: Syntax error in conditional breakpoint.
 
 ## New
 - Added support for VSCode native Disassembly View (thanks @puremourning!).

@@ -70,7 +70,7 @@ fn inversion(input: Span) -> IResult<Span, Cow<str>> {
 
 fn comparison(input: Span) -> IResult<Span, Cow<str>> {
     binary_op(
-        alt((tag("=="), tag("!="), tag(">"), tag(">="), tag("<"), tag("<="))),
+        alt((tag("=="), tag("!="), tag(">="), tag(">"), tag("<="), tag("<"))),
         bitwise_or,
     )(input)
 }
@@ -96,7 +96,7 @@ fn addsub(input: Span) -> IResult<Span, Cow<str>> {
 }
 
 fn muldiv(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(alt((tag("*"), tag("/"), tag("//"), tag("%"))), unary)(input)
+    binary_op(alt((tag("*"), tag("//"), tag("/"), tag("%"))), unary)(input)
 }
 
 fn unary(input: Span) -> IResult<Span, Cow<str>> {
@@ -208,6 +208,11 @@ mod test {
         test_parser!(expression, " 1 + 2*${foo::bar - 13} + 4 ", "1+2*__eval('foo::bar - 13')+4");
         test_parser!(expression, " (  2 )", "(2)");
         test_parser!(expression, " 2* (  3 + 4 ) ", "2*(3+4)");
+        test_parser!(expression, " a << 12345", "__eval('a')<<12345");
+        test_parser!(expression, " a >> 12345", "__eval('a')>>12345");
+        test_parser!(expression, " a >= 12345", "__eval('a')>=12345");
+        test_parser!(expression, " a <= 12345", "__eval('a')<=12345");
+        test_parser!(expression, " a // 12345", "__eval('a')//12345");
         test_parser!(expression, "  2*2 / ( 5 - 1) + 3",
                                  "2*2/(5-1)+3");
         test_parser!(expression, " 1 + (2 * ${foo::bar - 13}** 4) + 4 ",

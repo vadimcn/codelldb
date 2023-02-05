@@ -66,15 +66,15 @@ pub fn prepare(expression: &str, default_type: Expressions) -> Result<PreparedEx
 pub fn prepare_with_format(
     expression: &str,
     default_type: Expressions,
-) -> Result<(PreparedExpression, Option<FormatSpec>), prelude::Error> {
+) -> Result<(PreparedExpression, FormatSpec), prelude::Error> {
     let (expr, ty) = get_expression_type(expression, default_type);
-    let (expr, format) = get_expression_format(expr)?;
+    let (expr, format_spec) = get_expression_format(expr)?;
     let pp_expr = match ty {
         Expressions::Native => PreparedExpression::Native(expr.to_owned()),
         Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)?),
         Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)?),
     };
-    Ok((pp_expr, format))
+    Ok((pp_expr, format_spec))
 }
 
 fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {

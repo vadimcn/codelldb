@@ -301,6 +301,12 @@ function generateSuite(triple: string) {
                 await ds.compareVariables(response3.body.variablesReference, {
                     '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5, '[5]': 6, '[6]': 7, '[7]': 8, '[8]': 9, '[9]': 10,
                 });
+                let response4 = await ds.evaluateRequest({
+                    expression: 'array_int_ptr,x[10]', context: 'watch', frameId: frameId
+                });
+                await ds.compareVariables(response4.body.variablesReference, {
+                    '[0]': '0x00000001', '[7]': '0x00000008', '[9]': '0x0000000a',
+                });
 
                 // Set a variable and check that it has actually changed.
                 await ds.send('setVariable', { variablesReference: localsRef, name: 'a', value: '100' });

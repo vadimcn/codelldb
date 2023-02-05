@@ -1,6 +1,6 @@
-use crate::expressions::{FormatSpec, PreparedExpression};
-use crate::{expressions, prelude::*};
+use crate::prelude::*;
 
+use crate::expressions::{self, FormatSpec, PreparedExpression};
 use crate::handles::{self, Handle};
 
 use super::into_string_lossy;
@@ -211,7 +211,7 @@ impl super::DebugSession {
     ) -> Variable {
         let name = var.name().unwrap_or_default();
         let dtype = var.display_type_name();
-        let value = self.get_var_summary(&var, self.global_format, container_handle.is_some());
+        let value = self.get_var_summary(&var, container_handle.is_some());
         let handle = self.get_var_handle(container_handle, name, &var);
 
         let eval_name = if var.prefer_synthetic_value() {
@@ -293,15 +293,16 @@ impl super::DebugSession {
     }
 
     // Get displayable string from an SBValue
-    pub fn get_var_summary(&self, var: &SBValue, format: Format, is_container: bool) -> String {
+    pub fn get_var_summary(&self, var: &SBValue, is_container: bool) -> String {
         let err = var.error();
         if err.is_failure() {
             return format!("<{}>", err);
         }
 
         let mut var = Cow::Borrowed(var);
+
         if self.deref_pointers
-            && format == Format::Default
+            && var.format() == Format::Default
             && var.type_().type_class().intersects(TypeClass::Pointer | TypeClass::Reference)
         {
             // Rather than showing pointer's numeric value, which is rather uninteresting,
@@ -313,8 +314,6 @@ impl super::DebugSession {
             }
         }
 
-        let prev_format = var.format();
-        var.set_format(format);
         let summary = if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
             summary_str
         } else if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
@@ -326,7 +325,6 @@ impl super::DebugSession {
             // Otherwise give up.
             "<not available>".to_owned()
         };
-        var.set_format(prev_format);
         summary
     }
 
@@ -494,43 +492,16 @@ impl super::DebugSession {
         frame: Option<SBFrame>,
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
-        let (pp_expr, expr_format) =
+        let (pp_expr, format_spec) =
             expressions::prepare_with_format(expression, self.default_expr_type).map_err(as_user_error)?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
             Ok(sbval) => {
-                let (var, format) = match expr_format {
-                    None => (sbval, self.global_format),
-                    Some(FormatSpec::Format(format)) => (sbval, format),
-                    // Interpret as array of `size` elements:
-                    Some(FormatSpec::Array(size)) => {
-                        let var_type = sbval.type_();
-                        let type_class = var_type.type_class();
-                        let var = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
-                            // For pointers and references we re-interpret the pointee.
-                            let array_type = var_type.pointee_type().array_type(size as u64);
-                            let pointee = sbval.dereference().into_result().map_err(as_user_error)?;
-                            let addr = pointee.address().ok_or_else(|| as_user_error("No address"))?;
-                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-                        } else if type_class.intersects(TypeClass::Array) {
-                            // For arrays, re-interpret the array length.
-                            let array_type = var_type.array_element_type().array_type(size as u64);
-                            let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
-                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-                        } else {
-                            // For other types re-interpret the value itself.
-                            let array_type = var_type.array_type(size as u64);
-                            let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
-                            sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-                        };
-                        (var, self.global_format)
-                    }
-                };
-
-                let handle = self.get_var_handle(None, expression, &var);
+                let sbval = self.apply_format_spec(sbval, &format_spec)?;
+                let handle = self.get_var_handle(None, expression, &sbval);
                 Ok(EvaluateResponseBody {
-                    result: self.get_var_summary(&var, format, handle.is_some()),
-                    type_: var.display_type_name().map(|s| s.to_owned()),
+                    result: self.get_var_summary(&sbval, handle.is_some()),
+                    type_: sbval.display_type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
                     ..Default::default()
                 })
@@ -582,7 +553,7 @@ impl super::DebugSession {
                 Ok(()) => {
                     let handle = self.get_var_handle(Some(container_handle), child.name().unwrap_or_default(), &child);
                     let response = SetVariableResponseBody {
-                        value: self.get_var_summary(&child, self.global_format, handle.is_some()),
+                        value: self.get_var_summary(&child, handle.is_some()),
                         type_: child.type_name().map(|s| s.to_owned()),
                         variables_reference: Some(handles::to_i64(handle)),
                         named_variables: None,
@@ -595,6 +566,33 @@ impl super::DebugSession {
         } else {
             bail!(as_user_error("Could not set variable value."));
         }
+    }
+
+    pub fn apply_format_spec(&self, sbval: SBValue, format_spec: &FormatSpec) -> Result<SBValue, Error> {
+        let mut sbval = sbval;
+        if let Some(size) = format_spec.array {
+            let var_type = sbval.type_();
+            let type_class = var_type.type_class();
+            sbval = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
+                // For pointers and references we re-interpret the pointee.
+                let array_type = var_type.pointee_type().array_type(size as u64);
+                let pointee = sbval.dereference().into_result().map_err(as_user_error)?;
+                let addr = pointee.address().ok_or_else(|| as_user_error("No address"))?;
+                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+            } else if type_class.intersects(TypeClass::Array) {
+                // For arrays, re-interpret the array length.
+                let array_type = var_type.array_element_type().array_type(size as u64);
+                let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
+                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+            } else {
+                // For other types re-interpret the value itself.
+                let array_type = var_type.array_type(size as u64);
+                let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
+                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
+            };
+        }
+        sbval.set_format(format_spec.format.unwrap_or(self.global_format));
+        Ok(sbval)
     }
 }
 

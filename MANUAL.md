@@ -465,8 +465,7 @@ stepping rather than source-level stepping.
 You may change the default display format of evaluation results using the `Display Format` command.
 
 When evaluating expressions in Debug Console or in Watch panel, you may control formatting of
-individual expressions by adding one of the suffixes listed below.  For example evaluation of `var,x`
-will display the value of `var` formatted as hex.
+individual expressions by adding one of the suffixes listed below:
 
 |suffix |format |
 |:-----:|-------|
@@ -481,7 +480,10 @@ will display the value of `var` formatted as hex.
 |**s**  | C string
 |**y**  | Bytes
 |**Y**  | Bytes with ASCII
-|**[\<num\>]**| Reinterpret as an array of \<num\> elements
+|**[\<num\>]**| Reinterpret as an array of \<num\> elements.
+
+For example, evaluation of `var,x` will display the value of `var` formatted as hex.  It is also possible to combine
+number format and array specifiers like this: `var,x[10]`.
 
 ### Pointers
 

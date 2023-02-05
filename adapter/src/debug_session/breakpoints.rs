@@ -1,5 +1,5 @@
 use crate::disassembly;
-use crate::expressions::{self, FormatSpec, HitCondition, PreparedExpression};
+use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
 use crate::handles::{self, Handle};
 use crate::prelude::*;
@@ -592,7 +592,7 @@ impl super::DebugSession {
         // Finds expressions ({...}) in message and invokes the callback on them.
         fn replace_logpoint_expressions<F>(message: &str, f: F) -> String
         where
-            F: Fn(&str) -> Result<String, String>,
+            F: Fn(&str) -> Result<String, Error>,
         {
             let mut start = 0;
             let mut nesting = 0;
@@ -621,13 +621,10 @@ impl super::DebugSession {
         }
 
         replace_logpoint_expressions(&log_message, |expr| {
-            let (pp_expr, expr_format) = expressions::prepare_with_format(expr, self.default_expr_type).unwrap();
-            let format = match expr_format {
-                None | Some(FormatSpec::Array(_)) => self.global_format,
-                Some(FormatSpec::Format(format)) => format,
-            };
-            let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame)).map_err(|err| err.to_string())?;
-            let str_val = self.get_var_summary(&sbval, format, sbval.num_children() > 0);
+            let (pp_expr, format_spec) = expressions::prepare_with_format(expr, self.default_expr_type).unwrap();
+            let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame))?;
+            let sbval = self.apply_format_spec(sbval, &format_spec)?;
+            let str_val = self.get_var_summary(&sbval, sbval.num_children() > 0);
             Ok(str_val)
         })
     }

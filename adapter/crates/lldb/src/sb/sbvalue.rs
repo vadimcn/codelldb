@@ -318,7 +318,7 @@ pub enum ValueType {
     VariableThreadLocal = 8, // thread local storage variable
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, FromPrimitive)]
+#[derive(Clone, Copy, Eq, PartialEq, Default, Debug, FromPrimitive)]
 #[repr(u32)]
 pub enum Format {
     #[default]

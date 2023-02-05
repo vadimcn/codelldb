@@ -13,7 +13,6 @@ variables:
       export PATH=$HOME/.cargo/bin:$PATH
   setenvWindows: |
       set PATH=%USERPROFILE%\.cargo\bin;%PATH%
-      set PYTHONHOME=%USEPYTHONVERSION_PYTHONLOCATION%
       set PYTHONPATH=%PYTHONHOME%\Lib;%PYTHONHOME%\DLLs
 
 ########################################################################################################################
@@ -243,12 +242,6 @@ jobs:
       versionSpec: '14.x'
     displayName: 'Install Node.js'
 
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.9'
-      addToPath: true
-      architecture: 'x64'
-
   - task: DownloadBuildArtifacts@0
     inputs:
       buildType: specific
@@ -301,7 +294,6 @@ jobs:
             -DTEST_TIMEOUT=30000^
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
-            -DPython3_ROOT_DIR=%USEPYTHONVERSION_PYTHONLOCATION%^
             ..
       type CMakeCache.txt
     displayName: 'Configure'

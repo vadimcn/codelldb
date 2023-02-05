@@ -32,7 +32,9 @@ set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
 
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    set(DylibPrefix lib)
+    set(Python python3)
+    set(LibPrefix lib)
+    set(LibSuffix .a)
     set(DylibSuffix .so)
     set(NPM npm)
     set(PathSep ":")
@@ -41,7 +43,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
                             libm.so.6 libc.so.6 libexpat.so.1 libz.so.1 libutil.so.1
                             /lib64/ld-linux-x86-64.so.2)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(DylibPrefix lib)
+    set(Python python3)
+    set(LibPrefix lib)
+    set(LibSuffix .a)
     set(DylibSuffix .dylib)
     set(SymSuffix .dSYM)
     set(NPM npm)
@@ -52,6 +56,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
                             libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib
                             libcodelldb.dylib liblldb.dylib libpython3.*.dylib)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+    set(Python python)
     set(ExeSuffix .exe)
     set(DylibSuffix .dll)
     set(SymSuffix .pdb)
@@ -59,16 +64,14 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
     set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll NTDLL.dll ADVAPI32.dll USER32.dll VERSION.dll DBGHELP.dll
-                            PSAPI.DLL OLEAUT32.dll SHLWAPI.dll RPCRT4.dll OLE32.dll BCRYPT.dll
-                            VCRUNTIME140.dll VCRUNTIME140_1.dll MSVCP140.dll
+                            PSAPI.DLL OLEAUT32.dll SHLWAPI.dll RPCRT4.dll OLE32.dll BCRYPT.dll USERENV.dll
+                            VCRUNTIME140D?.dll VCRUNTIME140_1D?.dll MSVCP140.dll
                             python3.*.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
 
 string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
-
-find_package(Python3 COMPONENTS Interpreter)
 
 if (NOT LLVM_TRIPLE)
 set(LLVM_TRIPLE ${DefaultTarget})

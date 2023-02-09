@@ -2,7 +2,7 @@ import {
     window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel, ViewColumn
 } from "vscode";
 import { Dict } from './novsc/commonTypes';
-import { DisplayHtmlRequest } from "./adapterMessages";
+import { DisplayHtmlRequest } from "./novsc/adapterMessages";
 
 export class DebuggerHtmlView {
     panels: Dict<WebviewPanel> = {};

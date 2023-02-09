@@ -19,7 +19,7 @@ import * as install from './install';
 import { Cargo, expandCargo } from './cargo';
 import { pickProcess } from './pickProcess';
 import { Dict } from './novsc/commonTypes';
-import { AdapterSettings } from './adapterMessages';
+import { AdapterSettings } from './novsc/adapterMessages';
 import { ModuleTreeDataProvider } from './modulesView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
@@ -433,12 +433,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {
         let settings = this.getAdapterSettings(session.workspaceFolder);
-        let adapterParams: any = {
+        let adapterSettings: AdapterSettings = {
             evaluateForHovers: settings.evaluateForHovers,
             commandCompletions: settings.commandCompletions,
         };
         if (session.configuration.sourceLanguages) {
-            adapterParams.sourceLanguages = session.configuration.sourceLanguages;
+            adapterSettings.sourceLanguages = session.configuration.sourceLanguages;
             delete session.configuration.sourceLanguages;
         }
 
@@ -446,7 +446,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let port = await connector.listen();
 
         try {
-            await this.startDebugAdapter(session.workspaceFolder, adapterParams, port);
+            await this.startDebugAdapter(session.workspaceFolder, adapterSettings, port);
             await connector.accept();
             return new DebugAdapterInlineImplementation(connector);
         } catch (err) {
@@ -524,7 +524,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
     async startDebugAdapter(
         folder: WorkspaceFolder | undefined,
-        adapterParams: Dict<string>,
+        adapterSettings: AdapterSettings,
         connectPort: number
     ): Promise<ChildProcess> {
         let config = this.getExtensionConfig(folder);
@@ -535,7 +535,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (verboseLogging) {
             output.appendLine(`liblldb: ${liblldb}`);
             output.appendLine(`environment: ${inspect(adapterEnv)}`);
-            output.appendLine(`params: ${inspect(adapterParams)}`);
+            output.appendLine(`settings: ${inspect(adapterSettings)}`);
         }
 
         let adapterProcess = await adapter.start(liblldb, {
@@ -544,7 +544,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             workDir: workspace.rootPath,
             port: connectPort,
             connect: true,
-            adapterParameters: adapterParams,
+            adapterSettings: adapterSettings,
             verboseLogging: verboseLogging
         });
 

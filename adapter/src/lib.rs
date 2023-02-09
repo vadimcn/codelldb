@@ -38,7 +38,7 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
     hook_crashes();
     env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
-    let adapter_settings: AdapterSettings = match matches.value_of("params") {
+    let adapter_settings: AdapterSettings = match matches.value_of("settings") {
         Some(s) => match serde_json::from_str(s) {
             Ok(settings) => settings,
             Err(err) => {

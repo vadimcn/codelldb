@@ -103,7 +103,7 @@ export class DebugTestSession extends DebugClient {
                     session.adapter = await adapter.start(liblldb, {
                         extensionRoot: extensionRoot,
                         extraEnv: { RUST_LOG: 'error,codelldb=debug' },
-                        adapterParameters: {},
+                        adapterSettings: {},
                         workDir: undefined,
                         port: address.port,
                         connect: true,

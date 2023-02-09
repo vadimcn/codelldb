@@ -311,7 +311,7 @@ jobs:
 
   - script: |
       $(setenvWindows)
-      cmake --build build --target check
+      cmake --build build --target check_adapter
     displayName: 'Test'
 
   - script: |

@@ -1,3 +1,5 @@
+include(ExternalProject)
+
 add_subdirectory(scripts)
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
@@ -19,13 +21,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     endif()
 endif()
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(LLDB_LinkDylib "liblldb" CACHE STRING "" FORCE)
-else()
-    set(LLDB_LinkDylib "lldb" CACHE STRING "" FORCE)
-endif()
-set(LLDB_LinkSearch "${CMAKE_BINARY_DIR}/lldb/lib" CACHE STRING "" FORCE)
-
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
                              --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target)
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
@@ -39,43 +34,57 @@ if (CMAKE_VERBOSE_MAKEFILE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 
-set(Cargo ${WithEnv} CXX_${LLVM_TRIPLE}=${CMAKE_CXX_COMPILER} CXXFLAGS_${LLVM_TRIPLE}=${CMAKE_CXX_FLAGS} cargo)
-
-add_custom_target(codelldb ALL
-    DEPENDS codelldb_bin codelldb_lib ${DIAFiles}
+add_custom_target(adapter
+    DEPENDS codelldb_exe codelldb_dylib codelldb_scripts ${DIAFiles}
 )
 
-add_custom_target(codelldb_bin
-    COMMAND ${Cargo} build --package=codelldb --bin codelldb --features=weak-linkage ${CargoFlags}
-    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Building codelldb_bin"
+set(CodelldbExe codelldb${ExeSuffix})
+set(CodelldbLib ${LibPrefix}codelldb${LibSuffix})
+
+externalproject_add(cargo_build
+    DOWNLOAD_COMMAND ""
+    CONFIGURE_COMMAND ""
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}"
+    BUILD_COMMAND cargo build --package=codelldb --bin codelldb --lib --features=weak-linkage ${CargoFlags}
+    BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe} ${CargoOutDir}/${CodelldbLib}
+    BUILD_ALWAYS ON
+    USES_TERMINAL_BUILD ON
+    INSTALL_COMMAND ""
+)
+
+# Exe
+add_custom_target(codelldb_exe
+    COMMAND ${UpdateFile} ${CargoOutDir}/${CodelldbExe} ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS cargo_build
     USES_TERMINAL
 )
 
-add_custom_target(codelldb_lib
-    DEPENDS codelldb_scripts
-    COMMAND ${Cargo} build --package=codelldb --lib --features=weak-linkage ${CargoFlags}
-    COMMAND ${UpdateFile} ${CargoOutDir}/${DylibPrefix}codelldb${DylibSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Building codelldb_lib"
-    USES_TERMINAL
-)
+# Dylib
+if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/empty.c "")
+    add_library(codelldb_dylib SHARED ${CMAKE_CURRENT_BINARY_DIR}/empty.c)
+    if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+        target_link_options(codelldb_dylib PRIVATE --force-link=_entry
+                            -lc++ -lm -lc -undefined dynamic_lookup)
+    else()
+        target_link_options(codelldb_dylib PRIVATE --force-link=entry
+                            -static-libgcc -Wl,-Bstatic -lc++ -lc++abi -Wl,-Bdynamic -ldl -lm -lc)
+    endif()
+else()
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/empty.c "")
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/exports.def "EXPORTS\r\n  entry")
+    add_library(codelldb_dylib SHARED ${CMAKE_CURRENT_BINARY_DIR}/empty.c ${CMAKE_CURRENT_BINARY_DIR}/exports.def)
+    target_link_directories(codelldb_dylib PRIVATE ${CMAKE_BINARY_DIR}/lldb/lib)
+    target_link_libraries(codelldb_dylib PRIVATE liblldb.lib ws2_32.lib bcrypt.lib userenv.lib ntdll.lib)
+    target_link_options(codelldb_dylib PRIVATE /NODEFAULTLIB:MSVCRTD)
+endif()
+add_dependencies(codelldb_dylib cargo_build)
+set_target_properties(codelldb_dylib PROPERTIES OUTPUT_NAME "codelldb")
+target_link_libraries(codelldb_dylib PRIVATE ${CargoOutDir}/${CodelldbLib})
 
-add_custom_target(codelldb_syms
-    DEPENDS codelldb_bin codelldb_lib
-    COMMAND ${UpdateFile} ${CargoOutDir}/deps/${DylibPrefix}codelldb${DylibSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${UpdateFile} ${CargoOutDir}/codelldb${ExeSuffix}${SymSuffix} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Updating codelldb symbols"
-    USES_TERMINAL
-)
-
-set(PATH $ENV{PATH}) # keep
-string(JOIN ${PathSep} PATH ${CMAKE_BINARY_DIR}/lldb/bin ${PATH} )
-string(JOIN ${PathSep} LD_LIBRARY_PATH ${LLDB_LinkSearch} $ENV{LD_LIBRARY_PATH})
 add_custom_target(cargo_test
-    COMMAND echo PATH=${PATH}
-    COMMAND echo LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
-    COMMAND ${WithEnv} PATH=\"${PATH}\" LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}\" RUST_BACKTRACE=1
-            ${Cargo} test --lib -p=lldb -p=adapter-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
+    COMMAND cargo test --lib -p=lldb -p=adapter-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     USES_TERMINAL
 )

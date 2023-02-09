@@ -28,7 +28,7 @@ else()
     set(Drive "C:")
 endif()
 
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+if ("${LLVM_TRIPLE}" MATCHES "-msvc")
     set_source_files_properties(cpp/no_line_info.cpp PROPERTIES COMPILE_FLAGS /DEBUG:None)
 else()
     set_source_files_properties(cpp/no_line_info.cpp PROPERTIES COMPILE_FLAGS -g0)
@@ -42,18 +42,16 @@ endif()
 if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Target)
     set(Rusttypes rusttypes)
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    set(Target --target x86_64-pc-windows-msvc)
-    set(Rusttypes rusttypes.exe)
 else()
-    set(Target --target x86_64-pc-windows-gnu)
+    set(Target --target ${LLVM_TRIPLE})
     set(Rusttypes rusttypes.exe)
 endif()
 
 set(Cargo ${CMAKE_COMMAND} -E env RUSTC_BOOTSTRAP=1 cargo -Zunstable-options)
 
 add_custom_target(rust-debuggee
-    COMMAND ${Cargo} build -p rust-debuggee --bin rust-debuggee ${Target} --out-dir ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${Cargo} build --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
+                     -p rust-debuggee --bin rust-debuggee ${Target} --out-dir ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
 

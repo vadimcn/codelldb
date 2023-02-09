@@ -58,14 +58,15 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Python python)
     set(ExeSuffix .exe)
+    set(LibSuffix .lib)
     set(DylibSuffix .dll)
     set(SymSuffix .pdb)
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
-    set(AllowedDependencies api-ms-.* WS2_32.dll KERNEL32.dll NTDLL.dll ADVAPI32.dll USER32.dll VERSION.dll DBGHELP.dll
-                            PSAPI.DLL OLEAUT32.dll SHLWAPI.dll RPCRT4.dll OLE32.dll BCRYPT.dll USERENV.dll
-                            VCRUNTIME140D?.dll VCRUNTIME140_1D?.dll MSVCP140.dll
+    set(AllowedDependencies api-ms-.* ws2_32.dll kernel32.dll ntdll.dll advapi32.dll user32.dll version.dll dbghelp.dll
+                            psapi.dll oleaut32.dll shlwapi.dll rpcrt4.dll ole32.dll bcrypt.dll userenv.dll
+                            ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll
                             python3.*.dll liblldb.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
@@ -74,12 +75,17 @@ endif()
 string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
 
 if (NOT LLVM_TRIPLE)
-set(LLVM_TRIPLE ${DefaultTarget})
+    set(LLVM_TRIPLE ${DefaultTarget})
 endif()
 
 set(WithEnv ${CMAKE_COMMAND} -E env)
 set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+    configure_file(cargo_config.windows.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml @ONLY)
+else()
+    configure_file(cargo_config.unix.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml @ONLY)
+endif()
 
 # Adapter
 
@@ -87,7 +93,7 @@ add_subdirectory(adapter)
 add_subdirectory(lldb)
 add_subdirectory(formatters)
 
-add_dependencies(codelldb_lib lldb formatters)
+add_dependencies(codelldb_dylib lldb formatters)
 
 # Extension package content
 
@@ -165,7 +171,7 @@ add_copy_file(PackageFiles ${CMAKE_CURRENT_SOURCE_DIR}/syntaxes/disassembly.json
 # For extension debugging
 
 add_custom_target(dev_debugging
-    DEPENDS codelldb debuggee extension ${PackageFiles}
+    DEPENDS adapter debuggee extension ${PackageFiles}
 )
 
 # VSIX packages
@@ -222,7 +228,7 @@ add_custom_target(vsix_bootstrap
 )
 
 add_custom_target(vsix_full
-    DEPENDS extension lldb codelldb ${PackageFiles}
+    DEPENDS extension lldb adapter ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
     COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -237,9 +243,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     endif()
 
     add_custom_target(strip_binaries
-        DEPENDS lldb codelldb
+        DEPENDS lldb adapter
         COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/adapter -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
-        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb     -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
+        COMMAND find ${CMAKE_CURRENT_BINARY_DIR}/lldb    -type f "\\(" -executable -o -name "*.so" -o -name "*.so.*" "\\)" -not -name "*.py" -print -exec ${CMAKE_STRIP} --strip-debug "{}" "\;"
         COMMENT "Stripping debug info"
         USES_TERMINAL
     )
@@ -272,7 +278,7 @@ else()
     message("Configuring debuggee-gnu")
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-gnu)
     execute_process(
-        COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+        COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-gnu.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-gnu
     )
     message("Configuring debuggee-msvc")
@@ -298,7 +304,7 @@ set(MochaTest ${NPM} run mocha --
 )
 
 # Build everything for testing
-add_dependencies(tests codelldb debuggee)
+add_dependencies(tests adapter debuggee)
 
 # Tests and test targets
 
@@ -320,16 +326,14 @@ endforeach(TestTriple)
 
 # Run adapter tests
 add_custom_target(check_adapter
-    DEPENDS codelldb debuggee tests
-    COMMAND ${CMAKE_CTEST_COMMAND} -R "adapter:" --verbose
+    DEPENDS adapter debuggee tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
     USES_TERMINAL
 )
 
 # Run all tests
 add_custom_target(check
-    DEPENDS codelldb debuggee tests cargo_test
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
-    USES_TERMINAL
+    DEPENDS cargo_test check_adapter
 )
 
 # Install

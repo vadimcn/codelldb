@@ -1,88 +1,74 @@
-use regex::Regex;
-use std::collections::HashMap;
-use std::env;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::{env, fs, path::Path};
 
-fn main() {
+pub type Error = Box<dyn std::error::Error>;
+
+fn main() -> Result<(), Error> {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let weak_linkage = match env::var("CARGO_FEATURE_WEAK_LINKAGE") {
         Ok(_) => true,
         Err(_) => false,
     };
 
-    // Generate C++ bindings
+    // Rebuild if any source files change
+    rerun_if_changed_in(Path::new("src"))?;
+
     let mut build_config = cpp_build::Config::new();
-    build_config.include("include");
+
     if weak_linkage {
-        build_config.cpp_link_stdlib(None);
-    }
-
-    build_config.build("src/lib.rs");
-    for entry in fs::read_dir("src").unwrap() {
-        println!("cargo:rerun-if-changed={}", entry.unwrap().path().display());
-    }
-
-    if target_os == "windows" {
-        strong_linkage();
+        build_config.cpp_set_stdlib(None);
     } else {
-        if weak_linkage {
-            if target_os == "macos" {
-                println!("cargo:rustc-cdylib-link-arg=-undefined");
-                println!("cargo:rustc-cdylib-link-arg=dynamic_lookup");
-            }
+        // This branch is used when building test runners
+        set_rustc_link_search();
+        set_dylib_search_path();
+        if target_os == "windows" {
+            println!("cargo:rustc-link-lib=dylib=liblldb");
         } else {
-            strong_linkage();
+            build_config.cpp_set_stdlib(Some("c++"));
+            println!("cargo:rustc-link-lib=dylib=lldb");
+            if target_os == "linux" {
+                // Require all symbols to be defined in test runners
+                println!("cargo:rustc-link-arg=--no-undefined");
+            }
         }
     }
+
+    // Generate C++ bindings
+    build_config.include("include");
+    build_config.build("src/lib.rs");
+
+    Ok(())
 }
 
-fn strong_linkage() {
-    // Find CMakeCache
-    let mut path = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let cmakecache = loop {
-        let f = path.with_file_name("CMakeCache.txt");
-        if f.is_file() {
-            break f;
+fn rerun_if_changed_in(dir: &Path) -> Result<(), Error> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() {
+            println!("cargo:rerun-if-changed={}", entry.path().display());
+        } else {
+            rerun_if_changed_in(&entry.path())?;
         }
-        if !path.pop() {
-            println!("cargo:warning=Could not find CMakeCache.txt");
-            return;
-        }
-    };
-    println!("cargo:rerun-if-changed={}", cmakecache.display());
-    let config = parse_cmakecache(&cmakecache);
+    }
+    Ok(())
+}
 
-    if let Some(value) = config.get("LLDB_LinkSearch") {
+fn set_rustc_link_search() {
+    if let Ok(value) = env::var("CODELLDB_LIB_PATH") {
         for path in value.split_terminator(';') {
             println!("cargo:rustc-link-search=native={}", path);
         }
-    } else {
-        println!("cargo:warning=LLDB_LinkSearch not set");
-    }
-
-    if let Some(value) = config.get("LLDB_LinkDylib") {
-        for path in value.split_terminator(';') {
-            println!("cargo:rustc-link-lib=dylib={}", path);
-        }
-    } else {
-        println!("cargo:warning=LLDB_LinkDylib not set");
     }
 }
 
-fn parse_cmakecache(cmakecache: &Path) -> HashMap<String, String> {
-    let mut result = HashMap::new();
-    let reader = BufReader::new(File::open(cmakecache).expect("Open file"));
-    let kvregex = Regex::new("(?mx) ^ ([A-Za-z_]+) : (STRING|FILEPATH|BOOL|STATIC|INTERNAL) = (.*)").unwrap();
-
-    for line in reader.lines() {
-        let line = line.unwrap();
-        if let Some(captures) = kvregex.captures(&line) {
-            let key = captures.get(1).expect("Invalid format").as_str();
-            let value = captures.get(3).expect("Invalid format").as_str();
-            result.insert(key.into(), value.into());
+fn set_dylib_search_path() {
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    if let Ok(value) = env::var("CODELLDB_LIB_PATH") {
+        if target_os == "linux" {
+            let prev = env::var("LD_LIBRARY_PATH").unwrap_or_default();
+            println!("cargo:rustc-env=LD_LIBRARY_PATH={}:{}", prev, value.replace(";", ":"));
+        } else if target_os == "macos" {
+            println!("cargo:rustc-env=DYLD_FALLBACK_LIBRARY_PATH={}", value.replace(";", ":"));
+        } else if target_os == "windows" {
+            println!("cargo:rustc-env=PATH={};{}", env::var("PATH").unwrap(), value);
         }
     }
-    result
 }

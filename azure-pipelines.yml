@@ -119,7 +119,7 @@ jobs:
       cat /proc/cpuinfo > system.log
       cat /proc/meminfo >> system.log
       env > env.log
-      find $(Agent.BuildDirectory) -type d > build-tree.log
+      ls -lR $(Agent.BuildDirectory) > build-tree.log
       zip --recurse-patterns $(Agent.BuildDirectory)/$(Triple).zip "*.log" "CMakeCache.txt"
       echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
     displayName: 'Logs'
@@ -219,7 +219,7 @@ jobs:
       cd $(Agent.BuildDirectory)
       sysctl -a > system.log
       env > env.log
-      find $(Agent.BuildDirectory) -type d > build-tree.log
+      ls -lR $(Agent.BuildDirectory) > build-tree.log
       zip --recurse-patterns $(Agent.BuildDirectory)/$(Triple).zip "*.log" "CMakeCache.txt"
       echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
     displayName: 'Logs'
@@ -317,7 +317,7 @@ jobs:
   - script: |
       cd $(Agent.BuildDirectory)
       set > env.log
-      tree /a > build-tree.log
+      ls -lR $(Agent.BuildDirectory) > build-tree.log
       zip --recurse-patterns $(Agent.BuildDirectory)\$(Triple).zip "*.log" "CMakeCache.txt"
       echo ##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)\$(Triple).zip
     displayName: 'Logs'

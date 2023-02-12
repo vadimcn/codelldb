@@ -73,11 +73,12 @@ pub struct PythonInterface {
 }
 
 // Initialize Python interface.
-// In order to maintain compatibility with Python 2 (in case we need to load an older liblldb), we eschew Python's C API,
-// instead preferring to interact with it via the `ctypes` module:
-// - Use LLDB's SBCommandInterpreter to import `codelldb` module and invoke `codelldb.initialize()`.
-// - Python code calls us back via `init_callback()` providing pointers to C ABI wrappers of the functions we need.
-//   We stash these pointers and later call them directly, bypassing slow SBCommandInterpreter API.
+// In order to maintain compatibility with Python 2 (in case we need to load an older liblldb),
+// we eschew Python C API, preferring to interact with it via `ctypes` module:
+// - We use SBCommandInterpreter to import `codelldb` module and to invoke `initialize` function,
+//   passing it pointers to callbacks and data on Rust side, the `init_callback` function among them.
+// - `codelldb.initialize` invokes `init_callback` with pointers to C ABI stubs wrapping Python side callbacks,
+//    which are saved and later used to invoke Python code directly, bypassing the slow SBCommandInterpreter API.
 // - If any of the above fails, we declare Python scripting defunct and proceed in reduced functionality mode.
 pub fn initialize(
     interpreter: SBCommandInterpreter,
@@ -86,8 +87,7 @@ pub fn initialize(
 ) -> Result<(Box<PythonInterface>, mpsc::Receiver<EventBody>), Error> {
     let mut command_result = SBCommandReturnObject::new();
 
-    // Import debugger.py into script interpreter's namespace.
-    // This also adds our bin directory to sys.path, so we can import the rest of the modules below.
+    // Import debugger.py into script interpreter's namespace. This also adds our `bin` directory to `sys.path`.
     let init_script = adapter_dir.join("scripts/debugger.py");
     let command = format!("command script import '{}'", init_script.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);

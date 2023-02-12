@@ -59,6 +59,7 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
 
     // Execute startup command
     if let Ok(command) = std::env::var("CODELLDB_STARTUP") {
+        debug!("Executing {}", command);
         let debugger = SBDebugger::create(false);
         let mut command_result = SBCommandReturnObject::new();
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
@@ -84,6 +85,7 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
 
     rt.block_on(async {
         if connect {
+            debug!("Connecting to {}", addr);
             let tcp_stream = TcpStream::connect(addr).await?;
             tcp_stream.set_nodelay(true).unwrap();
             let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
@@ -91,6 +93,7 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
         } else {
             let listener = TcpListener::bind(&addr).await?;
             while {
+                debug!("Listening on {}", listener.local_addr()?);
                 let (tcp_stream, _) = listener.accept().await?;
                 tcp_stream.set_nodelay(true).unwrap();
                 let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);

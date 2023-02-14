@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.8.2") # Base version
+set(VERSION "1.9.0") # Base version
 
 include(cmake/CopyFiles.cmake)
 

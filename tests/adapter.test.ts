@@ -222,8 +222,6 @@ function generateSuite(triple: string) {
             });
 
             test('variables', async function () {
-                if (triple.endsWith('pc-windows-msvc')) this.skip();
-
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },
                     async () => {
@@ -253,12 +251,6 @@ function generateSuite(triple: string) {
                     s2: { a: 10, b: "'b'", c: 999 },
                     cstr: '"The quick brown fox"',
                     wcstr: 'L"The quick brown fox"',
-                    str1: '"The quick brown fox"',
-                    str_ptr: '"The quick brown fox"',
-                    //str_ref: '"The quick brown fox"',  broken in LLDB 13
-                    empty_str: '""',
-                    wstr1: 'L"Превед йожэг!"',
-                    wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
 
                     invalid_utf8: '"ABC\\xff\\U00000001\\xfeXYZ"',
 
@@ -271,11 +263,23 @@ function generateSuite(triple: string) {
                     invalid_void_ptr: '<invalid address>',
                 });
 
-                let fields = await ds.readVariables(locals['anon_union'].variablesReference);
-                assert.equal(fields[0].name, '')
-                ds.compareVariables(fields[0].variablesReference, { x: 4, w: 4 });
-                assert.equal(fields[1].name, '')
-                ds.compareVariables(fields[1].variablesReference, { y: 5, h: 5 });
+                // LLDB does not have visualizers for MS STL types, so we can't test those.
+                if (triple.endsWith('pc-windows-gnu')) {
+                    await ds.compareVariables(locals, {
+                        str1: '"The quick brown fox"',
+                        str_ptr: '"The quick brown fox"',
+                        //str_ref: '"The quick brown fox"',  broken in LLDB 13
+                        empty_str: '""',
+                        wstr1: 'L"Превед йожэг!"',
+                        wstr2: 'L"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+                    });
+
+                    let fields = await ds.readVariables(locals['anon_union'].variablesReference);
+                    assert.equal(fields[0].name, '')
+                    ds.compareVariables(fields[0].variablesReference, { x: 4, w: 4 });
+                    assert.equal(fields[1].name, '')
+                    ds.compareVariables(fields[1].variablesReference, { y: 5, h: 5 });
+                }
 
                 let response1 = await ds.evaluateRequest({
                     expression: 'vec_int', context: 'watch', frameId: frameId
@@ -571,6 +575,8 @@ function generateSuite(triple: string) {
             })
 
             test('rust enums', async function () {
+                if (triple.endsWith('pc-windows-msvc')) this.skip();
+
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust enums', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 if (!triple.endsWith('pc-windows-msvc')) {

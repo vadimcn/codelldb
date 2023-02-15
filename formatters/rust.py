@@ -36,6 +36,7 @@ def initialize_category(debugger, internal_dict):
     attach_synthetic_to_type(StdVecDequeSynthProvider, r'^(collections|alloc::collections)::vec_deque::VecDeque<.+>$', True)
 
     attach_synthetic_to_type(MsvcEnumSynthProvider, r'^enum\$<.+>$', True)
+    attach_synthetic_to_type(MsvcEnum2SynthProvider, r'^enum2\$<.+>$', True)
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
     attach_synthetic_to_type(MsvcSliceSynthProvider, r'^(mut *)?slice\$?<.+>.*$', True)
@@ -629,6 +630,23 @@ class MsvcEnumSynthProvider(EnumSynthProvider):
             return int(name)
         else:
             return self.variant.GetIndexOfChildWithName(name) - self.skip_first
+
+    def get_type_name(self):
+        return self.type_name
+
+
+class MsvcEnum2SynthProvider(EnumSynthProvider):
+    is_tuple_variant = False
+
+    def initialize_enum(self):
+        tparams = get_template_params(self.valobj.GetTypeName())
+        self.type_name = tparams[0]
+
+    def get_child_at_index(self, index):
+        return self.valobj.GetChildAtIndex(index)
+
+    def get_child_index(self, name):
+        return self.valobj.GetChildIndex(name)
 
     def get_type_name(self):
         return self.type_name

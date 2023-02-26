@@ -70,12 +70,12 @@
 		"commands": [
 			{
 				"category": "LLDB",
-				"title": "Display Format ...",
+				"title": "Display Format...",
 				"command": "lldb.displayFormat"
 			},
 			{
 				"category": "LLDB",
-				"title": "Show Disassembly ...",
+				"title": "Show Disassembly...",
 				"command": "lldb.showDisassembly"
 			},
 			{

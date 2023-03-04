@@ -38,7 +38,7 @@ use futures::prelude::*;
 use lldb::*;
 use serde_json;
 use tokio::io::AsyncReadExt;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 pub struct DebugSession {
     self_ref: MustInitialize<Shared<DebugSession>>,
@@ -46,6 +46,7 @@ pub struct DebugSession {
     event_listener: SBListener,
     python: Option<Box<PythonInterface>>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with request currently being processed
+    configuration_done_sender: broadcast::Sender<()>,
 
     console_pipe: std::fs::File,
 
@@ -129,6 +130,7 @@ impl DebugSession {
             event_listener: SBListener::new_with_name("DebugSession"),
             python: python,
             current_cancellation: cancellation::dummy(),
+            configuration_done_sender: broadcast::channel(1).0,
 
             console_pipe: con_writer,
 
@@ -256,7 +258,7 @@ impl DebugSession {
     fn cancellation_filter(
         dap_session: &DAPSession,
     ) -> mpsc::Receiver<(u32, RequestArguments, cancellation::Receiver)> {
-        use tokio::sync::broadcast::error::RecvError;
+        use broadcast::error::RecvError;
 
         let mut raw_requests_stream = dap_session.subscribe_requests().unwrap();
         let (requests_sender, requests_receiver) =
@@ -606,7 +608,17 @@ impl DebugSession {
     }
 
     fn handle_configuration_done(&mut self) -> Result<(), Error> {
-        Ok(())
+        // Signal to complete pending launch/attach tasks.
+        log_errors!(self.configuration_done_sender.send(()));
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            // Wait for them to finish before responding.
+            while self_ref.map(|s| s.configuration_done_sender.receiver_count()).await > 0 {
+                tokio::task::yield_now().await
+            }
+            Ok(ResponseBody::configurationDone)
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
     }
 
     fn handle_threads(&mut self) -> Result<ThreadsResponseBody, Error> {

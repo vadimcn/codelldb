@@ -32,6 +32,13 @@
 			"args": ["threads_long"]
 		},
 		{
+			"name": "debuggee launch inf_loop",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["inf_loop"]
+		},
+		{
 			"name": "debuggee launch crash",
 			"type": "lldb",
 			"request": "launch",

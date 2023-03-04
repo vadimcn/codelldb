@@ -114,7 +114,6 @@ pub enum RequestArguments {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "command", content = "body")]
 pub enum ResponseBody {
-    Async,
     initialize(Capabilities),
     cancel,
     launch,

@@ -28,26 +28,14 @@ impl super::DebugSession {
             self.send_event(EventBody::initialized);
 
             let term_fut = self.create_terminal(&args);
-            let config_done_fut = self.wait_for_configuration_done();
+            let mut config_done_recv = self.configuration_done_sender.subscribe();
             let self_ref = self.self_ref.clone();
             let fut = async move {
-                drop(tokio::join!(term_fut, config_done_fut));
+                term_fut.await;
+                log_errors!(config_done_recv.recv().await);
                 self_ref.map(|s| s.complete_launch(args)).await
             };
             Err(AsyncResponse(Box::new(fut)).into())
-        }
-    }
-
-    fn wait_for_configuration_done(&self) -> impl Future<Output = Result<(), Error>> {
-        let result = self.dap_session.subscribe_requests();
-        async move {
-            let mut receiver = result?;
-            while let Ok((_seq, request)) = receiver.recv().await {
-                if let RequestArguments::configurationDone(_) = request {
-                    return Ok(());
-                }
-            }
-            bail!("Did not receive configurationDone");
         }
     }
 
@@ -177,9 +165,10 @@ impl super::DebugSession {
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
 
+        let mut config_done_recv = self.configuration_done_sender.subscribe();
         let self_ref = self.self_ref.clone();
         let fut = async move {
-            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            log_errors!(config_done_recv.recv().await);
             self_ref.map(|s| s.complete_custom_launch(args)).await
         };
         Err(AsyncResponse(Box::new(fut)).into())
@@ -247,9 +236,10 @@ impl super::DebugSession {
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
 
+        let mut config_done_recv = self.configuration_done_sender.subscribe();
         let self_ref = self.self_ref.clone();
         let fut = async move {
-            self_ref.map(|s| s.wait_for_configuration_done()).await.await?;
+            log_errors!(config_done_recv.recv().await);
             self_ref.map(|s| s.complete_attach(args, attach_info)).await
         };
         Err(AsyncResponse(Box::new(fut)).into())

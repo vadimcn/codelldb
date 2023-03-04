@@ -1,14 +1,17 @@
 {
     "lldb.launch.initCommands": [
         "settings set target.x86-disassembly-flavor intel",
-        "command script import ${workspaceRoot}/../tools/debugvis.py",
-        "script from debugvis import *",
+        // "command script import ${workspaceRoot}/../tools/debugvis.py",
+        // "script from debugvis import *",
     ],
     "lldb.dbgconfig": {
         "targetDir": "${workspaceFolder}/../build/debuggee"
         //"targetDir": "${workspaceFolder}/../build/debuggee-gnu"
         //"targetDir": "${workspaceFolder}/../build/debuggee-msvc"
     },
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "auto",
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "evaluate",
     "lldb.launch.debugServer": 4711,
-    "lldb.verboseLogging": true,
 }

@@ -1,6 +1,6 @@
 import {
     workspace, window, commands, debug, extensions,
-    ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken,
+    ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, Uri, StatusBarAlignment, QuickPickItem, StatusBarItem, UriHandler, ConfigurationTarget,
     DebugAdapterInlineImplementation
@@ -259,9 +259,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     // Read current adapter settings values from workspace configuration.
-    getAdapterSettings(folder: WorkspaceFolder = undefined): AdapterSettings {
-        folder = folder || debug.activeDebugSession?.workspaceFolder;
-        let config = this.getExtensionConfig(folder);
+    getAdapterSettings(scope: ConfigurationScope = undefined): AdapterSettings {
+        scope = scope || debug.activeDebugSession?.workspaceFolder;
+        let config = this.getExtensionConfig(scope);
         let settings: AdapterSettings = {
             displayFormat: config.get('displayFormat'),
             showDisassembly: config.get('showDisassembly'),
@@ -386,8 +386,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (!await this.checkPrerequisites(folder))
             return undefined;
 
-        let config = this.getExtensionConfig(folder);
-
         let launchDefaults = this.getExtensionConfig(folder, 'lldb.launch');
         launchConfig = this.mergeWorkspaceSettings(launchDefaults, launchConfig);
 
@@ -425,7 +423,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             launchConfig.sourceLanguages.push('rust');
         }
 
-        launchConfig._adapterSettings = this.getAdapterSettings();
+        launchConfig._adapterSettings = this.getAdapterSettings(folder);
 
         output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);
         return launchConfig;
@@ -691,8 +689,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         });
     }
 
-    getExtensionConfig(folder?: WorkspaceFolder, key: string = 'lldb'): WorkspaceConfiguration {
-        return workspace.getConfiguration(key, folder?.uri);
+    getExtensionConfig(scope?: ConfigurationScope, key: string = 'lldb'): WorkspaceConfiguration {
+        return workspace.getConfiguration(key, scope);
     }
 }
 

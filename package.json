@@ -70,12 +70,12 @@
 		"commands": [
 			{
 				"category": "LLDB",
-				"title": "Display Format ...",
+				"title": "Display Format...",
 				"command": "lldb.displayFormat"
 			},
 			{
 				"category": "LLDB",
-				"title": "Show Disassembly ...",
+				"title": "Show Disassembly...",
 				"command": "lldb.showDisassembly"
 			},
 			{
@@ -969,7 +969,7 @@
 						}
 					},
 					{
-						"label": "CodeLLDB: Attach by PID",
+						"label": "CodeLLDB: Attach to PID",
 						"description": "Attach to a running process with the specified process id.",
 						"body": {
 							"type": "lldb",

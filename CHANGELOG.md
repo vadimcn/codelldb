@@ -1,13 +1,18 @@
 # Release Notes
 
-# 1.8.2
+
+# 1.9.0
+
+## New
+- Updated the bundled LLDB to v16.0.0
+- It is now possible to combine number format specifiers (`foo,x`) and "reinterpret as array" speficiers (`foo,[10]`)
+  together: `foo,x[10]` (Feature request #851).
+- Added support for native VSCode [disassmbly view](https://devblogs.microsoft.com/cppblog/visual-studio-code-c-july-2021-update-disassembly-view-macro-expansion-and-windows-arm64-debugging/#disassembly-view) (thanks @puremourning!).
 
 ## Fixed
 - #813: Mixed GAS/Intel syntax in disassembly view.
 - #842: Syntax error in conditional breakpoint.
-
-## New
-- Added support for VSCode native Disassembly View (thanks @puremourning!).
+- #840: Make the whole command string readable in the "Select a process" dropdown window.
 
 # 1.8.1
 

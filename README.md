@@ -22,9 +22,9 @@ and Zig.
 # Supported Platforms
 
 ## Host
-- [Linux](https://github.com/vadimcn/codelldb/wiki/Linux) with glibc 2.18+ for x86_64, aarch64 or armhf,
-- [MacOS](https://github.com/vadimcn/codelldb/wiki/MacOS) X 10.10+ for x86_64 and 11.0+ for arm64,
-- [Windows](https://github.com/vadimcn/codelldb/wiki/Windows) 10 for x86_64.
+- Linux with glibc 2.18+ for x86_64, aarch64 or armhf.
+- MacOS X 10.10+ for x86_64 and 11.0+ for arm64.
+- Windows 10 and 11 for x86_64. [See Windows notes in wiki!](https://github.com/vadimcn/codelldb/wiki/Windows)
 
 ## Target
 CodeLLDB supports AArch64, ARM, AVR, MSP430, RISCV, X86 architectures and may be used to debug on embedded platforms

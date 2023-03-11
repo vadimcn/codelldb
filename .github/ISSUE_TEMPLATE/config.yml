@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name:  Question
-    url:   https://github.com/vadimcn/vscode-lldb/discussions
+    url:   https://github.com/vadimcn/codelldb/discussions
     about: Please ask and answer questions here.
   - name: Troubleshooting
-    url:  https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting
+    url:  https://github.com/vadimcn/codelldb/wiki/Troubleshooting
     about: Common problems and how to troubleshoot them.
   - name: Bug reporting guidelines
-    url: https://github.com/vadimcn/vscode-lldb/wiki/Reporting-Bugs
+    url: https://github.com/vadimcn/codelldb/wiki/Reporting-Bugs
     about: How to create actionable bug reports.

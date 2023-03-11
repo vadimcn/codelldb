@@ -484,7 +484,7 @@ mode.  The address may still be seen when a display format override is specified
 # 0.5.0
 - The minimum supported VSCode version is now 1.11.
 - Rust visualizers are now activated automatically (no need for `sourceLanguages: ["rust"]`).
-- Added [data visualization](https://github.com/vadimcn/vscode-lldb/wiki/Data-visualization) tutorial.
+- Added [data visualization](https://github.com/vadimcn/codelldb/wiki/Data-visualization) tutorial.
 - Bug fixes.
 
 # 0.4.1

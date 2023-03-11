@@ -2,7 +2,7 @@
 name: Bug report
 about: Before filing a new report, please review the Troubleshooting page in CodeLLDB Wiki.
 ---
-<!-- ⚠️ Before filing a new report, please review https://github.com/vadimcn/vscode-lldb/wiki/Troubleshooting ⚠️ -->
+<!-- ⚠️ Before filing a new report, please review https://github.com/vadimcn/codelldb/wiki/Troubleshooting ⚠️ -->
 
 OS: <!-- including version -->
 VSCode version:  <!-- from Help/About -->

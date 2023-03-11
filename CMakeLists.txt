@@ -7,7 +7,7 @@ set(VERSION "1.9.0") # Base version
 include(cmake/CopyFiles.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/vscode-lldb CACHE PATH "Install location")
+set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.vscode/extensions/codelldb CACHE PATH "Install location")
 
 set(VERSION_SUFFIX "-" CACHE INTERNAL "Version suffix")
 if (VERSION_SUFFIX STREQUAL "-")
@@ -97,7 +97,7 @@ add_dependencies(codelldb_dylib lldb formatters)
 
 # Extension package content
 
-set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/vscode-lldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
+set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/codelldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
 configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js @ONLY)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
@@ -215,8 +215,8 @@ endforeach()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${Content})
 
 set(VsceOptions
-    --baseContentUrl https://github.com/vadimcn/vscode-lldb/blob/v${VERSION}
-    --baseImagesUrl https://github.com/vadimcn/vscode-lldb/raw/v${VERSION}
+    --baseContentUrl https://github.com/vadimcn/codelldb/blob/v${VERSION}
+    --baseImagesUrl https://github.com/vadimcn/codelldb/raw/v${VERSION}
 )
 
 add_custom_target(vsix_bootstrap

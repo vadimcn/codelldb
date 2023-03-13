@@ -459,7 +459,6 @@ impl super::DebugSession {
         let cpp_catch = filters.iter().any(|x| x == "cpp_catch");
         let rust_panic = filters.iter().any(|x| x == "rust_panic");
         let swift_throw = filters.iter().any(|x| x == "swift_throw");
-        let swift_catch = filters.iter().any(|x| x == "swift_catch");
         let mut bps = vec![];
         if cpp_throw || cpp_catch {
             let bp = self
@@ -473,10 +472,10 @@ impl super::DebugSession {
             bp.add_name("rust_panic");
             bps.push(bp);
         }
-        if swift_throw || swift_catch {
+        if swift_throw {
             let bp = self
                 .target
-                .breakpoint_create_for_exception(LanguageType::Swift, swift_catch, swift_throw);
+                .breakpoint_create_for_exception(LanguageType::Swift, false, swift_throw);
             bp.add_name("swift_exception");
             bps.push(bp);
         }

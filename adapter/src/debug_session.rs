@@ -587,12 +587,6 @@ impl DebugSession {
             filters.push(ExceptionBreakpointsFilter {
                 filter: "swift_throw".into(),
                 label: "Swift: on throw".into(),
-                default: Some(true),
-                ..Default::default()
-            });
-            filters.push(ExceptionBreakpointsFilter {
-                filter: "swift_catch".into(),
-                label: "Swift: on catch".into(),
                 default: Some(false),
                 ..Default::default()
             });

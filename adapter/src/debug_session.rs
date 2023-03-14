@@ -583,6 +583,14 @@ impl DebugSession {
                 ..Default::default()
             });
         }
+        if source_langs.iter().any(|x| x == "swift") {
+            filters.push(ExceptionBreakpointsFilter {
+                filter: "swift_throw".into(),
+                label: "Swift: on throw".into(),
+                default: Some(false),
+                ..Default::default()
+            });
+        }
         filters
     }
 

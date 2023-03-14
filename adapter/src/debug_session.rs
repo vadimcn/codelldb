@@ -1542,6 +1542,12 @@ impl DebugSession {
                 }
             }
         }
+
+        if stopped_thread.is_none() {
+            error!("Process stopped without a stopped thread. This is probably a bug. Ignoring.");
+            return;
+        }
+
         // Analyze stop reason
         let (stop_reason_str, description) = match stopped_thread {
             Some(ref stopped_thread) => {

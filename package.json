@@ -489,6 +489,9 @@
 				"language": "arm"
 			},
 			{
+				"language": "arm64"
+			},
+			{
 				"language": "asm"
 			},
 			{
@@ -568,6 +571,7 @@
 				"languages": [
 					"ada",
 					"arm",
+					"arm64",
 					"asm",
 					"c",
 					"cpp",

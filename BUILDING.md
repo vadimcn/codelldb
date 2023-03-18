@@ -30,8 +30,9 @@ subdirectories from the build output.
 cd codelldb
 mkdir build  # (the build directory may be changed, but tasks.json assumes it's "build" under the project root)
 cd build
-cmake .. -DLLDB_PACKAGE=<path to zip archive created in the previous step>
+cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-x86_64-linux-gnu.cmake -DLLDB_PACKAGE=<path to zip archive created in the previous step>
 ```
+If you are on some other platform, edit the toolchain file accordingly. You *will* get linker errors if you don't use the toolchain file
 
 # VSCode
 If you intend to run and debug tests in VSCode, you may want to create a symlink from `<souce>/.cargo/config.toml`

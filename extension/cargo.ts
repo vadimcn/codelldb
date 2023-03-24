@@ -286,11 +286,14 @@ export class Cargo {
 
             let rl = readline.createInterface({ input: cargo.stdout });
             rl.on('line', line => {
-                const message = JSON.parse(line);
-                onStdoutJson(message);
+                try {
+                    onStdoutJson(JSON.parse(line));
+                } catch (err) {
+                    reject(new ErrorWithCause(`Could not parse JSON: "${line}"`, { cause: err }));
+                }
             });
 
-            cargo.on('exit', (exitCode, signal) => {
+            cargo.on('close', (exitCode) => {
                 if (exitCode == 0)
                     resolve(0);
                 else

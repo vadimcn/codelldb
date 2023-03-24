@@ -182,6 +182,22 @@
 				}
 			]
 		},
+		"taskDefinitions": [
+			{
+				"type": "codelldb.cargo",
+				"properties": {
+					"args": {
+						"type": "array"
+					},
+					"env": {
+						"type": "object"
+					},
+					"filter": {
+						"type": "object"
+					}
+				}
+			}
+		],
 		"configuration": [
 			{
 				"title": "Launch configuration defaults",

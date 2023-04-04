@@ -102,9 +102,15 @@ impl super::DebugSession {
             let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
                 Some(bp) => bp,
                 None => {
-                    let path = file_path_norm.to_str().ok_or("path")?;
-                    self.target
-                        .breakpoint_create_by_location(path, req.line as u32, req.column.map(|c| c as u32))
+                    let location = match self.breakpoint_mode {
+                        BreakpointMode::Path => file_path_norm.as_os_str(),
+                        BreakpointMode::File => file_path_norm.file_name().ok_or("Missing file name")?,
+                    };
+                    self.target.breakpoint_create_by_location(
+                        location.to_str().ok_or("Missing file name")?,
+                        req.line as u32,
+                        req.column.map(|c| c as u32),
+                    )
                 }
             };
 
@@ -482,7 +488,7 @@ impl super::DebugSession {
 
     // Propagate breakpoint options from BreakpointInfo into the associated SBBreakpoint.
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
-        // Determine the conditional expression type.
+        // Determine type of the break condition expression.
         let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
             let condition = condition.trim();
             if !condition.is_empty() {
@@ -641,7 +647,7 @@ impl super::DebugSession {
         let mut breakpoints = self.breakpoints.borrow_mut();
 
         if event_type.intersects(BreakpointEventType::Added) {
-            // Don't notify if we already are tracking this one.
+            // Don't notify client if we are already tracking this one.
             if let None = breakpoints.breakpoint_infos.get(&bp.id()) {
                 let bp_info = BreakpointInfo {
                     id: bp.id(),

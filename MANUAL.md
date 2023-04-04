@@ -57,6 +57,7 @@ To start a debugging session you will need to create a [launch configuration](ht
 |**expressions**    |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**      |dictionary| See [Source Path Remapping](#source-path-remapping).
 |**relativePathBase**|string | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**breakpointMode**|enum | Specifies how source breakpoints should be set:<br><li>`path` - Resolve locations using full source file path (default).<li>`file` - Resolve locations using file name only.  This option may be useful in lieu of configuring `sourceMap`, however, note that breakpoints will be set in all files of the same name in the project.  For example, Rust projects often have lots of files named "mod.rs".
 |**sourceLanguages**|[string]| A list of source languages used in the program.  This is used to enable language-specific debugger features.
 |**reverseDebugging**|bool   | Enable [reverse debugging](#reverse-debugging).
 
@@ -643,6 +644,13 @@ configurations when there is no existing `launch.json`.
 # Workspace Configuration
 
 ## Default Launch Configuration Settings
+These settings specify the default values for launch configuration setting of the same name.
+When a setting is specified in both locations, the values will be merged depending on their type:
+- For lists, the resulting value will be a concatenation of both sources.
+- For dictionaties, the resulting value will be a combination of key-value pairs from both sources.  For equal keys,
+  the launch configuration value is used.
+- For numbers and strings, the launch configuration value is used.
+
 |                                |                                                         |
 |--------------------------------|---------------------------------------------------------|
 |**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.
@@ -650,12 +658,13 @@ configurations when there is no existing `launch.json`.
 |**lldb.launch.postRunCommands** |Commands executed *before* postRunCommands of individual launch configurations.
 |**lldb.launch.exitCommands**    |Commands executed *after* exitCommands of individual launch configurations.
 |**lldb.launch.env**             |Additional environment variables that will be merged with 'env' of individual launch configurations.
-|**lldb.launch.cwd**             |Default program working directory.
-|**lldb.launch.stdio**           |Default stdio destination.
-|**lldb.launch.expressions**     |Default expression evaluator.
-|**lldb.launch.terminal**        |Default terminal type.
+|**lldb.launch.cwd**             |The default program working directory.
+|**lldb.launch.stdio**           |The default stdio destination.
+|**lldb.launch.expressions**     |The default expression evaluator.
+|**lldb.launch.terminal**        |The default terminal type.
 |**lldb.launch.sourceMap**       |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
-|**lldb.launch.relativePathBase**|Default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**lldb.launch.breakpointMode**  |The default breakpoint resolution mode.
+|**lldb.launch.relativePathBase**|The default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
 |**lldb.launch.sourceLanguages** |A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ## General

@@ -180,7 +180,7 @@ pub struct NoArguments {}
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(rename_all = "camelCase")]
-pub enum BreakpointsMode {
+pub enum BreakpointMode {
     Path,
     File,
 }
@@ -199,7 +199,7 @@ pub struct CommonLaunchFields {
     pub source_languages: Option<Vec<String>>,
     pub reverse_debugging: Option<bool>,
     pub relative_path_base: Option<String>,
-    pub breakpoints_mode: Option<BreakpointsMode>,
+    pub breakpoint_mode: Option<BreakpointMode>,
     #[serde(rename = "_adapterSettings")]
     pub adapter_settings: Option<AdapterSettings>,
 }

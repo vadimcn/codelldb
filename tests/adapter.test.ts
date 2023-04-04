@@ -22,6 +22,21 @@ const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'd
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
 const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
+const debuggeeSourceMap = function() {
+    if (process.platform != 'win32') {
+        return {
+            '/remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
+            '/remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
+            '.': path.join(sourceDir, 'debuggee'),
+        };
+    } else { // On Windows, LLDB adds current drive letter to drive-less paths.
+        return {
+            'C:\\remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
+            'C:\\remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
+            '.': path.join(sourceDir, 'debuggee'),
+        };
+    }
+}();
 
 const rustDebuggee = path.join(debuggeeDir, 'rust-debuggee');
 const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'types.rs'));
@@ -143,6 +158,48 @@ function generateSuite(triple: string) {
                 await waitForExitAsync;
             });
 
+            test('stop on a breakpoint (basic)', async function () {
+                let waitForExitAsync = ds.waitForEvent('exited');
+                let bpLineSource = findMarker(debuggeeSource, '#BP1');
+                let stopEvent = await ds.launchAndWaitForStop({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeSource, bpLineSource);
+                    });
+                await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
+                log('Continue');
+                await ds.continueRequest({ threadId: 0 });
+                log('Wait for exit');
+                await waitForExitAsync;
+            });
+
+            test('breakpoint mode', async function () {
+                let waitForExitAsync = ds.waitForEvent('exited');
+
+                let bpLineSource = findMarker(debuggeeRemote1, '#BP1');
+                let stopEvent = await ds.launchAndWaitForStop(
+                    {
+                        name: 'breakpoint mode',
+                        program: debuggee, cwd: path.dirname(debuggee),
+                        args: ['weird_path'],
+                        sourceMap: debuggeeSourceMap,
+                        breakpointMode: 'file'
+                    },
+                    async () => {
+                        await ds.setBreakpoint(debuggeeRemote1, bpLineSource);
+                    });
+                await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote1, bpLineSource);
+                log('Continue');
+                let stopEvent2Async = ds.waitForStopEvent();
+                await ds.continueRequest({ threadId: 0 });
+                log('Wait for stop 2');
+                let stopEvent2 = await stopEvent2Async;
+                await ds.verifyLocation(stopEvent2.body.threadId, debuggeeRemote2, bpLineSource);
+                log('Continue 2');
+                await ds.continueRequest({ threadId: 0 });
+                log('Wait for exit');
+                await waitForExitAsync;
+            });
+
             test('path mapping', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
@@ -153,23 +210,9 @@ function generateSuite(triple: string) {
                 let bpLineRelative = findMarker(debuggeeRelative, '#BP1');
                 let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
 
-                let sourceMap = null;
-                if (process.platform != 'win32') {
-                    sourceMap = {
-                        '/remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
-                        '/remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
-                        '.': path.join(sourceDir, 'debuggee'),
-                    };
-                } else { // On Windows, LLDB adds current drive letter to drive-less paths.
-                    sourceMap = {
-                        'C:\\remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
-                        'C:\\remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
-                        '.': path.join(sourceDir, 'debuggee'),
-                    };
-                }
                 let stopEvent1 = await ds.launchAndWaitForStop({
                     name: 'stop on a breakpoint (path mapping)', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
-                    sourceMap: sourceMap,
+                    sourceMap: debuggeeSourceMap,
                     relativePathBase: path.join(sourceDir, 'debuggee'),
                     preRunCommands: [
                         'set show target.source-map'

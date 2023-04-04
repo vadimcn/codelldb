@@ -396,6 +396,10 @@ impl super::DebugSession {
             }));
         }
 
+        if let Some(breakpoint_mode) = &args_common.breakpoint_mode {
+            self.breakpoint_mode = breakpoint_mode.to_owned();
+        }
+
         if let Some(ref settings) = args_common.adapter_settings {
             self.update_adapter_settings_and_caps(settings);
         }

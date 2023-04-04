@@ -495,6 +495,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('relativePathBase');
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
+        mergeConfig('breakpointMode');
         return debugConfig;
     }
 

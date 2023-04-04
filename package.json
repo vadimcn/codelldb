@@ -319,6 +319,10 @@
 						"type": "string",
 						"order": 10
 					},
+					"lldb.launch.breakpointMode": {
+						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode",
+						"order": 10
+					},
 					"lldb.launch.sourceLanguages": {
 						"description": "A list of source languages to enable language-specific features for.",
 						"type": "array",
@@ -795,6 +799,18 @@
 								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
 								"type": "boolean",
 								"default": false
+							},
+							"breakpointMode": {
+								"description": "Specifies how source breakpoints should be set.",
+								"type": "string",
+								"enum": [
+									"path",
+									"file"
+								],
+								"enumDescriptions": [
+									"Resolve locations using full source file path.",
+									"Resolve locations using file name only."
+								]
 							}
 						},
 						"oneOf": [
@@ -861,8 +877,8 @@
 							"reverseDebugging": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
 							},
-							"breakpointsMode": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointsMode"
+							"breakpointMode": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode"
 							}
 						}
 					},
@@ -908,8 +924,8 @@
 							"reverseDebugging": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
 							},
-							"breakpointsMode": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointsMode"
+							"breakpointMode": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode"
 							}
 						}
 					}

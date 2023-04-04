@@ -80,6 +80,7 @@ pub struct DebugSession {
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
     terminal_prompt_clear: Option<Vec<String>>,
+    breakpoint_mode: BreakpointMode,
 }
 
 // AsyncResponse is used to "smuggle" futures out of request handlers
@@ -164,6 +165,7 @@ impl DebugSession {
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
+            breakpoint_mode: BreakpointMode::Path
         };
 
         debug_session.update_adapter_settings(&settings);

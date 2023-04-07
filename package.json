@@ -50,7 +50,8 @@
 		"vsce": "^2.8.0",
 		"webpack": "^5.37.1",
 		"webpack-cli": "^4.7.0",
-		"ts-loader": "^8.0.0"
+		"ts-loader": "^8.0.0",
+		"json-pointer": "^0.6.2"
 	},
 	"scripts": {
 		"vsce": "vsce",
@@ -834,80 +835,41 @@
 								"default": true
 							},
 							"initCommands": {
-								"description": "Initialization commands executed upon debugger startup.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
 							},
 							"preRunCommands": {
-								"description": "Commands executed just before the program is attached to.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/preRunCommands"
 							},
 							"postRunCommands": {
-								"description": "Commands executed just after the program has been attached to.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/postRunCommands"
 							},
 							"exitCommands": {
-								"description": "Commands executed at the end of debugging session.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/exitCommands"
 							},
 							"expressions": {
-								"description": "The default evaluator type used for expressions.",
-								"type": "string",
-								"enum": [
-									"simple",
-									"python",
-									"native"
-								]
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/expressions"
 							},
 							"sourceMap": {
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-								"type": "object",
-								"patternProperties": {
-									".*": {
-										"type": [
-											"string",
-											"null"
-										]
-									}
-								},
-								"default": {}
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceMap"
+							},
+							"relativePathBase": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/relativePathBase"
 							},
 							"sourceLanguages": {
-								"description": "A list of source languages to enable language-specific features for.",
-								"type": "array",
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceLanguages"
 							},
 							"reverseDebugging": {
-								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
-								"type": "boolean",
-								"default": false
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
+							},
+							"breakpointsMode": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointsMode"
 							}
 						}
 					},
 					"custom": {
 						"properties": {
 							"initCommands": {
-								"description": "Initialization commands executed upon debugger startup.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
 							},
 							"targetCreateCommands": {
 								"description": "Commands that create a debug target.",
@@ -925,52 +887,29 @@
 								},
 								"default": []
 							},
+							"cargo": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/cargo"
+							},
 							"exitCommands": {
-								"description": "Commands executed at the end of debugging session.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/exitCommands"
 							},
 							"expressions": {
-								"description": "The default evaluator type used for expressions.",
-								"type": "string",
-								"enum": [
-									"simple",
-									"python",
-									"native"
-								]
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/expressions"
 							},
 							"sourceMap": {
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-								"type": "object",
-								"patternProperties": {
-									".*": {
-										"type": [
-											"string",
-											"null"
-										]
-									}
-								},
-								"default": {}
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceMap"
 							},
 							"relativePathBase": {
-								"description": "Base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
-								"type": "string"
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/relativePathBase"
 							},
 							"sourceLanguages": {
-								"description": "A list of source languages to enable language-specific features for.",
-								"type": "array",
-								"default": []
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceLanguages"
 							},
 							"reverseDebugging": {
-								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
-								"type": "boolean",
-								"default": false
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
 							},
-							"cargo": {
-								"type": "object"
+							"breakpointsMode": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointsMode"
 							}
 						}
 					}

@@ -102,7 +102,7 @@ configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
 configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js @ONLY)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-# Run 'npm install'
+# Install node_modules
 execute_process(
     COMMAND ${NPM} ci # like install, but actually respects package-lock file.
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -111,6 +111,12 @@ execute_process(
 if (NOT ${Result} EQUAL 0)
     message(FATAL_ERROR "npm intall failed: ${Result}")
 endif()
+
+# Resolve $refs
+execute_process(
+    COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 # Copy it back, so we can commit the lock file.
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})

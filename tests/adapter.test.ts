@@ -1,7 +1,9 @@
 import { suite, test } from 'mocha';
 import * as assert from 'assert';
-import * as path from 'path';
 import * as cp from 'child_process';
+import * as os from 'os';
+import * as fs from 'fs';
+import * as path from 'path';
 import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, withTimeout } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
@@ -98,15 +100,22 @@ function generateSuite(triple: string) {
 
             test('run program with modified environment', async function () {
                 let waitExitedAsync = ds.waitForEvent('exited');
+                let envFile = path.join(os.tmpdir(), 'test.env');
+                fs.writeFileSync(envFile, 'FOO=XXX\nBAZ=baz');
                 await ds.launch({
                     name: 'run program with modified environment',
-                    env: { 'FOO': 'bar' },
+                    envFile: envFile,
+                    env: { 'FOO': 'foo', 'BAR': 'bar' },
                     program: debuggee,
-                    args: ['check_env', 'FOO', 'bar'],
+                    args: ['check_env',
+                        'FOO', 'foo',
+                        'BAR', 'bar',
+                        'BAZ', 'baz'
+                    ]
                 });
                 let exitedEvent = await waitExitedAsync;
-                // debuggee shall return 1 if env[argv[2]] == argv[3]
-                assert.equal(exitedEvent.body.exitCode, 1);
+                // debuggee shall return 0 if all env values are equal to the expected values
+                assert.equal(exitedEvent.body.exitCode, 0);
             });
 
             test('stop on entry', async function () {

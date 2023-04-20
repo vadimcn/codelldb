@@ -101,7 +101,9 @@
 			"type": "lldb",
 			"request": "launch",
 			"program": "${dbgconfig:targetDir}/debuggee",
-			"args": ["check_env", "FOO", "BAR"]
+			"envFile": "${workspaceFolder}/hren.env",
+			"env": { "FOO": "foo", "QUOX": "Quox" },
+			"args": ["check_env", "FOO", "foo", "BAR", "bar", "QUOX", "Quox"]
 		},
 		{
 			"name": "debuggee attach by pid",

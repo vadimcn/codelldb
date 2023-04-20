@@ -55,6 +55,12 @@ impl super::DebugSession {
                 launch_env.insert(fold_case(&k), v);
             }
         }
+        if let Some(ref env_file) = args.env_file {
+            for item in dotenvy::from_filename_iter(env_file)? {
+                let (k, v) = item?;
+                launch_env.insert(fold_case(&k), v);
+            }
+        }
         if let Some(ref env) = args.env {
             for (k, v) in env.iter() {
                 launch_env.insert(fold_case(k), v.into());

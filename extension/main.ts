@@ -487,6 +487,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('postRunCommands');
         mergeConfig('exitCommands', true);
         mergeConfig('env');
+        mergeConfig('envFile');
         mergeConfig('cwd');
         mergeConfig('terminal');
         mergeConfig('stdio');

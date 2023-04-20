@@ -255,6 +255,10 @@
 						"order": 10,
 						"scope": "resource"
 					},
+					"lldb.launch.envFile": {
+						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/envFile",
+						"order": 10
+					},
 					"lldb.launch.cwd": {
 						"description": "Default program working directory.",
 						"type": "string",
@@ -687,6 +691,10 @@
 									}
 								},
 								"default": {}
+							},
+							"envFile": {
+								"description": "File to read the environment variables from.",
+								"type": "string"
 							},
 							"stdio": {
 								"description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",

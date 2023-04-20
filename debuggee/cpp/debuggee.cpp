@@ -191,11 +191,11 @@ int main(int argc, char *argv[])
     }
     else if (testcase == "check_env")
     {
-        if (argc < 4)
+        for (int i = 2; i+1 < argc; i+=2)
         {
-            return -1;
+            if (!check_env(argv[i], argv[i+1]))
+                return -1;
         }
-        return (int)check_env(argv[2], argv[3]);
     }
     else if (testcase == "inf_loop")
     {

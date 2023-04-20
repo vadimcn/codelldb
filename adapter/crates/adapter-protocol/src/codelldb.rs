@@ -213,6 +213,7 @@ pub struct LaunchRequestArguments {
     pub args: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub env: Option<VecMap<String, String>>,
+    pub env_file: Option<String>,
     pub stdio: Option<Either<String, Vec<Option<String>>>>,
     pub terminal: Option<TerminalKind>,
     pub console: Option<ConsoleKind>,

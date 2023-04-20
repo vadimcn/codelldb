@@ -73,14 +73,15 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**cargo**          |string| See [Cargo support](#cargo-support).
 |**args**           |string &#10072; [string]| Command line parameters.  If this is a string, it will be split using shell-like syntax.
 |**cwd**            |string| Working directory.
-|**env**            |dictionary| Additional environment variables.  You may refer to existing environment variables using `${env:NAME}` syntax, for example `"PATH" : "${env:HOME}/bin:${env:PATH}"`.
+|**env**            |dictionary| Environment variables to set in addition to the ones inherited from the parent process environment (unless LLDB's `target.inherit-env` setting has been set to `false`, in which case the initial process environment is empty).  You may refer to existing environment variables using `${env:NAME}` syntax.  For example, in order to alter the inherited `PATH` variable, you can do this: `"PATH":"${env:HOME}/bin:${env:PATH}"`.
+|**envFile**        |string| Path of the file to read the environment variables from.  Note that `env` entries will override `envPath` entries.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
 |**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
 |**preRunCommands** |[string]| LLDB commands executed just before launching the debuggee.
 |**postRunCommands**|[string]| LLDB commands executed just after launching the debuggee.
 
-Flow during a launch sequence:
+Flow during the launch sequence:
 1. The `initCommands` sequence is executed.
 2. The debugging target object is created using launch configuration attributes (`program`, `args`, `env`, `cwd`, `stdio`).
 3. Breakpoints are set.
@@ -118,7 +119,7 @@ These attributes are applicable when the "attach" initiation method is selected:
 |**preRunCommands** |[string]|LLDB commands executed just before attaching to the debuggee.
 |**postRunCommands**|[string]|LLDB commands executed just after attaching to the debuggee.
 
-Flow during an attach sequence:
+Flow during the attach sequence:
 1. The `initCommands` sequence is executed.
 2. The debugging target object is created using the `program` attribute.
 3. Breakpoints are set.
@@ -658,6 +659,7 @@ When a setting is specified in both locations, the values will be merged dependi
 |**lldb.launch.postRunCommands** |Commands executed *before* postRunCommands of individual launch configurations.
 |**lldb.launch.exitCommands**    |Commands executed *after* exitCommands of individual launch configurations.
 |**lldb.launch.env**             |Additional environment variables that will be merged with 'env' of individual launch configurations.
+|**lldb.launch.envFile**         |The default envFile path.
 |**lldb.launch.cwd**             |The default program working directory.
 |**lldb.launch.stdio**           |The default stdio destination.
 |**lldb.launch.expressions**     |The default expression evaluator.

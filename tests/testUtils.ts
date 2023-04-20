@@ -1,5 +1,4 @@
 import * as cp from 'child_process';
-import * as stream from 'stream';
 import * as adapter from 'extension/novsc/adapter';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -9,7 +8,6 @@ import { inspect } from 'util';
 import { Dict } from 'extension/novsc/commonTypes';
 import { DebugClient } from '@vscode/debugadapter-testsupport';
 import { DebugProtocol as dp } from '@vscode/debugprotocol';
-import { WritableBuffer } from 'extension/novsc/writableBuffer';
 
 let extensionRoot: string = null;
 

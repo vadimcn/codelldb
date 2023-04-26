@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import * as adapter from './novsc/adapter';
+import * as async from './novsc/async';
 
 type ProcessItem = QuickPickItem & { pid: number };
 
@@ -49,6 +50,9 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
 async function getProcessList(context: ExtensionContext, allUsers: boolean): Promise<ProcessItem[]> {
     let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
     let lldbPath = path.join(context.extensionPath, 'lldb', 'bin', lldb);
+    if (!await async.fs.exists(lldbPath)) {
+        lldbPath = lldb;
+    }
     let folder = workspace.workspaceFolders[0];
     let config = workspace.getConfiguration('lldb', folder?.uri);
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));

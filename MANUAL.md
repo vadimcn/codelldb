@@ -552,18 +552,28 @@ thus they are often not as convenient as "simple" or "python" expressions.
 
 ## Debugger API
 
-CodeLLDB provides extended Python API via `codelldb` module (which is auto-imported into debugger's main script context).
+CodeLLDB provides extended Python API via the `codelldb` module (which is auto-imported into debugger's main script context).
+This module exports the following functions:
 
-- **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
-    - **expression**: The expression to evaluate.
-    - **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
-- **unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) from [`Value`](#value).
-- **wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) in a [`Value`](#value) object.
-- **display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : Displays content in a VSCode WebView panel:
-    - **html**: HTML markup to display.
-    - **title**: Title of the panel.  Defaults to the name of the current launch configuration.
-    - **position**: Position (column) of the panel.  The allowed range is 1 through 3.
-    - **reveal**: Whether to reveal a panel if one already exists.
+**evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
+- **expression**: The expression to evaluate.
+- **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
+
+**unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) from [`Value`](#value).
+
+**wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) in a [`Value`](#value) object.
+
+**display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : Displays content in a VSCode WebView panel:
+- **html**: HTML markup to display.
+- **title**: Title of the panel.  Defaults to the name of the current launch configuration.
+- **position**: Position (column) of the panel.  The allowed range is 1 through 3.
+- **reveal**: Whether to reveal the panel if one already exists.
+
+  Scripts running inside such WebViews may execute debugger commands by sending a message:
+  ```
+    vscode = acquireVsCodeApi();
+    vscode.postMessage({ command: 'execute', text: 'script print("Hello")' });
+  ```
 
 ## Value
 `Value` objects ([source](adapter/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),

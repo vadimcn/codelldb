@@ -27,10 +27,12 @@ def plot_image(image, xdim, ydim, cmap='nipy_spectral_r'):
 def display(x):
     print(repr(x))
 
-def test():
-    x = np.linspace(0, 1, 500)
-    y = np.sin(4 * np.pi * x) * np.exp(-5 * x)
-    fig, ax = plt.subplots()
-    ax.fill(x, y, zorder=10)
-    ax.grid(True, zorder=5)
-    show2()
+def display_html_test():
+    document = '''<html><script>
+                let vscode = acquireVsCodeApi();
+                vscode.postMessage({'command': 'execute', 'text': 'script debugvis.display_html_callback("foo")'});
+                </script></html>'''
+    debugger.display_html(document)
+
+def display_html_callback(args):
+    print('display_html_callback', args)

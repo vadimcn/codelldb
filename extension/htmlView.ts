@@ -42,6 +42,14 @@ export class DebuggerHtmlView {
         } else {
             panel.title = title;
         }
+        panel.webview.onDidReceiveMessage(e => {
+            if (e.command == 'execute') {
+                session.customRequest('evaluate', {
+                    expression: e.text,
+                    context: '_command'
+                })
+            }
+        });
         panel.webview.html = body.html;
         if (body.reveal) {
             panel.reveal();

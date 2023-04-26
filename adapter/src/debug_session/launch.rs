@@ -17,13 +17,19 @@ impl super::DebugSession {
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)
         } else {
-            let program = match &args.program {
-                Some(program) => program,
-                None => bail!(as_user_error("\"program\" property is required for launch")),
-            };
-
             self.no_debug = args.no_debug.unwrap_or(false);
-            self.target = Initialized(self.create_target_from_program(program)?);
+
+            let target = if let Some(commands) = &args.target_create_commands {
+                self.exec_commands("targetCreateCommands", &commands)?;
+                self.debugger.selected_target()
+            } else {
+                let program = match &args.program {
+                    Some(program) => program,
+                    None => bail!(as_user_error("The \"program\" attribute is required for launch.")),
+                };
+                self.create_target_from_program(program)?
+            };
+            self.target = Initialized(target);
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
 
@@ -119,19 +125,28 @@ impl super::DebugSession {
             }
         }
 
+        let do_launch = || -> Result<SBProcess, Error> {
+            if let Some(commands) = &args.process_create_commands {
+                self.exec_commands("processCreateCommands", commands)?;
+                Ok(self.target.process())
+            } else {
+                self.target.launch(&launch_info).map_err(|sberr| Box::new(sberr).into())
+            }
+        };
+
         let result = match &self.debuggee_terminal {
             Some(t) => {
                 // Windows does not have an API for launching child process in a different console than the parent
                 // process, so we have to attach adapter to the target console before launching.
                 #[cfg(windows)]
                 t.attach_console();
-                let result = self.target.launch(&launch_info);
+                let result = do_launch();
                 #[cfg(windows)]
                 t.detach_console();
                 drop(t);
                 result
             }
-            None => self.target.launch(&launch_info),
+            None => do_launch(),
         };
 
         let process = match result {
@@ -186,7 +201,7 @@ impl super::DebugSession {
         }
         self.terminate_on_disconnect = true;
 
-        // This is succeptible to race conditions, but probably the best we can do.
+        // This is susceptible to race conditions, but probably the best we can do.
         if self.target.process().state().is_stopped() {
             self.notify_process_stopped();
         }
@@ -199,65 +214,80 @@ impl super::DebugSession {
     pub fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
-        if args.program.is_none() && args.pid.is_none() {
+        if args.program.is_none() && args.pid.is_none() && args.target_create_commands.is_none() {
             bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
         }
 
-        let attach_info = SBAttachInfo::new();
-        if let Some(ref pid) = args.pid {
-            let pid = match pid {
-                Pid::Number(n) => *n as ProcessID,
-                Pid::String(s) => match s.parse() {
-                    Ok(n) => n,
-                    Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
-                },
-            };
-            attach_info.set_process_id(pid);
-        } else if let Some(ref program) = args.program {
-            attach_info.set_executable(Path::new(program));
+        let target = if let Some(commands) = &args.target_create_commands {
+            self.exec_commands("targetCreateCommands", &commands)?;
+            self.debugger.selected_target()
         } else {
-            unreachable!()
-        }
-        attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
-        attach_info.set_ignore_existing(false);
-
-        // Create target using the "program" attribute, if possible,
-        let target = match args.program {
-            Some(ref program) => match self.create_target_from_program(program) {
-                Ok(target) => {
-                    attach_info.set_executable(&target.executable().path());
-                    Some(target)
+            // Try to create target from `program`.
+            let target = if let Some(program) = &args.program {
+                match self.create_target_from_program(program) {
+                    Ok(target) => Some(target),
+                    Err(_) => None,
                 }
-                Err(_) => None,
-            },
-            None => None,
-        };
-        // ...else fall back to a dummy target.
-        let target = match target {
-            Some(target) => target,
-            None => self.debugger.create_target("", None, None, false)?,
+            } else {
+                None
+            };
+            // Fall back to a dummy target.
+            match target {
+                Some(target) => target,
+                None => self.debugger.create_target("", None, None, false)?,
+            }
         };
         self.target = Initialized(target);
-
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
+
         self.send_event(EventBody::initialized);
 
         let mut config_done_recv = self.configuration_done_sender.subscribe();
         let self_ref = self.self_ref.clone();
         let fut = async move {
             log_errors!(config_done_recv.recv().await);
-            self_ref.map(|s| s.complete_attach(args, attach_info)).await
+            self_ref.map(|s| s.complete_attach(args)).await
         };
         Err(AsyncResponse(Box::new(fut)).into())
     }
 
-    fn complete_attach(&mut self, args: AttachRequestArguments, info: SBAttachInfo) -> Result<ResponseBody, Error> {
-        if let Some(ref commands) = args.common.pre_run_commands {
+    fn complete_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
+        if let Some(commands) = &args.common.pre_run_commands {
             self.exec_commands("preRunCommands", commands)?;
         }
-        let process = match self.target.attach(&info) {
-            Ok(process) => process,
-            Err(err) => bail!(as_user_error(err)),
+
+        let process = if let Some(commands) = &args.process_create_commands {
+            self.exec_commands("processCreateCommands", commands)?;
+            self.target.process()
+        } else {
+            let attach_info = SBAttachInfo::new();
+            if let Some(pid) = &args.pid {
+                let pid = match pid {
+                    Pid::Number(n) => *n as ProcessID,
+                    Pid::String(s) => match s.parse() {
+                        Ok(n) => n,
+                        Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
+                    },
+                };
+                attach_info.set_process_id(pid);
+            } else {
+                let executable = self.target.executable();
+                if executable.is_valid() {
+                    attach_info.set_executable(&executable.path());
+                } else if let Some(program) = &args.program {
+                    attach_info.set_executable(Path::new(program));
+                } else {
+                    bail!("unreachable");
+                }
+            }
+
+            attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
+            attach_info.set_ignore_existing(false);
+
+            match self.target.attach(&attach_info) {
+                Ok(process) => process,
+                Err(err) => bail!(as_user_error(err)),
+            }
         };
         self.console_message(format!("Attached to process {}", process.process_id()));
         self.terminate_on_disconnect = false;

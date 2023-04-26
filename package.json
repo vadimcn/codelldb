@@ -748,8 +748,24 @@
 								},
 								"default": []
 							},
+							"targetCreateCommands": {
+								"description": "Commands that create the debug target.",
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"default": []
+							},
 							"preRunCommands": {
 								"description": "Commands executed just before the program is launched.",
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"default": []
+							},
+							"processCreateCommands": {
+								"description": "Commands that create the debuggee process.",
 								"type": "array",
 								"items": {
 									"type": "string"
@@ -861,8 +877,14 @@
 							"initCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
 							},
+							"targetCreateCommands": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/targetCreateCommands"
+							},
 							"preRunCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/preRunCommands"
+							},
+							"processCreateCommands": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/processCreateCommands"
 							},
 							"postRunCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/postRunCommands"
@@ -895,24 +917,14 @@
 							"initCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
 							},
-							"targetCreateCommands": {
-								"description": "Commands that create a debug target.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"processCreateCommands": {
-								"description": "Commands that create debuggee process.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
 							"cargo": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/cargo"
+							},
+							"targetCreateCommands": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/targetCreateCommands"
+							},
+							"processCreateCommands": {
+								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/processCreateCommands"
 							},
 							"exitCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/exitCommands"

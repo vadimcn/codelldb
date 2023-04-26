@@ -230,6 +230,8 @@ pub struct AttachRequestArguments {
     pub program: Option<String>,
     pub pid: Option<Pid>,
     pub wait_for: Option<bool>,
+    pub target_create_commands: Option<Vec<String>>,
+    pub process_create_commands: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

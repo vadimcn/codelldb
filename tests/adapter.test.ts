@@ -17,6 +17,7 @@ else if (triple.endsWith('pc-windows-msvc'))
     debuggeeDir = path.join(buildDir, 'debuggee-msvc');
 
 const debuggee = path.join(debuggeeDir, 'debuggee');
+const debuggeeWithExt = process.platform != 'win32' ? debuggee : debuggee + '.exe';
 const debuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'debuggee.cpp'));
 const debuggeeHeader = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
 const debuggeeTypes = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'types.cpp'));
@@ -98,6 +99,17 @@ function generateSuite(triple: string) {
                 await terminatedAsync;
             });
 
+            test('custom launch', async function () {
+                let terminatedAsync = ds.waitForEvent('terminated');
+                await ds.launch({
+                    name: 'custom launch',
+                    custom: true,
+                    targetCreateCommands: [`file '${debuggeeWithExt}'`],
+                    processCreateCommands: ['process launch'],
+                });
+                await terminatedAsync;
+            });
+
             test('run program with modified environment', async function () {
                 let waitExitedAsync = ds.waitForEvent('exited');
                 let envFile = path.join(os.tmpdir(), 'test.env');
@@ -117,6 +129,28 @@ function generateSuite(triple: string) {
                 // debuggee shall return 0 if all env values are equal to the expected values
                 assert.equal(exitedEvent.body.exitCode, 0);
             });
+
+            test('custom launch with modified environment', async function () {
+                let waitExitedAsync = ds.waitForEvent('exited');
+                let envFile = path.join(os.tmpdir(), 'test.env');
+                fs.writeFileSync(envFile, 'FOO=XXX\nBAZ=baz');
+                await ds.launch({
+                    name: 'custom launch with modified environment',
+                    targetCreateCommands: [`file '${debuggeeWithExt}'`],
+                    processCreateCommands: ['process launch'],
+                    envFile: envFile,
+                    env: { 'FOO': 'foo', 'BAR': 'bar' },
+                    args: ['check_env',
+                        'FOO', 'foo',
+                        'BAR', 'bar',
+                        'BAZ', 'baz'
+                    ]
+                });
+                let exitedEvent = await waitExitedAsync;
+                // debuggee shall return 0 if all env values are equal to the expected values
+                assert.equal(exitedEvent.body.exitCode, 0);
+            });
+
 
             test('stop on entry', async function () {
                 await ds.launchAndWaitForStop({ name: 'stop on entry', program: debuggee, args: ['inf_loop'], stopOnEntry: true });
@@ -583,7 +617,7 @@ function generateSuite(triple: string) {
 
             test('attach by path', async function () {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
-                let attachResp = await ds.attach({ name: 'attach by name', program: debuggee, stopOnEntry: true });
+                let attachResp = await ds.attach({ name: 'attach by path', program: debuggee, stopOnEntry: true });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
             });
@@ -592,6 +626,19 @@ function generateSuite(triple: string) {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
                 let attachResp = await ds.attach({ name: 'attach by name', program: program, stopOnEntry: true });
+                assert.ok(attachResp.success);
+                await asyncWaitStopped;
+            });
+
+            test('custom attach by name', async function () {
+                let asyncWaitStopped = ds.waitForEvent('stopped');
+                let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
+                let attachResp = await ds.attach({
+                    name: 'custom attach by name',
+                    targetCreateCommands: [`file '${debuggeeWithExt}'`],
+                    processCreateCommands: [`process attach --name ${program}`],
+                    stopOnEntry: true
+                });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
             });

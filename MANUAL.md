@@ -47,19 +47,23 @@ To start a debugging session you will need to create a [launch configuration](ht
 
  These attributes are common to all CodeLLDB launch configurations:
 
-|attribute          |type  |         |
-|-------------------|------|---------|
-|**name**           |string| *Required.* Launch configuration name, as you want it to appear in the Run and Debug panel.
-|**type**           |string| *Required.* Set to `lldb`.
-|**request**        |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process),<br><li>`custom` to [configure session "manually" using LLDB commands](#custom-launch).
-|**initCommands**   |[string]| LLDB commands executed upon debugger startup.
-|**exitCommands**   |[string]| LLDB commands executed at the end of the debugging session.
-|**expressions**    |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
-|**sourceMap**      |dictionary| See [Source Path Remapping](#source-path-remapping).
-|**relativePathBase**|string | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**breakpointMode**|enum | Specifies how source breakpoints should be set:<br><li>`path` - Resolve locations using full source file path (default).<li>`file` - Resolve locations using file name only.  This option may be useful in lieu of configuring `sourceMap`, however, note that breakpoints will be set in all files of the same name in the project.  For example, Rust projects often have lots of files named "mod.rs".
-|**sourceLanguages**|[string]| A list of source languages used in the program.  This is used to enable language-specific debugger features.
-|**reverseDebugging**|bool   | Enable [reverse debugging](#reverse-debugging).
+|attribute                |type  |         |
+|-------------------------|------|---------|
+|**name**                 |string| *Required.* Launch configuration name, as you want it to appear in the Run and Debug panel.
+|**type**                 |string| *Required.* Set to `lldb`.
+|**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process),<br><li>`custom` to [configure session "manually" using LLDB commands](#custom-launch).
+|**initCommands**         |[string]| LLDB commands executed upon debugger startup.
+|**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
+|**preRunCommands**       |[string]| LLDB commands executed just before launching/attaching the debuggee.
+|**processCreateCommands**|[string]| LLDB commands executed to created/attach the debuggee process.
+|**postRunCommands**      |[string]| LLDB commands executed just after launching/attaching the debuggee.
+|**exitCommands**         |[string]| LLDB commands executed at the end of the debugging session.
+|**expressions**          |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
+|**sourceMap**            |dictionary| See [Source Path Remapping](#source-path-remapping).
+|**relativePathBase**     |string | Base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**breakpointMode**       |enum | Specifies how source breakpoints should be set:<br><li>`path` - Resolve locations using full source file path (default).<li>`file` - Resolve locations using file name only.  This option may be useful in lieu of configuring `sourceMap`, however, note that breakpoints will be set in all files of the same name in the project.  For example, Rust projects often have lots of files named "mod.rs".
+|**sourceLanguages**      |[string]| A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|**reverseDebugging**     |bool   | Enable [reverse debugging](#reverse-debugging).
 
 
 
@@ -78,18 +82,23 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
 |**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
-|**preRunCommands** |[string]| LLDB commands executed just before launching the debuggee.
-|**postRunCommands**|[string]| LLDB commands executed just after launching the debuggee.
 
-Flow during the launch sequence:
-1. The `initCommands` sequence is executed.
-2. The debugging target object is created using launch configuration attributes (`program`, `args`, `env`, `cwd`, `stdio`).
-3. Breakpoints are set.
-4. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. alter args or env).
-5. The debuggee is launched.
-6. The `postRunCommands` sequence is executed.
-
-At the end of the debugging session `exitCommands` sequence is executed.
+Operations performed for launch:
+- The `initCommands` sequence is executed.
+- The [debug target object](https://lldb.llvm.org/python_api/lldb.SBTarget.html) is created:
+  - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
+    is assumed to have been created by these commands and will be associated with the current debugging session.
+  - Otherwise, target is created from the binary pointed to by the `program` attribute.
+- Target properties are configured using `args`, `env`, `cwd`, `stdio`, etc, configuration attributes.
+- Breakpoints are created.
+- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. alter args or env).
+- The debuggee process is created:
+  - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have created
+    a process corresponding to the debug target.
+  - Otherwise the default process creation action is performed (equivalent to the `process launch` command).
+- The `postRunCommands` sequence is executed.
+- ...
+- At the end of the debugging session the `exitCommands` sequence is executed.
 
 ### Stdio Redirection
 The **stdio** property is a list of redirection targets for each of the debuggee's stdio streams:
@@ -116,29 +125,36 @@ These attributes are applicable when the "attach" initiation method is selected:
 |**pid**            |number  |Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command:pickProcess}` or `${command:pickMyProcess}` here to choose a process interactively.
 |**stopOnEntry**    |boolean |Whether to stop the debuggee immediately after attaching.
 |**waitFor**        |boolean |Wait for the process to launch.
-|**preRunCommands** |[string]|LLDB commands executed just before attaching to the debuggee.
-|**postRunCommands**|[string]|LLDB commands executed just after attaching to the debuggee.
 
+Operations performed for attach:
 Flow during the attach sequence:
-1. The `initCommands` sequence is executed.
-2. The debugging target object is created using the `program` attribute.
-3. Breakpoints are set.
-4. The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
-5. The debugger attaches to the specified process.
-6. The `postRunCommands` sequence is executed.
-
-At the end of the debug session `exitCommands` sequence is executed.
+- The `initCommands` sequence is executed.
+- The [debug target object](https://lldb.llvm.org/python_api/lldb.SBTarget.html) is created:
+  - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
+    is assumed to have been created by these commands and will be associated with the current debugging session.
+  - Otherwise, target is created from the binary pointed to by the `program` attribute, if one exists.
+  - Otherwise, target is created from the process specified by `pid`.
+- Breakpoints are created.
+- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
+- The debugger attaches to the specified process.
+  - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have
+    attached debugger to the process corresponding to the debug target.
+  - Otherwise the default attach action is performed (equivalent to the `process attach` command).
+- The `postRunCommands` sequence is executed.
+- ...
+- At the end of the debugging session the `exitCommands` sequence is executed.
 
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
 
 ## Custom Launch
 
-The custom launch method allows user to fully specify how the debug session is initiated.  The flow of a custom launch is as follows:
-1. The `targetCreateCommands` command sequence is executed. This sequence is expected to create the debugging target object (see `target create` command).
-2. Debugger uses the target to insert breakpoints.
-3. The `processCreateCommands` command sequence is executed.  This sequence is expected to create the debuggee process (see `process launch` command).
-4. The debugger reports current state of the debuggee to VSCode and starts accepting user commands.
+The custom launch method allows user to fully specify how the debug session is initiated:
+- The `targetCreateCommands` command sequence is executed. This sequence is expected to have created the debug target (see `target create` command).
+- Breakpoints are created.
+- The `processCreateCommands` command sequence is executed.  This sequence is expected to have created the debuggee process (see `process launch` command).
+- ...
+- At the end of the debugging session the `exitCommands` sequence is executed.
 
 |attribute          |type    |         |
 |-------------------|--------|---------|

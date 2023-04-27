@@ -277,13 +277,25 @@ class StdVecDequeSynthProvider(RustSynthProvider):
     def initialize(self):
         self.ptr = read_unique_ptr(gcm(self.valobj, 'buf', 'ptr'))
         self.cap = gcm(self.valobj, 'buf', 'cap').GetValueAsUnsigned()
-        self.tail = gcm(self.valobj, 'tail').GetValueAsUnsigned()
-        self.head = gcm(self.valobj, 'head').GetValueAsUnsigned()
+
+        head = gcm(self.valobj, 'head').GetValueAsUnsigned()
+
+        # rust 1.67 changed from a head, tail implementation to a head, length impl
+        # https://github.com/rust-lang/rust/pull/102991
+        vd_len = gcm(self.valobj, 'len')
+        if vd_len.IsValid():
+            self.len = vd_len.GetValueAsUnsigned()
+            self.startptr = head
+        else:
+            tail = gcm(self.valobj, 'tail').GetValueAsUnsigned()
+            self.len = head - tail
+            self.startptr = tail
+
         self.item_type = self.ptr.GetType().GetPointeeType()
         self.item_size = self.item_type.GetByteSize()
 
     def num_children(self):
-        return (self.head - self.tail) % self.cap
+        return self.len
 
     def has_children(self):
         return True
@@ -292,7 +304,7 @@ class StdVecDequeSynthProvider(RustSynthProvider):
         try:
             if not 0 <= index < self.num_children():
                 return None
-            offset = ((self.tail + index) % self.cap) * self.item_size
+            offset = ((self.startptr + index) % self.cap) * self.item_size
             return self.ptr.CreateChildAtOffset('[%s]' % index, offset, self.item_type)
         except Exception as e:
             log.error('%s', e)

@@ -63,21 +63,38 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean): Pro
             else resolve(stdout)
         })
     });
-    let lines = stdout.split('\n');
 
-    let items = [];
+    // A typical output will look like this:
+    //
+    // 224 matching processes were found on "host"
+    // PID    PARENT USER       TRIPLE                         ARGUMENTS
+    // ====== ====== ========== ============================== ============================
+    // 9756   1      user       x86_64-pc-linux-gnu            /lib/systemd/systemd --user
+    // ...
+    let lines = stdout.split('\n');
     for (let i = 0; i < lines.length; ++i) {
         let argsOffset = lines[i].indexOf('ARGUMENTS')
         if (argsOffset > 0) {
-            for (let line of lines.slice(i + 2)) {
-                let pid = parseInt(line);
-                let args = line.substring(argsOffset).trim();
-                if (args.length > 0) {
-                    items.push({ label: `${pid}`, description: args, pid: pid });
-                }
-            }
-            break;
+            return parseProcessEntries(lines.slice(i + 2), argsOffset);
         }
+    }
+    return [];
+}
+
+function parseProcessEntries(lines: string[], argsOffset: number): ProcessItem[] {
+    let items = [];
+    for (let line of lines) {
+        // Process items always start with two integers (pid and ppid); otherwise, we assume that the line
+        // is a continuation of the previous process's argument list caused by an embedded newline character.
+        let matches = line.match(/^(\d+)\s+(\d+)\s+/);
+        if (matches != null) {
+            let pid = parseInt(matches[1]);
+            let args = line.substring(argsOffset).trim();
+            items.push({ label: `${pid}`, description: args, pid: pid });
+            continue;
+        }
+        // Continuation
+        items[items.length - 1].description += '\n' + line;
     }
     return items;
 }

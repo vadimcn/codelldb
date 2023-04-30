@@ -29,7 +29,11 @@
     - [Debugger API](#debugger-api)
 - [Alternate LLDB backends](#alternate-lldb-backends)
 - [Rust Language Support](#rust-language-support)
-- [Workspace Configuration](#workspace-configuration)
+- [Settings](#settings)
+  - [Workspace Settings](#workspace-settings)
+  - [Launch Configuration Settings](#launch-configurations-settings)
+  - [LLDB Settings](#lldb-settings)
+- [Workspace Configuration Reference](#workspace-configuration-reference)
 
 # Starting a New Debug Session
 
@@ -415,7 +419,7 @@ Example:
 
 ## Debugger Commands
 
-CodeLLDB also adds in-debugger commands that may be executed in the Debug Console during a debug dession:
+CodeLLDB adds in-debugger commands that may be executed in the Debug Console during a debug dession:
 
 |                 |                                                         |
 |-----------------|---------------------------------------------------------|
@@ -446,7 +450,7 @@ When a breakpoint condition evaluates to False, the breakpoint will not be stopp
 Any other value (or expression evaluation error) will cause the debugger to stop.
 
 ## Data Breakpoints
-Data breakpoints (or "watchpoints" in LLDB terms) allow monitoring memory location for changes.  You can create data
+Data breakpoints (or "watchpoints" in LLDB terms) allow monitoring memory locations for changes.  You can create data
 breakpoints by choosing "Break When Value Changes" from context menu in the Variables panel. (To access advanced features,
 such as breaking on memory reads, use LLDB `watch` command).
 
@@ -522,7 +526,7 @@ configuration property.  The default type may also be overridden on a per-expres
 ### Simple expressions
 Prefix: `/se `<br>
 Simple expressions are designed to enable performing basic arithmetic and logical operations on [formatted
-views](https://lldb.llvm.org/varformats.html) of the debuggee variables.  For example, things like indexing an
+views](https://lldb.llvm.org/use/varformats.html) of the debuggee variables.  For example, things like indexing an
 `std::vector` or comparing `std::string` to a string literal should "just work".
 
 The followng features are supported:
@@ -668,16 +672,43 @@ a substitution variable, which expands to the same thing: `${cargo:program}`.
 CodeLLDB will also use `Cargo.toml` in the workspace root to generate initial debug
 configurations when there is no existing `launch.json`.
 
-# Workspace Configuration
+# Settings
+
+## Workspace Settings
+
+The "Workspace Settings" term used in the document refers to the combined view of [VSCode User and Workspace settings](https://code.visualstudio.com/docs/getstarted/settings), merged according to the
+[settings precedence](https://code.visualstudio.com/docs/getstarted/settings#_settings-precedence) hierarchy.
+
+## Launch Configurations Settings
+VSCode [launch configuration](https://code.visualstudio.com/docs/editor/debugging#_launch-configurations)
+settings are distinct from workspace settings and are not subject to the usual settings merging described above.
+
+However, since common defaults for all launch configurations in a project are often desired, the CodeLLDB extension
+provides this feature via [`lldb.launch.*`](#default-launch-configuration-settings) setting group, which serve as defaults
+for the corresponding launch configuration settings.  When a setting is specified in both locations, the values will
+be merged according to on their type:
+- For lists, the resulting value will be a concatenation of both sources.
+- For dictionaties, the resulting value will be a combination of key-value pairs from both sources.  For equal keys,
+  the launch configuration value takes precedence.
+- For numbers and strings, the launch configuration value takes precedence.
+
+### Variable Substitution in Launch Configurations
+Before being sent to the debug adapter, launch configuration settings undergo expansion of
+[variable references](https://code.visualstudio.com/docs/editor/variables-reference).
+In addition to the standard expansions performed by VSCode, CodeLLDB also expands references to
+[`${dbgconfig:<name>}`](#parameterized-launch-configurations) as well as [`${cargo:program}`](#cargo-support).
+
+## LLDB Settings
+The LLDB debugger engine also has a number of internal settings, which affect its behavior.  These
+may be changed using `settings set <key> <value>` command, which may be put into any of the
+`*Commands` launch configuration sequences (usually `initCommands`).
+
+The full list of LLDB settings may be obtained by executing `settings list` command during a debug session (or in LLDB command prompt).
+
+# Workspace Configuration Reference
 
 ## Default Launch Configuration Settings
 These settings specify the default values for launch configuration setting of the same name.
-When a setting is specified in both locations, the values will be merged depending on their type:
-- For lists, the resulting value will be a concatenation of both sources.
-- For dictionaties, the resulting value will be a combination of key-value pairs from both sources.  For equal keys,
-  the launch configuration value is used.
-- For numbers and strings, the launch configuration value is used.
-
 |                                |                                                         |
 |--------------------------------|---------------------------------------------------------|
 |**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.
@@ -702,19 +733,19 @@ When a setting is specified in both locations, the values will be merged dependi
 |**lldb.evaluationTimeout**         |Timeout for expression evaluation, in seconds (default=5s).
 |**lldb.displayFormat**             |The default format for variable and expression values.
 |**lldb.showDisassembly**           |When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
-|**lldb.dereferencePointers**       |Whether to show the numeric value of pointers, or a summary of the pointee.
-|**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not present on the local machine).
-|**lldb.consoleMode**               |Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or with '\`' (backtick), <li>`split` - (experimental) use the debug console for evaluation of expressions, open a separate terminal for LLDB console.
+|**lldb.dereferencePointers**       |Whether to show summaries of the pointees instead of numeric values of the pointers themselves.
+|**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).
+|**lldb.consoleMode**               |Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or '\`' (backtick), <li>`split` - (experimental) use the debug console for evaluation of expressions, open a separate terminal for LLDB console.
 
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
-|**lldb.cargo**         |Name of the command to invoke as Cargo.
-|**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
-|**lldb.reproducer**    |Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).  May also contain a path of the directory to save the reproducer in.
+|**lldb.rpcServer**     |See [RPC server](#rpc-server).
+|**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
+|**lldb.cargo**         |Name of the command to invoke as Cargo.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
 |**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
 |**lldb.commandCompletions** |Enable command completions in debug console.
-|**lldb.rpcServer**          |See [RPC server](#rpc-server).
+|**lldb.reproducer**    |(deprecated) Enable capture of an LLDB reproducer.

@@ -348,7 +348,7 @@
 				"title": "CodeLLDB",
 				"properties": {
 					"lldb.suppressMissingSourceFiles": {
-						"description": "Suppress VSCode's missing source file errors (requires probing for existence of the source file).",
+						"description": "Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).",
 						"type": "boolean",
 						"default": true,
 						"scope": "resource"
@@ -388,7 +388,7 @@
 						"scope": "resource"
 					},
 					"lldb.dereferencePointers": {
-						"description": "Whether to show the numeric value of pointers, or a summary of the pointee.",
+						"description": "Whether to show summaries of the pointees instead of numeric values of the pointers themselves.",
 						"type": "boolean",
 						"default": true,
 						"scope": "resource"

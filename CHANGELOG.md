@@ -1,5 +1,24 @@
 # Release Notes
 
+# 1.9.1
+
+## New:
+- Implemented support for [envFile](https://github.com/vadimcn/codelldb/issues/866).
+- Added `breakpointMode` setting: when this is set to `file`, breakpoints will be resolved using file name only, which
+  is similar to how `breakpoint set -f <filename> -l <line>` command works in CLI LLDB.  This relieves the need
+  of setting up `sourceMap`; however, this is at the expense of potentially hitting unexpectd breakpoints
+  if there is more than one source file of the same name in the project.
+- `targetCreateCommands` and `processCreateCommands` are now allowed in for `launch` and `attach` requests.  When
+  specified, these command sequences over-ride the default logic for target and process creation.
+
+## Fixed
+- #761: Error: there is no registered task type 'codelldb.cargo'
+- #776: Error: there is no registered task type 'codelldb.cargo'
+- #891: Incorrect matcher
+- #904: Cannot see VecDeque values in "Variables" panel after insert
+- #911: Vec in sidebar shows wrong (old) value
+- #920: Rust: local variables not updated during debugging
+- #915: Pick(My)Process not working
 
 # 1.9.0
 

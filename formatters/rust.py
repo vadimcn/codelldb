@@ -25,7 +25,8 @@ def initialize_category(debugger, internal_dict):
     rust_category.SetEnabled(True)
 
     attach_summary_to_type(tuple_summary_provider, r'^\(.*\)$', True)
-    attach_synthetic_to_type(MsvcTupleSynthProvider, r'^tuple\$?<.+>$', True)  # *-windows-msvc uses this name since 1.47
+    attach_synthetic_to_type(MsvcTupleSynthProvider, r'^tuple\$?<.+>$',
+                             True)  # *-windows-msvc uses this name since 1.47
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
@@ -33,7 +34,8 @@ def initialize_category(debugger, internal_dict):
 
     attach_synthetic_to_type(StdStringSynthProvider, '^(collections|alloc)::string::String$', True)
     attach_synthetic_to_type(StdVectorSynthProvider, r'^(collections|alloc)::vec::Vec<.+>$', True)
-    attach_synthetic_to_type(StdVecDequeSynthProvider, r'^(collections|alloc::collections)::vec_deque::VecDeque<.+>$', True)
+    attach_synthetic_to_type(StdVecDequeSynthProvider,
+                             r'^(collections|alloc::collections)::vec_deque::VecDeque<.+>$', True)
 
     attach_synthetic_to_type(MsvcEnumSynthProvider, r'^enum\$<.+>$', True)
     attach_synthetic_to_type(MsvcEnum2SynthProvider, r'^enum2\$<.+>$', True)
@@ -69,7 +71,8 @@ def initialize_category(debugger, internal_dict):
     attach_synthetic_to_type(GenericEnumSynthProvider, r'^alloc::borrow::Cow<.+>$', True)
 
     if 'rust' in internal_dict.get('source_languages', []):
-        lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp', '^<?(std|core|alloc)::', debugger.GetInstanceName())
+        lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
+                                            '^<?(std|core|alloc)::', debugger.GetInstanceName())
 
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
@@ -98,13 +101,11 @@ def attach_summary_to_type(summary_fn, type_name, is_regex=False):
 # This trick allows us to share data extraction logic between synth providers and their sibling summary providers.
 def get_synth_summary(synth_class, valobj, dict):
     try:
-        ns_valobj = valobj.GetNonSyntheticValue()
-        synth = synth_by_id.get(ns_valobj.GetID())
-        if synth is None:
-            synth = synth_class(ns_valobj, dict)
-        return to_lldb_str(synth.get_summary())
+        obj_id = valobj.GetIndexOfChildWithName('$$object-id$$')
+        summary = RustSynthProvider.synth_by_id[obj_id].get_summary()
+        return to_lldb_str(summary)
     except Exception as e:
-        log.error('%s', e)
+        log.exception('%s', e)
         raise
 
 
@@ -190,20 +191,18 @@ def tuple_summary_provider(valobj, dict={}):
 # ----- Synth providers ------
 
 
-synth_by_id = weakref.WeakValueDictionary()
-
-
 class RustSynthProvider(object):
+    synth_by_id = weakref.WeakValueDictionary()
+    next_id = 0
+
     def __init__(self, valobj, dict={}):
         self.valobj = valobj
-        self.initialize()
-        synth_by_id[valobj.GetID()] = self
-
-    def initialize(self):
-        return None
+        self.obj_id = RustSynthProvider.next_id
+        RustSynthProvider.synth_by_id[self.obj_id] = self
+        RustSynthProvider.next_id += 1
 
     def update(self):
-        return False
+        return True
 
     def has_children(self):
         return False
@@ -215,20 +214,24 @@ class RustSynthProvider(object):
         return None
 
     def get_child_index(self, name):
-        return None
+        if name == '$$object-id$$':
+            return self.obj_id
+
+        try:
+            return self.get_index_of_child(name)
+        except Exception as e:
+            log.exception('%s', e)
+            raise
 
     def get_summary(self):
         return None
 
 
-# Base class for providers that represent array-like objects
-
-
 class ArrayLikeSynthProvider(RustSynthProvider):
-    def initialize(self):
-        ptr, len = self.ptr_and_len(self.valobj)  # type: ignore
-        self.ptr = ptr
-        self.len = len
+    '''Base class for providers that represent array-like objects'''
+
+    def update(self):
+        self.ptr, self.len = self.ptr_and_len(self.valobj)  # type: ignore
         self.item_type = self.ptr.GetType().GetPointeeType()
         self.item_size = self.item_type.GetByteSize()
 
@@ -248,15 +251,11 @@ class ArrayLikeSynthProvider(RustSynthProvider):
             offset = index * self.item_size
             return self.ptr.CreateChildAtOffset('[%s]' % index, offset, self.item_type)
         except Exception as e:
-            log.error('%s', e)
+            log.exception('%s', e)
             raise
 
-    def get_child_index(self, name):
-        try:
-            return int(name.lstrip('[').rstrip(']'))
-        except Exception as e:
-            log.error('%s', e)
-            raise
+    def get_index_of_child(self, name):
+        return int(name.lstrip('[').rstrip(']'))
 
     def get_summary(self):
         return '(%d)' % (self.len,)
@@ -274,7 +273,7 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
 
 
 class StdVecDequeSynthProvider(RustSynthProvider):
-    def initialize(self):
+    def update(self):
         self.ptr = read_unique_ptr(gcm(self.valobj, 'buf', 'ptr'))
         self.cap = gcm(self.valobj, 'buf', 'cap').GetValueAsUnsigned()
 
@@ -307,15 +306,11 @@ class StdVecDequeSynthProvider(RustSynthProvider):
             offset = ((self.startptr + index) % self.cap) * self.item_size
             return self.ptr.CreateChildAtOffset('[%s]' % index, offset, self.item_type)
         except Exception as e:
-            log.error('%s', e)
+            log.exception('%s', e)
             raise
 
-    def get_child_index(self, name):
-        try:
-            return int(name.lstrip('[').rstrip(']'))
-        except Exception as e:
-            log.error('%s', e)
-            raise
+    def get_index_of_child(self, name):
+        return int(name.lstrip('[').rstrip(']'))
 
     def get_summary(self):
         return '(%d) VecDeque[%s]' % (self.num_children(), sequence_summary((self.get_child_at_index(i) for i in range(self.num_children()))))
@@ -442,7 +437,7 @@ class DerefSynthProvider(RustSynthProvider):
     def get_child_at_index(self, index):
         return self.deref.GetChildAtIndex(index)
 
-    def get_child_index(self, name):
+    def get_index_of_child(self, name):
         return self.deref.GetIndexOfChildWithName(name)
 
     def get_summary(self):
@@ -468,7 +463,7 @@ class StdRefCountedSynthProvider(DerefSynthProvider):
 
 
 class StdRcSynthProvider(StdRefCountedSynthProvider):
-    def initialize(self):
+    def update(self):
         inner = read_unique_ptr(gcm(self.valobj, 'ptr'))
         self.strong = gcm(inner, 'strong', 'value', 'value').GetValueAsUnsigned()
         self.weak = gcm(inner, 'weak', 'value', 'value').GetValueAsUnsigned()
@@ -481,7 +476,7 @@ class StdRcSynthProvider(StdRefCountedSynthProvider):
 
 
 class StdArcSynthProvider(StdRefCountedSynthProvider):
-    def initialize(self):
+    def update(self):
         inner = read_unique_ptr(gcm(self.valobj, 'ptr'))
         self.strong = gcm(inner, 'strong', 'v', 'value').GetValueAsUnsigned()
         self.weak = gcm(inner, 'weak', 'v', 'value').GetValueAsUnsigned()
@@ -494,19 +489,19 @@ class StdArcSynthProvider(StdRefCountedSynthProvider):
 
 
 class StdMutexSynthProvider(DerefSynthProvider):
-    def initialize(self):
+    def update(self):
         self.deref = gcm(self.valobj, 'data', 'value')
         self.deref.SetPreferSyntheticValue(True)
 
 
 class StdCellSynthProvider(DerefSynthProvider):
-    def initialize(self):
+    def update(self):
         self.deref = gcm(self.valobj, 'value', 'value')
         self.deref.SetPreferSyntheticValue(True)
 
 
 class StdRefCellSynthProvider(DerefSynthProvider):
-    def initialize(self):
+    def update(self):
         self.deref = gcm(self.valobj, 'value', 'value')
         self.deref.SetPreferSyntheticValue(True)
 
@@ -521,7 +516,7 @@ class StdRefCellSynthProvider(DerefSynthProvider):
 
 
 class StdRefCellBorrowSynthProvider(DerefSynthProvider):
-    def initialize(self):
+    def update(self):
         self.deref = gcm(self.valobj, 'value', 'pointer').Dereference()
         self.deref.SetPreferSyntheticValue(True)
 
@@ -533,32 +528,24 @@ class EnumSynthProvider(RustSynthProvider):
     summary = ''
     skip_first = 0
 
-    def initialize(self):
-        self.initialize_enum()
-
-    def initialize_enum(self):
-        pass
+    def has_children(self):
+        return self.variant.MightHaveChildren()
 
     def num_children(self):
         return self.variant.GetNumChildren() - self.skip_first
 
-    def has_children(self):
-        return self.variant.MightHaveChildren()
-
     def get_child_at_index(self, index):
         return self.variant.GetChildAtIndex(index + self.skip_first)
 
-    def get_child_index(self, name):
+    def get_index_of_child(self, name):
         return self.variant.GetIndexOfChildWithName(name) - self.skip_first
 
     def get_summary(self):
         return self.summary
 
-##################################################################################################################
-
 
 class GenericEnumSynthProvider(EnumSynthProvider):
-    def initialize_enum(self):
+    def update(self):
         dyn_type_name = self.valobj.GetTypeName()
         variant_name = dyn_type_name[dyn_type_name.rfind(':')+1:]
         self.variant = self.valobj
@@ -572,10 +559,8 @@ class GenericEnumSynthProvider(EnumSynthProvider):
             self.summary = variant_name
 
 
-##################################################################################################################
-
 class MsvcTupleSynthProvider(RustSynthProvider):
-    def initialize(self):
+    def update(self):
         tparams = get_template_params(self.valobj.GetTypeName())
         self.type_name = '(' + ', '.join(tparams) + ')'
 
@@ -589,7 +574,7 @@ class MsvcTupleSynthProvider(RustSynthProvider):
         child = self.valobj.GetChildAtIndex(index)
         return child.CreateChildAtOffset(str(index), 0, child.GetType())
 
-    def get_child_index(self, name):
+    def get_index_of_child(self, name):
         return str(name)
 
     def get_summary(self):
@@ -602,7 +587,7 @@ class MsvcTupleSynthProvider(RustSynthProvider):
 class MsvcEnumSynthProvider(EnumSynthProvider):
     is_tuple_variant = False
 
-    def initialize_enum(self):
+    def update(self):
         tparams = get_template_params(self.valobj.GetTypeName())
         if len(tparams) == 1:  # Regular enum
             discr = gcm(self.valobj, 'discriminant')
@@ -637,7 +622,7 @@ class MsvcEnumSynthProvider(EnumSynthProvider):
         else:
             return child
 
-    def get_child_index(self, name):
+    def get_index_of_child(self, name):
         if self.is_tuple_variant:
             return int(name)
         else:
@@ -650,14 +635,14 @@ class MsvcEnumSynthProvider(EnumSynthProvider):
 class MsvcEnum2SynthProvider(EnumSynthProvider):
     is_tuple_variant = False
 
-    def initialize_enum(self):
+    def update(self):
         tparams = get_template_params(self.valobj.GetTypeName())
         self.type_name = tparams[0]
 
     def get_child_at_index(self, index):
         return self.valobj.GetChildAtIndex(index)
 
-    def get_child_index(self, name):
+    def get_index_of_child(self, name):
         return self.valobj.GetChildIndex(name)
 
     def get_type_name(self):
@@ -667,55 +652,8 @@ class MsvcEnum2SynthProvider(EnumSynthProvider):
 ##################################################################################################################
 
 
-ENCODED_ENUM_PREFIX = 'RUST$ENCODED$ENUM$'
-ENUM_DISCRIMINANT = 'RUST$ENUM$DISR'
-
-
-class LegacyEnumSynthProvider(EnumSynthProvider):
-    def initialize_enum(self):
-        obj_type = self.valobj.GetType()
-        first_field_name = obj_type.GetFieldAtIndex(0).GetName()
-
-        # The first two branches are for the sake of windows-*-msvc targets and non-rust-enabled liblldb.
-        # Normally, we should be calling the initialize_enum().
-        if first_field_name.startswith(ENCODED_ENUM_PREFIX):  # Niche-optimized enum
-            tokens = first_field_name[len(ENCODED_ENUM_PREFIX):].split("$")
-            discr_indices = [int(index) for index in tokens[:-1]]
-            null_variant = tokens[-1]
-
-            discriminant = self.valobj.GetChildAtIndex(0)
-            for discr_index in discr_indices:
-                discriminant = discriminant.GetChildAtIndex(discr_index)
-
-            # Recurse down the first field of the discriminant till we reach a non-struct type,
-            for i in range(20):  # ... but limit the depth, just in case.
-                if discriminant.GetType().GetTypeClass() != lldb.eTypeClassStruct:
-                    break
-                discriminant = discriminant.GetChildAtIndex(0)
-            if discriminant.GetValueAsUnsigned() == 0:
-                self.variant = null_variant
-                self.deref = lldb.SBValue()
-            else:
-                self.deref = self.valobj.GetChildAtIndex(0)
-        elif first_field_name == ENUM_DISCRIMINANT:  # Regular enum
-            self.variant = self.valobj.GetChildAtIndex(0).GetValue()
-            self.deref = self.valobj.GetChildAtIndex(1)
-        else:
-            self.initialize_enum()
-        self.deref.SetPreferSyntheticValue(True)
-
-    def get_summary(self):
-        if self.deref.IsValid():
-            return self.variant + '(' + obj_summary(self.deref) + ')'
-        else:
-            return self.variant
-
-
-##################################################################################################################
-
-
 class StdHashMapSynthProvider(RustSynthProvider):
-    def initialize(self):
+    def update(self):
         self.initialize_table(gcm(self.valobj, 'base', 'table'))
 
     def initialize_table(self, table):
@@ -777,19 +715,15 @@ class StdHashMapSynthProvider(RustSynthProvider):
         item = self.buckets.GetChildAtIndex(bucket_idx)
         return item.CreateChildAtOffset('[%d]' % index, 0, item.GetType())
 
-    def get_child_index(self, name):
-        try:
-            return int(name.lstrip('[').rstrip(']'))
-        except Exception as e:
-            log.error('%s', e)
-            raise
+    def get_index_of_child(self, name):
+        return int(name.lstrip('[').rstrip(']'))
 
     def get_summary(self):
         return 'size=%d, capacity=%d' % (self.num_children(), self.num_buckets)
 
 
 class StdHashSetSynthProvider(StdHashMapSynthProvider):
-    def initialize(self):
+    def update(self):
         table = gcm(self.valobj, 'base', 'map', 'table')  # std_version >= 1.48
         if not table.IsValid():
             table = gcm(self.valobj, 'map', 'base', 'table')  # std_version < 1.48

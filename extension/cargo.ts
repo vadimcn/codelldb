@@ -269,7 +269,7 @@ export class Cargo {
         onStderrString: (data: string) => void,
     ): Promise<number> {
         let config = workspace.getConfiguration('lldb', this.folder);
-        let cargoCmd = config.get<string>('cargo');
+        let cargoCmd = config.get<string>('cargo', 'cargo');
 
         return new Promise<number>((resolve, reject) => {
             let cargo = cp.spawn(cargoCmd, args, {

@@ -44,16 +44,6 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
     return debugConfig;
 }
 
-export function getConfigNoDefault(config: WorkspaceConfiguration, key: string): any {
-    let x = config.inspect(key);
-    let value = x.workspaceFolderValue;
-    if (value === undefined)
-        value = x.workspaceValue;
-    if (value === undefined)
-        value = x.globalValue;
-    return value;
-}
-
 export function isEmpty(obj: any): boolean {
     if (obj === null || obj === undefined)
         return true;
@@ -74,13 +64,6 @@ export function logProcessOutput(process: cp.ChildProcess, output: OutputChannel
         output.append(chunk.toString());
     });
 }
-
-export function setIfDefined(target: Dict<any>, config: WorkspaceConfiguration, key: string) {
-    let value = getConfigNoDefault(config, key);
-    if (value !== undefined)
-        target[key] = value;
-}
-
 
 export interface LLDBDirectories {
     shlibDir: string;

@@ -476,7 +476,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     // Merge launch configuration with workspace settings
     mergeWorkspaceSettings(launchConfig: WorkspaceConfiguration, debugConfig: DebugConfiguration): DebugConfiguration {
         let mergeConfig = (key: string, reverse: boolean = false) => {
-            let value1 = util.getConfigNoDefault(launchConfig, key);
+            let value1 = launchConfig.get(key);
             let value2 = debugConfig[key];
             let value = !reverse ? mergeValues(value1, value2) : mergeValues(value2, value1);
             if (!util.isEmpty(value))

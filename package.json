@@ -209,7 +209,6 @@
 						"items": {
 							"type": "string"
 						},
-						"default": [],
 						"order": 1,
 						"scope": "resource"
 					},
@@ -219,7 +218,6 @@
 						"items": {
 							"type": "string"
 						},
-						"default": [],
 						"order": 2,
 						"scope": "resource"
 					},
@@ -229,7 +227,6 @@
 						"items": {
 							"type": "string"
 						},
-						"default": [],
 						"order": 3,
 						"scope": "resource"
 					},
@@ -239,7 +236,6 @@
 						"items": {
 							"type": "string"
 						},
-						"default": [],
 						"order": 4,
 						"scope": "resource"
 					},
@@ -251,7 +247,6 @@
 								"type": "string"
 							}
 						},
-						"default": {},
 						"order": 10,
 						"scope": "resource"
 					},
@@ -262,7 +257,6 @@
 					"lldb.launch.cwd": {
 						"description": "Default program working directory.",
 						"type": "string",
-						"default": "${workspaceFolder}",
 						"order": 10,
 						"scope": "resource"
 					},
@@ -279,7 +273,6 @@
 							"Use external terminal window.",
 							"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
 						],
-						"default": "console",
 						"order": 10,
 						"scope": "resource"
 					},
@@ -291,7 +284,6 @@
 							"array",
 							"object"
 						],
-						"default": null,
 						"order": 10,
 						"scope": "resource"
 					},
@@ -303,8 +295,8 @@
 							"python",
 							"native"
 						],
-						"default": "simple",
-						"order": 10
+						"order": 10,
+						"scope": "resource"
 					},
 					"lldb.launch.sourceMap": {
 						"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
@@ -314,33 +306,40 @@
 								"type": "string"
 							}
 						},
-						"default": {},
 						"order": 10,
 						"scope": "resource"
 					},
 					"lldb.launch.relativePathBase": {
 						"description": "Default base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
 						"type": "string",
-						"order": 10
+						"order": 10,
+						"scope": "resource"
 					},
 					"lldb.launch.breakpointMode": {
 						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode",
-						"order": 10
+						"order": 10,
+						"scope": "resource"
 					},
 					"lldb.launch.sourceLanguages": {
 						"description": "A list of source languages to enable language-specific features for.",
 						"type": "array",
-						"default": [
-							"cpp",
-							"rust"
-						],
-						"order": 100
+						"order": 100,
+						"scope": "resource"
 					},
 					"lldb.launch.debugServer": {
 						"description": "Debug server port.",
-						"type": "number",
-						"default": 4711,
-						"order": 100
+						"type": [
+							"null",
+							"integer"
+						],
+						"defaultSnippets": [
+							{
+								"label": "Port 4711",
+								"body": 4711
+							}
+						],
+						"order": 100,
+						"scope": "resource"
 					}
 				}
 			},
@@ -439,8 +438,8 @@
 					"lldb.cargo": {
 						"markdownDescription": "Name of the command to invoke as Cargo.",
 						"type": "string",
-						"scope": "resource",
-						"default": "cargo"
+						"default": "cargo",
+						"scope": "resource"
 					},
 					"lldb.adapterEnv": {
 						"description": "Extra environment variables for the debug adapter.",
@@ -495,7 +494,6 @@
 							"object",
 							"null"
 						],
-						"default": null,
 						"scope": "window"
 					},
 					"lldb.suppressUpdateNotifications": {
@@ -630,10 +628,7 @@
 									"args": {
 										"description": "Cargo command line arguments.",
 										"type": "array",
-										"default": [
-											"test",
-											"--no-run"
-										]
+										"default": []
 									},
 									"env": {
 										"description": "Additional environment variables passed to cargo.",
@@ -667,6 +662,33 @@
 								},
 								"required": [
 									"args"
+								],
+								"defaultSnippets": [
+									{
+										"label": "Library unit tests",
+										"body": {
+											"args": [
+												"test",
+												"--no-run",
+												"--lib"
+											],
+											"filter": {
+												"kind": "lib"
+											}
+										}
+									},
+									{
+										"label": "Executable",
+										"body": {
+											"args": [
+												"build",
+												"--bin=${1:<name>}"
+											],
+											"filter": {
+												"kind": "bin"
+											}
+										}
+									}
 								]
 							},
 							"args": {
@@ -738,7 +760,7 @@
 							"stopOnEntry": {
 								"description": "Automatically stop debuggee after launch.",
 								"type": "boolean",
-								"default": true
+								"default": false
 							},
 							"initCommands": {
 								"description": "Initialization commands executed upon debugger startup.",
@@ -859,7 +881,7 @@
 							"pid": {
 								"description": "Process id to attach to.",
 								"type": [
-									"number",
+									"integer",
 									"string"
 								],
 								"default": "${command:pickMyProcess}"
@@ -867,12 +889,12 @@
 							"stopOnEntry": {
 								"description": "Automatically stop debuggee after attach.",
 								"type": "boolean",
-								"default": true
+								"default": false
 							},
 							"waitFor": {
 								"description": "Wait for the process to launch (MacOS only).",
 								"type": "boolean",
-								"default": true
+								"default": false
 							},
 							"initCommands": {
 								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"

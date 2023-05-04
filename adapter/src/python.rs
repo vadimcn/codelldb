@@ -1,12 +1,12 @@
 use crate::prelude::*;
 
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use adapter_protocol::{DisplayHtmlEventBody, EventBody};
+use adapter_protocol::EventBody;
 use lldb::*;
 
 use std::ffi::CStr;
 use std::mem;
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 
@@ -39,6 +39,8 @@ pub struct PythonInterface {
     adapter_dir: PathBuf,
     event_sender: mpsc::Sender<EventBody>,
     postinit_ptr: MustInitialize<unsafe extern "C" fn(console_fd: usize) -> bool>,
+    handle_message_ptr:
+        MustInitialize<unsafe extern "C" fn(json: *const c_char, json_len: usize, debugger: SBDebugger) -> bool>,
     compile_code_ptr: MustInitialize<
         unsafe extern "C" fn(
             result: *mut PyResult<*mut c_void>,
@@ -101,6 +103,7 @@ pub fn initialize(
         adapter_dir: adapter_dir.to_owned(),
         event_sender: sender,
         postinit_ptr: NotInitialized,
+        handle_message_ptr: NotInitialized,
         compile_code_ptr: NotInitialized,
         shutdown_ptr: NotInitialized,
         evaluate_ptr: NotInitialized,
@@ -114,6 +117,7 @@ pub fn initialize(
         interface: *mut PythonInterface,
         postinit_ptr: *const c_void,
         shutdown_ptr: *const c_void,
+        handle_message_ptr: *const c_void,
         compile_code_ptr: *const c_void,
         evaluate_ptr: *const c_void,
         evaluate_as_bool_ptr: *const c_void,
@@ -123,6 +127,7 @@ pub fn initialize(
     ) {
         (*interface).postinit_ptr = Initialized(mem::transmute(postinit_ptr));
         (*interface).shutdown_ptr = Initialized(mem::transmute(shutdown_ptr));
+        (*interface).handle_message_ptr = Initialized(mem::transmute(handle_message_ptr));
         (*interface).compile_code_ptr = Initialized(mem::transmute(compile_code_ptr));
         (*interface).evaluate_ptr = Initialized(mem::transmute(evaluate_ptr));
         (*interface).evaluate_as_bool_ptr = Initialized(mem::transmute(evaluate_as_bool_ptr));
@@ -132,23 +137,9 @@ pub fn initialize(
         (*interface).initialized = true;
     }
 
-    unsafe extern "C" fn display_html_callback(
-        interface: *mut PythonInterface,
-        html: *const c_char,
-        title: *const c_char,
-        position: c_int,
-        reveal: c_int,
-    ) {
-        if html.is_null() {
-            return;
-        }
-
-        let event = EventBody::displayHtml(DisplayHtmlEventBody {
-            html: CStr::from_ptr(html).to_str().unwrap().to_string(),
-            title: if title.is_null() { None } else { Some(CStr::from_ptr(title).to_str().unwrap().to_string()) },
-            position: Some(position as i32),
-            reveal: reveal != 0,
-        });
+    unsafe extern "C" fn send_message_callback(interface: *mut PythonInterface, body_json: *const c_char) {
+        let body_json = CStr::from_ptr(body_json).to_str().unwrap().to_string();
+        let event = EventBody::_pythonMessage(serde_json::value::RawValue::from_string(body_json).unwrap());
         log_errors!((*interface).event_sender.try_send(event));
     }
 
@@ -162,7 +153,7 @@ pub fn initialize(
 
     let command = format!(
         "script import codelldb; codelldb.initialize({}, {:p}, {:p}, {:p})",
-        py_log_level, init_callback as *const c_void, display_html_callback as *const c_void, interface
+        py_log_level, init_callback as *const c_void, send_message_callback as *const c_void, interface
     );
     interface.interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
@@ -184,6 +175,14 @@ pub fn initialize(
 }
 
 impl PythonInterface {
+    pub fn handle_message(&self, body_json: &str) {
+        let json_ptr = body_json.as_ptr() as *const c_char;
+        let json_size = body_json.len();
+        unsafe {
+            (*self.handle_message_ptr)(json_ptr, json_size, self.interpreter.debugger());
+        }
+    }
+
     // Compiles Python source, returns a code object.
     pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, String> {
         let expt_ptr = expr.as_ptr() as *const c_char;

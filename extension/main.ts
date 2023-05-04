@@ -12,7 +12,7 @@ import * as os from 'os';
 import * as querystring from 'querystring';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
-import * as htmlView from './htmlView';
+import * as webview from './webview';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
@@ -42,14 +42,14 @@ export function deactivate() {
 
 class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory, UriHandler {
     context: ExtensionContext;
-    htmlViewer: htmlView.DebuggerHtmlView;
+    webviewManager: webview.WebviewManager;
     status: StatusBarItem;
     loadedModules: ModuleTreeDataProvider;
     rpcServer: SimpleServer;
 
     constructor(context: ExtensionContext) {
         this.context = context;
-        this.htmlViewer = new htmlView.DebuggerHtmlView(context);
+        this.webviewManager = new webview.WebviewManager(context);
 
         let subscriptions = context.subscriptions;
 

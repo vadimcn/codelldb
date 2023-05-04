@@ -5,16 +5,18 @@ import lldb
 import logging
 import traceback
 import ctypes
+import json
 from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove,
                     c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
 from .value import Value
+from .event import Event
 
 log = logging.getLogger('codelldb')
 
 try: from typing import Tuple
 except Exception: pass
 
-#============================================================================================
+# ============================================================================================
 
 # 8 bytes
 class SBError(ctypes.Structure):
@@ -82,30 +84,35 @@ def RustEnum(enum_name, *variants): # type: (str, Tuple[str,type]) -> type
     Enum.__name__ = enum_name
     return Enum
 
-def PyResult(name, T): # type: (str, type) -> type
+
+def PyResult(name, T):  # type: (str, type) -> type
     return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', SBError))
+
 
 ValueResult = PyResult('ValueResult', SBValue)
 BoolResult = PyResult('BoolResult', c_bool)
 PyObjectResult = PyResult('PyObjectResult', py_object)
 
-#============================================================================================
+# ============================================================================================
 
-display_html = None
+send_message = None
 save_stdout = None
+on_did_receive_message = Event()
 
-def initialize(log_level, init_callback_addr, display_html_addr, callback_context):
-    global display_html
-
+def initialize(log_level, init_callback_addr, send_message_addr, callback_context):
+    global send_message
     logging.getLogger().setLevel(log_level)
 
-    args = [callback_context, postinit, shutdown, compile_code, evaluate, evaluate_as_bool, execute_in_instance, modules_loaded, drop_pyobject]
+    args = [callback_context, postinit, shutdown, handle_message, compile_code, evaluate,
+            evaluate_as_bool, execute_in_instance, modules_loaded, drop_pyobject]
     init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
     init_callback(*args)
 
-    display_html_raw = CFUNCTYPE(None, c_void_p, c_char_p, c_char_p, c_int, c_bool)(display_html_addr)
-    display_html = lambda html, title, position, reveal: display_html_raw(
-        callback_context, str_to_bytes(html), str_to_bytes(title), position if position != None else -1, reveal)
+    send_message_raw = CFUNCTYPE(None, c_void_p, c_char_p)(send_message_addr)
+
+    def send_message(body):
+        return send_message_raw(callback_context, str_to_bytes(json.dumps(body)))
+
 
 @CFUNCTYPE(c_bool, c_size_t)
 def postinit(console_fd):
@@ -116,16 +123,30 @@ def postinit(console_fd):
         import msvcrt
         console_fd = msvcrt.open_osfhandle(console_fd, 0)
     save_stdout = sys.stdout
-    sys.stdout = os.fdopen(console_fd, 'w', 1) # line-buffered
+    sys.stdout = os.fdopen(console_fd, 'w', 1)  # line-buffered
     return True
+
 
 @CFUNCTYPE(c_bool)
 def shutdown():
-    global display_html, save_stdout
+    global send_message, save_stdout
     sys.stdout = save_stdout
-    display_html = None
+    send_message = None
     save_stdout = None
     return True
+
+
+@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, SBDebugger)
+def handle_message(body_ptr, body_len, debugger):
+    try:
+        body_json = ctypes.string_at(body_ptr, body_len)
+        body = json.loads(body_json)
+        lldb.debugger = debugger = into_swig_wrapper(debugger, SBDebugger)
+        on_did_receive_message.emit(body)
+    except Exception as err:
+        log.error(traceback.format_exc())
+    return True
+
 
 @CFUNCTYPE(c_bool, POINTER(PyObjectResult), POINTER(c_char), c_size_t, POINTER(c_char), c_size_t)
 def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
@@ -146,6 +167,7 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
         result[0] = PyObjectResult.Err(error)
     return True
 
+
 @CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, c_bool, SBExecutionContext)
 def evaluate(result, pycode, is_simple_expr, context):
     try:
@@ -161,6 +183,7 @@ def evaluate(result, pycode, is_simple_expr, context):
         result[0] = ValueResult.Err(error)
     return True
 
+
 @CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, c_bool, SBExecutionContext)
 def evaluate_as_bool(result, pycode, is_simple_expr, context):
     try:
@@ -174,6 +197,7 @@ def evaluate_as_bool(result, pycode, is_simple_expr, context):
         error = from_swig_wrapper(error, SBError)
         result[0] = BoolResult.Err(error)
     return True
+
 
 @CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, SBDebugger)
 def execute_in_instance(result, pycode, debugger):
@@ -190,9 +214,11 @@ def execute_in_instance(result, pycode, debugger):
         result[0] = BoolResult.Err(error)
     return True
 
+
 @CFUNCTYPE(c_bool, POINTER(SBModule), c_size_t)
 def modules_loaded(modules_ptr, modules_len):
     return True
+
 
 @CFUNCTYPE(c_bool, py_object)
 def drop_pyobject(obj):
@@ -219,38 +245,41 @@ def to_sbvalue(value, target):
         return target.CreateValueFromData('result', lldb.SBData(), ty)
     elif isinstance(value, bool):
         value = c_int(value)
-        asbytes = memoryview(value).tobytes() # type: ignore
+        asbytes = memoryview(value).tobytes()  # type: ignore
         data = lldb.SBData()
-        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize())  # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeBool)
         return target.CreateValueFromData('result', data, ty)
     elif isinstance(value, int):
         value = c_int64(value)
-        asbytes = memoryview(value).tobytes() # type: ignore
+        asbytes = memoryview(value).tobytes()  # type: ignore
         data = lldb.SBData()
-        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize())  # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeLongLong)
         return target.CreateValueFromData('result', data, ty)
     elif isinstance(value, float):
         value = c_double(value)
-        asbytes = memoryview(value).tobytes() # type: ignore
+        asbytes = memoryview(value).tobytes()  # type: ignore
         data = lldb.SBData()
-        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize()) # borrows from asbytes
+        data.SetData(dummy_sberror, asbytes, target.GetByteOrder(), target.GetAddressByteSize())  # borrows from asbytes
         ty = target.GetBasicType(lldb.eBasicTypeDouble)
         return target.CreateValueFromData('result', data, ty)
-    else: # Fall back to string representation
+    else:  # Fall back to string representation
         value = str(value)
         data = lldb.SBData.CreateDataFromCString(target.GetByteOrder(), target.GetAddressByteSize(), value)
         sbtype_arr = target.GetBasicType(lldb.eBasicTypeChar).GetArrayType(data.GetByteSize())
         return target.CreateValueFromData('result', data, sbtype_arr)
 
+
 def str_to_bytes(s):
     return s.encode('utf8') if s != None else None
+
 
 def bytes_to_str(b):
     return b.decode('utf8') if b != None else None
 
-#============================================================================================
+# ============================================================================================
+
 
 def nat_eval(sbframe, expr):
     val = sbframe.FindVariable(expr)
@@ -270,6 +299,7 @@ def nat_eval(sbframe, expr):
         if err.Fail():
             raise Exception(err.GetCString())
     return Value(val)
+
 
 def evaluate_in_context(code, simple_expr, execution_context):
     frame = execution_context.GetFrame()

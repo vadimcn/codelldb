@@ -737,6 +737,6 @@ class StdHashSetSynthProvider(StdHashMapSynthProvider):
 ##################################################################################################################
 
 
-def __lldb_init_module(debugger_obj, internal_dict):
+def __lldb_init_module(debugger_obj, internal_dict): # pyright: ignore
     log.info('Initializing')
     initialize_category(debugger_obj, internal_dict)

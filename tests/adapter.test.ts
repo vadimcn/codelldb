@@ -570,18 +570,42 @@ function generateSuite(triple: string) {
                 assert.ok(response3.body.result.includes('value.Value'), `Actual: ${response3.body.result} `);
             });
 
-            test('display_html', async function () {
+            test('webview', async function () {
                 let bpLine = findMarker(debuggeeSource, '#BP1');
-                let waitForDisplayHtmlAsync = ds.waitForEvent('displayHtml');
-                await ds.launchAndWaitForStop({ name: 'display_html', program: debuggee, args: ["mandelbrot"] },
+                await ds.launchAndWaitForStop({ name: 'webview', program: debuggee, args: [] },
                     async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine, '/py debugger.display_html("<html>", "title", 1) or True');
+                        await ds.setBreakpoint(debuggeeSource, bpLine);
                     });
-                let ev = await waitForDisplayHtmlAsync;
-                assert.equal(ev.body.html, "<html>");
-                assert.equal(ev.body.title, 'title');
-                assert.equal(ev.body.position, 1);
-                assert.equal(ev.body.reveal, false);
+
+                let evalScriptLine = async (line: string) => {
+                    let resp = await ds.evaluateRequest({ expression: `script ${line}`, context: '_command' });
+                    assert.ok(resp.success);
+                };
+
+                let waitForPythonMessageAsync1 = ds.waitForEvent('_pythonMessage');
+                await evalScriptLine('import debugger');
+                await evalScriptLine('webview = debugger.create_webview("<html>", "title", enable_scripts=True)');
+                let ev1 = await waitForPythonMessageAsync1;
+                assert.equal(ev1.body.message, 'webviewCreate');
+                assert.equal(ev1.body.html, '<html>');
+                assert.equal(ev1.body.title, 'title');
+                assert.equal(ev1.body.enableScripts, true);
+
+                let waitForPythonMessageAsync2 = ds.waitForEvent('_pythonMessage');
+                await evalScriptLine('webview.on_did_receive_message.add(lambda msg: webview.post_message(msg))');
+                await ds.customRequest('_pythonMessage', {
+                    message: 'webviewDidReceiveMessage', id: ev1.body.id, inner: { foo: 'bar' }
+                });
+                let ev2 = await waitForPythonMessageAsync2;
+                assert.equal(ev2.body.message, 'webviewPostMessage')
+                assert.equal(ev2.body.id, ev1.body.id)
+                assert.equal(ev2.body.inner.foo, 'bar');
+
+                // let waitForPythonMessageAsync3 = ds.waitForEvent('_pythonMessage');
+                // await evalScriptLine('del webview');
+                // let ev3 = await waitForPythonMessageAsync3;
+                // assert.equal(ev3.body.message, 'webviewDestroy')
+                // assert.equal(ev3.body.id, ev1.body.id)
             });
         });
 

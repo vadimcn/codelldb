@@ -19,7 +19,7 @@ nom = "7.1.1"
 parse_int = "0.5.0"
 serde = "1.0.94"
 serde_derive = "1.0.94"
-serde_json = "1.0.40"
+serde_json = { version = "1.0.40", features = ["raw_value"] }
 superslice = "1.0.0"
 
 bytes = "1.0.0"

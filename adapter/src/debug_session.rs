@@ -466,6 +466,9 @@ impl DebugSession {
                         RequestArguments::_symbols(args) =>
                             self.handle_symbols(args)
                                 .map(|r| ResponseBody::_symbols(r)),
+                        RequestArguments::_pythonMessage(args) =>
+                            self.handle_python_message(args)
+                                .map(|_| ResponseBody::_pythonMessage),
                         _=> bail!("Not implemented.")
                     }
                 }
@@ -1372,6 +1375,14 @@ impl DebugSession {
             }
         }
         Ok(SymbolsResponse { symbols })
+    }
+
+    fn handle_python_message(&mut self, args: serde_json::value::Value) -> Result<(), Error> {
+        if let Some(python) = &self.python {
+            let body_json = args.to_string();
+            python.handle_message(&body_json);
+        }
+        Ok(())
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {

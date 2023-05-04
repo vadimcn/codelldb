@@ -572,10 +572,10 @@ thus they are often not as convenient as "simple" or "python" expressions.
 
 ## Debugger API
 
-CodeLLDB provides extended Python API via the `codelldb` module (which is auto-imported into debugger's main script context).
+CodeLLDB provides extended Python API via the `debugger` module (which is auto-imported into debugger's main script context).
 This module exports the following functions:
 
-**evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
+def **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
 - **expression**: The expression to evaluate.
 - **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
 
@@ -583,17 +583,31 @@ This module exports the following functions:
 
 **wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) in a [`Value`](#value) object.
 
-**display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : Displays content in a VSCode WebView panel:
+**create_webview(html: `str`=None, title: `str`=None, view_column: `int`=None, preserve_focus: `bool`=False, enable_find_widget: `bool`=False, retain_context_when_hidden: `bool`=False, enable_scripts: `bool`=False) -> Webview** :
+Create a [Webview](#webview), which can be used to display HTML content in VSCode UI.
+
+**display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : (deprecated - use webviews instead) Displays content in a VSCode Webview panel:
 - **html**: HTML markup to display.
 - **title**: Title of the panel.  Defaults to the name of the current launch configuration.
 - **position**: Position (column) of the panel.  The allowed range is 1 through 3.
 - **reveal**: Whether to reveal the panel if one already exists.
 
-  Scripts running inside such WebViews may execute debugger commands by sending a message:
-  ```
-    vscode = acquireVsCodeApi();
-    vscode.postMessage({ command: 'execute', text: 'script print("Hello")' });
-  ```
+## Webview
+The Webview class provides a simplified interface to VSCode [Webview](https://code.visualstudio.com/api/references/vscode-api#WebviewPanel).
+
+class **Webview:**
+ - **set_html(html: `str`)**: Set HTML contents of the webview.
+ - **reveal(view_column: `int`=None, preserve_focus: `bool`=False)**: Show the webview panel in a given column.
+ - **post_message(message: `object`)**: Post a message to the webview content.
+ - **dispose()**: Destroy the webview panel
+ - **on_did_receive_message: `Event[object]`**: Fired when the webview content posts a message.
+ - **on_did_dispose: `Event`**: Fired when the webview panel is disposed (either by the user or by calling dispose()).
+
+## Event
+class **Event[T]:**
+ - **add(handler: `Callable[T]`)**: Add event listener.
+ - **remove(handler: `Callable[T]`)**: Remove event listener.
+
 
 ## Value
 `Value` objects ([source](adapter/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),

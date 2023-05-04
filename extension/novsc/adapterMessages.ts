@@ -13,13 +13,6 @@ export class AdapterSettings {
     reproducer?: boolean | string;
 };
 
-export interface DisplayHtmlRequest {
-    title: string;
-    position: number;
-    html: string;
-    reveal: boolean;
-}
-
 export class Symbol {
     name: string;
     type: string;

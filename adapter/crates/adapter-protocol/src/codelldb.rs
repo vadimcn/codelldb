@@ -107,6 +107,8 @@ pub enum RequestArguments {
     // Custom
     _adapterSettings(AdapterSettings),
     _symbols(SymbolsRequest),
+    //_pythonMessage(Box<serde_json::value::RawValue>), https://github.com/serde-rs/json/issues/883
+    _pythonMessage(serde_json::value::Value),
     #[serde(other)]
     unknown,
 }
@@ -154,6 +156,7 @@ pub enum ResponseBody {
     // Custom
     _adapterSettings,
     _symbols(SymbolsResponse),
+    _pythonMessage,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -171,7 +174,7 @@ pub enum EventBody {
     invalidated(InvalidatedEventBody),
     stopped(StoppedEventBody),
     // Custom
-    displayHtml(DisplayHtmlEventBody),
+    _pythonMessage(Box<serde_json::value::RawValue>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -232,15 +235,6 @@ pub struct AttachRequestArguments {
     pub wait_for: Option<bool>,
     pub target_create_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DisplayHtmlEventBody {
-    pub html: String,
-    pub title: Option<String>,
-    pub position: Option<i32>,
-    pub reveal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]

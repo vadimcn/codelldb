@@ -1271,7 +1271,7 @@ impl DebugSession {
         let count = args.count as usize;
         let address = (mem_ref + offset) as lldb::Address;
         let process = self.target.process();
-        if let Ok(region_info) = process.get_memory_region_info(address) {
+        if let Ok(region_info) = process.memory_region_info(address) {
             if region_info.is_readable() {
                 let to_read = cmp::min(count, (region_info.region_end() - address) as usize);
                 let mut buffer = Vec::new();
@@ -1300,7 +1300,7 @@ impl DebugSession {
         let data = base64::decode(&args.data)?;
         let allow_partial = args.allow_partial.unwrap_or(false);
         let process = self.target.process();
-        if let Ok(region_info) = process.get_memory_region_info(address) {
+        if let Ok(region_info) = process.memory_region_info(address) {
             if region_info.is_writable() {
                 let to_write = cmp::min(data.len(), (region_info.region_end() - address) as usize);
                 if allow_partial || to_write == data.len() {

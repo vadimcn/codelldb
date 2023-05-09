@@ -117,7 +117,7 @@ impl SBProcess {
             return self->GetSTDERR((char*)ptr, len);
         })
     }
-    pub fn get_memory_region_info(&self, load_addr: Address) -> Result<SBMemoryRegionInfo, SBError> {
+    pub fn memory_region_info(&self, load_addr: Address) -> Result<SBMemoryRegionInfo, SBError> {
         let mut region_info = SBMemoryRegionInfo::new();
         let error = cpp!(unsafe [self as "SBProcess*", load_addr as "addr_t",
                                  mut region_info as "SBMemoryRegionInfo"] -> SBError as "SBError" {

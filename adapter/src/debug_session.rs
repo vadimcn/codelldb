@@ -45,7 +45,7 @@ pub struct DebugSession {
     dap_session: DAPSession,
     event_listener: SBListener,
     python: Option<Box<PythonInterface>>,
-    current_cancellation: cancellation::Receiver, // Cancellation associated with request currently being processed
+    current_cancellation: cancellation::Receiver, // Cancellation associated with the current request
     configuration_done_sender: broadcast::Sender<()>,
 
     console_pipe: std::fs::File,
@@ -509,20 +509,17 @@ impl DebugSession {
     }
 
     fn console_message(&self, output: impl std::fmt::Display) {
-        self.console_message_nonl(format!("{}\n", output));
-    }
-
-    fn console_message_nonl(&self, output: impl std::fmt::Display) {
-        self.send_event(EventBody::output(OutputEventBody {
-            output: format!("{}", output),
-            ..Default::default()
-        }));
+        self.console_message_impl(Some("console"), output);
     }
 
     fn console_error(&self, output: impl std::fmt::Display) {
+        self.console_message_impl(Some("stderr"), output);
+    }
+
+    fn console_message_impl(&self, category: Option<&str>, output: impl std::fmt::Display) {
         self.send_event(EventBody::output(OutputEventBody {
             output: format!("{}\n", output),
-            category: Some("stderr".into()),
+            category: category.map(Into::into),
             ..Default::default()
         }));
     }

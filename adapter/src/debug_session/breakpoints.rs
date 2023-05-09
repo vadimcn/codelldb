@@ -114,6 +114,50 @@ impl super::DebugSession {
                 }
             };
 
+            // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings to the console.
+            if bp.num_locations() == 0 && matches!(self.breakpoint_mode, BreakpointMode::Path) {
+                if let Some(filename) = file_path_norm.file_name() {
+                    let bp2 = self.target.breakpoint_create_by_location(
+                        Path::new(filename),
+                        req.line as u32,
+                        req.column.map(|c| c as u32),
+                    );
+
+                    // If we end up with multiple locations, select the one with the longest path match.
+                    let mut best_count = 0;
+                    let mut best_path = None;
+                    for loc in bp2.locations() {
+                        if let Some(le) = loc.address().line_entry() {
+                            if le.line() == req.line as u32 {
+                                let path = le.file_spec().path();
+                                let count = path
+                                    .components()
+                                    .rev()
+                                    .zip(file_path_norm.components().rev())
+                                    .take_while(|(a, b)| a == b)
+                                    .count();
+                                if count > best_count {
+                                    best_count = count;
+                                    best_path = Some(path);
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(best_path) = best_path {
+                        self.console_message(format!(
+                            "Could not resolve any locations for breakpoint at {}:{}, but found a valid location at {}:{}",
+                            file_path_norm.display(),
+                            req.line,
+                            best_path.display(),
+                            req.line
+                        ));
+                    }
+
+                    self.target.breakpoint_delete(bp2.id());
+                }
+            }
+
             let bp_info = self.make_bp_info(
                 bp,
                 BreakpointKind::Source,
@@ -641,10 +685,10 @@ impl super::DebugSession {
 
         if event_type.intersects(BreakpointEventType::Added) {
             // Don't notify client if we are already tracking this one.
-            if breakpoints.breakpoint_infos.contains_key(&bp.id()) {
+            // Also, don't notify for transient breakpoints.
+            if breakpoints.breakpoint_infos.contains_key(&bp.id()) || !bp.is_valid() {
                 return;
             }
-
             let bp_info = self.make_bp_info(bp, BreakpointKind::Source, None, None, None);
             self.send_event(EventBody::breakpoint(BreakpointEventBody {
                 reason: "new".into(),

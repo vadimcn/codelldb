@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 cpp_class!(pub unsafe struct SBTarget as "SBTarget");
 
@@ -103,7 +104,7 @@ impl SBTarget {
         })
         .check()
     }
-    pub fn breakpoint_create_by_location(&self, file: &str, line: u32, column: Option<u32>) -> SBBreakpoint {
+    pub fn breakpoint_create_by_location(&self, file: &Path, line: u32, column: Option<u32>) -> SBBreakpoint {
         with_cstr(file, |file| {
             let column = column.unwrap_or(0);
             cpp!(unsafe [self as "SBTarget*", file as "const char*",

@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 cpp_class!(pub unsafe struct SBDebugger as "SBDebugger");
 
@@ -60,7 +61,7 @@ impl SBDebugger {
     }
     pub fn create_target(
         &self,
-        executable: &str,
+        executable: &Path,
         target_triple: Option<&str>,
         platform_name: Option<&str>,
         add_dependent_modules: bool,

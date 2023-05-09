@@ -107,7 +107,7 @@ impl super::DebugSession {
                         BreakpointMode::File => file_path_norm.file_name().ok_or("Missing file name")?,
                     };
                     self.target.breakpoint_create_by_location(
-                        location.to_str().ok_or("Missing file name")?,
+                        Path::new(location),
                         req.line as u32,
                         req.column.map(|c| c as u32),
                     )

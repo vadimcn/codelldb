@@ -234,7 +234,7 @@ impl super::DebugSession {
             // Fall back to a dummy target.
             match target {
                 Some(target) => target,
-                None => self.debugger.create_target("", None, None, false)?,
+                None => self.debugger.create_target(Path::new(""), None, None, false)?,
             }
         };
         self.target = Initialized(target);
@@ -304,13 +304,13 @@ impl super::DebugSession {
     }
 
     fn create_target_from_program(&self, program: &str) -> Result<SBTarget, Error> {
-        match self.debugger.create_target(program, None, None, false) {
+        match self.debugger.create_target(Path::new(program), None, None, false) {
             Ok(target) => Ok(target),
             Err(err) => {
                 // TODO: use selected platform instead of cfg!(windows)
                 if cfg!(windows) && !program.ends_with(".exe") {
                     let program = format!("{}.exe", program);
-                    self.debugger.create_target(&program, None, None, false)
+                    self.debugger.create_target(Path::new(&program), None, None, false)
                 } else {
                     Err(err)
                 }

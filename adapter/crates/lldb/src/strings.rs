@@ -2,26 +2,40 @@ use super::*;
 
 use std::ffi::OsStr;
 
-pub(crate) fn with_cstr<R, F>(s: impl AsRef<OsStr>, f: F) -> R
+/// Call `f` with a NUL-terminated copy of `s`.
+pub(crate) fn with_cstr<S, F, R>(s: S, f: F) -> R
 where
+    S: AsRef<OsStr>,
     F: FnOnce(*const c_char) -> R,
 {
-    let s = s.as_ref().to_str().unwrap();
+    #[cfg(unix)]
+    fn os_str_bytes(s: &OsStr) -> &[u8] {
+        use std::os::unix::prelude::OsStrExt;
+        s.as_bytes()
+    }
+    #[cfg(windows)]
+    fn os_str_bytes(s: &OsStr) -> &[u8] {
+        s.to_str().unwrap().as_bytes()
+    }
+
+    let bytes = os_str_bytes(s.as_ref());
     let allocated;
     let mut buffer = [0u8; 256];
-    let ptr: *const c_char = if s.len() < buffer.len() {
-        buffer[0..s.len()].clone_from_slice(s.as_bytes());
-        buffer[s.len()] = 0;
+    let ptr: *const c_char = if bytes.len() < buffer.len() {
+        buffer[0..bytes.len()].clone_from_slice(bytes);
+        buffer[bytes.len()] = 0;
         buffer.as_ptr() as *const c_char
     } else {
-        allocated = Some(CString::new(s).unwrap());
+        allocated = Some(CString::new(bytes).unwrap());
         allocated.as_ref().unwrap().as_ptr()
     };
     f(ptr)
 }
 
-pub(crate) fn with_opt_cstr<R, F>(s: Option<impl AsRef<OsStr>>, f: F) -> R
+/// Call `f` with a NUL-terminated copy of `s`, or a null pointer if `s` is None.
+pub(crate) fn with_opt_cstr<S, F, R>(s: Option<S>, f: F) -> R
 where
+    S: AsRef<OsStr>,
     F: FnOnce(*const c_char) -> R,
 {
     match s {
@@ -30,35 +44,35 @@ where
     }
 }
 
+/// Extract CString from an API that takes pointer to a buffer and max length and
+/// returns the number of bytes stored or required to stotre the entire string.
 pub(crate) fn get_cstring<F>(f: F) -> CString
 where
     F: Fn(*mut c_char, usize) -> usize,
 {
     // Some SB API return the required size of the full string (SBThread::GetStopDescription()),
-    // while others return the number of bytes actually written into the buffer (SBPath::GetPath()).
-    // In the latter case we have to increase buffer capacity in a loop until the string fits.
-    // There also seems to be a lack of consensus if the terminating NUL should be included in the count or not...
+    // while others return the number of bytes actually written into the buffer (SBFileSpec::GetPath()).
+    // In the latter case we have to grow buffer capacity in a loop until the string fits.
+    // There also seems to be a lack of consensus whether the terminating NUL should be included in the count or not...
 
     let mut buffer = [0u8; 1024];
     let c_ptr = buffer.as_mut_ptr() as *mut c_char;
     let size = f(c_ptr, buffer.len());
     assert!((size as isize) >= 0);
+    // Must have at least 1 unused byte to ensure that we've received the entire string.
     if size < buffer.len() - 1 {
-        // Must have at least 1 unused byte to be sure that we've received the whole string
         unsafe {
             return CStr::from_ptr(c_ptr).to_owned();
         }
     }
 
-    let size_is_reliable = size > buffer.len();
-    let capacity = if size_is_reliable { size + 1 } else { buffer.len() * 2 };
+    let capacity = if size > buffer.len() { size + 2 } else { buffer.len() * 2 };
     let mut buffer = Vec::with_capacity(capacity);
     loop {
         let c_ptr = buffer.as_mut_ptr() as *mut c_char;
         let size = f(c_ptr, buffer.capacity());
         assert!((size as isize) >= 0);
-        if size < buffer.capacity() - 1 || size_is_reliable {
-            assert!(size < buffer.capacity()); // should be true if size_is_reliable
+        if size < buffer.capacity() - 1 {
             unsafe {
                 let s = CStr::from_ptr(c_ptr); // Count bytes to NUL
                 buffer.set_len(s.to_bytes().len());
@@ -70,6 +84,7 @@ where
     }
 }
 
+/// Get `str` a from NUL-terminated string pointer.  If the pointer is null, returns "".
 pub(crate) unsafe fn get_str<'a>(ptr: *const c_char) -> &'a str {
     if ptr.is_null() {
         ""
@@ -85,6 +100,24 @@ pub(crate) unsafe fn get_str<'a>(ptr: *const c_char) -> &'a str {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_with_cstr() {
+        let s = "0123456789ABCDEF";
+        with_cstr(s, |c| {
+            unsafe { assert_eq!(CStr::from_ptr(c).to_str().unwrap(), s) };
+        });
+
+        let s = "0123456789ABCDEF".repeat(16);
+        with_cstr(&s, |c| {
+            unsafe { assert_eq!(CStr::from_ptr(c).to_str().unwrap(), s) };
+        });
+
+        let s = "0123456789ABCDEF".repeat(100);
+        with_cstr(&s, |c| {
+            unsafe { assert_eq!(CStr::from_ptr(c).to_str().unwrap(), &s) };
+        });
+    }
 
     fn store_as_cstr(s: &str, buff: *mut c_char, size: usize) -> usize {
         let b = unsafe { slice::from_raw_parts_mut(buff as *mut u8, size) };
@@ -108,13 +141,13 @@ mod test {
             let string = "0123456789ABC".repeat(n);
             let cstring = CString::new(string.clone()).unwrap();
 
-            let iters = RefCell::new(0..2);
+            let iters = RefCell::new(0..2); // Limit the number of iterations
             assert_eq!(
                 cstring,
                 get_cstring(|buff, size| {
                     assert!(iters.borrow_mut().next().is_some());
                     store_as_cstr(&string, buff, size);
-                    // Returns the required storage length
+                    // Return the required storage length.
                     string.len()
                 })
             );
@@ -124,7 +157,7 @@ mod test {
                 get_cstring(|buff, size| {
                     assert!(iters.borrow_mut().next().is_some());
                     store_as_cstr(&string, buff, size);
-                    // Returns the required storage length, including NUL
+                    // Return the required storage length, including NUL.
                     string.len() + 1
                 })
             );
@@ -133,7 +166,7 @@ mod test {
                 cstring,
                 get_cstring(|buff, size| {
                     assert!(iters.borrow_mut().next().is_some());
-                    // Returns stored length
+                    // Return stored length.
                     store_as_cstr(&string, buff, size)
                 })
             );
@@ -142,8 +175,17 @@ mod test {
                 cstring,
                 get_cstring(|buff, size| {
                     assert!(iters.borrow_mut().next().is_some());
-                    // Returns stored length, including NUL
+                    // Return stored length, including NUL.
                     store_as_cstr(&string, buff, size) + 1
+                })
+            );
+            let iters = RefCell::new(0..100);
+            assert_eq!(
+                cstring,
+                get_cstring(|buff, size| {
+                    assert!(iters.borrow_mut().next().is_some());
+                    // Return a value between the stored and the actual required length.
+                    (store_as_cstr(&string, buff, size) + string.len()) / 2
                 })
             );
         }

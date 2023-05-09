@@ -1,5 +1,4 @@
 #![allow(non_upper_case_globals)]
-#![allow(deprecated)] // TODO: check for rust-cpp updates
 
 use std::ffi::{CStr, CString};
 use std::fmt;

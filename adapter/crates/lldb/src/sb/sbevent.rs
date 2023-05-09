@@ -122,6 +122,12 @@ impl<'a> SBProcessEvent<'a> {
             return SBProcess::GetInterruptedFromEvent(*event);
         })
     }
+    pub fn structured_data(&self) -> SBStructuredData {
+        let event = self.0;
+        cpp!(unsafe [event as "SBEvent*"] -> SBStructuredData as "SBStructuredData" {
+            return SBProcess::GetStructuredDataFromEvent(*event);
+        })
+    }
 
     pub const BroadcastBitStateChanged: u32 = (1 << 0);
     pub const BroadcastBitInterrupt: u32 = (1 << 1);

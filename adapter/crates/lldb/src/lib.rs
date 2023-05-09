@@ -149,6 +149,7 @@ mod sb {
     pub mod sbsection;
     pub mod sbstream;
     pub mod sbstringlist;
+    pub mod sbstructureddata;
     pub mod sbsymbol;
     pub mod sbsymbolcontext;
     pub mod sbsymbolcontextlist;
@@ -190,6 +191,7 @@ pub use sb::sbreproducer::*;
 pub use sb::sbsection::*;
 pub use sb::sbstream::*;
 pub use sb::sbstringlist::*;
+pub use sb::sbstructureddata::*;
 pub use sb::sbsymbol::*;
 pub use sb::sbsymbolcontext::*;
 pub use sb::sbsymbolcontextlist::*;

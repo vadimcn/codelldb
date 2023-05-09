@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use serde_derive::*;
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -181,30 +180,30 @@ impl DisassembledRange {
     }
 
     pub fn get_source_text(&self) -> String {
-        let source_location: Cow<str> = match self.start_addr.line_entry() {
-            Some(le) => format!("{}:{}", le.file_spec().path().display(), le.line()).into(),
-            None => "unknown".into(),
-        };
-
-        let description: Cow<str> = match self.start_addr.symbol() {
-            Some(symbol) => {
-                let mut descr = SBStream::new();
-                if symbol.get_description(&mut descr) {
-                    match str::from_utf8(descr.data()) {
-                        Ok(s) => Some(s.to_owned().into()),
-                        Err(_) => None,
-                    }
-                } else {
-                    None
-                }
-            }
-            None => None,
-        }
-        .unwrap_or("No Symbol Info".into());
-
         let mut text = String::new();
-        let _ = writeln!(text, "; {}", description);
-        let _ = writeln!(text, "; Source location: {}", source_location);
+
+        #[allow(unused_must_use)]
+        {
+            write!(text, "; Symbol: ");
+            if let Some(symbol) = self.start_addr.symbol() {
+                write!(text, "{}", symbol.display_name());
+                let mangled = symbol.mangled_name();
+                if mangled.len() > 0 {
+                    write!(text, ", mangled name={}", mangled);
+                }
+            } else {
+                write!(text, "no symbol info");
+            }
+            writeln!(text, "");
+
+            write!(text, "; Source: ");
+            if let Some(le) = self.start_addr.line_entry() {
+                write!(text, "{}:{}", le.file_spec().path().display(), le.line());
+            } else {
+                write!(text, "unknown");
+            }
+            writeln!(text, "");
+        }
 
         const MAX_INSTR_BYTES: usize = 8;
         let mut instr_data = vec![];

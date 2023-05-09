@@ -1450,12 +1450,18 @@ impl DebugSession {
         caps
     }
 
-    // Send fake stop event to force VSCode to refresh its UI state.
+    // Send a fake stop event to force VSCode to refresh its UI state.
     fn refresh_client_display(&mut self, thread_id: Option<ThreadID>) {
         let thread_id = match thread_id {
             Some(tid) => tid,
             None => self.target.process().selected_thread().thread_id(),
         };
+        if self.client_caps.supports_invalidated_event.unwrap_or(false) {
+            self.send_event(EventBody::invalidated(InvalidatedEventBody {
+                thread_id: Some(thread_id as i64),
+                ..Default::default()
+            }));
+        }
         self.send_event(EventBody::stopped(StoppedEventBody {
             thread_id: Some(thread_id as i64),
             all_threads_stopped: Some(true),

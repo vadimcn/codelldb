@@ -725,8 +725,8 @@ function generateSuite(triple: string) {
                 await ds.compareVariables(localVars, {
                     tuple: '(1, "a", 42)',
                     tuple_ref: '(1, "a", 42)',
-                    reg_struct: '{a:1, c:12}',
-                    reg_struct_ref: '{a:1, c:12}',
+                    reg_struct: '{b:"b", a:1, c:12, d:(3) vec![12, 34, 56]}',
+                    reg_struct_ref: '{b:"b", a:1, c:12, d:(3) vec![12, 34, 56]}',
                     //tuple_struct: '(3, "xxx", -3)',
                 })
             })

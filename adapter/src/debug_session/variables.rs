@@ -384,7 +384,7 @@ impl super::DebugSession {
             }
 
             if let Some(name) = child.name() {
-                if let Some(Ok(value)) = child.value().map(|s| s.to_str()) {
+                if let Some(Ok(value)) = child.summary().or_else(|| child.value()).map(|s| s.to_str()) {
                     if name.starts_with("[") {
                         log_errors!(write!(summary, "{}{}", sep, value));
                     } else {

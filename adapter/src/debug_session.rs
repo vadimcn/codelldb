@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::CStr;
 use std::fmt::Write;
+use std::io::{Cursor, LineWriter};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
@@ -165,7 +166,7 @@ impl DebugSession {
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
-            breakpoint_mode: BreakpointMode::Path
+            breakpoint_mode: BreakpointMode::Path,
         };
 
         debug_session.update_adapter_settings(&settings);
@@ -228,20 +229,31 @@ impl DebugSession {
     }
 
     fn pipe_console_events(dap_session: &DAPSession, mut con_reader: tokio::fs::File) {
+        use std::io::Write;
         let dap_session = dap_session.clone();
         tokio::spawn(async move {
             let mut con_data = [0u8; 1024];
+            let mut line_buf = LineWriter::new(Cursor::new(Vec::<u8>::new()));
             loop {
-                if let Ok(bytes) = con_reader.read(&mut con_data).await {
-                    if bytes == 0 {
+                if let Ok(count) = con_reader.read(&mut con_data).await {
+                    if count == 0 {
                         debug!("End of the console stream");
                         break;
                     }
-                    let event = EventBody::output(OutputEventBody {
-                        output: String::from_utf8_lossy(&con_data[0..bytes]).into(),
-                        ..Default::default()
-                    });
-                    log_errors!(dap_session.send_event(event).await);
+                    log_errors!(line_buf.write(&con_data[..count]));
+
+                    let writer_pos = line_buf.get_ref().position() as usize;
+                    if writer_pos > 0 {
+                        let output = &line_buf.get_ref().get_ref()[..writer_pos];
+                        let output = String::from_utf8_lossy(output).into_owned();
+                        let event = EventBody::output(OutputEventBody {
+                            output: output,
+                            category: Some("console".into()),
+                            ..Default::default()
+                        });
+                        log_errors!(dap_session.send_event(event).await);
+                        line_buf.get_mut().set_position(0);
+                    }
                 }
             }
         });

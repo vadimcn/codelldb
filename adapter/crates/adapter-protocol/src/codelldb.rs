@@ -8,7 +8,8 @@ pub use crate::dap::{
     CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
     DataBreakpoint, DataBreakpointAccessType, DataBreakpointInfoArguments, DataBreakpointInfoResponseBody,
     DisassembleArguments, DisassembleResponseBody, DisassembledInstruction, DisconnectArguments, EvaluateArguments,
-    EvaluateResponseBody, ExceptionBreakpointsFilter, ExitedEventBody, GotoArguments, GotoTarget, GotoTargetsArguments,
+    EvaluateResponseBody, ExceptionBreakMode, ExceptionBreakpointsFilter, ExceptionInfoArguments,
+    ExceptionInfoResponseBody, ExitedEventBody, GotoArguments, GotoTarget, GotoTargetsArguments,
     GotoTargetsResponseBody, InitializeRequestArguments, InstructionBreakpoint, InvalidatedAreas, InvalidatedEventBody,
     Module, ModuleEventBody, NextArguments, OutputEventBody, PauseArguments, ReadMemoryArguments,
     ReadMemoryResponseBody, RestartFrameArguments, ReverseContinueArguments, RunInTerminalRequestArguments,
@@ -75,6 +76,7 @@ pub enum RequestArguments {
     setInstructionBreakpoints(SetInstructionBreakpointsArguments),
     setFunctionBreakpoints(SetFunctionBreakpointsArguments),
     setExceptionBreakpoints(SetExceptionBreakpointsArguments),
+    exceptionInfo(ExceptionInfoArguments),
     configurationDone(Option<NoArguments>),
     pause(PauseArguments),
     #[serde(rename = "continue")]
@@ -124,6 +126,7 @@ pub enum ResponseBody {
     setInstructionBreakpoints(SetInstructionBreakpointsResponseBody),
     setFunctionBreakpoints(SetBreakpointsResponseBody),
     setExceptionBreakpoints,
+    exceptionInfo(ExceptionInfoResponseBody),
     configurationDone,
     pause,
     #[serde(rename = "continue")]

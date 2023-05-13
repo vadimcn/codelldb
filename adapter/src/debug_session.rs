@@ -395,6 +395,9 @@ impl DebugSession {
                         RequestArguments::setExceptionBreakpoints(args) =>
                             self.handle_set_exception_breakpoints(args)
                                 .map(|_| ResponseBody::setExceptionBreakpoints),
+                        RequestArguments::exceptionInfo(args) =>
+                            self.handle_execption_info(args)
+                                .map(|r| ResponseBody::exceptionInfo(r)),
                         RequestArguments::threads(_) =>
                             self.handle_threads()
                                 .map(|r| ResponseBody::threads(r)),
@@ -554,6 +557,7 @@ impl DebugSession {
             supports_instruction_breakpoints: Some(true),
             supports_read_memory_request: Some(true),
             supports_write_memory_request: Some(true),
+            supports_exception_info_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
             exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
@@ -1535,52 +1539,38 @@ impl DebugSession {
     }
 
     fn notify_process_running(&mut self) {
+        let thread_id = self.target.process().thread_at_index(0).thread_id();
         self.send_event(EventBody::continued(ContinuedEventBody {
             all_threads_continued: Some(true),
-            thread_id: 0,
+            thread_id: thread_id as i64,
         }));
     }
 
     fn notify_process_stopped(&mut self) {
-        // Find thread that has caused this stop
-        let mut stopped_thread;
-        // Check the currently selected thread first
         let process = self.target.process();
-        let selected_thread = process.selected_thread();
-        stopped_thread = match selected_thread.stop_reason() {
-            StopReason::Invalid | //.
-            StopReason::None => None,
-            _ => Some(selected_thread),
-        };
-        // Fall back to scanning all threads in the process
-        if stopped_thread.is_none() {
+        // Check the currently selected thread first.
+        let mut stopped_thread = process.selected_thread();
+        let is_valid_reason = |r| r != StopReason::Invalid && r != StopReason::None;
+        // Fall back to scanning all threads in the process.
+        if !is_valid_reason(stopped_thread.stop_reason()) {
             for thread in process.threads() {
-                match thread.stop_reason() {
-                    StopReason::Invalid | //.
-                    StopReason::None => (),
-                    _ => {
-                        process.set_selected_thread(&thread);
-                        stopped_thread = Some(thread);
-                        break;
-                    }
+                if is_valid_reason(thread.stop_reason()) {
+                    process.set_selected_thread(&thread);
+                    stopped_thread = thread;
+                    break;
                 }
             }
-        }
+        };
+
         // Analyze stop reason
-        let (stop_reason_str, description) = match stopped_thread {
-            Some(ref stopped_thread) => {
-                let stop_reason = stopped_thread.stop_reason();
-                match stop_reason {
-                    StopReason::Breakpoint => ("breakpoint", None),
-                    StopReason::Trace | //.
-                    StopReason::PlanComplete => ("step", None),
-                    StopReason::Watchpoint => ("watchpoint", None),
-                    StopReason::Signal => ("signal", Some(stopped_thread.stop_description())),
-                    StopReason::Exception => ("exception", Some(stopped_thread.stop_description())),
-                    _ => ("unknown", Some(stopped_thread.stop_description())),
-                }
-            }
-            None => ("unknown", None),
+        let (stop_reason, description) = match stopped_thread.stop_reason() {
+            StopReason::Breakpoint => ("breakpoint", None),
+            StopReason::Trace | //.
+                StopReason::PlanComplete => ("step", None),
+                StopReason::Watchpoint => ("data breakpoint", None),
+                StopReason::Signal => ("exception", Some(stopped_thread.stop_description())),
+                StopReason::Exception => ("exception", Some(stopped_thread.stop_description())),
+                _ => ("unknown", Some(stopped_thread.stop_description())),
         };
 
         if let Some(description) = &description {
@@ -1589,10 +1579,9 @@ impl DebugSession {
 
         self.send_event(EventBody::stopped(StoppedEventBody {
             all_threads_stopped: Some(true),
-            thread_id: stopped_thread.map(|t| t.thread_id() as i64),
-            reason: stop_reason_str.to_owned(),
-            description: None,
-            text: description,
+            thread_id: Some(stopped_thread.thread_id() as i64),
+            reason: stop_reason.to_owned(),
+            description: description,
             preserve_focus_hint: None,
             ..Default::default()
         }));
@@ -1601,6 +1590,23 @@ impl DebugSession {
             python.modules_loaded(&mut self.loaded_modules.iter());
         }
         self.loaded_modules.clear();
+    }
+
+    fn handle_execption_info(&mut self, args: ExceptionInfoArguments) -> Result<ExceptionInfoResponseBody, Error> {
+        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
+            Some(thread) => thread,
+            None => {
+                error!("Received invalid thread id in exceptionInfo request.");
+                bail!("Invalid thread id.");
+            }
+        };
+        let einfo = ExceptionInfoResponseBody {
+            exception_id: format!("{:?}", thread.stop_reason()),
+            description: Some(thread.stop_description()),
+            break_mode: ExceptionBreakMode::Always,
+            details: None,
+        };
+        Ok(einfo)
     }
 
     fn handle_target_event(&mut self, event: &SBTargetEvent) {

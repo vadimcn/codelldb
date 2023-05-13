@@ -12,6 +12,7 @@ export class Environment {
         else
             return this;
     }
+
     [key: string]: string;
 }
 
@@ -40,5 +41,16 @@ class IgnoreCaseProxy {
         let mappedKey = this.keys[upperKey];
         delete target[mappedKey];
         return true;
+    }
+}
+
+export class MapEx<K, V> extends Map<K, V> {
+    setdefault(key: K, def: V | (() => V)): V {
+        let value = super.get(key);
+        if (value == undefined) {
+            value = def instanceof Function ? def() : def;
+            super.set(key, value);
+        }
+        return value;
     }
 }

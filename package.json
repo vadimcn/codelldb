@@ -140,6 +140,24 @@
 				"title": "View Memory...",
 				"command": "lldb.viewMemory",
 				"enablement": "debugType == 'lldb'"
+			},
+			{
+				"category": "LLDB",
+				"title": "Exclude Caller",
+				"command": "lldb.excludedCallers.add",
+				"enablement": "debugType == 'lldb' && focusedView == 'workbench.debug.callStackView'"
+			},
+			{
+				"category": "LLDB",
+				"title": "Remove Caller Exclusion",
+				"command": "lldb.excludedCallers.remove",
+				"icon": "$(close)"
+			},
+			{
+				"category": "LLDB",
+				"title": "Remove All Caller Exclusions",
+				"command": "lldb.excludedCallers.removeAll",
+				"icon": "$(clear-all)"
 			}
 		],
 		"languages": [
@@ -163,8 +181,13 @@
 		"views": {
 			"debug": [
 				{
-					"id": "loadedModules",
+					"id": "lldb.loadedModules",
 					"name": "Modules",
+					"when": "debugType == 'lldb'"
+				},
+				{
+					"id": "lldb.excludedCallers",
+					"name": "Excluded Callers",
 					"when": "debugType == 'lldb'"
 				}
 			]
@@ -176,10 +199,28 @@
 					"when": "viewItem == lldb.moduleProperty"
 				}
 			],
+			"debug/callstack/context": [
+				{
+					"command": "lldb.excludedCallers.add",
+					"when": "debugType == 'lldb'"
+				}
+			],
+			"view/title": [
+				{
+					"command": "lldb.excludedCallers.removeAll",
+					"when": "view == 'lldb.excludedCallers'",
+					"group": "navigation"
+				}
+			],
 			"view/item/context": [
 				{
 					"command": "lldb.modules.copyValue",
 					"when": "viewItem == lldb.moduleProperty"
+				},
+				{
+					"command": "lldb.excludedCallers.remove",
+					"when": "view == 'lldb.excludedCallers'",
+					"group": "inline"
 				}
 			]
 		},

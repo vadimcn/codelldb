@@ -109,6 +109,8 @@ pub enum RequestArguments {
     // Custom
     _adapterSettings(AdapterSettings),
     _symbols(SymbolsRequest),
+    _excludeCaller(ExcludeCallerRequest),
+    _setExcludedCallers(SetExcludedCallersRequest),
     //_pythonMessage(Box<serde_json::value::RawValue>), https://github.com/serde-rs/json/issues/883
     _pythonMessage(serde_json::value::Value),
     #[serde(other)]
@@ -159,6 +161,8 @@ pub enum ResponseBody {
     // Custom
     _adapterSettings,
     _symbols(SymbolsResponse),
+    _excludeCaller(ExcludeCallerResponse),
+    _setExcludedCallers,
     _pythonMessage,
 }
 
@@ -318,6 +322,34 @@ pub enum Expressions {
 pub enum Either<T1, T2> {
     First(T1),
     Second(T2),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExcludeCallerRequest {
+    pub source: Either<String, i64>,
+    pub line: u32,
+    pub column: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExcludeCallerResponse {
+    pub breakpoint_id: Either<i64, (String, String)>,
+    pub symbol: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SetExcludedCallersRequest {
+    pub exclusions: Vec<ExcludedCaller>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExcludedCaller {
+    pub breakpoint_id: Either<i64, String>, // Numbers refer to breakpoints, strings - to exceptions.
+    pub symbol: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

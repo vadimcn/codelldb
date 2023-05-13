@@ -20,7 +20,8 @@ import { Cargo, expandCargo } from './cargo';
 import { pickProcess } from './pickProcess';
 import { Dict } from './novsc/commonTypes';
 import { AdapterSettings } from './novsc/adapterMessages';
-import { ModuleTreeDataProvider } from './modulesView';
+import { ModuleTreeDataProvider as ModulesView } from './modulesView';
+import { ExcludedCallersView } from './excludedCallersView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
@@ -44,7 +45,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     context: ExtensionContext;
     webviewManager: webview.WebviewManager;
     status: StatusBarItem;
-    loadedModules: ModuleTreeDataProvider;
+    loadedModules: ModulesView;
+    excludedCallers: ExcludedCallersView;
     rpcServer: SimpleServer;
 
     constructor(context: ExtensionContext) {
@@ -112,8 +114,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
                 this.status.hide();
         }));
 
-        this.loadedModules = new ModuleTreeDataProvider(context);
-        subscriptions.push(window.registerTreeDataProvider('loadedModules', this.loadedModules));
+        this.loadedModules = new ModulesView(context);
+        subscriptions.push(window.registerTreeDataProvider('lldb.loadedModules', this.loadedModules));
+
+        this.excludedCallers = new ExcludedCallersView(context);
+        this.excludedCallers.loadState();
+        subscriptions.push(window.registerTreeDataProvider('lldb.excludedCallers', this.excludedCallers));
 
         subscriptions.push(window.registerUriHandler(this));
 

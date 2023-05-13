@@ -51,6 +51,27 @@ impl SBThread {
         })
         .check()
     }
+    pub fn stop_reason_data_count(&self) -> usize {
+        cpp!(unsafe [self as "SBThread*"] -> usize as "size_t" {
+            return self->GetStopReasonDataCount();
+        })
+    }
+    /// Stop Reason              Count Data Type
+    /// ======================== ===== =========================================
+    /// StopReason::None          0
+    /// StopReason::Trace         0
+    /// StopReason::Breakpoint    N     duple: {breakpoint id, location id}
+    /// StopReason::Watchpoint    1     watchpoint id
+    /// StopReason::Signal        1     unix signal number
+    /// StopReason::Exception     N     exception data
+    /// StopReason::Exec          0
+    /// StopReason::PlanComplete  0
+    pub fn stop_reason_data_at_index(&self, index: usize) -> u64 {
+        let index = index as u32;
+        cpp!(unsafe [self as "SBThread*", index as "uint32_t"] -> u64 as "uint64_t" {
+            return self->GetStopReasonDataAtIndex(index);
+        })
+    }
     pub fn num_frames(&self) -> u32 {
         cpp!(unsafe [self as "SBThread*"] -> u32 as "uint32_t" {
             return self->GetNumFrames();

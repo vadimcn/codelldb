@@ -1,3 +1,4 @@
+use crate::debug_session::DebugSession;
 use crate::disassembly;
 use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
@@ -20,7 +21,7 @@ enum BreakpointKind {
     Disassembly,
     Instruction,
     Function,
-    Exception,
+    Exception(String), // Exception breakpoint with the given name.
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +33,7 @@ struct BreakpointInfo {
     log_message: Option<String>,
     hit_condition: Option<HitCondition>,
     hit_count: u32,
+    exclusions: Vec<String>,
 }
 
 pub(super) struct Breakpoints {
@@ -54,7 +56,12 @@ impl Breakpoints {
     }
 }
 
-impl super::DebugSession {
+const CPP_THROW: &str = "cpp_throw";
+const CPP_CATCH: &str = "cpp_catch";
+const RUST_PANIC: &str = "rust_panic";
+const SWIFT_THROW: &str = "swift_throw";
+
+impl DebugSession {
     pub(super) fn handle_set_breakpoints(
         &mut self,
         args: SetBreakpointsArguments,
@@ -349,47 +356,79 @@ impl super::DebugSession {
     ) -> Result<(), Error> {
         let mut breakpoints = self.breakpoints.borrow_mut();
         breakpoints.breakpoint_infos.retain(|_id, bp_info| {
-            if let BreakpointKind::Exception = bp_info.kind {
+            if let BreakpointKind::Exception(_) = bp_info.kind {
                 self.target.breakpoint_delete(bp_info.id);
                 false
             } else {
                 true
             }
         });
-        drop(breakpoints);
 
-        for bp in self.set_exception_breakpoints(&args.filters) {
-            let bp_info = self.make_bp_info(bp, BreakpointKind::Exception, None, None, None);
-            self.init_bp_actions(&bp_info);
-            self.breakpoints.borrow_mut().breakpoint_infos.insert(bp_info.id, bp_info);
+        for exc_name in &args.filters {
+            if let Some(bp) = self.set_exception_breakpoint(exc_name) {
+                let bp_info = self.make_bp_info(bp, BreakpointKind::Exception(exc_name.into()), None, None, None);
+                self.init_bp_actions(&bp_info);
+                breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
+            }
         }
         Ok(())
     }
+    pub(super) fn get_exception_filters() -> &'static [ExceptionBreakpointsFilter] {
+        lazy_static::lazy_static! {
+            static ref FILTERS: [ExceptionBreakpointsFilter; 4] = [
+                ExceptionBreakpointsFilter {
+                    filter: CPP_THROW.into(),
+                    label: "C++: on throw".into(),
+                    default: Some(true),
+                    ..Default::default()
+                },
+                ExceptionBreakpointsFilter {
+                    filter: CPP_CATCH.into(),
+                    label: "C++: on catch".into(),
+                    default: Some(false),
+                    ..Default::default()
+                },
+                ExceptionBreakpointsFilter {
+                    filter: RUST_PANIC.into(),
+                    label: "Rust: on panic".into(),
+                    default: Some(true),
+                    ..Default::default()
+                },
+                ExceptionBreakpointsFilter {
+                    filter: SWIFT_THROW.into(),
+                    label: "Swift: on throw".into(),
+                    default: Some(false),
+                    ..Default::default()
+                }
+            ];
+        }
+        &*FILTERS
+    }
 
-    fn set_exception_breakpoints(&mut self, filters: &[String]) -> Vec<SBBreakpoint> {
-        let cpp_throw = filters.iter().any(|x| x == "cpp_throw");
-        let cpp_catch = filters.iter().any(|x| x == "cpp_catch");
-        let rust_panic = filters.iter().any(|x| x == "rust_panic");
-        let swift_throw = filters.iter().any(|x| x == "swift_throw");
-        let mut bps = vec![];
-        if cpp_throw || cpp_catch {
-            let bp = self
-                .target
-                .breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
-            bp.add_name("cpp_exception");
-            bps.push(bp);
+    fn set_exception_breakpoint(&self, exc_name: &str) -> Option<SBBreakpoint> {
+        match exc_name {
+            CPP_THROW => {
+                let bp = self.target.breakpoint_create_for_exception(LanguageType::C_plus_plus, false, true);
+                bp.add_name("cpp_exception");
+                Some(bp)
+            }
+            CPP_CATCH => {
+                let bp = self.target.breakpoint_create_for_exception(LanguageType::C_plus_plus, true, false);
+                bp.add_name("cpp_exception");
+                Some(bp)
+            }
+            RUST_PANIC => {
+                let bp = self.target.breakpoint_create_by_name("rust_panic");
+                bp.add_name("rust_panic");
+                Some(bp)
+            }
+            SWIFT_THROW => {
+                let bp = self.target.breakpoint_create_for_exception(LanguageType::Swift, false, true);
+                bp.add_name("swift_exception");
+                Some(bp)
+            }
+            _ => None,
         }
-        if rust_panic {
-            let bp = self.target.breakpoint_create_by_name("rust_panic");
-            bp.add_name("rust_panic");
-            bps.push(bp);
-        }
-        if swift_throw {
-            let bp = self.target.breakpoint_create_for_exception(LanguageType::Swift, false, swift_throw);
-            bp.add_name("swift_exception");
-            bps.push(bp);
-        }
-        bps
     }
 
     fn make_bp_info(
@@ -418,6 +457,7 @@ impl super::DebugSession {
                 }
             }),
             hit_count: 0,
+            exclusions: Vec::new(),
         }
     }
 
@@ -513,7 +553,7 @@ impl super::DebugSession {
                     message,
                     ..Default::default()
                 },
-                BreakpointKind::Exception => Breakpoint {
+                BreakpointKind::Exception(_) => Breakpoint {
                     id: Some(bp_info.id as i64),
                     verified: bp_info.breakpoint.num_locations() > 0,
                     message,
@@ -562,13 +602,11 @@ impl super::DebugSession {
             None
         };
 
-        let hit_condition = bp_info.hit_condition.clone();
         let shared_session = self.self_ref.clone();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-            tokio::runtime::Handle::current().block_on(
-                shared_session.map(|s| s.on_breakpoint_hit(process, thread, location, &py_condition, &hit_condition)),
-            )
+            tokio::runtime::Handle::current()
+                .block_on(shared_session.map(|s| s.on_breakpoint_hit(process, thread, location, &py_condition)))
         });
     }
 
@@ -578,10 +616,28 @@ impl super::DebugSession {
         thread: &SBThread,
         location: &SBBreakpointLocation,
         py_condition: &Option<(PyObject, bool)>,
-        hit_condition: &Option<HitCondition>,
     ) -> bool {
         let mut breakpoints = self.breakpoints.borrow_mut();
         let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
+
+        if !bp_info.exclusions.is_empty() {
+            let symbols_on_stack: Vec<String> = thread
+                .frames()
+                .filter_map(|f| {
+                    if let Some(symbol) = f.pc_address().symbol() {
+                        Some(symbol.name().to_owned())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for exclusion in &bp_info.exclusions {
+                if symbols_on_stack.iter().any(|s| s == exclusion) {
+                    return false;
+                }
+            }
+        }
 
         if let Some((pycode, is_simple_expr)) = py_condition {
             let frame = thread.frame_at_index(0);
@@ -610,7 +666,7 @@ impl super::DebugSession {
         // however it does count ones where the callback was invoked, even if it returned false.
         bp_info.hit_count += 1;
 
-        if let Some(hit_condition) = hit_condition {
+        if let Some(hit_condition) = &bp_info.hit_condition {
             let hit_count = bp_info.hit_count;
             let should_stop = match hit_condition {
                 HitCondition::LT(n) => hit_count < *n,
@@ -718,5 +774,86 @@ impl super::DebugSession {
                 breakpoints.breakpoint_infos.remove(&bp.id());
             }
         }
+    }
+
+    pub(super) fn handle_exclude_caller(&mut self, args: ExcludeCallerRequest) -> Result<ExcludeCallerResponse, Error> {
+        let thread = self.target.process().selected_thread();
+        if thread.stop_reason() == StopReason::Breakpoint {
+            let bp_id = thread.stop_reason_data_at_index(0) as BreakpointID;
+            let mut breakpoints = self.breakpoints.borrow_mut();
+
+            if let Some(symbol) = self.symbol_from_location(&args.source, args.line, args.column) {
+                if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
+                    bp_info.exclusions.push(symbol.clone());
+
+                    let breakpoint_id = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
+                        let filter = DebugSession::get_exception_filters().iter().find(|f| f.filter == *exc_name);
+                        Either::Second((exc_name.clone(), filter.unwrap().label.clone()))
+                    } else {
+                        Either::First(bp_id as i64)
+                    };
+                    return Ok(ExcludeCallerResponse { breakpoint_id, symbol });
+                }
+            }
+            bail!(as_user_error("Could not locate symbol for this stack frame."))
+        } else {
+            bail!(as_user_error("Must be stopped on a breakpoint."))
+        }
+    }
+
+    // Look up symbol containing the source location
+    fn symbol_from_location(&self, source: &Either<String, i64>, line: u32, column: Option<u32>) -> Option<String> {
+        let bp2 = match source {
+            Either::First(file_path) => {
+                let file_path_norm = normalize_path(Path::new(file_path));
+                self.target.breakpoint_create_by_location(&file_path_norm, line, column)
+            }
+            Either::Second(source_ref) => {
+                if let Ok(h) = handles::from_i64(*source_ref) {
+                    if let Some(dasm) = self.disassembly.find_by_handle(h) {
+                        let laddr = dasm.address_by_line_num(line);
+                        self.target.breakpoint_create_by_load_address(laddr)
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            }
+        };
+        let mut symbol = None;
+        if bp2.num_locations() > 0 {
+            let loc = bp2.location_at_index(0);
+            symbol = loc.address().symbol().map(|s| s.name().to_owned());
+        }
+        self.target.breakpoint_delete(bp2.id());
+        symbol
+    }
+
+    pub(super) fn handle_set_excluded_callers(&mut self, args: SetExcludedCallersRequest) -> Result<(), Error> {
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        for bp_info in breakpoints.breakpoint_infos.values_mut() {
+            bp_info.exclusions.clear();
+        }
+        for exclusion in args.exclusions {
+            match exclusion.breakpoint_id {
+                Either::First(bp_id) => {
+                    let bp_id = bp_id as BreakpointID;
+                    if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
+                        bp_info.exclusions.push(exclusion.symbol);
+                    }
+                }
+                Either::Second(exc_name) => {
+                    for bp_info in breakpoints.breakpoint_infos.values_mut() {
+                        if let BreakpointKind::Exception(exc_name2) = &bp_info.kind {
+                            if &exc_name == exc_name2 {
+                                bp_info.exclusions.push(exclusion.symbol.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }

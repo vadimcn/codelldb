@@ -481,6 +481,12 @@ impl DebugSession {
                         RequestArguments::_symbols(args) =>
                             self.handle_symbols(args)
                                 .map(|r| ResponseBody::_symbols(r)),
+                        RequestArguments::_excludeCaller(args) =>
+                            self.handle_exclude_caller(args)
+                                .map(|r| ResponseBody::_excludeCaller(r)),
+                        RequestArguments::_setExcludedCallers(args) =>
+                            self.handle_set_excluded_callers(args)
+                                .map(|_| ResponseBody::_setExcludedCallers),
                         RequestArguments::_pythonMessage(args) =>
                             self.handle_python_message(args)
                                 .map(|_| ResponseBody::_pythonMessage),
@@ -571,44 +577,20 @@ impl DebugSession {
             supports_exception_info_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
-            exception_breakpoint_filters: Some(self.get_exception_filters(&self.source_languages)),
+            exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }
     }
 
-    fn get_exception_filters(&self, source_langs: &[String]) -> Vec<ExceptionBreakpointsFilter> {
-        let mut filters = vec![];
-        if source_langs.iter().any(|x| x == "cpp") {
-            filters.push(ExceptionBreakpointsFilter {
-                filter: "cpp_throw".into(),
-                label: "C++: on throw".into(),
-                default: Some(true),
-                ..Default::default()
-            });
-            filters.push(ExceptionBreakpointsFilter {
-                filter: "cpp_catch".into(),
-                label: "C++: on catch".into(),
-                default: Some(false),
-                ..Default::default()
-            });
+    fn get_exception_filters_for(&self, source_langs: &[String]) -> Vec<ExceptionBreakpointsFilter> {
+        let mut result = vec![];
+        for exc_filter in DebugSession::get_exception_filters() {
+            let filter_lang = exc_filter.filter.split('_').next().unwrap();
+            if source_langs.iter().any(|l| l == filter_lang) {
+                result.push(exc_filter.clone());
+            }
         }
-        if source_langs.iter().any(|x| x == "rust") {
-            filters.push(ExceptionBreakpointsFilter {
-                filter: "rust_panic".into(),
-                label: "Rust: on panic".into(),
-                default: Some(true),
-                ..Default::default()
-            });
-        }
-        if source_langs.iter().any(|x| x == "swift") {
-            filters.push(ExceptionBreakpointsFilter {
-                filter: "swift_throw".into(),
-                label: "Swift: on throw".into(),
-                default: Some(false),
-                ..Default::default()
-            });
-        }
-        filters
+        result
     }
 
     fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
@@ -1456,7 +1438,7 @@ impl DebugSession {
         if let Some(ref source_languages) = settings.source_languages {
             if self.source_languages.iter().ne(source_languages) {
                 self.source_languages = source_languages.to_owned();
-                caps.exception_breakpoint_filters = Some(self.get_exception_filters(&self.source_languages));
+                caps.exception_breakpoint_filters = Some(self.get_exception_filters_for(&self.source_languages));
             }
         }
         if let Some(python) = &self.python {
@@ -1630,7 +1612,7 @@ impl DebugSession {
                 }));
 
                 // Running scripts during target execution seems to trigger a bug in LLDB,
-                // so we defer loaded module notification till next stop.
+                // so we defer loaded module notification till the next stop.
                 self.loaded_modules.push(module);
             }
         } else if flags & SBTargetEvent::BroadcastBitSymbolsLoaded != 0 {

@@ -22,6 +22,7 @@
     - [Conditional Breakpoints](#conditional-breakpoints)
     - [Data Breakpoints](#data-breakpoints)
     - [Disassembly View](#disassembly-view)
+    - [Excluded Callers](#excluded-callers)
     - [Formatting](#formatting)
         - [Pointers](#pointers)
     - [Expressions](#expressions)
@@ -482,6 +483,15 @@ While is disassembly view, 'step over' and 'step into' debug actions will perfor
 stepping rather than source-level stepping.
 
 ![disassembly view](images/disasm.png)
+
+## Excluded Callers
+
+Sometimes you may want skip breakpoints when called from certain code paths.  This is particularily relevant for "on throw"
+exception breakpoints in programs that use exceptions as a part of "normal" control flow.
+
+When stopped on a breakpoint, you can right-click a frame in the CALL STACK panel and choose the "Exclude Caller" item.
+Afterwards, the debugger won't stop on that breakpoint location, if the excluded caller appears anywhere in the call stack.
+You can see and manage current exclusions in the EXCLUDED CALLERS panel.
 
 ## Formatting
 You may change the default display format of evaluation results using the `Display Format` command.

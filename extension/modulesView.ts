@@ -1,9 +1,9 @@
 import {
     debug, env, commands, TreeDataProvider, TreeItem, ProviderResult, EventEmitter,
-    ExtensionContext, TreeItemCollapsibleState, DebugSession, DebugAdapterTracker
+    ExtensionContext, TreeItemCollapsibleState, DebugSession, DebugAdapterTracker, DebugAdapterTrackerFactory
 } from 'vscode';
+import { MapEx } from './novsc/commonTypes';
 import { DebugProtocol } from '@vscode/debugprotocol';
-import { Dict } from './novsc/commonTypes';
 
 type Module = DebugProtocol.Module
 
@@ -19,42 +19,63 @@ class ModuleProperty {
 
 type Element = Module | ModuleProperty;
 
+export class ModuleTreeDataProvider implements TreeDataProvider<Element>, DebugAdapterTrackerFactory {
 
-export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
-
-    sessions: Dict<Module[]> = {};
+    sessions = new MapEx<string, Module[]>();
     activeSessionId: string = undefined;
 
     onDidChangeTreeDataEmitter = new EventEmitter<any>();
     readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
     constructor(context: ExtensionContext) {
+        context.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
         context.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
         context.subscriptions.push(debug.onDidStartDebugSession(this.onStartDebugSession, this));
         context.subscriptions.push(debug.onDidChangeActiveDebugSession(this.onChangedActiveDebugSession, this));
-        context.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
-    }
-
-    modulesForSession(sessionId: string): Module[] {
-        let modules = this.sessions[sessionId];
-        if (modules == undefined) {
-            modules = []
-            this.sessions[sessionId] = modules;
-        }
-        return modules;
     }
 
     copyValue(prop: ModuleProperty): Thenable<void> {
         return env.clipboard.writeText(prop.value);
     }
 
+    moduleChanged(session: DebugSession, event: DebugProtocol.ModuleEvent) {
+        let modules = this.sessions.setdefault(session.id, []);
+        if (event.body.reason == 'new' || event.body.reason == 'changed') {
+            let index = modules.findIndex(m => m.id == event.body.module.id);
+            if (index == -1) {
+                modules.push(event.body.module);
+            } else {
+                modules[index] = event.body.module;
+            }
+        } else if (event.body.reason == 'removed') {
+            modules.filter((m) => m.id != event.body.module.id);
+        }
+
+        if (session.id == this.activeSessionId) {
+            this.onDidChangeTreeDataEmitter.fire(null);
+        }
+    }
+
+    onStartDebugSession(session: DebugSession) {
+        if (!this.activeSessionId) {
+            this.activeSessionId = session?.id;
+            this.onDidChangeTreeDataEmitter.fire(null);
+        }
+    }
+
+    onChangedActiveDebugSession(session: DebugSession | undefined) {
+        this.activeSessionId = session?.id;
+        this.onDidChangeTreeDataEmitter.fire(null);
+    }
+
+    // TreeDataProvider
     getChildren(element?: Element): ProviderResult<Element[]> {
         if (element == undefined) {
-            return this.activeSessionId ? this.sessions[this.activeSessionId] : [];
+            return (this.activeSessionId ? this.sessions.get(this.activeSessionId) : null) || [];
         } else if (element instanceof ModuleProperty) {
             return [];
         } else {
-            let module = <Module>element;
+            let module = element as Module;
             let props = [];
             if (module.path)
                 props.push(new ModuleProperty('path', module.path));
@@ -76,61 +97,25 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element> {
             item.contextValue = 'lldb.moduleProperty';
             return item;
         } else {
-            let module = <Module>element;
+            let module = element as Module;
             let item = new TreeItem(module.name, TreeItemCollapsibleState.Collapsed);
             return item;
         }
     }
 
+    // DebugAdapterTrackerFactory
     createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker> {
-        return new AdapterTracker(session, this);
-    }
-
-    onStartDebugSession(session: DebugSession) {
-        if (!this.activeSessionId) {
-            this.activeSessionId = session?.id;
-            this.onDidChangeTreeDataEmitter.fire(null);
-        }
-    }
-
-    onChangedActiveDebugSession(session: DebugSession | undefined) {
-        this.activeSessionId = session?.id;
-        this.onDidChangeTreeDataEmitter.fire(null);
-    }
-}
-
-class AdapterTracker implements DebugAdapterTracker {
-    session: DebugSession;
-    treeView: ModuleTreeDataProvider;
-
-    constructor(session: DebugSession, treeView: ModuleTreeDataProvider) {
-        this.session = session;
-        this.treeView = treeView;
-    }
-
-    onDidSendMessage(message: any) {
-        if (message.type == 'event' && message.event == 'module') {
-            let modules = this.treeView.modulesForSession(this.session.id);
-            let event = <DebugProtocol.ModuleEvent>message;
-            if (event.body.reason == 'new' || event.body.reason == 'changed') {
-                let index = modules.findIndex(m => m.id == event.body.module.id);
-                if (index == -1) {
-                    modules.push(event.body.module);
-                } else {
-                    modules[index] = event.body.module;
+        let treeView = this;
+        return {
+            onDidSendMessage(message: any) {
+                if (message.type == 'event' && message.event == 'module') {
+                    treeView.moduleChanged(session, message as DebugProtocol.ModuleEvent);
                 }
-            } else if (event.body.reason == 'removed') {
-                modules.filter((m) => m.id != event.body.module.id);
-            }
-
-            if (this.session.id == this.treeView.activeSessionId) {
-                this.treeView.onDidChangeTreeDataEmitter.fire(null);
+            },
+            onWillStopSession() {
+                treeView.sessions.delete(session.id);
+                treeView.onDidChangeTreeDataEmitter.fire(null);
             }
         }
-    }
-
-    onWillStopSession() {
-        delete this.treeView.sessions[this.session.id];
-        this.treeView.onDidChangeTreeDataEmitter.fire(null);
     }
 }

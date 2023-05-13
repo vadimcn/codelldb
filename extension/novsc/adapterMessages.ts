@@ -28,3 +28,22 @@ export interface SymbolsRequest {
 export interface SymbolsResponse {
     symbols: Symbol[];
 }
+
+export interface ExcludeCallerRequest {
+    source: number | string;
+    line: number;
+    column: number;
+}
+
+export interface ExcludeCallerResponse {
+    breakpointId: number | [string, string] ;
+    symbol: string
+}
+
+
+export interface SetExcludedCallersRequest {
+    exclusions: {
+        breakpointId: string | number;
+        symbol: string
+    }[];
+}

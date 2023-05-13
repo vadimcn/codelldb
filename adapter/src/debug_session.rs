@@ -562,7 +562,6 @@ impl DebugSession {
             support_terminate_debuggee: Some(true),
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
-            supports_restart_frame: Some(true),
             supports_cancel_request: Some(true),
             supports_disassemble_request: Some(true),
             supports_stepping_granularity: Some(true),

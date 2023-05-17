@@ -196,7 +196,8 @@
 					"filter": {
 						"type": "object"
 					}
-				}
+				},
+				"when": "false"
 			}
 		],
 		"configuration": [

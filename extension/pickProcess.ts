@@ -17,9 +17,14 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
             iconPath: Uri.file(context.extensionPath + '/images/user.svg'),
             tooltip: 'Showing own processes'
         };
+
         let qpick = window.createQuickPick<ProcessItem>();
         qpick.title = 'Select a process:';
         qpick.buttons = [allUsers ? showingAll : showingMy];
+        qpick.matchOnDetail = true;
+        qpick.matchOnDescription = true;
+        qpick.ignoreFocusOut = true;
+
         qpick.onDidAccept(() => {
             if (qpick.selectedItems && qpick.selectedItems[0])
                 resolve(qpick.selectedItems[0].pid.toString())
@@ -27,6 +32,7 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
                 resolve(undefined);
             qpick.dispose();
         });
+
         qpick.onDidTriggerButton(async () => {
             allUsers = !allUsers;
             qpick.buttons = [allUsers ? showingAll : showingMy];
@@ -34,12 +40,12 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
             qpick.items = await getProcessList(context, allUsers);
             qpick.busy = false;
         });
+
         qpick.onDidHide(() => {
             resolve(undefined);
             qpick.dispose();
         });
-        qpick.matchOnDetail = true;
-        qpick.matchOnDescription = true;
+
         qpick.busy = true;
         qpick.show();
         qpick.items = await getProcessList(context, allUsers);

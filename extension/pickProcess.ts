@@ -59,7 +59,7 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean): Pro
     if (!await async.fs.exists(lldbPath)) {
         lldbPath = lldb;
     }
-    let folder = workspace.workspaceFolders[0];
+    let folder = workspace.workspaceFolders?.[0];
     let config = workspace.getConfiguration('lldb', folder?.uri);
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
     let lldbCommand = 'platform process list --show-args';

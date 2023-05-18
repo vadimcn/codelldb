@@ -408,7 +408,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             launchConfig.args = stringArgv(launchConfig.args);
         }
 
-        launchConfig.relativePathBase = launchConfig.relativePathBase || workspace.rootPath;
+        launchConfig.relativePathBase = launchConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
 
         // Deal with Cargo
         if (launchConfig.cargo != undefined) {

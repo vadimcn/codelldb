@@ -243,162 +243,31 @@
 		],
 		"configuration": [
 			{
-				"title": "Launch configuration defaults",
+				"title": "General",
 				"properties": {
-					"lldb.launch.initCommands": {
-						"markdownDescription": "Commands executed *before* initCommands in individual launch configurations.",
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"order": 1,
-						"scope": "resource"
-					},
-					"lldb.launch.preRunCommands": {
-						"markdownDescription": "Commands executed *before* preRunCommands in individual launch configurations.",
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"order": 2,
-						"scope": "resource"
-					},
-					"lldb.launch.postRunCommands": {
-						"markdownDescription": "Commands executed *before* postRunCommands in individual launch configurations.",
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"order": 3,
-						"scope": "resource"
-					},
-					"lldb.launch.exitCommands": {
-						"markdownDescription": "Commands executed *after* exitCommands in individual launch configurations.",
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"order": 4,
-						"scope": "resource"
-					},
-					"lldb.launch.env": {
-						"description": "Additional environment variables merged with 'env' individual launch configurations.",
-						"type": "object",
-						"patternProperties": {
-							".*": {
-								"type": "string"
-							}
-						},
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.envFile": {
-						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/envFile",
-						"order": 10
-					},
-					"lldb.launch.cwd": {
-						"description": "Default program working directory.",
-						"type": "string",
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.terminal": {
-						"description": "Default terminal type.",
+					"lldb.consoleMode": {
+						"description": "Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate.",
 						"type": "string",
 						"enum": [
-							"integrated",
-							"external",
-							"console"
+							"commands",
+							"evaluate",
+							"split"
 						],
+						"default": "commands",
 						"enumDescriptions": [
-							"Use integrated terminal in VSCode.",
-							"Use external terminal window.",
-							"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
+							"Treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",
+							"Treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).",
+							"(experimental) Use the debug console for warningevaluation of expressions, open a separate terminal for input of LLDB commands."
 						],
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.stdio": {
-						"description": "Default destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
-						"type": [
-							"null",
-							"string",
-							"array",
-							"object"
-						],
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.expressions": {
-						"description": "The default evaluator type used for expressions.",
-						"type": "string",
-						"enum": [
-							"simple",
-							"python",
-							"native"
-						],
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.sourceMap": {
-						"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
-						"type": "object",
-						"patternProperties": {
-							".*": {
-								"type": "string"
-							}
-						},
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.relativePathBase": {
-						"description": "Default base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
-						"type": "string",
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.breakpointMode": {
-						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode",
-						"order": 10,
-						"scope": "resource"
-					},
-					"lldb.launch.sourceLanguages": {
-						"description": "A list of source languages to enable language-specific features for.",
-						"type": "array",
-						"order": 100,
-						"scope": "resource"
-					},
-					"lldb.launch.debugServer": {
-						"description": "Debug server port.",
-						"type": [
-							"null",
-							"integer"
-						],
-						"defaultSnippets": [
-							{
-								"label": "Port 4711",
-								"body": 4711
-							}
-						],
-						"order": 100,
-						"scope": "resource"
-					}
-				}
-			},
-			{
-				"title": "CodeLLDB",
-				"properties": {
-					"lldb.suppressMissingSourceFiles": {
-						"description": "Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).",
-						"type": "boolean",
-						"default": true,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 1
 					},
 					"lldb.evaluationTimeout": {
 						"description": "Timeout for expression evaluation, in seconds.",
 						"type": "number",
 						"default": 5,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 2
 					},
 					"lldb.displayFormat": {
 						"description": "Default format for displayed variable values.",
@@ -410,7 +279,15 @@
 							"binary"
 						],
 						"default": "auto",
-						"scope": "resource"
+						"scope": "resource",
+						"order": 3
+					},
+					"lldb.dereferencePointers": {
+						"description": "Whether to show summaries of the pointees instead of numeric values of the pointers themselves.",
+						"type": "boolean",
+						"default": true,
+						"scope": "resource",
+						"order": 4
 					},
 					"lldb.showDisassembly": {
 						"description": "When to show disassembly.",
@@ -426,29 +303,15 @@
 							"Never show.",
 							"Always show, even if source is available."
 						],
-						"scope": "resource"
+						"scope": "resource",
+						"order": 5
 					},
-					"lldb.dereferencePointers": {
-						"description": "Whether to show summaries of the pointees instead of numeric values of the pointers themselves.",
+					"lldb.suppressMissingSourceFiles": {
+						"description": "Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).",
 						"type": "boolean",
 						"default": true,
-						"scope": "resource"
-					},
-					"lldb.consoleMode": {
-						"description": "Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate.",
-						"type": "string",
-						"enum": [
-							"commands",
-							"evaluate",
-							"split"
-						],
-						"default": "commands",
-						"enumDescriptions": [
-							"Treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",
-							"Treat debug console input as expressions.  In order to execute a debugger command, prefix it with '`' (backtick).",
-							"(experimental) Use the debug console for warningevaluation of expressions, open a separate terminal for input of LLDB commands."
-						],
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.dbgconfig": {
 						"description": "Common user-defined settings that can be inserted into launch configurations using ${dbgconfig:name} syntax.",
@@ -465,23 +328,189 @@
 							}
 						},
 						"default": {},
-						"scope": "resource"
+						"scope": "resource",
+						"order": 100
+					}
+				}
+			},
+			{
+				"title": "Launch configuration defaults",
+				"properties": {
+					"lldb.launch.initCommands": {
+						"markdownDescription": "Commands executed *before* initCommands in individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 1
+					},
+					"lldb.launch.preRunCommands": {
+						"markdownDescription": "Commands executed *before* preRunCommands in individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 2
+					},
+					"lldb.launch.postRunCommands": {
+						"markdownDescription": "Commands executed *before* postRunCommands in individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 3
+					},
+					"lldb.launch.exitCommands": {
+						"markdownDescription": "Commands executed *after* exitCommands in individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 4
+					},
+					"lldb.launch.env": {
+						"description": "Additional environment variables merged with 'env' individual launch configurations.",
+						"type": "object",
+						"patternProperties": {
+							".*": {
+								"type": "string"
+							}
+						},
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.envFile": {
+						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/envFile",
+						"order": 10
+					},
+					"lldb.launch.cwd": {
+						"description": "Default program working directory.",
+						"type": "string",
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.terminal": {
+						"description": "Default terminal type.",
+						"type": "string",
+						"enum": [
+							"integrated",
+							"external",
+							"console"
+						],
+						"enumDescriptions": [
+							"Use integrated terminal in VSCode.",
+							"Use external terminal window.",
+							"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
+						],
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.stdio": {
+						"description": "Default destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
+						"type": [
+							"null",
+							"string",
+							"array",
+							"object"
+						],
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.expressions": {
+						"description": "The default evaluator type used for expressions.",
+						"type": "string",
+						"enum": [
+							"simple",
+							"python",
+							"native"
+						],
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.sourceMap": {
+						"description": "Additional entries that will be merged with 'sourceMap's of individual launch configurations.",
+						"type": "object",
+						"patternProperties": {
+							".*": {
+								"type": "string"
+							}
+						},
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.breakpointMode": {
+						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode",
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.launch.sourceLanguages": {
+						"description": "A list of source languages to enable language-specific features for.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 20
+					},
+					"lldb.launch.relativePathBase": {
+						"description": "Default base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
+						"type": "string",
+						"scope": "resource",
+						"order": 100
+					},
+					"lldb.launch.debugServer": {
+						"description": "Debug server port.",
+						"type": [
+							"null",
+							"integer"
+						],
+						"defaultSnippets": [
+							{
+								"label": "Port 4711",
+								"body": 4711
+							}
+						],
+						"scope": "resource",
+						"order": 999
 					}
 				}
 			},
 			{
 				"title": "Advanced",
 				"properties": {
+					"lldb.verboseLogging": {
+						"description": "Turns on verbose logging.",
+						"type": "boolean",
+						"default": false,
+						"scope": "resource",
+						"order": 1
+					},
+					"lldb.rpcServer": {
+						"description": "Start an RPC server that will accept debug configuration requests.",
+						"type": [
+							"object",
+							"null"
+						],
+						"default": null,
+						"scope": "window",
+						"order": 2
+					},
 					"lldb.library": {
 						"markdownDescription": "Which LLDB library to use.\n\nThis can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
 						"type": "string",
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.cargo": {
 						"markdownDescription": "Name of the command to invoke as Cargo.",
 						"type": "string",
 						"default": "cargo",
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.adapterEnv": {
 						"description": "Extra environment variables for the debug adapter.",
@@ -492,13 +521,8 @@
 							}
 						},
 						"default": {},
-						"scope": "resource"
-					},
-					"lldb.verboseLogging": {
-						"description": "Turns on verbose logging.",
-						"type": "boolean",
-						"default": false,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.reproducer": {
 						"markdownDescription": "Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).\nMay also contain a path of the directory to save the reproducer in.",
@@ -507,7 +531,8 @@
 							"string"
 						],
 						"default": false,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.terminalPromptClear": {
 						"description": "A sequence of strings sent to the terminal in order to clear its command prompt.",
@@ -516,32 +541,28 @@
 							"type": "string"
 						},
 						"default": null,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.evaluateForHovers": {
 						"description": "Enable value preview when cursor is hovering over a variable.",
 						"type": "boolean",
 						"default": true,
-						"scope": "resource"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.commandCompletions": {
 						"description": "Enable command completions in debug console.",
 						"type": "boolean",
 						"default": true,
-						"scope": "resource"
-					},
-					"lldb.rpcServer": {
-						"description": "Start an RPC server that will accept debug configuration requests.",
-						"type": [
-							"object",
-							"null"
-						],
-						"scope": "window"
+						"scope": "resource",
+						"order": 10
 					},
 					"lldb.suppressUpdateNotifications": {
 						"description": "Don't show extension update notifications.",
 						"type": "boolean",
-						"scope": "application"
+						"scope": "application",
+						"order": 100
 					}
 				}
 			}
@@ -738,13 +759,11 @@
 								"type": [
 									"array",
 									"string"
-								],
-								"default": []
+								]
 							},
 							"cwd": {
 								"description": "Program working directory.",
-								"type": "string",
-								"default": "${workspaceFolder}"
+								"type": "string"
 							},
 							"env": {
 								"description": "Additional environment variables.",
@@ -753,8 +772,7 @@
 									".*": {
 										"type": "string"
 									}
-								},
-								"default": {}
+								}
 							},
 							"envFile": {
 								"description": "File to read the environment variables from.",

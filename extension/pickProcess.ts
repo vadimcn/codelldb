@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as adapter from './novsc/adapter';
 import * as async from './novsc/async';
+import { getExtensionConfig } from './main';
 
 type ProcessItem = QuickPickItem & { pid: number };
 
@@ -60,7 +61,7 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean): Pro
         lldbPath = lldb;
     }
     let folder = workspace.workspaceFolders?.[0];
-    let config = workspace.getConfiguration('lldb', folder?.uri);
+    let config = getExtensionConfig(folder?.uri);
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
     let lldbCommand = 'platform process list --show-args';
     if (allUsers)

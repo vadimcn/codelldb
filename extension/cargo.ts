@@ -1,6 +1,5 @@
 import {
-    tasks, workspace, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder,
-    CancellationToken, ConfigurationScope, Uri
+    tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken
 } from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -8,7 +7,7 @@ import * as readline from 'readline';
 import { inspect } from 'util';
 import * as async from './novsc/async';
 import { Dict, Environment } from './novsc/commonTypes';
-import { output } from './main';
+import { output, getExtensionConfig } from './main';
 import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
 import { ErrorWithCause, formatError } from './novsc/error';
 
@@ -268,7 +267,7 @@ export class Cargo {
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void,
     ): Promise<number> {
-        let config = workspace.getConfiguration('lldb', this.folder);
+        let config = getExtensionConfig(this.folder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
 
         return new Promise<number>((resolve, reject) => {

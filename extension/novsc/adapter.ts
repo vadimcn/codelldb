@@ -9,9 +9,10 @@ import { AdapterSettings } from './adapterMessages';
 export interface AdapterStartOptions {
     extensionRoot: string;
     workDir: string;
-    extraEnv: Dict<string>; // extra environment to be set for adapter
+    extraEnv: Dict<string>; // Extra environment to be set for adapter
     port: number;
-    connect: boolean; // Whether to connect or to listen on the port
+    connect: boolean;  // Whether to connect or to listen on the port
+    authToken?: string; // Token to use for authentication when reverse-connecting
     adapterSettings: AdapterSettings;
     verboseLogging: boolean;
 }
@@ -30,6 +31,9 @@ export async function getSpawnParams(
     let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
     let portAction = options.connect ? '--connect' : '--port';
     let args = ['--liblldb', liblldb, portAction, options.port.toString()];
+    if (options.authToken) {
+        args = args.concat(['--auth-token', options.authToken]);
+    }
     if (options.adapterSettings) {
         args = args.concat(['--settings', JSON.stringify(options.adapterSettings)]);
     }

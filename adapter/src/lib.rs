@@ -6,6 +6,7 @@ use lldb::*;
 use std::net;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
@@ -73,6 +74,7 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
         return Err("Either --connect or --port must be specified".into());
     };
     let multi_session = matches.is_present("multi-session");
+    let auth_token = matches.value_of("auth-token");
 
     let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
     let addr = net::SocketAddr::new(localhost.into(), port);
@@ -86,8 +88,12 @@ pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
     rt.block_on(async {
         if connect {
             debug!("Connecting to {}", addr);
-            let tcp_stream = TcpStream::connect(addr).await?;
+            let mut tcp_stream = TcpStream::connect(addr).await?;
             tcp_stream.set_nodelay(true).unwrap();
+            if let Some(auth_token) = auth_token {
+                let auth_header = format!("Auth-Token: {}\r\n", auth_token);
+                tcp_stream.write_all(&auth_header.as_bytes()).await?;
+            }
             let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
             run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
         } else {

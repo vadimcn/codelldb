@@ -9,6 +9,7 @@ import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import * as querystring from 'querystring';
 import YAML from 'yaml';
 import stringArgv from 'string-argv';
@@ -446,11 +447,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             delete session.configuration.sourceLanguages;
         }
 
-        let connector = new ReverseAdapterConnector();
+        let authToken = crypto.randomBytes(16).toString('base64');
+        let connector = new ReverseAdapterConnector(authToken);
         let port = await connector.listen();
 
         try {
-            await this.startDebugAdapter(session.workspaceFolder, adapterSettings, port);
+            await this.startDebugAdapter(session.workspaceFolder, adapterSettings, port, authToken);
             await connector.accept();
             return new DebugAdapterInlineImplementation(connector);
         } catch (err) {
@@ -531,7 +533,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async startDebugAdapter(
         folder: WorkspaceFolder | undefined,
         adapterSettings: AdapterSettings,
-        connectPort: number
+        connectPort: number,
+        authToken: string
     ): Promise<ChildProcess> {
         let config = this.getExtensionConfig(folder);
         let adapterEnv = config.get('adapterEnv', {});
@@ -550,6 +553,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             workDir: workspace.rootPath,
             port: connectPort,
             connect: true,
+            authToken: authToken,
             adapterSettings: adapterSettings,
             verboseLogging: verboseLogging
         });
@@ -592,9 +596,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     async runDiagnostics(folder?: WorkspaceFolder) {
         let succeeded;
         try {
-            let connector = new ReverseAdapterConnector();
+            let authToken = crypto.randomBytes(16).toString('base64');
+            let connector = new ReverseAdapterConnector(authToken);
             let port = await connector.listen();
-            let adapter = await this.startDebugAdapter(folder, {}, port);
+            let adapter = await this.startDebugAdapter(folder, {}, port, authToken);
             let adapterExitAsync = new Promise((resolve, reject) => {
                 adapter.on('exit', resolve);
                 adapter.on('error', reject);

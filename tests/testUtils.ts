@@ -93,6 +93,7 @@ export class DebugTestSession extends DebugClient {
             session.connection = await new Promise<net.Socket>(resolve => {
                 let server = net.createServer();
                 server.on('connection', socket => {
+                    server.close();
                     resolve(socket);
                 })
                 server.listen(0, '127.0.0.1', async () => {

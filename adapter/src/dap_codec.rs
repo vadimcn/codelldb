@@ -41,6 +41,15 @@ impl codec::Decoder for DAPCodec {
     type Error = io::Error;
 
     fn decode(&mut self, buffer: &mut BytesMut) -> Result<Option<DecoderResult>, Self::Error> {
+        // Case-insensitive
+        fn has_prefix<'s>(line: &'s str, prefix: &str) -> Option<&'s str> {
+            if line.len() >= prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(prefix) {
+                Some(&line[prefix.len()..])
+            } else {
+                None
+            }
+        }
+
         loop {
             match self.state {
                 State::ReadingHeaders => match buffer.windows(2).position(|b| b == &[b'\r', b'\n']) {
@@ -50,10 +59,16 @@ impl codec::Decoder for DAPCodec {
                         if line.len() == 2 {
                             self.state = State::ReadingBody;
                         } else if let Ok(line) = str::from_utf8(&line) {
-                            if line.len() > 15 && line[..15].eq_ignore_ascii_case("content-length:") {
-                                if let Ok(content_len) = line[15..].trim().parse::<usize>() {
+                            if let Some(rest) = has_prefix(line, "Content-Length:") {
+                                if let Ok(content_len) = rest.trim().parse::<usize>() {
                                     self.content_len = content_len;
                                 }
+                            } else if let Some(_) = has_prefix(line, "Origin:") {
+                                // Guard against malicious Javascript requests originaling from a local browser.
+                                return Err(io::Error::new(
+                                    io::ErrorKind::Other,
+                                    format!("Unexpected header: {}", line),
+                                ));
                             }
                         }
                     }

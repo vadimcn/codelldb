@@ -12,6 +12,7 @@ fn main() -> Result<(), Error> {
         .arg(Arg::with_name("liblldb").long("liblldb").takes_value(true))
         .arg(Arg::with_name("port").long("port").takes_value(true))
         .arg(Arg::with_name("connect").long("connect").takes_value(true))
+        .arg(Arg::with_name("auth-token").long("auth-token").takes_value(true))
         .arg(Arg::with_name("multi-session").long("multi-session"))
         .arg(Arg::with_name("settings").long("settings").takes_value(true))
         .subcommand(

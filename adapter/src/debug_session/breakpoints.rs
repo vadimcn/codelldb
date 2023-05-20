@@ -34,22 +34,22 @@ struct BreakpointInfo {
     hit_count: u32,
 }
 
-pub(super) struct BreakpointsState {
+pub(super) struct Breakpoints {
+    breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
     source: HashMap<PathBuf, HashMap<i64, BreakpointID>>,
     assembly: HashMap<Handle, HashMap<i64, BreakpointID>>,
     instruction: HashMap<Address, BreakpointID>,
     function: HashMap<String, BreakpointID>,
-    breakpoint_infos: HashMap<BreakpointID, BreakpointInfo>,
 }
 
-impl BreakpointsState {
+impl Breakpoints {
     pub(super) fn new() -> Self {
-        BreakpointsState {
+        Breakpoints {
+            breakpoint_infos: HashMap::new(),
             source: HashMap::new(),
             assembly: HashMap::new(),
             instruction: HashMap::new(),
             function: HashMap::new(),
-            breakpoint_infos: HashMap::new(),
         }
     }
 }
@@ -87,7 +87,7 @@ impl super::DebugSession {
         file_path: &Path,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let BreakpointsState {
+        let Breakpoints {
             ref mut source,
             ref mut breakpoint_infos,
             ..
@@ -114,16 +114,13 @@ impl super::DebugSession {
                 }
             };
 
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Source,
-                condition: empty_to_none(&req.condition),
-                log_message: empty_to_none(&req.log_message),
-                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
-                hit_count: 0,
-            };
-
+            let bp_info = self.make_bp_info(
+                bp,
+                BreakpointKind::Source,
+                req.condition.as_deref(),
+                req.log_message.as_deref(),
+                req.hit_condition.as_deref(),
+            );
             self.init_bp_actions(&bp_info);
             result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.line, bp_info.id);
@@ -144,7 +141,7 @@ impl super::DebugSession {
         dasm: Rc<disassembly::DisassembledRange>,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let BreakpointsState {
+        let Breakpoints {
             ref mut assembly,
             ref mut breakpoint_infos,
             ..
@@ -161,15 +158,13 @@ impl super::DebugSession {
                 None => self.target.breakpoint_create_by_load_address(laddress),
             };
 
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Disassembly,
-                condition: empty_to_none(&req.condition),
-                log_message: empty_to_none(&req.log_message),
-                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
-                hit_count: 0,
-            };
+            let bp_info = self.make_bp_info(
+                bp,
+                BreakpointKind::Disassembly,
+                req.condition.as_deref(),
+                req.log_message.as_deref(),
+                req.hit_condition.as_deref(),
+            );
             self.init_bp_actions(&bp_info);
             result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.line, bp_info.id);
@@ -195,15 +190,13 @@ impl super::DebugSession {
             if req.line >= 0 && req.line < line_addresses.len() as i64 {
                 let address = line_addresses[req.line as usize] as Address;
                 let bp = self.target.breakpoint_create_by_load_address(address);
-                let bp_info = BreakpointInfo {
-                    id: bp.id(),
-                    breakpoint: bp,
-                    kind: BreakpointKind::Disassembly,
-                    condition: empty_to_none(&req.condition),
-                    log_message: empty_to_none(&req.log_message),
-                    hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
-                    hit_count: 0,
-                };
+                let bp_info = self.make_bp_info(
+                    bp,
+                    BreakpointKind::Disassembly,
+                    req.condition.as_deref(),
+                    req.log_message.as_deref(),
+                    req.hit_condition.as_deref(),
+                );
                 self.init_bp_actions(&bp_info);
                 result.push(self.make_bp_response(&bp_info, false));
                 self.breakpoints.get_mut().breakpoint_infos.insert(bp_info.id, bp_info);
@@ -218,7 +211,7 @@ impl super::DebugSession {
         &mut self,
         args: SetInstructionBreakpointsArguments,
     ) -> Result<SetInstructionBreakpointsResponseBody, Error> {
-        let BreakpointsState {
+        let Breakpoints {
             ref mut instruction,
             ref mut breakpoint_infos,
             ..
@@ -236,15 +229,13 @@ impl super::DebugSession {
                 None => self.target.breakpoint_create_by_load_address(address),
             };
 
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Instruction,
-                condition: req.condition.clone(),
-                log_message: None,
-                hit_condition: self.parse_hit_condition(req.hit_condition.as_ref()),
-                hit_count: 0,
-            };
+            let bp_info = self.make_bp_info(
+                bp,
+                BreakpointKind::Instruction,
+                req.condition.as_deref(),
+                None,
+                req.hit_condition.as_deref(),
+            );
             self.init_bp_actions(&bp_info);
 
             result.push(self.make_bp_response(&bp_info, false));
@@ -265,7 +256,7 @@ impl super::DebugSession {
         &mut self,
         args: SetFunctionBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
-        let BreakpointsState {
+        let Breakpoints {
             ref mut function,
             ref mut breakpoint_infos,
             ..
@@ -285,16 +276,15 @@ impl super::DebugSession {
                 }
             };
 
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Function,
-                condition: empty_to_none(&req.condition),
-                log_message: None,
-                hit_condition: self.parse_hit_condition(empty_to_none(&req.hit_condition).as_ref()),
-                hit_count: 0,
-            };
+            let bp_info = self.make_bp_info(
+                bp,
+                BreakpointKind::Function,
+                req.condition.as_deref(),
+                None,
+                req.hit_condition.as_deref(),
+            );
             self.init_bp_actions(&bp_info);
+
             result.push(self.make_bp_response(&bp_info, false));
             new_bps.insert(req.name, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
@@ -325,18 +315,66 @@ impl super::DebugSession {
         drop(breakpoints);
 
         for bp in self.set_exception_breakpoints(&args.filters) {
-            let bp_info = BreakpointInfo {
-                id: bp.id(),
-                breakpoint: bp,
-                kind: BreakpointKind::Exception,
-                condition: None,
-                log_message: None,
-                hit_condition: None,
-                hit_count: 0,
-            };
+            let bp_info = self.make_bp_info(bp, BreakpointKind::Exception, None, None, None);
+            self.init_bp_actions(&bp_info);
             self.breakpoints.borrow_mut().breakpoint_infos.insert(bp_info.id, bp_info);
         }
         Ok(())
+    }
+
+    fn set_exception_breakpoints(&mut self, filters: &[String]) -> Vec<SBBreakpoint> {
+        let cpp_throw = filters.iter().any(|x| x == "cpp_throw");
+        let cpp_catch = filters.iter().any(|x| x == "cpp_catch");
+        let rust_panic = filters.iter().any(|x| x == "rust_panic");
+        let swift_throw = filters.iter().any(|x| x == "swift_throw");
+        let mut bps = vec![];
+        if cpp_throw || cpp_catch {
+            let bp = self
+                .target
+                .breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
+            bp.add_name("cpp_exception");
+            bps.push(bp);
+        }
+        if rust_panic {
+            let bp = self.target.breakpoint_create_by_name("rust_panic");
+            bp.add_name("rust_panic");
+            bps.push(bp);
+        }
+        if swift_throw {
+            let bp = self.target.breakpoint_create_for_exception(LanguageType::Swift, false, swift_throw);
+            bp.add_name("swift_exception");
+            bps.push(bp);
+        }
+        bps
+    }
+
+    fn make_bp_info(
+        &self,
+        bp: SBBreakpoint,
+        kind: BreakpointKind,
+        condition: Option<&str>,
+        log_message: Option<&str>,
+        hit_condition: Option<&str>,
+    ) -> BreakpointInfo {
+        fn empty2none(s: Option<&str>) -> Option<&str> {
+            s.map(str::trim).filter(|s| !s.is_empty())
+        }
+
+        BreakpointInfo {
+            id: bp.id(),
+            breakpoint: bp,
+            kind: kind,
+            condition: empty2none(condition).map(Into::into),
+            log_message: empty2none(log_message).map(Into::into),
+            hit_condition: empty2none(hit_condition).and_then(|expr| match expressions::parse_hit_condition(expr) {
+                Ok(cond) => Some(cond),
+                Err(_) => {
+                    self.console_error(format!("Invalid hit condition: {}", expr));
+                    None
+                }
+            }),
+            hit_count: 0,
+        }
     }
 
     // Generates debug_protocol::Breakpoint message from a BreakpointInfo
@@ -439,51 +477,6 @@ impl super::DebugSession {
                 },
             }
         }
-    }
-
-    fn parse_hit_condition(&self, expr: Option<&String>) -> Option<HitCondition> {
-        if let Some(expr) = expr {
-            let expr = expr.trim();
-            if !expr.is_empty() {
-                match expressions::parse_hit_condition(&expr) {
-                    Ok(cond) => Some(cond),
-                    Err(_) => {
-                        self.console_error(format!("Invalid hit condition: {}", expr));
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    fn set_exception_breakpoints(&mut self, filters: &[String]) -> Vec<SBBreakpoint> {
-        let cpp_throw = filters.iter().any(|x| x == "cpp_throw");
-        let cpp_catch = filters.iter().any(|x| x == "cpp_catch");
-        let rust_panic = filters.iter().any(|x| x == "rust_panic");
-        let swift_throw = filters.iter().any(|x| x == "swift_throw");
-        let mut bps = vec![];
-        if cpp_throw || cpp_catch {
-            let bp = self
-                .target
-                .breakpoint_create_for_exception(LanguageType::C_plus_plus, cpp_catch, cpp_throw);
-            bp.add_name("cpp_exception");
-            bps.push(bp);
-        }
-        if rust_panic {
-            let bp = self.target.breakpoint_create_by_name("rust_panic");
-            bp.add_name("rust_panic");
-            bps.push(bp);
-        }
-        if swift_throw {
-            let bp = self.target.breakpoint_create_for_exception(LanguageType::Swift, false, swift_throw);
-            bp.add_name("swift_exception");
-            bps.push(bp);
-        }
-        bps
     }
 
     // Propagate breakpoint options from BreakpointInfo into the associated SBBreakpoint.
@@ -648,24 +641,18 @@ impl super::DebugSession {
 
         if event_type.intersects(BreakpointEventType::Added) {
             // Don't notify client if we are already tracking this one.
-            if let None = breakpoints.breakpoint_infos.get(&bp.id()) {
-                let bp_info = BreakpointInfo {
-                    id: bp.id(),
-                    breakpoint: bp,
-                    kind: BreakpointKind::Source,
-                    condition: None,
-                    log_message: None,
-                    hit_condition: None,
-                    hit_count: 0,
-                };
-                self.send_event(EventBody::breakpoint(BreakpointEventBody {
-                    reason: "new".into(),
-                    breakpoint: self.make_bp_response(&bp_info, true),
-                }));
-                breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
+            if breakpoints.breakpoint_infos.contains_key(&bp.id()) {
+                return;
             }
+
+            let bp_info = self.make_bp_info(bp, BreakpointKind::Source, None, None, None);
+            self.send_event(EventBody::breakpoint(BreakpointEventBody {
+                reason: "new".into(),
+                breakpoint: self.make_bp_response(&bp_info, true),
+            }));
+            breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
         } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
-            if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
+            if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "changed".into(),
                     breakpoint: self.make_bp_response(bp_info, false),
@@ -676,7 +663,7 @@ impl super::DebugSession {
             // Send "removed" notification only if we are tracking this breakpoint,
             // otherwise we'd notify VSCode about breakpoints that had been disabled in the UI
             // and cause them to be removed from VSCode UI altogether.
-            if let Some(_bp_info) = breakpoints.breakpoint_infos.get_mut(&bp.id()) {
+            if breakpoints.breakpoint_infos.contains_key(&bp.id()) {
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "removed".into(),
                     breakpoint: Breakpoint {
@@ -687,13 +674,5 @@ impl super::DebugSession {
                 breakpoints.breakpoint_infos.remove(&bp.id());
             }
         }
-    }
-}
-
-fn empty_to_none(s: &Option<String>) -> Option<String> {
-    match s {
-        None => None,
-        Some(s) if s.is_empty() => None,
-        Some(s) => Some(s.clone()),
     }
 }

@@ -16,7 +16,7 @@ use crate::platform::{get_fs_path_case, make_case_folder, pipe};
 use crate::python::{self, PythonInterface};
 use crate::shared::Shared;
 use crate::terminal::Terminal;
-use breakpoints::BreakpointsState;
+use breakpoints::Breakpoints;
 use debugger_terminal::DebuggerTerminal;
 use variables::Container;
 
@@ -57,7 +57,7 @@ pub struct DebugSession {
     terminate_on_disconnect: bool,
     no_debug: bool,
 
-    breakpoints: RefCell<BreakpointsState>,
+    breakpoints: RefCell<Breakpoints>,
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
@@ -142,7 +142,7 @@ impl DebugSession {
             terminate_on_disconnect: false,
             no_debug: false,
 
-            breakpoints: RefCell::new(BreakpointsState::new()),
+            breakpoints: RefCell::new(Breakpoints::new()),
             var_refs: HandleTree::new(),
             disassembly: NotInitialized,
             source_map_cache: RefCell::new(HashMap::new()),

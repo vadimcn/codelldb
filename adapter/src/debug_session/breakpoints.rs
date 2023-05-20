@@ -371,6 +371,21 @@ impl DebugSession {
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
         }
+        if let Some(filter_options) = &args.filter_options {
+            for filter in filter_options {
+                if let Some(bp) = self.set_exception_breakpoint(&filter.filter_id) {
+                    let bp_info = self.make_bp_info(
+                        bp,
+                        BreakpointKind::Exception(filter.filter_id.clone()),
+                        filter.condition.as_deref(),
+                        None,
+                        None,
+                    );
+                    self.init_bp_actions(&bp_info);
+                    breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
+                }
+            }
+        }
         Ok(())
     }
     pub(super) fn get_exception_filters() -> &'static [ExceptionBreakpointsFilter] {
@@ -380,24 +395,28 @@ impl DebugSession {
                     filter: CPP_THROW.into(),
                     label: "C++: on throw".into(),
                     default: Some(true),
+                    supports_condition: Some(true),
                     ..Default::default()
                 },
                 ExceptionBreakpointsFilter {
                     filter: CPP_CATCH.into(),
                     label: "C++: on catch".into(),
                     default: Some(false),
+                    supports_condition: Some(true),
                     ..Default::default()
                 },
                 ExceptionBreakpointsFilter {
                     filter: RUST_PANIC.into(),
                     label: "Rust: on panic".into(),
                     default: Some(true),
+                    supports_condition: Some(true),
                     ..Default::default()
                 },
                 ExceptionBreakpointsFilter {
                     filter: SWIFT_THROW.into(),
                     label: "Swift: on throw".into(),
                     default: Some(false),
+                    supports_condition: Some(true),
                     ..Default::default()
                 }
             ];
@@ -567,10 +586,8 @@ impl DebugSession {
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
         // Determine type of the break condition expression.
         let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
-            let condition = condition.trim();
-            if !condition.is_empty() {
-                let pp_expr = expressions::prepare(condition, self.default_expr_type).unwrap();
-                match &pp_expr {
+            match expressions::prepare(condition, self.default_expr_type) {
+                Ok(pp_expr) => match &pp_expr {
                     // if native, use that directly,
                     PreparedExpression::Native(expr) => {
                         bp_info.breakpoint.set_condition(&expr);
@@ -586,7 +603,7 @@ impl DebugSession {
                                     Some((pycode, is_simple_expr))
                                 }
                                 Err(err) => {
-                                    self.console_error(err.to_string());
+                                    self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
                                     None
                                 }
                             }
@@ -594,9 +611,11 @@ impl DebugSession {
                             None
                         }
                     }
+                },
+                Err(err) => {
+                    self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
+                    None
                 }
-            } else {
-                None
             }
         } else {
             None
@@ -647,7 +666,7 @@ impl DebugSession {
                 Some(python) => match python.evaluate_as_bool(&pycode, *is_simple_expr, &context) {
                     Ok(val) => val,
                     Err(err) => {
-                        self.console_error(err.to_string());
+                        self.console_error(format!("Could not evaluate breakpoint condition:\n{}", err));
                         return true; // Stop on evluation errors, even if there's a log message.
                     }
                 },
@@ -663,7 +682,7 @@ impl DebugSession {
 
         // We maintain our own hit count for consistency between native and python conditions:
         // LLDB doesn't count breakpoint hits for which native condition evaluated to false,
-        // however it does count ones where the callback was invoked, even if it returned false.
+        // however it does count ones where the callback was invoked, even if it had returned false.
         bp_info.hit_count += 1;
 
         if let Some(hit_condition) = &bp_info.hit_condition {

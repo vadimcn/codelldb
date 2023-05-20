@@ -574,9 +574,10 @@ impl DebugSession {
             supports_instruction_breakpoints: Some(true),
             supports_read_memory_request: Some(true),
             supports_write_memory_request: Some(true),
-            supports_exception_info_request: Some(true),
             supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
             supports_completions_request: Some(self.command_completions),
+            supports_exception_info_request: Some(true),
+            supports_exception_filter_options: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }

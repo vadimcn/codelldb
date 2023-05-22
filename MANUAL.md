@@ -85,7 +85,7 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**env**            |dictionary| Environment variables to set in addition to the ones inherited from the parent process environment (unless LLDB's `target.inherit-env` setting has been set to `false`, in which case the initial process environment is empty).  You may refer to existing environment variables using `${env:NAME}` syntax.  For example, in order to alter the inherited `PATH` variable, you can do this: `"PATH":"${env:HOME}/bin:${env:PATH}"`.
 |**envFile**        |string| Path of the file to read the environment variables from.  Note that `env` entries will override `envPath` entries.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
-|**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for Debug Console</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
 
 Operations performed for launch:
@@ -265,9 +265,10 @@ For general information on remote debugging please see [LLDB Remote Debugging Gu
 - Create launch configuration similar to the one below.
 - Start debugging as usual.  The executable identified by the `program` property will
 be automatically copied to `lldb-server`'s current directory on the remote machine.
+
 If you require additional configuration of the remote system, you may use `preRunCommands` sequence
 to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
-(See `help platform` for a list of available platform commands).
+(see `help platform` for a list of available platform commands).
 
 ```javascript
 {
@@ -276,7 +277,7 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
     "request": "launch",
     "program": "${workspaceFolder}/build/debuggee", // Local path.
     "initCommands": [
-        "platform select <platform>", // Execute `platform list` for a list of available remote platform plugins.
+        "platform select <platform>", // For example: 'remote-linux', 'remote-macosx', 'remote-android', etc.
         "platform connect connect://<remote_host>:<port>",
         "settings set target.inherit-env false", // See note below.
     ],
@@ -420,7 +421,7 @@ Example:
 
 ## Debugger Commands
 
-CodeLLDB adds in-debugger commands that may be executed in the Debug Console during a debug dession:
+CodeLLDB adds in-debugger commands that may be executed in the DEBUG CONSOLE panel during a debug dession:
 
 |                 |                                                         |
 |-----------------|---------------------------------------------------------|
@@ -430,7 +431,7 @@ For more details about each command please use `help <command>`.
 
 ## Debug Console
 
-The VSCode [Debug Console](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) panel serves a dual
+The VSCode [DEBUG CONSOLE](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) panel serves a dual
 purpose in CodeLLDB:
 1. Execution of [LLDB commands](https://lldb.llvm.org/use/tutorial.html).
 2. Evaluation of [expressions](#expressions).
@@ -496,7 +497,7 @@ You can see and manage current exclusions in the EXCLUDED CALLERS panel.
 ## Formatting
 You may change the default display format of evaluation results using the `Display Format` command.
 
-When evaluating expressions in Debug Console or in Watch panel, you may control formatting of
+When evaluating expressions in the DEBUG CONSOLE or in WATCH panel, you may control formatting of
 individual expressions by adding one of the suffixes listed below:
 
 |suffix |format |
@@ -522,13 +523,13 @@ number format and array specifiers like this: `var,x[10]`.
 When displaying pointer and reference variables, CodeLLDB will prefer to display the
 value of the object pointed to.  If you would like to see the raw address value,
 you may toggle this behavior using **Toggle Pointee Summaries** command.
-Another way to display raw pointer address is to add the pointer variable to Watch panel and specify
+Another way to display raw pointer address is to add the pointer variable to WATCH panel and specify
 an explicit format, as described in the previous section.
 
 ## Expressions
 
 CodeLLDB implements three expression evaluator types: "simple", "python" and "native".  These are used
-wherever user-entered expression needs to be evaluated: in the Watch panel, in the Debug Console (for input
+wherever user-entered expression needs to be evaluated: in the WATCH panel, in the DEBUG CONSOLE (for input
 prefixed with `?`) and in breakpoint conditions.<br>
 By default, "simple" is assumed, however you may change this using the [expressions](#launching-a-new-process) launch
 configuration property.  The default type may also be overridden on a per-expression basis using a prefix.
@@ -620,7 +621,7 @@ class **Event[T]:**
 
 
 ## Value
-`Value` objects ([source](adapter/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),
+`Value` objects ([source](adapter/scripts/codelldb/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),
 which add implementations of standard Python operators.
 
 ## Installing Packages
@@ -759,17 +760,17 @@ These settings specify the default values for launch configuration setting of th
 |**lldb.showDisassembly**           |When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
 |**lldb.dereferencePointers**       |Whether to show summaries of the pointees instead of numeric values of the pointers themselves.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).
-|**lldb.consoleMode**               |Controls whether the debug console input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat debug console input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or '\`' (backtick), <li>`split` - (experimental) use the debug console for evaluation of expressions, open a separate terminal for LLDB console.
+|**lldb.consoleMode**               |Controls whether the DEBUG CONSOLE input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat DEBUG CONSOLE input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or '\`' (backtick), <li>`split` - (experimental) use the DEBUG CONSOLE for evaluation of expressions, open a separate terminal for LLDB console.
 
 ## Advanced
 |                       |                                                         |
 |-----------------------|---------------------------------------------------------|
-|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in Output/LLDB panel.
+|**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in OUTPUT/LLDB panel.
 |**lldb.rpcServer**     |See [RPC server](#rpc-server).
 |**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.cargo**         |Name of the command to invoke as Cargo.
 |**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
 |**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
-|**lldb.commandCompletions** |Enable command completions in debug console.
+|**lldb.commandCompletions** |Enable command completions in DEBUG CONSOLE.
 |**lldb.reproducer**    |(deprecated) Enable capture of an LLDB reproducer.

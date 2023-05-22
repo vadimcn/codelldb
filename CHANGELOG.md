@@ -1,8 +1,17 @@
 # Release Notes
 
+# 1.9.2
+
+## New
+- Implemented [Excluded Callers](MANUAL.md#excluded-callers) feature, similar to the [one in Javascript debugger](https://code.visualstudio.com/updates/v1_64#_javascript-debugging).
+- Added [create_webview()](MANUAL.md#webview) Python API, which allows scripts to create and manipulate VSCode Webviews.
+This function supersedes functionality of the older `display_html` API.
+- Enabled conditions on exception breakpoints.
+
+
 # 1.9.1
 
-## New:
+## New
 - Implemented support for [envFile](https://github.com/vadimcn/codelldb/issues/866).
 - Added `breakpointMode` setting: when this is set to `file`, breakpoints will be resolved using file name only, which
   is similar to how `breakpoint set -f <filename> -l <line>` command works in CLI LLDB.  This relieves the need

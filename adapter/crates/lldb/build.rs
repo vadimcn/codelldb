@@ -33,7 +33,7 @@ fn main() -> Result<(), Error> {
     }
 
     // Generate C++ bindings
-    build_config.include("include");
+    build_config.include(env::var("LLDB_INCLUDE_PATH").unwrap());
     build_config.build("src/lib.rs");
 
     Ok(())
@@ -52,7 +52,7 @@ fn rerun_if_changed_in(dir: &Path) -> Result<(), Error> {
 }
 
 fn set_rustc_link_search() {
-    if let Ok(value) = env::var("CODELLDB_LIB_PATH") {
+    if let Ok(value) = env::var("LLDB_LIB_PATH") {
         for path in value.split_terminator(';') {
             println!("cargo:rustc-link-search=native={}", path);
         }
@@ -61,7 +61,7 @@ fn set_rustc_link_search() {
 
 fn set_dylib_search_path() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-    if let Ok(value) = env::var("CODELLDB_LIB_PATH") {
+    if let Ok(value) = env::var("LLDB_LIB_PATH") {
         if target_os == "linux" {
             let prev = env::var("LD_LIBRARY_PATH").unwrap_or_default();
             println!("cargo:rustc-env=LD_LIBRARY_PATH={}:{}", prev, value.replace(";", ":"));

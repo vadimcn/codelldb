@@ -53,6 +53,8 @@ externalproject_add(cargo_build
     INSTALL_COMMAND ""
 )
 
+add_dependencies(cargo_build lldb)
+
 # Exe
 add_custom_target(codelldb_exe
     COMMAND ${UpdateFile} ${CargoOutDir}/${CodelldbExe} ${CMAKE_CURRENT_BINARY_DIR}

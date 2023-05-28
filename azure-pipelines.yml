@@ -6,6 +6,10 @@ variables:
   cachePrefix: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
+  ${{ if eq(variables['Build.SourceBranchName'], 'master') }}:
+    versionSuffix: ''
+  ${{ else }}:
+    versionSuffix: '-'
 
   setenvLinux: |
       export PATH=$HOME/.cargo/bin:$PATH

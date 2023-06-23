@@ -659,9 +659,6 @@ impl DebugSession {
         let mut stack_frames = vec![];
         for i in start_frame..(start_frame + levels) {
             let frame = thread.frame_at_index(i as u32);
-            if !frame.is_valid() {
-                break;
-            }
 
             let key = format!("[{},{}]", thread.index_id(), i);
             let handle = self.var_refs.create(None, &key, Container::StackFrame(frame.clone()));
@@ -676,7 +673,7 @@ impl DebugSession {
                 format!("{:X}", pc_address.file_address())
             };
 
-            if !self.in_disassembly(&frame) {
+            if !frame.is_valid() || !self.in_disassembly(&frame) {
                 if let Some(le) = frame.line_entry() {
                     let fs = le.file_spec();
                     if let Some(local_path) = self.map_filespec_to_local(&fs) {

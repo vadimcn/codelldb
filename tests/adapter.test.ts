@@ -307,6 +307,12 @@ function generateSuite(triple: string) {
                 assert.equal(response4.body.variables[0].value, '20');
             });
 
+            test('invalid jump crash', async function () {
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid jump crash', program: debuggee, args: ['crash_invalid_call'] });
+                let response2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
+                assert.equal(response2.body.stackFrames.length, 10)
+            });
+
             test('variables', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },

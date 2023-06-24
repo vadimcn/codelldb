@@ -309,8 +309,8 @@ function generateSuite(triple: string) {
 
             test('invalid jump crash', async function () {
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid jump crash', program: debuggee, args: ['crash_invalid_call'] });
-                let response2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
-                assert.equal(response2.body.stackFrames.length, 10)
+                let response2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 2 });
+                assert.equal(response2.body.stackFrames.length, 2)
             });
 
             test('variables', async function () {

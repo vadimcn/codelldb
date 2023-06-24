@@ -659,6 +659,9 @@ impl DebugSession {
         let mut stack_frames = vec![];
         for i in start_frame..(start_frame + levels) {
             let frame = thread.frame_at_index(i as u32);
+            if !frame.is_valid() {
+                break;
+            }
 
             let key = format!("[{},{}]", thread.index_id(), i);
             let handle = self.var_refs.create(None, &key, Container::StackFrame(frame.clone()));
@@ -673,7 +676,7 @@ impl DebugSession {
                 format!("{:X}", pc_address.file_address())
             };
 
-            if !frame.is_valid() || !self.in_disassembly(&frame) {
+            if !self.in_disassembly(&frame) {
                 if let Some(le) = frame.line_entry() {
                     let fs = le.file_spec();
                     if let Some(local_path) = self.map_filespec_to_local(&fs) {
@@ -688,14 +691,15 @@ impl DebugSession {
                 }
             } else {
                 let pc_addr = frame.pc();
-                let dasm = self.disassembly.from_address(pc_addr)?;
-                stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
+                if let Ok(dasm) = self.disassembly.from_address(pc_addr) {
+                    stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
+                    stack_frame.source = Some(Source {
+                        name: Some(dasm.source_name().to_owned()),
+                        source_reference: Some(handles::to_i64(Some(dasm.handle()))),
+                        ..Default::default()
+                    });
+                }
                 stack_frame.column = 0;
-                stack_frame.source = Some(Source {
-                    name: Some(dasm.source_name().to_owned()),
-                    source_reference: Some(handles::to_i64(Some(dasm.handle()))),
-                    ..Default::default()
-                });
                 stack_frame.presentation_hint = Some("subtle".to_owned());
             }
             stack_frames.push(stack_frame);

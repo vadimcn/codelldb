@@ -68,6 +68,17 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
                             psapi.dll oleaut32.dll shlwapi.dll rpcrt4.dll ole32.dll bcrypt.dll userenv.dll
                             ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll
                             python3.*.dll liblldb.dll)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+    set(Python python3)
+    set(LibPrefix lib)
+    set(LibSuffix .a)
+    set(DylibSuffix.so)
+    set(NPM npm)
+    set(PathSep ":")
+    set(DefaultTarget "x86_64-unknown-freebsd")
+    set(AllowedDependencies libkvm.so* libncursesw.so* libformw.so* libpanelw.so* libxml2.so* libedit.so* liblzma.so*
+                            libz.so* librt.so* libexecinfo.so* libthr.so* libm.so* libzstd.so* libc++.so* libcxxrt.so*
+                            libgcc_s.so* libc.so* libelf.so* libmd.so*)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()

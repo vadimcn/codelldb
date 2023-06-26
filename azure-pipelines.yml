@@ -18,7 +18,7 @@ variables:
 ########################################################################################################################
 
 jobs:
-- job: Linux
+- job: Linux + BSD
   pool:
     vmImage: 'ubuntu-20.04'
 
@@ -29,6 +29,11 @@ jobs:
         Triple: 'x86_64-linux-gnu'
         RustTarget: 'x86_64-unknown-linux-gnu'
         CrossBuilding: false
+      x86_64_bsd:
+        PlatformId: 'x86_64-freebse'
+        Triple: 'x86_64-freebsd'
+        RustTarget: 'x86_64-unknown-freebsd'
+        CrossBuilding: true
       arm:
         PlatformId: 'arm-linux'
         Triple: 'arm-linux-gnueabihf'

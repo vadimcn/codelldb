@@ -30,7 +30,7 @@ jobs:
         RustTarget: 'x86_64-unknown-linux-gnu'
         CrossBuilding: false
       x86_64_bsd:
-        PlatformId: 'x86_64-freebse'
+        PlatformId: 'x86_64-freebsd'
         Triple: 'x86_64-freebsd'
         RustTarget: 'x86_64-unknown-freebsd'
         CrossBuilding: true

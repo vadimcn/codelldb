@@ -13,7 +13,7 @@ mod platform {
 
     pub const DYLIB_SUBDIR: &str = "lib";
     pub const DYLIB_PREFIX: &str = "lib";
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     pub const DYLIB_EXTENSION: &str = "so";
     #[cfg(target_os = "macos")]
     pub const DYLIB_EXTENSION: &str = "dylib";
@@ -24,6 +24,14 @@ mod platform {
         pub const RTLD_LAZY: c_int = 0x1;
         pub const RTLD_GLOBAL: c_int = 0x100;
         pub const RTLD_DEFAULT: Handle = 0 as Handle;
+    }
+    #[cfg(target_os = "freebsd")]
+    mod constants {
+        // https://github.com/freebsd/freebsd-src/blob/b2dcde7e9e75dd35124d12e68036e56ee650d568/include/dlfcn.h#L42
+        use super::*;
+        pub const RTLD_LAZY: c_int = 0x1;
+        pub const RTLD_GLOBAL: c_int = 0x100;
+        pub const RTLD_DEFAULT: Handle = -2isize as Handle;
     }
     #[cfg(target_os = "macos")]
     mod constants {

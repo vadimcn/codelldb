@@ -85,7 +85,7 @@ export async function findLibLLDB(pathHint: string): Promise<string | null> {
 
     let libDir;
     let pattern;
-    if (process.platform == 'linux') {
+    if (process.platform == 'linux' || process.platform == 'freebsd') {
         libDir = path.join(pathHint, 'lib');
         pattern = /liblldb.*\.so.*/;
     } else if (process.platform == 'darwin') {
@@ -94,6 +94,8 @@ export async function findLibLLDB(pathHint: string): Promise<string | null> {
     } else if (process.platform == 'win32') {
         libDir = path.join(pathHint, 'bin');
         pattern = /liblldb\.dll/;
+    } else {
+        throw new Error("Unknown platform " + process.platform);
     }
 
     for (let dir of [pathHint, libDir]) {

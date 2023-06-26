@@ -76,9 +76,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget "x86_64-unknown-freebsd")
-    set(AllowedDependencies libkvm.so* libncursesw.so* libformw.so* libpanelw.so* libxml2.so* libedit.so* liblzma.so*
-                            libz.so* librt.so* libexecinfo.so* libthr.so* libm.so* libzstd.so* libc++.so* libcxxrt.so*
-                            libgcc_s.so* libc.so* libelf.so* libmd.so*)
+    set(AllowedDependencies libkvm.so.* libncursesw.so.* libformw.so.* libpanelw.so.* libxml2.so.* libedit.so.* liblzma.so.*
+                            libz.so.* librt.so.* libexecinfo.so.* libthr.so.* libm.so.* libzstd.so.* libc++.so.* libcxxrt.so.*
+                            libgcc_s.so.* libc.so.* libelf.so.* libmd.so.*)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
@@ -254,7 +254,7 @@ add_custom_target(vsix_full
 
 # Strip native binaries if building vsix_full
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR ${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
     if (NOT CMAKE_STRIP)
         set(CMAKE_STRIP strip)
     endif()

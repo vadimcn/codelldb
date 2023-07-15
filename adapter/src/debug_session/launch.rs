@@ -286,7 +286,7 @@ impl super::DebugSession {
 
             match self.target.attach(&attach_info) {
                 Ok(process) => process,
-                Err(err) => bail!(as_user_error(err)),
+                Err(err) => bail!(as_user_error(format!("Could not attach: {}", err))),
             }
         };
         self.console_message(format!("Attached to process {}", process.process_id()));

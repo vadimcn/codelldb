@@ -6,7 +6,6 @@ import { MapEx } from './novsc/commonTypes';
 import { ExcludeCallerRequest, ExcludeCallerResponse, SetExcludedCallersRequest } from './novsc/adapterMessages';
 import { DebugProtocol } from '@vscode/debugprotocol';
 import { ThemeIcon } from 'vscode';
-import { workspace } from 'vscode';
 
 
 interface Exclusion {
@@ -42,15 +41,19 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
 
     async excludeCaller(frame: any) {
         let session = debug.activeDebugSession;
-        if (session.type == 'lldb' && frame.frameLocation != undefined) {
+        if (session.type == 'lldb' && frame.frameId != undefined) {
             try {
-                let resp = await session.customRequest('_excludeCaller', <ExcludeCallerRequest>{
-                    source: frame.frameLocation.source.path || frame.frameLocation.source.sourceReference,
-                    line: frame.frameLocation.range.startLineNumber,
-                    column: frame.frameLocation.range.startColumn,
-                }) as ExcludeCallerResponse;
+                let [stackframe, thread, sessionId, threadId, frameIndex, source] = frame.frameId.split(':', 6);
+                // The format of frameId is undocumented, so we check known static fields.
+                if (stackframe != 'stackframe' || thread != 'thread') {
+                    throw Error(`Could not parse stack frame id: ${frame.frameId}`);
+                }
+                let resp = await session.customRequest('_excludeCaller', {
+                    threadId: parseInt(threadId),
+                    frameIndex: parseInt(frameIndex),
+                } satisfies ExcludeCallerRequest) as ExcludeCallerResponse;
 
-                // If adapter responded with a number, it's a breakpoint id, which we need to cnvert to a stable
+                // If the adapter responds with a number, it's a breakpoint id, which we need to convert to a stable
                 // debug.Breakpoint id.  A string means the last breakpoint was an exception breakpoint.
                 let exclusions: Exclusion[] = null;
                 if (typeof resp.breakpointId == 'number') {
@@ -63,7 +66,7 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
                     }
                 } else {
                     let [excName, label] = resp.breakpointId;
-                    // First element of the value tuple is the display label of the exception.
+                    // First element of the exceptionExclusions value tuple is the display label of the exception.
                     exclusions = this.exceptionExclusions.setdefault(excName, [label, []])[1];
                 }
                 if (exclusions && !exclusions.find(e => e.symbol == resp.symbol)) {
@@ -139,7 +142,7 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
         if (adapterExclusions.length > 0) {
             await session.customRequest('_setExcludedCallers', {
                 exclusions: adapterExclusions
-            } as SetExcludedCallersRequest);
+            } satisfies SetExcludedCallersRequest);
         }
     }
 

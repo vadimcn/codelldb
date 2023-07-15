@@ -327,15 +327,14 @@ pub enum Either<T1, T2> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcludeCallerRequest {
-    pub source: Either<String, i64>,
-    pub line: u32,
-    pub column: Option<u32>,
+    pub thread_id: i64,
+    pub frame_index: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExcludeCallerResponse {
-    pub breakpoint_id: Either<i64, (String, String)>,
+    pub breakpoint_id: Either<i64, (String, String)>, // breakpoit id | (exception id, exception label)
     pub symbol: String,
 }
 

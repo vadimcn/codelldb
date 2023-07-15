@@ -801,7 +801,7 @@ impl DebugSession {
             let bp_id = thread.stop_reason_data_at_index(0) as BreakpointID;
             let mut breakpoints = self.breakpoints.borrow_mut();
 
-            if let Some(symbol) = self.symbol_from_location(&args.source, args.line, args.column) {
+            if let Some(symbol) = self.symbol_from_frame(args.thread_id as ThreadID, args.frame_index) {
                 if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
                     bp_info.exclusions.push(symbol.clone());
 
@@ -820,33 +820,14 @@ impl DebugSession {
         }
     }
 
-    // Look up symbol containing the source location
-    fn symbol_from_location(&self, source: &Either<String, i64>, line: u32, column: Option<u32>) -> Option<String> {
-        let bp2 = match source {
-            Either::First(file_path) => {
-                let file_path_norm = normalize_path(Path::new(file_path));
-                self.target.breakpoint_create_by_location(&file_path_norm, line, column)
-            }
-            Either::Second(source_ref) => {
-                if let Ok(h) = handles::from_i64(*source_ref) {
-                    if let Some(dasm) = self.disassembly.find_by_handle(h) {
-                        let laddr = dasm.address_by_line_num(line);
-                        self.target.breakpoint_create_by_load_address(laddr)
-                    } else {
-                        return None;
-                    }
-                } else {
-                    return None;
-                }
-            }
-        };
-        let mut symbol = None;
-        if bp2.num_locations() > 0 {
-            let loc = bp2.location_at_index(0);
-            symbol = loc.address().symbol().map(|s| s.name().to_owned());
+    fn symbol_from_frame(&self, thread_id: ThreadID, frame_index: u32) -> Option<String> {
+        if let Some(thread) = self.target.process().thread_by_id(thread_id) {
+            let frame = thread.frame_at_index(frame_index);
+            let pc = frame.pc_address();
+            pc.symbol().map(|s| s.name().to_owned())
+        } else {
+            None
         }
-        self.target.breakpoint_delete(bp2.id());
-        symbol
     }
 
     pub(super) fn handle_set_excluded_callers(&mut self, args: SetExcludedCallersRequest) -> Result<(), Error> {

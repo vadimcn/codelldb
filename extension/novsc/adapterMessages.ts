@@ -20,28 +20,26 @@ export class Symbol {
     location: any
 }
 
-export interface SymbolsRequest {
+export type SymbolsRequest = {
     filter: string,
     maxResults: number
 }
 
-export interface SymbolsResponse {
+export type SymbolsResponse = {
     symbols: Symbol[];
 }
 
-export interface ExcludeCallerRequest {
-    source: number | string;
-    line: number;
-    column: number;
+export type ExcludeCallerRequest = {
+    threadId: number;
+    frameIndex: number;
 }
 
-export interface ExcludeCallerResponse {
-    breakpointId: number | [string, string] ;
+export type ExcludeCallerResponse = {
+    breakpointId: number | [string, string];
     symbol: string
 }
 
-
-export interface SetExcludedCallersRequest {
+export type SetExcludedCallersRequest = {
     exclusions: {
         breakpointId: string | number;
         symbol: string

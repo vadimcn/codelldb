@@ -1,6 +1,9 @@
 [workspace]
 members = [
   "adapter/codelldb",
+  "adapter/adapter-protocol",
+  "adapter/lldb",
+  "adapter/lldb-stub",
   "debuggee",
 ]
 

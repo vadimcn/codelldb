@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "lldb-stub"
+version = "0.1.0"
+
+[dependencies]
+lldb = {path = "../lldb"}
+weaklink = {git = "https://github.com/vadimcn/weaklink.git"}
+
+[build-dependencies]
+weaklink_build = {git = "https://github.com/vadimcn/weaklink.git"}

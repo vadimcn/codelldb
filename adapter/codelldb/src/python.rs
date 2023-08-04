@@ -346,8 +346,8 @@ fn pypath() {
 fn evaluate() {
     use lldb::*;
     let interp = DEBUGGER.command_interpreter();
-    let cwd = std::env::current_dir().unwrap(); // Should be "build/adapter"
-    let (python, _) = initialize(interp, &cwd, None).unwrap();
+    let adapter_dir = std::env::var("ADAPTER_SOURCE_DIR").unwrap();
+    let (python, _) = initialize(interp, Path::new(&adapter_dir), None).unwrap();
     let context = SBExecutionContext::from_target(&DEBUGGER.dummy_target());
     let pycode = python.compile_code("2+2", "<string>").unwrap();
     let result = python.evaluate(&pycode, true, &context);

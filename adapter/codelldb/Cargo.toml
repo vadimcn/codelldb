@@ -1,16 +1,22 @@
 [package]
+authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
+edition = "2021"
 name = "codelldb"
 version = "1.0.0"
-authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
-edition = "2018"
 
 [dependencies]
+adapter_protocol = {package = "adapter-protocol", path = "../adapter-protocol"}
+lldb = {path = "../lldb"}
+lldb-stub = {path = "../lldb-stub", optional = true}
+
 backtrace = "0.3.37"
 base64 = "0.12.3"
+bytes = "1.0.0"
 clap = "2.33.0"
 crossterm = "0.9.6"
 dotenvy = "0.15.7"
-env_logger = { version = "0.8.3", default-features = false }
+env_logger = {version = "0.8.3", default-features = false}
+futures = "0.3.0"
 fuzzy-matcher = "0.3.7"
 lazy_static = "1.3.0"
 libc = "0.2.59"
@@ -19,31 +25,27 @@ nom = "7.1.1"
 parse_int = "0.5.0"
 serde = "1.0.94"
 serde_derive = "1.0.94"
-serde_json = { version = "1.0.40", features = ["raw_value"] }
+serde_json = {version = "1.0.40", features = ["raw_value"]}
 superslice = "1.0.0"
+tokio = {version = "1.0.0", features = ["full"]}
+tokio-util = {version = "0.6.0", features = ["codec"]}
 
-bytes = "1.0.0"
-futures = "0.3.0"
-tokio = { version = "1.0.0", features = ["full"] }
-tokio-util = { version = "0.6.0", features = ["codec"] }
-
-lldb = { path = "../lldb" }
-loading = { path = "../loading" }
-adapter_protocol = { package = "adapter-protocol", path = "../adapter-protocol" }
+[build-dependencies]
+build-utils = {path = "../build-utils"}
 
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.8", features = ["std", "wincon", "namedpipeapi"] }
+winapi = {version = "0.3.8", features = ["std", "wincon", "namedpipeapi"]}
 winreg = "0.6.2"
 
+[features]
+weaklink = ["lldb-stub", "lldb/no_link_args"] # Use weak linkage for liblldb
+
 [lib]
-crate-type = ["staticlib"]
+path = "src/lib.rs"
 
 [[bin]]
 name = "codelldb"
-path = "loader/main.rs"
-
-[features]
-weak-linkage = ["lldb/weak-linkage"]
+path = "bin/main.rs"

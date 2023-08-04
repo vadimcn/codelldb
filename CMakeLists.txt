@@ -30,6 +30,9 @@ endif()
 
 set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
 
+set(WithEnv ${CMAKE_COMMAND} -E env)
+set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
+
 # General OS-specific definitions
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(Python python3)
@@ -39,8 +42,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-unknown-linux-gnu)
-    set(AllowedDependencies liblldb.so libpython3.* linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
-                            libm.so.6 libc.so.6 libexpat.so.1 libz.so.1 libutil.so.1
+    set(AllowedDependencies linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
+                            libm.so.6 libc.so.6 libz.so.1 libutil.so.1
                             /lib64/ld-linux-x86-64.so.2)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(Python python3)
@@ -53,8 +56,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(DefaultTarget x86_64-apple-darwin)
     set(AllowedDependencies Foundation CoreFoundation CoreServices Security SystemConfiguration
                             libcompression.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
-                            libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib
-                            libcodelldb.dylib liblldb.dylib libpython3.*.dylib)
+                            libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(Python python)
     set(ExeSuffix .exe)
@@ -66,8 +68,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(DefaultTarget x86_64-pc-windows-msvc)
     set(AllowedDependencies api-ms-.* ws2_32.dll kernel32.dll ntdll.dll advapi32.dll user32.dll version.dll dbghelp.dll
                             psapi.dll oleaut32.dll shlwapi.dll rpcrt4.dll ole32.dll bcrypt.dll userenv.dll
-                            ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll
-                            python3.*.dll liblldb.dll)
+                            ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()
@@ -78,13 +79,19 @@ if (NOT LLVM_TRIPLE)
     set(LLVM_TRIPLE ${DefaultTarget})
 endif()
 
-set(WithEnv ${CMAKE_COMMAND} -E env)
-set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
+set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml --target=${LLVM_TRIPLE})
+
+if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
+    set(CargoFlags ${CargoFlags} --release)
+    set(CargoBuildType release)
+else()
+    set(CargoBuildType debug)
+endif()
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    configure_file(cargo_config.windows.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml @ONLY)
+    configure_file(cargo_config.windows.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
 else()
-    configure_file(cargo_config.unix.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml @ONLY)
+    configure_file(cargo_config.unix.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
 endif()
 
 # Adapter
@@ -93,13 +100,13 @@ add_subdirectory(adapter)
 add_subdirectory(lldb)
 add_subdirectory(formatters)
 
-add_dependencies(codelldb_dylib lldb formatters)
+add_dependencies(adapter lldb formatters)
 
 # Extension package content
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/codelldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
-configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js @ONLY)
+configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Install node_modules

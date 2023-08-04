@@ -21,33 +21,39 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     endif()
 endif()
 
-set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml
-                             --target=${LLVM_TRIPLE} --target-dir=${CMAKE_BINARY_DIR}/target)
-if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
-    set(CargoFlags ${CargoFlags} --release)
-    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/release)
-else()
-    set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/debug)
-endif()
-
 if (CMAKE_VERBOSE_MAKEFILE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 
 add_custom_target(adapter
-    DEPENDS codelldb_exe codelldb_dylib codelldb_scripts ${DIAFiles}
+    DEPENDS codelldb_exe codelldb_scripts ${DIAFiles}
 )
 
 set(CodelldbExe codelldb${ExeSuffix})
-set(CodelldbLib ${LibPrefix}codelldb${LibSuffix})
+set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/${CargoBuildType})
+
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(RustcFlags
+        -Csplit-debuginfo=packed
+        -Clink-arg=-fuse-ld=lld
+        -Clink-arg=-Wl,-Bstatic,-lc++,-lc++abi,-Bdynamic
+    )
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    set(RustcFlags
+        -Csplit-debuginfo=packed
+        -Clink-arg=-lc++
+    )
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+
+endif()
 
 externalproject_add(cargo_build
     DOWNLOAD_COMMAND ""
     CONFIGURE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}"
-    BUILD_COMMAND cargo build --package=codelldb --bin codelldb --lib --features=weak-linkage ${CargoFlags}
-    BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe} ${CargoOutDir}/${CodelldbLib}
+    BUILD_COMMAND cargo rustc --package=codelldb --bin=codelldb ${CargoFlags} --features=weaklink -- ${RustcFlags}
+    BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe}
     BUILD_ALWAYS ON
     USES_TERMINAL_BUILD ON
     INSTALL_COMMAND ""
@@ -61,29 +67,6 @@ add_custom_target(codelldb_exe
     DEPENDS cargo_build
     USES_TERMINAL
 )
-
-# Dylib
-if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/empty.c "")
-    add_library(codelldb_dylib SHARED ${CMAKE_CURRENT_BINARY_DIR}/empty.c)
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-        target_link_options(codelldb_dylib PRIVATE --force-link=_entry
-                            -lc++ -lm -lc -undefined dynamic_lookup)
-    else()
-        target_link_options(codelldb_dylib PRIVATE --force-link=entry
-                            -static-libgcc -Wl,-Bstatic -lc++ -lc++abi -Wl,-Bdynamic -ldl -lm -lc)
-    endif()
-else()
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/empty.c "")
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/exports.def "EXPORTS\r\n  entry")
-    add_library(codelldb_dylib SHARED ${CMAKE_CURRENT_BINARY_DIR}/empty.c ${CMAKE_CURRENT_BINARY_DIR}/exports.def)
-    target_link_directories(codelldb_dylib PRIVATE ${CMAKE_BINARY_DIR}/lldb/lib)
-    target_link_libraries(codelldb_dylib PRIVATE liblldb.lib ws2_32.lib bcrypt.lib userenv.lib ntdll.lib)
-    target_link_options(codelldb_dylib PRIVATE /NODEFAULTLIB:MSVCRTD)
-endif()
-add_dependencies(codelldb_dylib cargo_build)
-set_target_properties(codelldb_dylib PROPERTIES OUTPUT_NAME "codelldb")
-target_link_libraries(codelldb_dylib PRIVATE ${CargoOutDir}/${CodelldbLib})
 
 add_custom_target(cargo_test
     COMMAND cargo test --lib -p=lldb -p=adapter-protocol -p=codelldb ${CargoFlags} -- --test-threads=1

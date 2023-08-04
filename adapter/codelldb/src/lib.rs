@@ -33,11 +33,8 @@ mod python;
 mod shared;
 mod terminal;
 
-#[no_mangle]
-#[allow(improper_ctypes_definitions)]
-pub extern "C" fn entry(matches: &ArgMatches) -> Result<(), Error> {
+pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     hook_crashes();
-    env_logger::Builder::from_default_env().format_timestamp_millis().init();
 
     let adapter_settings: AdapterSettings = match matches.value_of("settings") {
         Some(s) => match serde_json::from_str(s) {

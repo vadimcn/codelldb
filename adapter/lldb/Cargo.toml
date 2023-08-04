@@ -1,17 +1,20 @@
 [package]
+edition = "2021"
 name = "lldb"
 version = "0.1.0"
-edition = "2018"
+links = "lldb"
 
 [dependencies]
-cpp = "0.5"
 bitflags = "1.0"
+cpp = "0.5"
 lazy_static = "1.3.0"
 libc = "0.2.59"
 num_enum = "0.5.7"
 
 [build-dependencies]
+build-utils = {path = "../build-utils"}
 cpp_build = "0.5"
+regex = "1.9"
 
 [features]
-weak-linkage = [] # weak-link to liblldb
+no_link_args = [] # Do not emit any linker arguments

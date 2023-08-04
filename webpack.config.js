@@ -15,7 +15,7 @@ const config = {
   },
   resolve: {
     extensions: ['.js', '.ts', '.tsx'],
-    modules: ['@CMAKE_BINARY_DIR@/node_modules', '@CMAKE_SOURCE_DIR@']
+    modules: ['${CMAKE_BINARY_DIR}/node_modules', '${CMAKE_SOURCE_DIR}']
   },
   module: {
     rules: [

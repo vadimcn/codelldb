@@ -12,6 +12,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use regex::Regex;
+
 use adapter_protocol::*;
 use lldb::*;
 
@@ -824,7 +826,9 @@ impl DebugSession {
     fn symbol_from_location(&self, source: &Either<String, i64>, line: u32, column: Option<u32>) -> Option<String> {
         let bp2 = match source {
             Either::First(file_path) => {
-                let file_path_norm = normalize_path(Path::new(file_path));
+                let re = Regex::new(r"^vscode-remote://[^/]*").unwrap();
+                let trimmed_path = re.replace(file_path, "");
+                let file_path_norm = normalize_path(trimmed_path.as_ref());
                 self.target.breakpoint_create_by_location(&file_path_norm, line, column)
             }
             Either::Second(source_ref) => {

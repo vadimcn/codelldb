@@ -30,6 +30,7 @@ tokio-util = { version = "0.6.0", features = ["codec"] }
 lldb = { path = "crates/lldb" }
 loading = { path = "crates/loading" }
 adapter_protocol = { package = "adapter-protocol", path = "crates/adapter-protocol" }
+regex = "1.9.3"
 
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"

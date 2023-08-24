@@ -78,6 +78,8 @@ else()
     target_link_directories(codelldb_dylib PRIVATE ${CMAKE_BINARY_DIR}/lldb/lib)
     target_link_libraries(codelldb_dylib PRIVATE liblldb.lib ws2_32.lib bcrypt.lib userenv.lib ntdll.lib)
     target_link_options(codelldb_dylib PRIVATE /NODEFAULTLIB:MSVCRTD)
+    # Copy the dylib to binary directory for vsix_full to pick it up
+    add_custom_command(TARGET codelldb_dylib POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:codelldb_dylib> ${CMAKE_CURRENT_BINARY_DIR}/)
 endif()
 add_dependencies(codelldb_dylib cargo_build)
 set_target_properties(codelldb_dylib PROPERTIES OUTPUT_NAME "codelldb")

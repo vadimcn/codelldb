@@ -1,0 +1,5 @@
+set(LLVM_TRIPLE aarch64-pc-windows-gnu)
+set(CMAKE_C_COMPILER gcc)
+set(CMAKE_CXX_COMPILER g++)
+set(TARGET_ARCH arm64)
+set(HEADER_ARCH ARM64)

@@ -82,6 +82,13 @@ jobs:
           rust_targets: x86_64-pc-windows-msvc
           platformid: win32-x64
 
+        - os: Windows
+          image: windows-11-arm
+          lldb_triple: aarch64-windows-msvc
+          rust_toolchain: aarch64-pc-windows-msvc
+          rust_targets: aarch64-pc-windows-msvc
+          platformid: win32-arm64
+
     name: ${{ matrix.os }} ${{ matrix.platformid }}
     runs-on: ${{ matrix.image }}
 

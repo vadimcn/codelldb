@@ -3,6 +3,7 @@
 - Python 3.5 or later.
 - C++ compiler (GCC, clang or MSVC).
 - Rust 1.61 or later.
+  - (Windows ARM64 cross-compile) `rustup target add aarch64-pc-windows-msvc`
 - (Windows only) mingw-w64 toolchain (used for tests).
 - (Windows ARM64 only) LLVM WOA64 (Windows on Arm64) such as [LLVM-16.0.6-woa64.exe](https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.6/LLVM-16.0.6-woa64.exe)
 
@@ -37,13 +38,14 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-x86_64-linux-gnu.cmake -DLLDB_PA
 If you are on some other platform, edit the toolchain file accordingly. You *will* get linker errors if you don't use the toolchain file
 
 ## ARM64 Windows
-```sh
+```powershell
 # Install LLVM For Windows on Arm64
-winget install LLVM.LLVM
+iwr -Uri https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.6/LLVM-16.0.6-woa64.exe -OutFile LLVM-16.0.6-woa64.exe
+.\LLVM-16.0.6-woa64.exe /S /D C:\LLVM
 cd codelldb
 mkdir build
 cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE="cmake/toolchain-aarch64-windows-msvc.cmake" -DLLDB_PACKAGE="C:\Program Files\LLVM"
+cmake .. -DCMAKE_TOOLCHAIN_FILE="cmake/toolchain-aarch64-windows-msvc.cmake" -DLLDB_PACKAGE="C:\LLVM"
 
 # Build the full extension to bundle the required binaries
 cmake --build . --config Release --target vsix_full

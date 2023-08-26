@@ -54,7 +54,7 @@ cmake --build . --config Release --target vsix_full
 code --install-extension codelldb-full.vsix
 
 # It is safe to uninstall LLVM once the extension is packed and installed
-winget uninstall LLVM.LLVM
+C:\LLVM\uninstall.exe
 ```
 
 Windows on ARM64 will copy the bin and lib files from the LLVM package to the build directory.

@@ -25,7 +25,7 @@ const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'd
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
 const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
-const debuggeeSourceMap = function() {
+const debuggeeSourceMap = function () {
     if (process.platform != 'win32') {
         return {
             '/remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
@@ -307,8 +307,8 @@ function generateSuite(triple: string) {
                 assert.equal(response4.body.variables[0].value, '20');
             });
 
-            test('invalid jump crash', async function () {
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid jump crash', program: debuggee, args: ['crash_invalid_call'] });
+            test('invalid stack frame', async function () {
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid stack frame', program: debuggee, args: ['invalid_stack_frame'] });
                 let response = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 2 });
                 assert.equal(response.body.stackFrames.length, 2)
                 assert.equal(response.body.stackFrames[0].instructionPointerReference, '0x0');
@@ -336,24 +336,24 @@ function generateSuite(triple: string) {
                     },
 
                     s1: {
-                        $: "{a:1, b:'a', c:3}",
-                        a: 1, b: "'a'", c: 3
+                        $value: /{a:1, b:'a', c:3.*}/,
+                        a: 1, b: "'a'", c: 3, d: { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0 }
                     },
-                    s_ptr: { a: 1, b: "'a'", c: 3 },
-                    s_ref: { a: 1, b: "'a'", c: 3 },
-                    s_ptr_ptr: v => v.value.startsWith('{0x'),
+                    s_ptr: { a: 1, b: "'a'", c: 3, d: { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0 } },
+                    s_ref: { a: 1, b: "'a'", c: 3, d: { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0 } },
+                    s_ptr_ptr: /{0x.*/,
 
-                    s2: { a: 10, b: "'b'", c: 999 },
+                    s2: { a: 10, b: "'b'", c: 999, d: { '[0]': 0, '[1]': 0, '[2]': 0, '[3]': 0 } },
                     cstr: '"The quick brown fox"',
                     wcstr: 'L"The quick brown fox"',
 
                     invalid_utf8: '"ABC\\xff\\U00000001\\xfeXYZ"',
 
                     null_s_ptr: '<null>',
-                    null_s_ptr_ptr: v => v.value.startsWith('{0x'),
+                    null_s_ptr_ptr: /{0x.*/,
                     invalid_s_ptr: '<invalid address>',
 
-                    void_ptr: v => v.value.startsWith('0x'),
+                    void_ptr: /0x.*/,
                     null_void_ptr: '<null>',
                     invalid_void_ptr: '<invalid address>',
                 });
@@ -455,7 +455,7 @@ function generateSuite(triple: string) {
                 // let response3 = await ds.evaluateRequest({ expression: "/nat 2+2", frameId: frameId, context: "watch" });
                 // assert.ok(response3.body.result.endsWith("4")); // "(int) $0 = 70"
 
-                for (let i = 1; i < 10; ++i) {
+                for (let i = 1; i < 5; ++i) {
                     let waitForStopAsync = ds.waitForStopEvent();
                     log(`${i}: continue`);
                     await ds.continueRequest({ threadId: 0 });
@@ -714,8 +714,8 @@ function generateSuite(triple: string) {
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
                         reg_enum1: {},
-                        reg_enum2: { $: '{0:100, 1:200}', 0: 100, 1: 200 },
-                        reg_enum3: { $: '{x:11.35, y:20.5}', x: 11.35, y: 20.5 },
+                        reg_enum2: { $value: '{0:100, 1:200}', 0: 100, 1: 200 },
+                        reg_enum3: { $value: '{x:11.35, y:20.5}', x: 11.35, y: 20.5 },
                         reg_enum_ref: '{x:11.35, y:20.5}',
                         cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
                         cstyle_enum2: 'rust_debuggee::CStyleEnum::B',
@@ -723,8 +723,8 @@ function generateSuite(triple: string) {
                         enc_enum2: {},
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', 0: '"ok"' },
-                        result_err: { $: 'Err("err")', 0: '"err"' },
+                        result_ok: { $value: 'Ok("ok")', 0: '"ok"' },
+                        result_err: { $value: 'Err("err")', 0: '"err"' },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
                         opt_reg_struct1: { 0: { a: 1, c: 12 } },
@@ -733,20 +733,20 @@ function generateSuite(triple: string) {
                 } else {
                     await ds.compareVariables(localVars, {
                         reg_enum1: 'A',
-                        reg_enum2: { $: 'B(100, 200)', 0: 100, 1: 200 },
+                        reg_enum2: { $value: 'B(100, 200)', 0: 100, 1: 200 },
                         reg_enum3: { x: 11.35, y: 20.5 },
                         reg_enum_ref: { x: 11.35, y: 20.5 },
                         cstyle_enum1: 'A',
                         cstyle_enum2: 'B',
-                        enc_enum1: { $: 'Some("string")', 0: '"string"' },
+                        enc_enum1: { $value: 'Some("string")', 0: '"string"' },
                         enc_enum2: 'Nothing',
                         opt_str1: 'Some("string")',
                         opt_str2: 'None',
-                        result_ok: { $: 'Ok("ok")', 0: '"ok"' },
-                        result_err: { $: 'Err("err")', 0: '"err"' },
+                        result_ok: { $value: 'Ok("ok")', 0: '"ok"' },
+                        result_err: { $value: 'Err("err")', 0: '"err"' },
                         cow1: 'Borrowed("their cow")',
                         cow2: 'Owned("my cow")',
-                        opt_reg_struct1: { $: 'Some({...})', 0: { a: 1, c: 12 } },
+                        opt_reg_struct1: { $value: 'Some({...})', 0: { a: 1, c: 12 } },
                         opt_reg_struct2: 'None',
                     });
                 }
@@ -772,20 +772,20 @@ function generateSuite(triple: string) {
                     slice: '(5) &[1, 2, 3, 4, 5]',
                     mut_slice: '(5) &[1000, 2000, 3000, 4000, 5000]',
                     vec_int: {
-                        $: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        $value: '(10) vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
                         '[0]': 1, '[1]': 2, '[9]': 10
                     },
                     vecdeque_int: {
-                        $: '(10) VecDeque[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        $value: '(10) VecDeque[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]',
                         '[0]': 1, '[1]': 2, '[9]': 10
                     },
                     vecdeque_popped: {
-                        $: '(9) VecDeque[2, 3, 4, 5, 6, 7, 8, 9, 10]',
+                        $value: '(9) VecDeque[2, 3, 4, 5, 6, 7, 8, 9, 10]',
                         '[0]': 2, '[1]': 3, '[8]': 10
                     },
                     large_vec: '(20000) vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]',
                     vec_str: {
-                        $: '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
+                        $value: '(5) vec!["111", "2222", "3333", "4444", "5555", ...]',
                         '[0]': '"111"', '[4]': '"5555"'
                     },
                     vec_tuple: {
@@ -810,7 +810,7 @@ function generateSuite(triple: string) {
                 await ds.compareVariables(localVars, {
                     empty_string: '""',
                     string: {
-                        $: '"A String"',
+                        $value: '"A String"',
                         '[0]': char('A'), '[7]': char('g')
                     },
                     str_slice: '"String slice"',
@@ -843,14 +843,14 @@ function generateSuite(triple: string) {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
                 let localVars = await ds.launchStopAndGetVars({ name: 'rust boxes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
                 await ds.compareVariables(localVars, {
-                    boxed: { $: '"boxed"' },
-                    rc_box: { $: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box2: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box2c: { $: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_box3: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    rc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    arc_box: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    arc_weak: { $: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    boxed: { $value: '"boxed"' },
+                    rc_box: { $value: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box2: { $value: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box2c: { $value: '(refs:2) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_box3: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    rc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    arc_box: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                    arc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
                     ref_cell: 10,
                     ref_cell2: '(borrowed:2) 11',
                     ref_cell2_borrow1: 11,

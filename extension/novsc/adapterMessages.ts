@@ -4,6 +4,7 @@ export class AdapterSettings {
     displayFormat?: 'auto' | 'hex' | 'decimal' | 'binary' = 'auto';
     dereferencePointers?: boolean = true;
     evaluationTimeout?: number;
+    summaryTimeout?: number;
     suppressMissingSourceFiles?: boolean;
     consoleMode?: 'commands' | 'evaluate';
     sourceLanguages?: string[];

@@ -320,7 +320,7 @@ impl super::DebugSession {
             value_str
         } else if is_container {
             // Try to synthesize a summary from var's children.
-            Self::get_container_summary(var.as_ref())
+            self.get_container_summary(var.as_ref())
         } else {
             // Otherwise give up.
             "<not available>".to_owned()
@@ -369,16 +369,12 @@ impl super::DebugSession {
         }
     }
 
-    fn get_container_summary(var: &SBValue) -> String {
-        // Summary evaluation is supposed to be quick, so cap it at 10ms.
-        const MAX_EVALUATION_TIME: time::Duration = time::Duration::from_millis(10);
-        const MAX_LENGTH: usize = 32;
-
+    fn get_container_summary(&self, var: &SBValue) -> String {
         let start = time::SystemTime::now();
         let mut summary = String::from("{");
         let mut sep = "";
         for child in var.children() {
-            if summary.len() > MAX_LENGTH || start.elapsed().unwrap_or_default() > MAX_EVALUATION_TIME {
+            if summary.len() > self.max_summary_length || start.elapsed().unwrap_or_default() > self.summary_timeout {
                 log_errors!(write!(summary, "{}...", sep));
                 break;
             }

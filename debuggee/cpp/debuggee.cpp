@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
     {
         *(volatile int *)0 = 42;
     }
-    else if (testcase == "crash_invalid_call")
+    else if (testcase == "invalid_stack_frame")
     {
         using call_t = void(*)();
         ((call_t)(nullptr))();

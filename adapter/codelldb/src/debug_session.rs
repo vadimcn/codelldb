@@ -82,6 +82,8 @@ pub struct DebugSession {
     source_languages: Vec<String>,
     terminal_prompt_clear: Option<Vec<String>>,
     breakpoint_mode: BreakpointMode,
+    summary_timeout: time::Duration,
+    max_summary_length: usize,
 }
 
 // AsyncResponse is used to "smuggle" futures out of request handlers
@@ -167,6 +169,8 @@ impl DebugSession {
             source_languages: vec!["cpp".into()],
             terminal_prompt_clear: None,
             breakpoint_mode: BreakpointMode::Path,
+            summary_timeout: time::Duration::from_millis(10),
+            max_summary_length: 32,
         };
 
         debug_session.update_adapter_settings(&settings);
@@ -1417,6 +1421,9 @@ impl DebugSession {
 
         if let Some(timeout) = settings.evaluation_timeout {
             self.evaluation_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
+        }
+        if let Some(timeout) = settings.summary_timeout {
+            self.summary_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
         }
         if let Some(ref terminal_prompt_clear) = settings.terminal_prompt_clear {
             self.terminal_prompt_clear = Some(terminal_prompt_clear.clone());

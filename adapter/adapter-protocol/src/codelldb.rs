@@ -260,6 +260,7 @@ pub struct AdapterSettings {
     pub dereference_pointers: Option<bool>,
     pub container_summary: Option<bool>,
     pub evaluation_timeout: Option<f32>,
+    pub summary_timeout: Option<f32>,
     pub suppress_missing_source_files: Option<bool>,
     pub console_mode: Option<ConsoleMode>,
     pub source_languages: Option<Vec<String>>,

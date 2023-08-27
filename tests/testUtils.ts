@@ -102,7 +102,7 @@ export class DebugTestSession extends DebugClient {
                     session.adapter = await adapter.start(liblldb, {
                         extensionRoot: extensionRoot,
                         extraEnv: { RUST_LOG: 'error,codelldb=debug' },
-                        adapterSettings: {},
+                        adapterSettings: { summaryTimeout: 1.0 },
                         workDir: undefined,
                         port: address.port,
                         connect: true,
@@ -204,6 +204,18 @@ export class DebugTestSession extends DebugClient {
         return response.body.variables;
     }
 
+    // Compare DAP 'variables' response to the expected values.
+    // Variable references will be recursively fetched and compared.
+    //
+    // Expected values may contain:
+    // - strigs, which will be compared verbatim,
+    // - booleans, which will be tested for exact equality to the variable value parsed as a boolean,
+    // - integers, which will be tested for exact equality to the variable value parsed as an integer,
+    // - floats, which will be tested for approximate equality to the variable value parsed as a float,
+    // - regular expressions, which will be tested for a match against the variable value,
+    // - functors, which will be called with the variable as an argument and should return a boolean.
+    // - objects, whose fields will be recursively compared to the corresponding children of the variable,
+    //       with the exception of the `$value' field, which will be compared to the variable value.
     async compareVariables(
         vars: number | Dict<dp.Variable>,
         expected: Dict<string | number | boolean | ValidatorFn | Dict<any>>,
@@ -217,8 +229,8 @@ export class DebugTestSession extends DebugClient {
         }
 
         for (let key of Object.keys(expected)) {
-            if (key == '$')
-                continue; // Summary will have been checked by the caller.
+            if (key == '$value')
+                continue; // The value will have been checked by the caller.
 
             let keyPath = prefix.length > 0 ? prefix + '.' + key : key;
             let expectedValue = expected[key];
@@ -226,9 +238,9 @@ export class DebugTestSession extends DebugClient {
             assert.notEqual(variable, undefined, 'Did not find variable "' + keyPath + '"');
 
             if (typeof expectedValue == 'object') {
-                let summary = expectedValue['$'];
-                if (summary != undefined) {
-                    this.compareToExpected(variable, summary, keyPath);
+                let value = expectedValue['$value'];
+                if (value != undefined) {
+                    this.compareToExpected(variable, value, keyPath);
                 }
                 logWithStack('Awaiting compareVariables');
                 await this.compareVariables(variable.variablesReference, expectedValue, keyPath);
@@ -238,7 +250,9 @@ export class DebugTestSession extends DebugClient {
         }
     }
 
-    compareToExpected(variable: dp.Variable, expectedValue: string | number | boolean | ValidatorFn, keyPath: string) {
+    compareToExpected(variable: dp.Variable,
+        expectedValue: string | number | boolean | RegExp | ValidatorFn,
+        keyPath: string) {
         if (typeof expectedValue == 'string') {
             assert.equal(variable.value, expectedValue,
                 `"${keyPath}": expected: "${expectedValue}", actual: "${variable.value}"`);
@@ -259,9 +273,12 @@ export class DebugTestSession extends DebugClient {
             }
         } else if (typeof expectedValue == 'function') {
             assert.ok(expectedValue(variable),
-                `"${keyPath}": validator returned false`);
+                `"${keyPath}": validator returned false for "${variable.value}"`);
+        } else if (expectedValue instanceof RegExp) {
+            assert.ok(expectedValue.test(variable.value),
+                `"${keyPath}": regex ${expectedValue} didn't match "${variable.value}"`);
         } else {
-            assert.ok(false, 'Unreachable');
+            assert.ok(false, 'Invalid expected value type');
         }
     }
 

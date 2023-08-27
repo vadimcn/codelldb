@@ -1,5 +1,8 @@
 [workspace]
-members = ["adapter", "debuggee"]
+members = [
+  "adapter/codelldb",
+  "debuggee",
+]
 
 [profile.release]
 debug = true

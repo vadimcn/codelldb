@@ -286,7 +286,11 @@ export class Cargo {
             let rl = readline.createInterface({ input: cargo.stdout });
             rl.on('line', line => {
                 try {
-                    onStdoutJson(JSON.parse(line));
+                    if (line.trim() === "") {
+                        onStdoutJson({});
+                    } else {
+                        onStdoutJson(JSON.parse(line));
+                    }
                 } catch (err) {
                     reject(new ErrorWithCause(`Could not parse JSON: "${line}"`, { cause: err }));
                 }

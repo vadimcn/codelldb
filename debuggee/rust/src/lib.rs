@@ -9,7 +9,7 @@ use std::path;
 use std::rc;
 use std::sync;
 
-fn primitives() {
+pub fn primitives() {
     let char_: char = 'A';
     let bool_: bool = true;
 
@@ -53,7 +53,7 @@ enum EncodedEnum<T> {
     Nothing,
 }
 
-fn enums() {
+pub fn enums() {
     let reg_enum1 = RegularEnum::A;
     let reg_enum2 = RegularEnum::B(100, 200);
     let reg_enum3 = RegularEnum::C { x: 11.35, y: 20.5 };
@@ -114,7 +114,7 @@ impl<'a> Drop for RegularStruct<'a> {
     }
 }
 
-fn structs() {
+pub fn structs() {
     let tuple = (1, "a", 42.0);
     let tuple_ref = &(1, "a", 42.0);
 
@@ -134,7 +134,7 @@ fn structs() {
     println!("---");
 }
 
-fn arrays() {
+pub fn arrays() {
     let array = [1, 2, 3, 4, 5];
     let slice = &array[..];
     let mut array2 = [1000, 2000, 3000, 4000, 5000];
@@ -154,7 +154,7 @@ fn arrays() {
     println!("---");
 }
 
-fn strings() {
+pub fn strings() {
     let empty_string = String::from("");
     let string = String::from("A String");
     let str_slice = "String slice";
@@ -188,7 +188,7 @@ fn strings() {
     println!("---");
 }
 
-fn boxes() {
+pub fn boxes() {
     let reg_struct = RegularStruct {
         a: 1,
         b: "b",
@@ -225,7 +225,7 @@ fn boxes() {
     println!("---");
 }
 
-fn hashes() {
+pub fn hashes() {
     let mut hash: HashMap<String, i32> = HashMap::default();
     hash.insert("Einar".into(), 25);
     hash.insert("Olaf".into(), 24);
@@ -246,7 +246,7 @@ struct PyKeywords {
     raise: i32,
 }
 
-fn misc() {
+pub fn misc() {
     let i32_ = 32;
     let f32_ = 42.0;
     let closure = move |x: i32| (x + i32_) as f32 * f32_;
@@ -261,15 +261,4 @@ fn misc() {
     println!("---"); // #BP_misc
     println!("---");
     println!("---");
-}
-
-fn main() {
-    primitives();
-    enums();
-    structs();
-    arrays();
-    boxes();
-    strings();
-    hashes();
-    misc();
 }

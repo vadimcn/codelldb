@@ -4,7 +4,7 @@ members = [
   "adapter/adapter-protocol",
   "adapter/lldb",
   "adapter/lldb-stub",
-  "debuggee",
+  "debuggee/rust",
 ]
 
 [profile.release]

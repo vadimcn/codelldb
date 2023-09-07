@@ -2,10 +2,11 @@ variables:
   lldbBuildId: 2161
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'lldb-build'
-  rustcVersion: '1.63.0'
+  rustcVersion: '1.68.0'
   cachePrefix: F
   AZP_CACHING_CONTENT_FORMAT: SingleTar
   AZP_CACHING_TAR: true
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
   ${{ if eq(variables['Build.SourceBranchName'], 'master') }}:
     versionSuffix: ''
   ${{ else }}:

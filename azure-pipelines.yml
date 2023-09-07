@@ -322,6 +322,8 @@ jobs:
       cd $(Agent.BuildDirectory)
       set > env.log
       ls -lR $(Agent.BuildDirectory) > build-tree.log
+      wevtutil query-events System /c:100 /rd:true /f:text >wevt-System.log
+      wevtutil query-events Application /c:100 /rd:true /f:text >wevt-Application.log
       zip --recurse-patterns $(Agent.BuildDirectory)\$(Triple).zip "*.log" "CMakeCache.txt"
       echo ##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)\$(Triple).zip
     displayName: 'Logs'

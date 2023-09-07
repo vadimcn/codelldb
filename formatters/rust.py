@@ -25,12 +25,13 @@ def initialize_category(debugger, internal_dict):
     rust_category.SetEnabled(True)
 
     attach_summary_to_type(tuple_summary_provider, r'^\(.*\)$', True)
-    attach_synthetic_to_type(MsvcTupleSynthProvider, r'^tuple\$?<.+>$',
-                             True)  # *-windows-msvc uses this name since 1.47
+    attach_synthetic_to_type(MsvcTupleSynthProvider, r'^tuple\$?<.+>$', True)  # *-windows-msvc uses this name since 1.47
 
     attach_synthetic_to_type(StrSliceSynthProvider, '&str')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str*')
     attach_synthetic_to_type(StrSliceSynthProvider, 'str')  # *-windows-msvc uses this name since 1.5?
+    attach_synthetic_to_type(StrSliceSynthProvider, 'ref$<str$>')
+    attach_synthetic_to_type(StrSliceSynthProvider, 'ref_mut$<str$>')
 
     attach_synthetic_to_type(StdStringSynthProvider, '^(collections|alloc)::string::String$', True)
     attach_synthetic_to_type(StdVectorSynthProvider, r'^(collections|alloc)::vec::Vec<.+>$', True)
@@ -42,15 +43,22 @@ def initialize_category(debugger, internal_dict):
 
     attach_synthetic_to_type(SliceSynthProvider, r'^&(mut *)?\[.*\]$', True)
     attach_synthetic_to_type(MsvcSliceSynthProvider, r'^(mut *)?slice\$?<.+>.*$', True)
+    attach_synthetic_to_type(MsvcSliceSynthProvider, r'^ref(_mut)?\$<slice2\$<.+>.*>$', True)
 
     attach_synthetic_to_type(StdCStringSynthProvider, '^(std|alloc)::ffi::c_str::CString$', True)
     attach_synthetic_to_type(StdCStrSynthProvider, '^&?(std|core)::ffi::c_str::CStr$', True)
+    attach_synthetic_to_type(StdCStrSynthProvider, 'ref$<core::ffi::c_str::CStr>')
+    attach_synthetic_to_type(StdCStrSynthProvider, 'ref_mut$<core::ffi::c_str::CStr>')
 
     attach_synthetic_to_type(StdOsStringSynthProvider, 'std::ffi::os_str::OsString')
     attach_synthetic_to_type(StdOsStrSynthProvider, '^&?std::ffi::os_str::OsStr', True)
+    attach_synthetic_to_type(StdOsStrSynthProvider, 'ref$<std::ffi::os_str::OsStr>')
+    attach_synthetic_to_type(StdOsStrSynthProvider, 'ref_mut$<std::ffi::os_str::OsStr>')
 
     attach_synthetic_to_type(StdPathBufSynthProvider, 'std::path::PathBuf')
     attach_synthetic_to_type(StdPathSynthProvider, '^&?std::path::Path', True)
+    attach_synthetic_to_type(StdPathSynthProvider, 'ref$<std::path::Path>')
+    attach_synthetic_to_type(StdPathSynthProvider, 'ref_mut$<std::path::Path>')
 
     attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Rc<.+>$', True)
     attach_synthetic_to_type(StdRcSynthProvider, r'^alloc::rc::Weak<.+>$', True)
@@ -360,6 +368,8 @@ class StrSliceSynthProvider(StringLikeSynthProvider):
             gcm(valobj, 'length').GetValueAsUnsigned()
         )
 
+    def get_type_name(self):
+        return '&str'
 
 class StdStringSynthProvider(StringLikeSynthProvider):
     def ptr_and_len(self, valobj):
@@ -638,6 +648,9 @@ class MsvcEnum2SynthProvider(EnumSynthProvider):
     def update(self):
         tparams = get_template_params(self.valobj.GetTypeName())
         self.type_name = tparams[0]
+
+    def has_children(self):
+        return True
 
     def get_child_at_index(self, index):
         return self.valobj.GetChildAtIndex(index)

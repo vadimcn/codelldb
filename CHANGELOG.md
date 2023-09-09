@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.10.0
+
+## New
+- Updated bundled LLDB to v17.0.0
+
+## Fixed
+- #954: VSCode call stack doesn't work when instruction pointer is invalid
+- #958: Excluded Callers feature not working in Dev Container
+- #853: Display Whole String in Debug Console
+- #980: Global variables are miscategorized as static
+
 # 1.9.2
 
 ## New
@@ -32,7 +43,7 @@ This function supersedes functionality of the older `display_html` API.
 # 1.9.0
 
 ## New
-- Updated the bundled LLDB to v16.0.0
+- Updated bundled LLDB to v16.0.0
 - It is now possible to combine number format specifiers (`foo,x`) and "reinterpret as array" speficiers (`foo,[10]`)
   together: `foo,x[10]` (Feature request #851).
 - Added support for native VSCode [disassmbly view](https://devblogs.microsoft.com/cppblog/visual-studio-code-c-july-2021-update-disassembly-view-macro-expansion-and-windows-arm64-debugging/#disassembly-view) (thanks @puremourning!).

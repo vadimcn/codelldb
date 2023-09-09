@@ -76,7 +76,7 @@ function generateSuite(triple: string) {
         suite('Basic', () => {
 
             test('check python', async function () {
-                await ds.launch({ name: 'check python', custom: true });
+                await ds.launch({ name: this.test.title, custom: true });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
                     context: '_command'
@@ -95,18 +95,20 @@ function generateSuite(triple: string) {
 
             test('run program to the end', async function () {
                 let terminatedAsync = ds.waitForEvent('terminated');
-                await ds.launch({ name: 'run program to the end', program: debuggee });
+                await ds.launch({ name: this.test.title, program: debuggee });
                 await terminatedAsync;
             });
 
             test('custom launch', async function () {
                 let terminatedAsync = ds.waitForEvent('terminated');
-                await ds.launch({
-                    name: 'custom launch',
-                    custom: true,
-                    targetCreateCommands: [`file '${debuggeeWithExt}'`],
-                    processCreateCommands: ['process launch'],
-                });
+                await ds.launch(
+                    {
+                        name: this.test.title,
+                        custom: true,
+                        targetCreateCommands: [`file '${debuggeeWithExt}'`],
+                        processCreateCommands: ['process launch'],
+                    }
+                );
                 await terminatedAsync;
             });
 
@@ -114,17 +116,19 @@ function generateSuite(triple: string) {
                 let waitExitedAsync = ds.waitForEvent('exited');
                 let envFile = path.join(os.tmpdir(), 'test.env');
                 fs.writeFileSync(envFile, 'FOO=XXX\nBAZ=baz');
-                await ds.launch({
-                    name: 'run program with modified environment',
-                    envFile: envFile,
-                    env: { 'FOO': 'foo', 'BAR': 'bar' },
-                    program: debuggee,
-                    args: ['check_env',
-                        'FOO', 'foo',
-                        'BAR', 'bar',
-                        'BAZ', 'baz'
-                    ]
-                });
+                await ds.launch(
+                    {
+                        name: this.test.title,
+                        program: debuggee,
+                        args: ['check_env',
+                            'FOO', 'foo',
+                            'BAR', 'bar',
+                            'BAZ', 'baz'
+                        ],
+                        envFile: envFile,
+                        env: { 'FOO': 'foo', 'BAR': 'bar' },
+                    }
+                );
                 let exitedEvent = await waitExitedAsync;
                 // debuggee shall return 0 if all env values are equal to the expected values
                 assert.equal(exitedEvent.body.exitCode, 0);
@@ -134,18 +138,19 @@ function generateSuite(triple: string) {
                 let waitExitedAsync = ds.waitForEvent('exited');
                 let envFile = path.join(os.tmpdir(), 'test.env');
                 fs.writeFileSync(envFile, 'FOO=XXX\nBAZ=baz');
-                await ds.launch({
-                    name: 'custom launch with modified environment',
-                    targetCreateCommands: [`file '${debuggeeWithExt}'`],
-                    processCreateCommands: ['process launch'],
-                    envFile: envFile,
-                    env: { 'FOO': 'foo', 'BAR': 'bar' },
-                    args: ['check_env',
-                        'FOO', 'foo',
-                        'BAR', 'bar',
-                        'BAZ', 'baz'
-                    ]
-                });
+                await ds.launch(
+                    {
+                        name: this.test.title,
+                        targetCreateCommands: [`file '${debuggeeWithExt}'`],
+                        processCreateCommands: ['process launch'],
+                        envFile: envFile,
+                        env: { 'FOO': 'foo', 'BAR': 'bar' },
+                        args: ['check_env',
+                            'FOO', 'foo',
+                            'BAR', 'bar',
+                            'BAZ', 'baz'
+                        ]
+                    });
                 let exitedEvent = await waitExitedAsync;
                 // debuggee shall return 0 if all env values are equal to the expected values
                 assert.equal(exitedEvent.body.exitCode, 0);
@@ -159,10 +164,10 @@ function generateSuite(triple: string) {
             test('stop on a breakpoint (basic)', async function () {
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
-                let stopEvent = await ds.launchAndWaitForStop({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLineSource);
-                    });
+                let stopEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, cwd: path.dirname(debuggee) },
+                    () => ds.setBreakpoint(debuggeeSource, bpLineSource)
+                );
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
                 log('Continue');
                 await ds.continueRequest({ threadId: 0 });
@@ -181,11 +186,12 @@ function generateSuite(triple: string) {
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
                 let bpLineHeader = findMarker(debuggeeHeader, '#BPH1');
                 let stopEvent = await ds.launchAndWaitForStop(
-                    { name: 'stop on a breakpoint (same file name)', program: debuggee, args: [testcase], cwd: path.dirname(debuggee) },
+                    { name: this.test.title, program: debuggee, args: [testcase], cwd: path.dirname(debuggee) },
                     async () => {
                         await ds.setBreakpoint(debuggeeSource, bpLineSource);
                         await ds.setBreakpoint(debuggeeHeader, bpLineHeader);
-                    });
+                    }
+                );
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
 
                 let waitForStopAsync2 = ds.waitForStopEvent();
@@ -204,10 +210,10 @@ function generateSuite(triple: string) {
             test('stop on a breakpoint (basic)', async function () {
                 let waitForExitAsync = ds.waitForEvent('exited');
                 let bpLineSource = findMarker(debuggeeSource, '#BP1');
-                let stopEvent = await ds.launchAndWaitForStop({ name: 'stop on a breakpoint (basic)', program: debuggee, cwd: path.dirname(debuggee) },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLineSource);
-                    });
+                let stopEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, cwd: path.dirname(debuggee) },
+                    () => ds.setBreakpoint(debuggeeSource, bpLineSource)
+                );
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeSource, bpLineSource);
                 log('Continue');
                 await ds.continueRequest({ threadId: 0 });
@@ -221,15 +227,14 @@ function generateSuite(triple: string) {
                 let bpLineSource = findMarker(debuggeeRemote1, '#BP1');
                 let stopEvent = await ds.launchAndWaitForStop(
                     {
-                        name: 'breakpoint mode',
+                        name: this.test.title,
                         program: debuggee, cwd: path.dirname(debuggee),
                         args: ['weird_path'],
                         sourceMap: debuggeeSourceMap,
                         breakpointMode: 'file'
                     },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeRemote1, bpLineSource);
-                    });
+                    () => ds.setBreakpoint(debuggeeRemote1, bpLineSource)
+                );
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote1, bpLineSource);
                 log('Continue');
                 let stopEvent2Async = ds.waitForStopEvent();
@@ -253,20 +258,22 @@ function generateSuite(triple: string) {
                 let bpLineRelative = findMarker(debuggeeRelative, '#BP1');
                 let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
 
-                let stopEvent1 = await ds.launchAndWaitForStop({
-                    name: 'stop on a breakpoint (path mapping)', program: debuggee, args: ['weird_path'], cwd: path.dirname(debuggee),
-                    sourceMap: debuggeeSourceMap,
-                    relativePathBase: path.join(sourceDir, 'debuggee'),
-                    preRunCommands: [
-                        'set show target.source-map'
-                    ]
-                }, async () => {
-                    await ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
-                    await ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
-                    await ds.setBreakpoint(debuggeeRelative, bpLineRelative);
-                    // await ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
-                });
-
+                let stopEvent1 = await ds.launchAndWaitForStop(
+                    {
+                        name: this.test.title,
+                        program: debuggee,
+                        args: ['weird_path'],
+                        cwd: path.dirname(debuggee),
+                        sourceMap: debuggeeSourceMap,
+                        relativePathBase: path.join(sourceDir, 'debuggee'),
+                        preRunCommands: ['set show target.source-map']
+                    }, async () => {
+                        await ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
+                        await ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
+                        await ds.setBreakpoint(debuggeeRelative, bpLineRelative);
+                        // await ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
+                    }
+                );
                 await ds.verifyLocation(stopEvent1.body.threadId, debuggeeRemote1, bpLineRemote1);
                 await ds.evaluate('break list');
 
@@ -295,10 +302,10 @@ function generateSuite(triple: string) {
 
             test('page stack', async function () {
                 let bpLine = findMarker(debuggeeSource, '#BP2');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'page stack', program: debuggee, args: ['deepstack'] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
-                    });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['deepstack'] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
                 let response2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 10 });
                 assert.equal(response2.body.stackFrames.length, 10)
                 let response3 = await ds.scopesRequest({ frameId: response2.body.stackFrames[0].id });
@@ -308,7 +315,9 @@ function generateSuite(triple: string) {
             });
 
             test('invalid stack frame', async function () {
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid stack frame', program: debuggee, args: ['invalid_stack_frame'] });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['invalid_stack_frame'] }
+                );
                 let response = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 2 });
                 assert.equal(response.body.stackFrames.length, 2)
                 assert.equal(response.body.stackFrames[0].instructionPointerReference, '0x0');
@@ -318,10 +327,10 @@ function generateSuite(triple: string) {
 
             test('variables', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeTypes, bpLine);
-                    });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine)
+                );
                 await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeTypes, bpLine);
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
@@ -416,10 +425,10 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let bpLine = findMarker(debuggeeTypes, '#BP4');
-                let stopAsync = ds.launchAndWaitForStop({ name: 'variables update', program: debuggee, args: ['vars_update'] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeTypes, bpLine);
-                    });
+                let stopAsync = ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars_update'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine)
+                );
                 let vectorExpect: { [key: string]: number; } = {};
                 for (let i = 0; i < 10; ++i) {
                     vectorExpect[`[${i}]`] = i;
@@ -438,10 +447,10 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeTypes, bpLine);
-                    });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine)
+                );
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 log('Waiting a+b');
@@ -486,12 +495,10 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /se', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({
-                    name: 'conditional breakpoint /se',
-                    program: debuggee, args: ['vars']
-                }, async () => {
-                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/se i == 5');
-                });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine, '/se i == 5')
+                );
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
@@ -499,12 +506,10 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /py', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({
-                    name: 'conditional breakpoint /py',
-                    program: debuggee, args: ['vars']
-                }, async () => {
-                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/py $i == 5');
-                });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine, '/py $i == 5')
+                );
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 let vars = await ds.readVariables(localsRef);
@@ -513,12 +518,10 @@ function generateSuite(triple: string) {
 
             test('conditional breakpoint /nat', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({
-                    name: 'conditional breakpoint /nat',
-                    program: debuggee, args: ['vars']
-                }, async () => {
-                    await ds.setBreakpoint(debuggeeTypes, bpLine, '/nat i == 5');
-                });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine, '/nat i == 5')
+                );
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
@@ -527,10 +530,10 @@ function generateSuite(triple: string) {
             test('disassembly', async function () {
                 if (triple.endsWith('pc-windows-msvc')) this.skip(); // With MSVC, we can't suppress debug info per-file.
 
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'disassembly', program: debuggee, args: ['dasm'] },
-                    async () => {
-                        await ds.setFnBreakpoint('/re disassembly1');
-                    });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['dasm'] },
+                    () => ds.setFnBreakpoint('/re disassembly1')
+                );
                 let stackTrace = await ds.stackTraceRequest({
                     threadId: stoppedEvent.body.threadId,
                     startFrame: 0, levels: 5
@@ -557,10 +560,10 @@ function generateSuite(triple: string) {
 
             test('debugger api', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
-                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'expressions', program: debuggee, args: ['vars'] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeTypes, bpLine);
-                    });
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    () => ds.setBreakpoint(debuggeeTypes, bpLine)
+                );
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
 
                 let response1 = await ds.evaluateRequest({
@@ -581,10 +584,10 @@ function generateSuite(triple: string) {
 
             test('webview', async function () {
                 let bpLine = findMarker(debuggeeSource, '#BP1');
-                await ds.launchAndWaitForStop({ name: 'webview', program: debuggee, args: [] },
-                    async () => {
-                        await ds.setBreakpoint(debuggeeSource, bpLine);
-                    });
+                await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: [] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
 
                 let evalScriptLine = async (line: string) => {
                     let resp = await ds.evaluateRequest({ expression: `script ${line}`, context: '_command' });
@@ -633,7 +636,9 @@ function generateSuite(triple: string) {
             test('attach by pid', async function () {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 log('Wait for attach');
-                let attachResp = await ds.attach({ name: 'attach by pid', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true });
+                let attachResp = await ds.attach(
+                    { name: this.test.title, program: debuggee, pid: debuggeeProc.pid, stopOnEntry: true }
+                );
                 assert.ok(attachResp.success);
                 log('Wait for stop');
                 await asyncWaitStopped;
@@ -643,14 +648,18 @@ function generateSuite(triple: string) {
                 let stopCount = 0;
                 ds.addListener('stopped', () => stopCount += 1);
                 ds.addListener('continued', () => stopCount -= 1);
-                let attachResp = await ds.attach({ name: 'attach by pid / nostop', program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false });
+                let attachResp = await ds.attach(
+                    { name: this.test.title, program: debuggee, pid: debuggeeProc.pid, stopOnEntry: false }
+                );
                 assert.ok(attachResp.success);
                 assert.ok(stopCount <= 0);
             });
 
             test('attach by path', async function () {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
-                let attachResp = await ds.attach({ name: 'attach by path', program: debuggee, stopOnEntry: true });
+                let attachResp = await ds.attach(
+                    { name: this.test.title, program: debuggee, stopOnEntry: true }
+                );
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
             });
@@ -658,7 +667,7 @@ function generateSuite(triple: string) {
             test('attach by name', async function () {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
-                let attachResp = await ds.attach({ name: 'attach by name', program: program, stopOnEntry: true });
+                let attachResp = await ds.attach({ name: this.test.title, program: program, stopOnEntry: true });
                 assert.ok(attachResp.success);
                 await asyncWaitStopped;
             });
@@ -667,7 +676,7 @@ function generateSuite(triple: string) {
                 let asyncWaitStopped = ds.waitForEvent('stopped');
                 let program = process.platform != 'win32' ? 'debuggee' : 'debuggee.exe';
                 let attachResp = await ds.attach({
-                    name: 'custom attach by name',
+                    name: this.test.title,
                     targetCreateCommands: [`file '${debuggeeWithExt}'`],
                     processCreateCommands: [`process attach --name ${program}`],
                     stopOnEntry: true
@@ -680,7 +689,10 @@ function generateSuite(triple: string) {
         suite('Rust tests', () => {
             test('rust primitives', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_primitives');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust primitives', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 await ds.compareVariables(localVars, {
                     bool_: true,
                     i16_: -16,
@@ -710,7 +722,10 @@ function generateSuite(triple: string) {
                 if (triple.endsWith('pc-windows-msvc')) this.skip();
 
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust enums', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
                         reg_enum1: {},
@@ -754,7 +769,10 @@ function generateSuite(triple: string) {
 
             test('rust structs', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_structs');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust structs', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 await ds.compareVariables(localVars, {
                     tuple: '(1, "a", 42)',
                     tuple_ref: '(1, "a", 42)',
@@ -766,7 +784,10 @@ function generateSuite(triple: string) {
 
             test('rust arrays', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_arrays');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust arrays', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 await ds.compareVariables(localVars, {
                     array: { '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5 },
                     slice: '(5) &[1, 2, 3, 4, 5]',
@@ -805,7 +826,10 @@ function generateSuite(triple: string) {
 
             test('rust strings', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_strings');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust strings', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
                 await ds.compareVariables(localVars, {
                     empty_string: '""',
@@ -841,7 +865,10 @@ function generateSuite(triple: string) {
 
             test('rust boxes', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust boxes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 await ds.compareVariables(localVars, {
                     boxed: { $value: '"boxed"' },
                     rc_box: { $value: '(refs:1) {...}', a: 1, b: '"b"', c: 12 },
@@ -861,7 +888,10 @@ function generateSuite(triple: string) {
 
             test('rust hashes', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_hashes');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust hashes', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 let expected1 = [
                     '("Olaf", 24)',
                     '("Harald", 12)',
@@ -886,7 +916,10 @@ function generateSuite(triple: string) {
 
             test('rust misc', async function () {
                 let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');
-                let localVars = await ds.launchStopAndGetVars({ name: 'rust misc', program: rustDebuggee }, rustDebuggeeSource, bpLine);
+                let localVars = await ds.launchStopAndGetVars(
+                    { name: this.test.title, program: rustDebuggee },
+                    rustDebuggeeSource, bpLine
+                );
                 await ds.compareVariables(localVars, {
                     class: { finally: 1, import: 2, lambda: 3, raise: 4 },
                 })

@@ -25,6 +25,7 @@ and Zig.
 - Linux with glibc 2.18+ for x86_64, aarch64 or armhf.
 - MacOS X 10.10+ for x86_64 and 11.0+ for arm64.
 - Windows 10 and 11 for x86_64. [See Windows notes in wiki!](https://github.com/vadimcn/codelldb/wiki/Windows)
+  - Windows 10 and 11 arm64 is supported, but requires [building from source](./BUILDING.md#arm64-windows).
 
 ## Target
 CodeLLDB supports AArch64, ARM, AVR, MSP430, RISCV, X86 architectures and may be used to debug on embedded platforms

@@ -1128,7 +1128,8 @@
 				"x64-darwin": "codelldb-x86_64-darwin.vsix",
 				"arm64-darwin": "codelldb-aarch64-darwin.vsix",
 				"x64-win32": "codelldb-x86_64-windows.vsix",
-				"ia32-win32": "codelldb-x86_64-windows.vsix"
+				"ia32-win32": "codelldb-x86_64-windows.vsix",
+				"arm64-win32": "codelldb-arm64-windows.vsix"
 			}
 		}
 	}

@@ -6,11 +6,18 @@ if(NOT IS_DIRECTORY ${LLDB_PACKAGE})
         COMMAND unzip -o -u ${LLDB_PACKAGE} -d ${CMAKE_CURRENT_BINARY_DIR}
     )
 else()
-    message("${LLDB_PACKAGE} is a directory, symlinking.")
     file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/bin) # Remove dirs, if any
     file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/lib)
-    file(CREATE_LINK ${LLDB_PACKAGE}/bin ${CMAKE_CURRENT_BINARY_DIR}/bin SYMBOLIC)
-    file(CREATE_LINK ${LLDB_PACKAGE}/lib ${CMAKE_CURRENT_BINARY_DIR}/lib SYMBOLIC)
+    if(WIN32)
+        # Symbolic link does not work when installing the locally build vsix
+        message("${LLDB_PACKAGE} is a directory, copying.")
+        file(COPY ${LLDB_PACKAGE}/bin DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+        file(COPY ${LLDB_PACKAGE}/lib DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    else()
+        message("${LLDB_PACKAGE} is a directory, symlinking.")
+        file(CREATE_LINK ${LLDB_PACKAGE}/bin ${CMAKE_CURRENT_BINARY_DIR}/bin SYMBOLIC)
+        file(CREATE_LINK ${LLDB_PACKAGE}/lib ${CMAKE_CURRENT_BINARY_DIR}/lib SYMBOLIC)
+    endif()
 endif()
 
 # Create dependency check tests

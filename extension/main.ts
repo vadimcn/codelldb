@@ -477,7 +477,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         if (address == undefined) {
             let addressStr = await window.showInputBox({
                 title: 'Enter memory address',
-                prompt: 'Hex, octal or decmal '
+                prompt: 'Hex, octal or decimal '
             });
             try {
                 address = BigInt(addressStr);

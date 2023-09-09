@@ -691,14 +691,15 @@ impl DebugSession {
                 }
             } else {
                 let pc_addr = frame.pc();
-                let dasm = self.disassembly.from_address(pc_addr)?;
-                stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
+                if let Ok(dasm) = self.disassembly.from_address(pc_addr) {
+                    stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
+                    stack_frame.source = Some(Source {
+                        name: Some(dasm.source_name().to_owned()),
+                        source_reference: Some(handles::to_i64(Some(dasm.handle()))),
+                        ..Default::default()
+                    });
+                }
                 stack_frame.column = 0;
-                stack_frame.source = Some(Source {
-                    name: Some(dasm.source_name().to_owned()),
-                    source_reference: Some(handles::to_i64(Some(dasm.handle()))),
-                    ..Default::default()
-                });
                 stack_frame.presentation_hint = Some("subtle".to_owned());
             }
             stack_frames.push(stack_frame);

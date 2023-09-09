@@ -307,6 +307,15 @@ function generateSuite(triple: string) {
                 assert.equal(response4.body.variables[0].value, '20');
             });
 
+            test('invalid jump crash', async function () {
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: 'invalid jump crash', program: debuggee, args: ['crash_invalid_call'] });
+                let response = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 2 });
+                assert.equal(response.body.stackFrames.length, 2)
+                assert.equal(response.body.stackFrames[0].instructionPointerReference, '0x0');
+                assert.notEqual(response.body.stackFrames[1].instructionPointerReference, '0x0');
+                assert.equal(response.body.stackFrames[1].name, 'main');
+            });
+
             test('variables', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop({ name: 'variables', program: debuggee, args: ['vars'] },

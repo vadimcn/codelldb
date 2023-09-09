@@ -169,6 +169,11 @@ int main(int argc, char *argv[])
     {
         *(volatile int *)0 = 42;
     }
+    else if (testcase == "crash_invalid_call")
+    {
+        using call_t = void(*)();
+        ((call_t)(nullptr))();
+    }
     else if (testcase == "throw")
     {
         throw std::runtime_error("error");

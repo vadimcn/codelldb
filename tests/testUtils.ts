@@ -320,6 +320,14 @@ export class DebugTestSession extends DebugClient {
         return variablesAsDict(localVars);
     }
 
+    async continueAndWaitForStop(threadId: number = 0): Promise<dp.StoppedEvent> {
+        let waitForStopAsync = this.waitForStopEvent();
+        await this.continueRequest({ threadId: threadId });
+        logWithStack('Awaiting stop');
+        let stoppedEvent = await waitForStopAsync;
+        return stoppedEvent;
+    }
+
     async getTopFrameId(threadId: number): Promise<number> {
         logWithStack('Awaiting stack trace');
         let frames = await this.stackTraceRequest({ threadId: threadId, startFrame: 0, levels: 1 });

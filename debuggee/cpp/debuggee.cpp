@@ -148,6 +148,17 @@ void mandelbrot()
     }
 }
 
+void call_target() 
+{
+    printf("call_target"); // #BP3
+}
+
+void caller()
+{
+    call_target();
+}
+
+
 int main(int argc, char *argv[])
 {
 #if defined(__linux__)
@@ -272,6 +283,15 @@ int main(int argc, char *argv[])
         fflush(stdout);
         fprintf(stderr, "stderr\n");
         fflush(stderr);
+    }
+    else if (testcase == "exclude_caller") 
+    {
+        // set up exclusion
+        caller();
+
+        //test exclusion
+        caller();
+        call_target();
     }
     else
     {

@@ -619,6 +619,30 @@ function generateSuite(triple: string) {
                 // assert.equal(ev3.body.message, 'webviewDestroy')
                 // assert.equal(ev3.body.id, ev1.body.id)
             });
+
+            test('exclude caller', async function () {
+                let bpLine = findMarker(debuggeeSource, '#BP3');
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['exclude_caller'] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
+
+                let excludeResponse = await ds.customRequest('_excludeCaller', {
+                    threadId: stoppedEvent.body.threadId,
+                    frameIndex: 1
+                });
+                assert.ok(excludeResponse.body.symbol.includes('caller'));
+
+                let stoppedEvent2 = await ds.continueAndWaitForStop();
+                let stackTrace = await ds.stackTraceRequest({
+                    threadId: stoppedEvent2.body.threadId,
+                    startFrame: 0, levels: 5
+                });
+
+                assert.ok(stackTrace.body.stackFrames[0].name.includes('call_target'));
+                // Should not be "caller", as we've just excluded it.
+                assert.ok(stackTrace.body.stackFrames[1].name.includes('main'));
+            })
         });
 
         suite('Attach tests', () => {

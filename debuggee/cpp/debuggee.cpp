@@ -16,6 +16,9 @@
  #if defined(__linux__)
   #include <sys/prctl.h>
  #endif
+ #if defined (__FreeBSD__)
+  extern char** environ;
+ #endif
 #else
  #include <windows.h>
  void sleep(unsigned secs) { Sleep(secs * 1000); }

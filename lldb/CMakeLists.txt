@@ -3,7 +3,7 @@ if(NOT IS_DIRECTORY ${LLDB_PACKAGE})
     file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/bin) # Remove symlinks, if any
     file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/lib)
     add_custom_command(TARGET lldb
-        COMMAND unzip -o -u ${LLDB_PACKAGE} -d ${CMAKE_CURRENT_BINARY_DIR}
+        COMMAND unzip -o ${LLDB_PACKAGE} -d ${CMAKE_CURRENT_BINARY_DIR}
     )
 else()
     message("${LLDB_PACKAGE} is a directory, symlinking.")

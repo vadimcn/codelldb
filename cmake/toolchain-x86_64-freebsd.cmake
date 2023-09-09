@@ -1,0 +1,6 @@
+set(LLVM_TRIPLE x86_64-unknown-freebsd)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_C_COMPILER_TARGET ${LLVM_TRIPLE})
+set(CMAKE_CXX_COMPILER_TARGET ${LLVM_TRIPLE})
+set(CMAKE_STRIP llvm-strip)

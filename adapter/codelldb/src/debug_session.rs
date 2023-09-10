@@ -711,7 +711,7 @@ impl DebugSession {
 
         Ok(StackTraceResponseBody {
             stack_frames: stack_frames,
-            total_frames: Some(thread.num_frames() as i64),
+            total_frames: None
         })
     }
 

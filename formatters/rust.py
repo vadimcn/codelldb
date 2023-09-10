@@ -16,9 +16,10 @@ log = logging.getLogger(__name__)
 module = sys.modules[__name__]
 rust_category = None
 
+max_string_summary_langth = 1024
 
 def initialize_category(debugger, internal_dict):
-    global module, rust_category
+    global module, rust_category, max_string_summary_langth
 
     rust_category = debugger.CreateCategory('Rust')
     # rust_category.AddLanguage(lldb.eLanguageTypeRust)
@@ -82,6 +83,8 @@ def initialize_category(debugger, internal_dict):
         lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
                                             '^<?(std|core|alloc)::', debugger.GetInstanceName())
 
+    max_string_summary_langth = debugger.GetSetting('target.max-string-summary-length').GetIntegerValue()
+
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
     global module, rust_category
@@ -141,7 +144,7 @@ def string_from_ptr(pointer, length):
     if error.Success():
         return data.decode('utf8', 'replace')
     else:
-        log.error('ReadMemory error: %s', error.GetCString())
+        raise Exception('ReadMemory error: %s', error.GetCString())
 
 
 def get_template_params(type_name):
@@ -351,12 +354,8 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         return ch
 
     def get_summary(self):
-        # Limit string length to 1000 characters to cope with uninitialized values whose
-        # length field contains garbage.
-        strval = string_from_ptr(self.ptr, min(self.len, 1000))
-        if strval == None:
-            return None
-        if self.len > 1000:
+        strval = string_from_ptr(self.ptr, min(self.len, max_string_summary_langth))
+        if self.len > max_string_summary_langth:
             strval += u'...'
         return u'"%s"' % strval
 

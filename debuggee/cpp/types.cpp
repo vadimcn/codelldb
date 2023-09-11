@@ -24,6 +24,9 @@ public:
     ~DerivedClass() override {}
 };
 
+
+int global = 1234;
+
 extern "C"
 void vars()
 {
@@ -57,7 +60,7 @@ void vars()
         int a = 30;
         int b = 40;
         float pi = 3.14159265f;
-        static int sss = 555;
+        static int static_ = 555;
         const char c[] = "foobar";
         const char c2[] = { 'F', 'o', 'o', 'B', 'a', 'r' };
         int large_array[100000] = {0};

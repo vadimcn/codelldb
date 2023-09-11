@@ -95,7 +95,7 @@ impl super::DebugSession {
                         statics: true,
                         in_scope_only: true,
                     });
-                    let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableStatic);
+                    let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableStatic);
                     self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
                 }
                 Container::Globals(frame) => {
@@ -105,7 +105,7 @@ impl super::DebugSession {
                         statics: true,
                         in_scope_only: true,
                     });
-                    let mut vars_iter = variables.iter().filter(|v| v.value_type() != ValueType::VariableGlobal);
+                    let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableGlobal);
                     self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
                 }
                 Container::Registers(frame) => {

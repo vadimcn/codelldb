@@ -246,10 +246,14 @@ struct PyKeywords {
     raise: i32,
 }
 
+static GLOBAL: i32 = 1234;
+
 pub fn misc() {
     let i32_ = 32;
     let f32_ = 42.0;
     let closure = move |x: i32| (x + i32_) as f32 * f32_;
+
+    static STATIC: i32 = 4321;
 
     let class = PyKeywords {
         finally: 1,

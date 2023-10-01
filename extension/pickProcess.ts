@@ -1,4 +1,4 @@
-import { window, workspace, QuickPickItem, Uri, ExtensionContext } from 'vscode';
+import { window, workspace, QuickPickItem, Uri, ExtensionContext, DebugConfiguration } from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -8,7 +8,7 @@ import { getExtensionConfig } from './main';
 
 type ProcessItem = QuickPickItem & { pid: number };
 
-export async function pickProcess(context: ExtensionContext, allUsers: boolean): Promise<string> {
+export async function pickProcess(context: ExtensionContext, allUsers: boolean, config: DebugConfiguration): Promise<string> {
     return new Promise<string>(async (resolve) => {
         let showingAll = {
             iconPath: Uri.file(context.extensionPath + '/images/users.svg'),
@@ -38,7 +38,7 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
             allUsers = !allUsers;
             qpick.buttons = [allUsers ? showingAll : showingMy];
             qpick.busy = true;
-            qpick.items = await getProcessList(context, allUsers);
+            qpick.items = await getProcessList(context, allUsers, config);
             qpick.busy = false;
         });
 
@@ -49,12 +49,12 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean):
 
         qpick.busy = true;
         qpick.show();
-        qpick.items = await getProcessList(context, allUsers);
+        qpick.items = await getProcessList(context, allUsers, config);
         qpick.busy = false;
     });
 }
 
-async function getProcessList(context: ExtensionContext, allUsers: boolean): Promise<ProcessItem[]> {
+async function getProcessList(context: ExtensionContext, allUsers: boolean, debugConfig: DebugConfiguration): Promise<ProcessItem[]> {
     let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
     let lldbPath = path.join(context.extensionPath, 'lldb', 'bin', lldb);
     if (!await async.fs.exists(lldbPath)) {
@@ -63,10 +63,19 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean): Pro
     let folder = workspace.workspaceFolders?.[0];
     let config = getExtensionConfig(folder?.uri);
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
-    let lldbCommand = 'platform process list --show-args';
+
+    let initArgs = '';
+    if (Array.isArray(debugConfig.initCommands)) {
+        debugConfig.initCommands.forEach((command: string) => {
+            initArgs += ` --one-line "${command}"`;
+        });
+    }
+
+    let processListCommand = 'platform process list --show-args';
     if (allUsers)
-        lldbCommand += ' --all-users';
-    let command = `${lldbPath} --batch --no-lldbinit --one-line "${lldbCommand}"`;
+        processListCommand += ' --all-users';
+
+    let command = `${lldbPath} --batch --no-lldbinit ${initArgs} --one-line "${processListCommand}"`;
 
     let stdout = await new Promise<string>((resolve, reject) => {
         cp.exec(command, { env: env }, (error, stdout) => {

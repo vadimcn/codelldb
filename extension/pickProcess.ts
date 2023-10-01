@@ -1,4 +1,4 @@
-import { window, workspace, QuickPickItem, Uri, ExtensionContext, DebugConfiguration } from 'vscode';
+import { window, workspace, QuickPickItem, Uri, ExtensionContext } from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -8,7 +8,10 @@ import { getExtensionConfig } from './main';
 
 type ProcessItem = QuickPickItem & { pid: number };
 
-export async function pickProcess(context: ExtensionContext, allUsers: boolean, config: DebugConfiguration): Promise<string> {
+// Options to pickProcess when it is used as part of an input variable
+type PickProcessOptions = { initCommands: string[], filter: string };
+
+export async function pickProcess(context: ExtensionContext, allUsers: boolean, options: PickProcessOptions): Promise<string> {
     return new Promise<string>(async (resolve) => {
         let showingAll = {
             iconPath: Uri.file(context.extensionPath + '/images/users.svg'),
@@ -38,8 +41,13 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean, 
             allUsers = !allUsers;
             qpick.buttons = [allUsers ? showingAll : showingMy];
             qpick.busy = true;
-            qpick.items = await getProcessList(context, allUsers, config);
-            qpick.busy = false;
+            try {
+                qpick.items = await getProcessList(context, allUsers, options);
+                qpick.busy = false;
+            } catch (e) {
+                qpick.dispose();
+                window.showErrorMessage(e?.toString() || 'Unknown error getting process list.');
+            }
         });
 
         qpick.onDidHide(() => {
@@ -49,12 +57,17 @@ export async function pickProcess(context: ExtensionContext, allUsers: boolean, 
 
         qpick.busy = true;
         qpick.show();
-        qpick.items = await getProcessList(context, allUsers, config);
-        qpick.busy = false;
+        try {
+            qpick.items = await getProcessList(context, allUsers, options);
+            qpick.busy = false;
+        } catch (e) {
+            qpick.dispose();
+            window.showErrorMessage(e?.toString() || 'Unknown error getting process list.');
+        }
     });
 }
 
-async function getProcessList(context: ExtensionContext, allUsers: boolean, debugConfig: DebugConfiguration): Promise<ProcessItem[]> {
+async function getProcessList(context: ExtensionContext, allUsers: boolean, options: PickProcessOptions): Promise<ProcessItem[]> {
     let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
     let lldbPath = path.join(context.extensionPath, 'lldb', 'bin', lldb);
     if (!await async.fs.exists(lldbPath)) {
@@ -65,8 +78,8 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean, debu
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
 
     let initArgs = '';
-    if (Array.isArray(debugConfig.initCommands)) {
-        debugConfig.initCommands.forEach((command: string) => {
+    if (Array.isArray(options.initCommands)) {
+        options.initCommands.forEach((command: string) => {
             initArgs += ` --one-line "${command}"`;
         });
     }
@@ -95,13 +108,14 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean, debu
     for (let i = 0; i < lines.length; ++i) {
         let argsOffset = lines[i].indexOf('ARGUMENTS')
         if (argsOffset > 0) {
-            return parseProcessEntries(lines.slice(i + 2), argsOffset);
+            return parseProcessEntries(lines.slice(i + 2), argsOffset, options.filter);
         }
     }
     return [];
 }
 
-function parseProcessEntries(lines: string[], argsOffset: number): ProcessItem[] {
+function parseProcessEntries(lines: string[], argsOffset: number, filter: string): ProcessItem[] {
+    let filterRegExp = filter ? new RegExp(filter) : undefined;
     let items = [];
     for (let line of lines) {
         // Process items always start with two integers (pid and ppid); otherwise, we assume that the line
@@ -110,11 +124,24 @@ function parseProcessEntries(lines: string[], argsOffset: number): ProcessItem[]
         if (matches != null) {
             let pid = parseInt(matches[1]);
             let args = line.substring(argsOffset).trim();
+            if (filterRegExp && !filterRegExp.test(args)) {
+                continue;
+            }
             items.push({ label: `${pid}`, description: args, pid: pid });
             continue;
         }
-        // Continuation
-        items[items.length - 1].description += '\n' + line;
+        if (line) {
+            // Continuation
+            items[items.length - 1].description += '\n' + line;
+        }
+    }
+    if (!items.length) {
+        if (filter) {
+          throw `No processes found matching: ${filter}`;
+        }
+        else {
+          throw `Unable to find processes in:\n${lines.join('\n')}`;
+        }
     }
     return items;
 }

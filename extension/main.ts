@@ -64,8 +64,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
-        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', () => pickProcess(context, false)));
-        subscriptions.push(commands.registerCommand('lldb.pickProcess', () => pickProcess(context, true)));
+        subscriptions.push(commands.registerCommand('lldb.pickMyProcess', (config) => pickProcess(context, false, config)));
+        subscriptions.push(commands.registerCommand('lldb.pickProcess', (config) => pickProcess(context, true, config)));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
         subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
         subscriptions.push(commands.registerCommand('lldb.commandPrompt', () => this.commandPrompt()));

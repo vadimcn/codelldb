@@ -1,7 +1,7 @@
 # Features
 - Conditional breakpoints, function breakpoints, logpoints,
 - Hardware data access breakpoints (watchpoints),
-- Launch debuggee in integrated or external terminal,
+- Launch debugger in integrated or external terminal,
 - Disassembly view with instruction-level stepping,
 - Loaded modules view,
 - Python scripting,
@@ -45,5 +45,3 @@ C++ debugging with data visualization ([Howto](https://github.com/vadimcn/codell
 <br>
 Rust debugging:<br>
 ![source](images/source.png)
-
-

@@ -152,6 +152,50 @@ Flow during the attach sequence:
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
 
+### Pick Process Command
+
+The `${command:pickProcess}` or `${command:pickMyProcess}` can be used directly in the configuration for an interactive
+list of processes running on the machine running Visual Studio Code:
+
+```javascript
+{
+    "name": "Pick Process Attach",
+    "type": "lldb",
+    "request": "attach",
+    "pid": "${command:pickProcess}" // Or pickMyProcess for only processes for the current user.
+}
+```
+
+The `lldb.pickProcess` and `lldb.pickMyProcess` commands provide more configuration when used with input variables. The
+optional `initCommands` arg let you specify lldb commands to configure a remote connection. The optional `filter` arg
+lets you filter the process list to those that match the specified filter.
+
+```javascript
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Filtered Remote Attach",
+      "type": "lldb",
+      "request": "attach",
+      "pid": "${input:pickExampleProcess}",
+      "initCommands": [ ... ], // Eg, platform select/connect commands.
+    },
+  ],
+  "inputs": [
+    {
+      "id": "pickExampleProcess",
+      "type": "command",
+      "command": "lldb.pickProcess",
+      "args": {
+        "initCommands": [ ], // Eg., platform select/connect commands.
+        "filter": "example" // RegExp to filter processes to.
+      }
+    }
+  ]
+}
+```
+
 ## Custom Launch
 
 The custom launch method allows user to fully specify how the debug session is initiated:

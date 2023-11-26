@@ -1,0 +1,13 @@
+{
+  "$schema": "https://puremourning.github.io/vimspector/schema/vimspector.schema.json",
+  "configurations": {
+    "Attach": {
+      "adapter": "CodeLLDB",
+      "configuration": {
+        "request": "attach",
+        "program": "${workspaceRoot}/build/adapter/codellb",
+        "pid": "${PickProcess(\"codelldb\")}"
+      }
+    }
+  }
+}

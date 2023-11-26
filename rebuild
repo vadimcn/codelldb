@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+rm -rf build
+mkdir -p build/lldb/include
+cp -r $(brew --prefix llvm)/include/lldb build/lldb/include/
+
+xcrun --sdk macosx cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-apple-darwin.cmake -DLLDB_PACKAGE=lldb.zip "$@"
+xcrun --sdk macosx cmake --build build

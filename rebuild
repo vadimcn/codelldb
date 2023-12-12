@@ -1,8 +1,24 @@
 #!/usr/bin/env bash
 
-rm -rf build
-mkdir -p build/lldb/include
-cp -r $(brew --prefix llvm)/include/lldb build/lldb/include/
+CLEAN=0
+if [ "$1" = "--clean" ]; then
+  shift
+  CLEAN=1
+fi
 
-xcrun --sdk macosx cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-apple-darwin.cmake -DLLDB_PACKAGE=lldb.zip "$@"
+if [ $CLEAN -eq 1 ]; then
+  rm -rf build
+  mkdir -p build/lldb/include
+  cp -r $(brew --prefix llvm)/include/lldb build/lldb/include/
+  xcrun --sdk macosx cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-apple-darwin.cmake -DLLDB_PACKAGE=lldb.zip "$@"
+fi
+
 xcrun --sdk macosx cmake --build build
+
+if [ $CLEAN -eq 1 ]; then
+  mkdir -p build/adapter
+  pushd build/adapter
+    rm -f codelldb
+    ln -s ../target/aarch64-apple-darwin/debug/codelldb
+  popd
+fi

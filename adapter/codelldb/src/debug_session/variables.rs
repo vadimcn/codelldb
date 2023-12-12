@@ -224,25 +224,7 @@ impl super::DebugSession {
             })
         };
 
-        let mem_ref = match self.client_caps.supports_memory_references {
-            Some(true) => {
-                match var.value_type() {
-                    // Assume that the register value is an address, and use that.
-                    // So users can dump memory, e.g. as the SP, RIP+offset, etc.
-                    ValueType::Register => Some(format!("0x{:X}", var.value_as_unsigned(0))),
-                    // TODO: if it's a literal and looks like an address (e.g. some
-                    // sort of integer, use that as the addres)
-                    _ => {
-                        let load_addr = var.load_address();
-                        match load_addr {
-                            lldb::INVALID_ADDRESS => None,
-                            _ => Some(format!("0x{:X}", load_addr)),
-                        }
-                    }
-                }
-            }
-            _ => None,
-        };
+        let mem_ref = self.get_mem_ref_for_var(var);
 
         let is_settable = match var.type_().basic_type() {
             BasicType::Char
@@ -455,6 +437,33 @@ impl super::DebugSession {
         Err(AsyncResponse(Box::new(future::ready(result))).into())
     }
 
+    fn get_mem_ref_for_var(&self, var: &SBValue) -> Option<String> {
+        match self.client_caps.supports_memory_references {
+            Some(true) => {
+                match var.value_type() {
+                    // Assume that the register value is an address, and use that.
+                    // So users can dump memory, e.g. as the SP, RIP+offset, etc.
+                    ValueType::Register => Some(format!("0x{:X}", var.value_as_unsigned(0))),
+                    _ => {
+                        if var.type_().is_pointer_type() {
+                            // Any pointer type is itself a memory address.
+                            // This allows users to dump any arbitrary address
+                            // e.g. using the expression (void*)0x1234.
+                            Some(format!("0x{:X}", var.value_as_unsigned(0)))
+                        } else {
+                            let load_addr = var.load_address();
+                            match load_addr {
+                                lldb::INVALID_ADDRESS => None,
+                                _ => Some(format!("0x{:X}", load_addr)),
+                            }
+                        }
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
     fn handle_execute_command(
         &mut self,
         command: &str,
@@ -499,6 +508,7 @@ impl super::DebugSession {
                     result: self.get_var_summary(&sbval, handle.is_some()),
                     type_: sbval.display_type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
+                    memory_reference: self.get_mem_ref_for_var(&sbval),
                     ..Default::default()
                 })
             }

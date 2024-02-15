@@ -394,6 +394,9 @@ impl DebugSession {
             RequestArguments::disconnect(args) =>
                 self.handle_disconnect(args)
                     .map(|_| ResponseBody::disconnect),
+            RequestArguments::terminate(args) =>
+                self.handle_terminate(args)
+                    .map(|_| ResponseBody::terminate),
             _ => {
                 if self.no_debug {
                     bail!("Not supported in noDebug mode.")
@@ -582,6 +585,7 @@ impl DebugSession {
             supports_completions_request: Some(self.command_completions),
             supports_exception_info_request: Some(true),
             supports_exception_filter_options: Some(true),
+            supports_terminate_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }
@@ -1149,6 +1153,20 @@ impl DebugSession {
                     } else {
                         process.detach()?;
                     }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_terminate(&mut self, args: Option<TerminateArguments>) -> Result<(), Error> {
+        if let Initialized(ref target) = self.target {
+            let process = target.process();
+            if process.is_valid() {
+                let state = process.state();
+                if state.is_alive() {
+                    process.signal (libc::SIGINT)?;
                 }
             }
         }

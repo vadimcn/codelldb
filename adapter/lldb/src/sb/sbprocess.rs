@@ -157,6 +157,12 @@ impl SBProcess {
             Err(error)
         }
     }
+    pub fn signal(&self, sig: i32) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBProcess*", sig as "uint32_t"] -> SBError as "SBError" {
+            return self->Signal(sig);
+        })
+        .into_result()
+    }
 }
 
 impl IsValid for SBProcess {

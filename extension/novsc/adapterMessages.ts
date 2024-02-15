@@ -12,6 +12,7 @@ export class AdapterSettings {
     evaluateForHovers?: boolean;
     commandCompletions?: boolean;
     reproducer?: boolean | string;
+    enableTerminateRequest?: boolean;
 };
 
 export class Symbol {

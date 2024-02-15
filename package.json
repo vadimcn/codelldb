@@ -330,6 +330,13 @@
 						"default": {},
 						"scope": "resource",
 						"order": 100
+					},
+					"lldb.enableDebuggeeShutdownRequest": {
+						"description": "Enable graceful shutdown request when the stop button is clicked.  The first time the button is clicked, a SIGINT will be raised.  A subsequent click will cause the debuggee to be forcefully stopped.  Enabling this will also pass the SIGINT signal through to the debuggee instead of the debugger catching it.  This setting only has affect on unix-based platforms.",
+						"type": "boolean",
+						"default": false,
+						"scope": "resource",
+						"order": 101
 					}
 				}
 			},

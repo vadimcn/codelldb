@@ -585,7 +585,7 @@ impl DebugSession {
             supports_completions_request: Some(self.command_completions),
             supports_exception_info_request: Some(true),
             supports_exception_filter_options: Some(true),
-            supports_terminate_request: Some(true),
+            supports_terminate_request: Some(false),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }
@@ -1462,6 +1462,8 @@ impl DebugSession {
                 caps.supports_completions_request = Some(command_completions);
             }
         }
+        caps.supports_terminate_request = settings.enable_terminate_request;
+
         if let Some(ref source_languages) = settings.source_languages {
             if self.source_languages.iter().ne(source_languages) {
                 self.source_languages = source_languages.to_owned();

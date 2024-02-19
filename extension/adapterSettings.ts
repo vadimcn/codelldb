@@ -16,8 +16,7 @@ export class AdapterSettingManager {
                 event.affectsConfiguration('lldb.dereferencePointers') ||
                 event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
                 event.affectsConfiguration('lldb.evaluationTimeout') ||
-                event.affectsConfiguration('lldb.consoleMode') ||
-                event.affectsConfiguration('lldb.enableDebuggeeShutdownRequest')) {
+                event.affectsConfiguration('lldb.consoleMode')) {
                     this.propagateDisplaySettings();
             }
         }));
@@ -76,8 +75,7 @@ export class AdapterSettingManager {
             terminalPromptClear: config.get('terminalPromptClear'),
             evaluateForHovers: config.get('evaluateForHovers'),
             commandCompletions: config.get('commandCompletions'),
-            reproducer: config.get('reproducer'),
-            enableTerminateRequest: config.get('enableDebuggeeShutdownRequest') && process.platform == 'linux' // 'darwin' also might work but hasn't been tested
+            reproducer: config.get('reproducer')
         };
         return settings;
     }

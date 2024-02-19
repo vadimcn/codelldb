@@ -438,13 +438,14 @@ impl super::DebugSession {
 
         if let Some(ref settings) = args_common.adapter_settings {
             self.update_adapter_settings_and_caps(settings);
-            if let Some (true) = settings.enable_terminate_request {
-                let commands = ["process handle SIGINT -p true -s false".to_string()];
-                self.exec_commands("SIGINT passthrough for graceful terminate request", &commands)?;
-            }
         }
 
         self.print_console_mode();
+
+        if cfg!(unix) {
+            let commands = ["process handle SIGINT -p true -s false".to_string()];
+            self.exec_commands("SIGINT passthrough for graceful terminate request", &commands)?;
+        }
 
         if let Some(commands) = &args_common.init_commands {
             self.exec_commands("initCommands", &commands)?;

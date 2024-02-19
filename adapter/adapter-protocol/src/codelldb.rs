@@ -268,7 +268,6 @@ pub struct AdapterSettings {
     pub evaluate_for_hovers: Option<bool>,
     pub command_completions: Option<bool>,
     pub reproducer: Option<Either<bool, String>>,
-    pub enable_terminate_request: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

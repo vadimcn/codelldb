@@ -1,8 +1,16 @@
 {
 	"name": "linux-builder",
-	"image": "vadimcn/linux-builder:latest",
+	"dockerFile": "Dockerfile",
 	"runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
 	"containerUser": "build",
 	"forwardPorts": [4711],
-	"postCreateCommand": "rustup install stable"
+	"postCreateCommand": "rustup install stable",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"twxs.cmake",
+				"ms-vscode.cmake-tools"
+			]
+		}
+	}
 }

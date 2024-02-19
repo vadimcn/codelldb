@@ -17,7 +17,7 @@ export class AdapterSettingManager {
                 event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
                 event.affectsConfiguration('lldb.evaluationTimeout') ||
                 event.affectsConfiguration('lldb.consoleMode')) {
-                this.propagateDisplaySettings();
+                    this.propagateDisplaySettings();
             }
         }));
 
@@ -75,7 +75,7 @@ export class AdapterSettingManager {
             terminalPromptClear: config.get('terminalPromptClear'),
             evaluateForHovers: config.get('evaluateForHovers'),
             commandCompletions: config.get('commandCompletions'),
-            reproducer: config.get('reproducer'),
+            reproducer: config.get('reproducer')
         };
         return settings;
     }

@@ -442,6 +442,11 @@ impl super::DebugSession {
 
         self.print_console_mode();
 
+        if cfg!(unix) {
+            let commands = ["process handle SIGINT -p true -s false".to_string()];
+            self.exec_commands("SIGINT passthrough for graceful terminate request", &commands)?;
+        }
+
         if let Some(commands) = &args_common.init_commands {
             self.exec_commands("initCommands", &commands)?;
         }

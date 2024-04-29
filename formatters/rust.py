@@ -286,7 +286,17 @@ class StdVectorSynthProvider(ArrayLikeSynthProvider):
 class StdVecDequeSynthProvider(RustSynthProvider):
     def update(self):
         self.ptr = read_unique_ptr(gcm(self.valobj, 'buf', 'ptr'))
-        self.cap = gcm(self.valobj, 'buf', 'cap').GetValueAsUnsigned()
+
+        # rust 1.76 changed buf.cap to be a struct with anonymous fields insted of a usize.
+        # This change checks whether we can get the value by the original implementation, or by
+        # the 0 field.
+        # https://github.com/rust-lang/rust/pull/106790
+        cap = gcm(self.valobj, 'buf', 'cap')
+        cap_with_0 = cap.GetChildMemberWithName('0')
+        if cap_with_0.IsValid():
+            self.cap = cap_with_0.GetValueAsUnsigned()
+        else:
+            self.cap = cap.GetValueAsUnsigned()
 
         head = gcm(self.valobj, 'head').GetValueAsUnsigned()
 

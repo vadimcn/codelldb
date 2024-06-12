@@ -86,6 +86,9 @@ impl super::DebugSession {
                         variable.name = "[return value]".to_owned();
                         variables.insert(0, variable);
                     }
+
+                    variables.sort_by(|a, b| a.name.cmp(&b.name));
+
                     variables
                 }
                 Container::Statics(frame) => {
@@ -96,7 +99,11 @@ impl super::DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableStatic);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?;
+
+                    variables.sort_by(|a, b| a.name.cmp(&b.name));
+
+                    variables
                 }
                 Container::Globals(frame) => {
                     let variables = frame.variables(&VariableOptions {
@@ -106,7 +113,11 @@ impl super::DebugSession {
                         in_scope_only: true,
                     });
                     let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableGlobal);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?;
+
+                    variables.sort_by(|a, b| a.name.cmp(&b.name));
+
+                    variables
                 }
                 Container::Registers(frame) => {
                     let list = frame.registers();
@@ -132,6 +143,9 @@ impl super::DebugSession {
                         };
                         variables.push(raw);
                     }
+
+                    variables.sort_by(|a, b| a.name.cmp(&b.name));
+
                     variables
                 }
                 Container::StackFrame(_) => vec![],

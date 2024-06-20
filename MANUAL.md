@@ -210,7 +210,7 @@ Ever wanted to debug a build script?
 ```Rust
 let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
 std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
-std::thread::sleep_ms(1000); // Wait for debugger to attach
+std::thread::sleep(std::time::Duration::from_millis(1000)); // Wait for debugger to attach
 ```
 
 ### Debugging Rust unit tests

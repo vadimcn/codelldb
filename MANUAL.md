@@ -367,9 +367,30 @@ directory then it was in at build time (for example, if a build server was used)
 
 A source map consists of pairs of "from" and "to" path prefixes.  When the debugger encounters a source
 file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
-instead.  Example:
+instead. Example:
+
 ```javascript
     "sourceMap": { "/build/time/source/path" : "/current/source/path" }
+```
+
+### Finding your build time source path
+
+Depending on your build system, it can be tricky to know what build path was used in generating the
+debugging information (the "from" path). One trick to find it is to start your debugger without any
+source maps configured yet, and run `image lookup` in the LLDB console to find one your functions,
+such as `main()`:
+
+```
+(lldb) image lookup -v -n "main"
+1 match found in /build/time/path/to/your_program:
+        Address: your_program[0x000000010000d540] (your_program.__TEXT.__text + 47648)
+        Summary: your_program`main at your_program.cpp:10
+```
+
+Then assuming your project lives in `/Users/You/src/your_program`, you would set your source map as:
+
+```javascript
+    "sourceMap": { "/build/time/path/to/your_program" : "/Users/You/src/your_program" }
 ```
 
 ## Parameterized Launch Configurations

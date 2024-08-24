@@ -174,13 +174,13 @@ pub fn strings() {
 
     let str_tuple = (
         string.clone(),
-        str_slice.clone(),
+        str_slice,
         cstring.clone(),
-        cstr.clone(),
+        cstr,
         osstring.clone(),
-        osstr.clone(),
+        osstr,
         path_buf.clone(),
-        path.clone(),
+        path,
     );
 
     println!("---"); // #BP_strings

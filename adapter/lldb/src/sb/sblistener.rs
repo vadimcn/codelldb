@@ -27,6 +27,16 @@ impl SBListener {
             return self->PeekAtNextEvent(*event);
         })
     }
+    pub fn start_listening_for_events(&self, broadcaster: &SBBroadcaster, event_mask: u32) -> u32 {
+        cpp!(unsafe [self as "SBListener*", broadcaster as "SBBroadcaster*", event_mask as "uint32_t"] -> u32 as "uint32_t" {
+            return self->StartListeningForEvents(*broadcaster, event_mask);
+        })
+    }
+    pub fn stop_listening_for_events(&self, broadcaster: &SBBroadcaster, event_mask: u32) -> bool {
+        cpp!(unsafe [self as "SBListener*", broadcaster as "SBBroadcaster*", event_mask as "uint32_t"] -> bool as "bool" {
+            return self->StopListeningForEvents(*broadcaster, event_mask);
+        })
+    }
     // returns effective event mask
     pub fn start_listening_for_event_class(
         &self,

@@ -44,7 +44,6 @@ use tokio::sync::{broadcast, mpsc};
 pub struct DebugSession {
     self_ref: MustInitialize<Shared<DebugSession>>,
     dap_session: DAPSession,
-    event_listener: SBListener,
     python: Option<Box<PythonInterface>>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with the current request
     configuration_done_sender: broadcast::Sender<()>,
@@ -131,7 +130,6 @@ impl DebugSession {
         let mut debug_session = DebugSession {
             self_ref: NotInitialized,
             dap_session: dap_session,
-            event_listener: SBListener::new_with_name("DebugSession"),
             python: python,
             current_cancellation: cancellation::dummy(),
             configuration_done_sender: broadcast::channel(1).0,
@@ -182,7 +180,7 @@ impl DebugSession {
         }
 
         let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
-        let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.event_listener);
+        let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.debugger.listener());
 
         let con_writer = debug_session.console_pipe.try_clone().unwrap();
         log_errors!(debug_session.debugger.set_output_file(SBFile::from(con_writer, false)));
@@ -550,12 +548,11 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
-        self.event_listener
-            .start_listening_for_event_class(&self.debugger, SBTarget::broadcaster_class_name(), !0);
-        self.event_listener
-            .start_listening_for_event_class(&self.debugger, SBProcess::broadcaster_class_name(), !0);
-        self.event_listener
-            .start_listening_for_event_class(&self.debugger, SBThread::broadcaster_class_name(), !0);
+        self.debugger.listener().start_listening_for_event_class(
+            &self.debugger,
+            SBThread::broadcaster_class_name(),
+            !0,
+        );
         self.client_caps = Initialized(args);
         Ok(self.make_capabilities())
     }
@@ -711,7 +708,7 @@ impl DebugSession {
 
         Ok(StackTraceResponseBody {
             stack_frames: stack_frames,
-            total_frames: None
+            total_frames: None,
         })
     }
 

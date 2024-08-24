@@ -109,6 +109,11 @@ impl SBDebugger {
             self->SetSelectedPlatform(*platform);
         })
     }
+    pub fn listener(&self) -> SBListener {
+        cpp!(unsafe [self as "SBDebugger*"] -> SBListener as "SBListener" {
+            return self->GetListener();
+        })
+    }
     pub fn command_interpreter(&self) -> SBCommandInterpreter {
         cpp!(unsafe [self as "SBDebugger*"] -> SBCommandInterpreter as "SBCommandInterpreter" {
             return self->GetCommandInterpreter();

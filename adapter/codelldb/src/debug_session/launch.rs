@@ -29,7 +29,7 @@ impl super::DebugSession {
                 };
                 self.create_target_from_program(program)?
             };
-            self.target = Initialized(target);
+            self.set_target(target);
             self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
 
@@ -137,7 +137,7 @@ impl super::DebugSession {
         #[cfg(not(windows))]
         let result = do_launch();
 
-        // On Windows, we can't specify the console to attach to when launching a process.
+        // On Windows we can't specify the console to attach to when launching a process.
         // Instead, child inherits the console of the parent process, so we need to attach/detach around the launch.
         #[cfg(windows)]
         let result = match &self.debuggee_terminal {
@@ -183,7 +183,7 @@ impl super::DebugSession {
         if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
         }
-        self.target = Initialized(self.debugger.selected_target());
+        self.set_target(self.debugger.selected_target());
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
 
@@ -238,7 +238,7 @@ impl super::DebugSession {
                 None => self.debugger.create_target(Path::new(""), None, None, false)?,
             }
         };
-        self.target = Initialized(target);
+        self.set_target(target);
         self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
 
         self.send_event(EventBody::initialized);
@@ -318,6 +318,11 @@ impl super::DebugSession {
             }
         }
         .map_err(|e| as_user_error(e).into())
+    }
+
+    fn set_target(&mut self, target: SBTarget) {
+        self.target = Initialized(target);
+        self.debugger.listener().start_listening_for_events(&self.target.broadcaster(), !0);
     }
 
     // Try to create a debuggee terminal, according to what was requested in the launch configuration.

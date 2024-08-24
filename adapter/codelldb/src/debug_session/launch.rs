@@ -134,16 +134,17 @@ impl super::DebugSession {
             }
         };
 
+        #[cfg(not(windows))]
+        let result = do_launch();
+
+        // On Windows, we can't specify the console to attach to when launching a process.
+        // Instead, child inherits the console of the parent process, so we need to attach/detach around the launch.
+        #[cfg(windows)]
         let result = match &self.debuggee_terminal {
             Some(t) => {
-                // Windows does not have an API for launching child process in a different console than the parent
-                // process, so we have to attach adapter to the target console before launching.
-                #[cfg(windows)]
                 t.attach_console();
                 let result = do_launch();
-                #[cfg(windows)]
                 t.detach_console();
-                drop(t);
                 result
             }
             None => do_launch(),

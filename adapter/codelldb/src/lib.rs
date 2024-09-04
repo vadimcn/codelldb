@@ -31,6 +31,7 @@ mod must_initialize;
 mod platform;
 mod python;
 mod shared;
+mod stdio_stream;
 mod terminal;
 
 pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
@@ -63,18 +64,15 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
     }
 
-    let (port, connect) = if let Some(port) = matches.value_of("connect") {
-        (port.parse()?, true)
+    let (use_stdio, port, connect) = if let Some(port) = matches.value_of("connect") {
+        (false, port.parse()?, true)
     } else if let Some(port) = matches.value_of("port") {
-        (port.parse()?, false)
+        (false, port.parse()?, false)
     } else {
-        return Err("Either --connect or --port must be specified".into());
+        (true, 0, false)
     };
     let multi_session = matches.is_present("multi-session");
     let auth_token = matches.value_of("auth-token");
-
-    let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
-    let addr = net::SocketAddr::new(localhost.into(), port);
 
     let rt = tokio::runtime::Builder::new_multi_thread() //
         .worker_threads(2)
@@ -83,26 +81,35 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         .unwrap();
 
     rt.block_on(async {
-        if connect {
-            debug!("Connecting to {}", addr);
-            let mut tcp_stream = TcpStream::connect(addr).await?;
-            tcp_stream.set_nodelay(true).unwrap();
-            if let Some(auth_token) = auth_token {
-                let auth_header = format!("Auth-Token: {}\r\n", auth_token);
-                tcp_stream.write_all(&auth_header.as_bytes()).await?;
-            }
-            let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+        if use_stdio {
+            debug!("Starting on stdio");
+            let stream = stdio_stream::StdioStream::new();
+            let framed_stream = dap_codec::DAPCodec::new().framed(stream);
             run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
         } else {
-            let listener = TcpListener::bind(&addr).await?;
-            while {
-                debug!("Listening on {}", listener.local_addr()?);
-                let (tcp_stream, _) = listener.accept().await?;
+            let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
+            let addr = net::SocketAddr::new(localhost.into(), port);
+            if connect {
+                debug!("Connecting to {}", addr);
+                let mut tcp_stream = TcpStream::connect(addr).await?;
                 tcp_stream.set_nodelay(true).unwrap();
+                if let Some(auth_token) = auth_token {
+                    let auth_header = format!("Auth-Token: {}\r\n", auth_token);
+                    tcp_stream.write_all(&auth_header.as_bytes()).await?;
+                }
                 let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
                 run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
-                multi_session
-            } {}
+            } else {
+                let listener = TcpListener::bind(&addr).await?;
+                while {
+                    debug!("Listening on {}", listener.local_addr()?);
+                    let (tcp_stream, _) = listener.accept().await?;
+                    tcp_stream.set_nodelay(true).unwrap();
+                    let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+                    run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+                    multi_session
+                } {}
+            }
         }
         Ok::<(), Error>(())
     })

@@ -98,8 +98,8 @@ impl Terminal {
     pub fn attach_console(&self) {
         unsafe {
             let pid = self.data.parse::<u32>().unwrap();
-            dbg!(winapi::um::wincon::FreeConsole());
-            dbg!(winapi::um::wincon::AttachConsole(pid));
+            winapi::um::wincon::FreeConsole();
+            winapi::um::wincon::AttachConsole(pid);
         }
     }
 

@@ -5,8 +5,10 @@ use dap_session::DAPChannel;
 use lldb::*;
 use std::net;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::io::AsyncWriteExt;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Duration;
 use tokio_util::codec::Decoder;
@@ -63,48 +65,67 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
     }
 
-    let (port, connect) = if let Some(port) = matches.value_of("connect") {
-        (port.parse()?, true)
+    let run_mode = if let Some(port) = matches.value_of("connect") {
+        RunMode::Tcp {
+            port: port.parse()?,
+            connect: true,
+        }
     } else if let Some(port) = matches.value_of("port") {
-        (port.parse()?, false)
+        RunMode::Tcp {
+            port: port.parse()?,
+            connect: false,
+        }
     } else {
-        return Err("Either --connect or --port must be specified".into());
+        RunMode::StdInOut
     };
-    let multi_session = matches.is_present("multi-session");
-    let auth_token = matches.value_of("auth-token");
-
-    let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
-    let addr = net::SocketAddr::new(localhost.into(), port);
 
     let rt = tokio::runtime::Builder::new_multi_thread() //
         .worker_threads(2)
         .enable_all()
         .build()
         .unwrap();
-
     rt.block_on(async {
-        if connect {
-            debug!("Connecting to {}", addr);
-            let mut tcp_stream = TcpStream::connect(addr).await?;
-            tcp_stream.set_nodelay(true).unwrap();
-            if let Some(auth_token) = auth_token {
-                let auth_header = format!("Auth-Token: {}\r\n", auth_token);
-                tcp_stream.write_all(&auth_header.as_bytes()).await?;
+        match run_mode {
+            RunMode::Tcp { port, connect } => {
+                let multi_session = matches.is_present("multi-session");
+                let auth_token = matches.value_of("auth-token");
+                let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
+                let addr = net::SocketAddr::new(localhost.into(), port);
+                if connect {
+                    debug!("Connecting to {}", addr);
+                    let mut tcp_stream = TcpStream::connect(addr).await?;
+                    tcp_stream.set_nodelay(true).unwrap();
+                    if let Some(auth_token) = auth_token {
+                        let auth_header = format!("Auth-Token: {}\r\n", auth_token);
+                        tcp_stream.write_all(&auth_header.as_bytes()).await?;
+                    }
+                    let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+                    run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+                } else {
+                    let listener = TcpListener::bind(&addr).await?;
+                    while {
+                        debug!("Listening on {}", listener.local_addr()?);
+                        let (tcp_stream, _) = listener.accept().await?;
+                        tcp_stream.set_nodelay(true).unwrap();
+                        let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+                        run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+                        multi_session
+                    } {}
+                }
+                Ok::<(), Error>(())
             }
-            let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
-            run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
-        } else {
-            let listener = TcpListener::bind(&addr).await?;
-            while {
-                debug!("Listening on {}", listener.local_addr()?);
-                let (tcp_stream, _) = listener.accept().await?;
-                tcp_stream.set_nodelay(true).unwrap();
-                let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
+
+            RunMode::StdInOut => {
+                tokio::io::stdin();
+                let std_in = tokio::io::stdin();
+                let std_out = tokio::io::stdout();
+
+                let std_in_out = crate::StdInOut { std_in, std_out };
+                let framed_stream = dap_codec::DAPCodec::new().framed(std_in_out);
                 run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
-                multi_session
-            } {}
+                Ok::<(), Error>(())
+            }
         }
-        Ok::<(), Error>(())
     })
     .unwrap();
 
@@ -174,5 +195,35 @@ fn finalize_reproducer() {
                 error!("finalize_reproducer: failed");
             }
         }
+    }
+}
+
+enum RunMode {
+    Tcp { port: u16, connect: bool },
+    StdInOut,
+}
+
+pub struct StdInOut {
+    std_in: tokio::io::Stdin,
+    std_out: tokio::io::Stdout,
+}
+
+impl AsyncRead for StdInOut {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.get_mut().std_in).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for StdInOut {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, std::io::Error>> {
+        Pin::new(&mut self.get_mut().std_out).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.get_mut().std_out).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.get_mut().std_out).poll_shutdown(cx)
     }
 }

@@ -13,28 +13,37 @@ from .event import Event
 
 log = logging.getLogger('codelldb')
 
-try: from typing import Tuple
-except Exception: pass
+try:
+    from typing import Tuple
+except Exception:
+    pass
 
 # ============================================================================================
 
 # 8 bytes
+
+
 class SBError(ctypes.Structure):
     _fields_ = [('_opaque', c_int64)]
     swig_type = lldb.SBError
 
 # 16 bytes
+
+
 class SBDebugger(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBDebugger
+
 
 class SBExecutionContext(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBExecutionContext
 
+
 class SBValue(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBValue
+
 
 class SBModule(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
@@ -44,23 +53,31 @@ class SBModule(ctypes.Structure):
 # We rely on the fact that SB objects consist of a single shared_ptr, which can be moved around freely.
 # There are 3 memory regions in play:
 #  [1:SWIG wrapper PyObject] -> [2:Memory allocated for SB object (which is just a pointer)] -> [3:The actual LLDB-internal object]
+
+
 def into_swig_wrapper(cobject, ty, owned=True):
-    swig_object = ty.swig_type() # Create an empty wrapper, which will be in an "invalid" state ([2] is null, [3] does not exist).
+    # Create an empty wrapper, which will be in an "invalid" state ([2] is null, [3] does not exist).
+    swig_object = ty.swig_type()
     addr = int(swig_object.this)
-    memmove(addr, byref(cobject), sizeof(ty)) # Replace [2] with a valid pointer.
+    memmove(addr, byref(cobject), sizeof(ty))  # Replace [2] with a valid pointer.
     swig_object.this.own(owned)
     return swig_object
 
 # The reverse of into_swig_wrapper.
+
+
 def from_swig_wrapper(swig_object, ty):
-    swig_object.this.disown() # We'll be moving this value out, make sure swig_object's destructor does not try to deallocate it.
+    # We'll be moving this value out, make sure swig_object's destructor does not try to deallocate it.
+    swig_object.this.disown()
     addr = int(swig_object.this)
     cobject = ty()
     memmove(byref(cobject), addr, sizeof(ty))
     return cobject
 
 # Generates a FFI type compatible with Rust #[repr(C, i32)] enum
-def RustEnum(enum_name, *variants): # type: (str, Tuple[str,type]) -> type
+
+
+def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
     class V(ctypes.Union):
         _fields_ = variants
 
@@ -68,9 +85,11 @@ def RustEnum(enum_name, *variants): # type: (str, Tuple[str,type]) -> type
         _fields_ = [('discr', c_int),
                     ('var', V)]
         discr = 0
+
         def __str__(self):
-            name = variants[self.discr][0];
+            name = variants[self.discr][0]
             return '{0}({1})'.format(name, getattr(self.var, name))
+
         @classmethod
         def __getattr__(cls, name): pass
 
@@ -99,6 +118,7 @@ send_message = None
 save_stdout = None
 on_did_receive_message = Event()
 
+
 def initialize(log_level, init_callback_addr, send_message_addr, callback_context):
     global send_message
     logging.getLogger().setLevel(log_level)
@@ -112,6 +132,11 @@ def initialize(log_level, init_callback_addr, send_message_addr, callback_contex
 
     def send_message(body):
         return send_message_raw(callback_context, str_to_bytes(json.dumps(body)))
+
+
+def update_adapter_settings(settings_json, internal_dict):
+    settings = json.loads(settings_json)
+    internal_dict.setdefault('adapter_settings', {}).update(settings)
 
 
 @CFUNCTYPE(c_bool, c_size_t)
@@ -235,6 +260,8 @@ decref.argtypes = [ctypes.py_object]
 dummy_sberror = lldb.SBError()
 
 # Convert a native Python object into a SBValue.
+
+
 def to_sbvalue(value, target):
     value = Value.unwrap(value)
 

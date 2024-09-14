@@ -462,7 +462,7 @@ impl super::DebugSession {
         }
 
         if let Some(python) = &self.python {
-            log_errors!(python.init_lang_support(&self.source_languages));
+            log_errors!(python.init_lang_support());
         }
 
         Ok(())

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use adapter_protocol::EventBody;
+use adapter_protocol::{AdapterSettings, EventBody};
 use lldb::*;
 
 use std::ffi::CStr;
@@ -260,17 +260,16 @@ impl PythonInterface {
         }
     }
 
-    // Load the language support module
-    pub fn init_lang_support(&self, langs: &[impl AsRef<str>]) -> Result<(), Error> {
-        let mut stmt = String::from("source_languages = [");
-        for lang in langs {
-            use std::fmt::Write;
-            write!(stmt, "'{}',", lang.as_ref())?;
-        }
-        stmt.push_str("]");
+    // Propagate adapter settings to the Python side.
+    pub fn update_adapter_settings(&self, settings: &AdapterSettings) -> Result<(), Error> {
+        let settings_json = serde_json::to_string(settings)?;
+        let stmt = format!(r#"codelldb.update_adapter_settings("""{settings_json}""", globals())"#);
         let code = self.compile_code(&stmt, "<string>")?;
-        self.execute_in_instance(&code, &self.interpreter.debugger())?;
+        self.execute_in_instance(&code, &self.interpreter.debugger())
+    }
 
+    // Load the language support module
+    pub fn init_lang_support(&self) -> Result<(), Error> {
         let lang_support = self.adapter_dir.parent().unwrap().join("lang_support");
         let command = format!("command script import '{}'", lang_support.to_str().unwrap());
         let mut command_result = SBCommandReturnObject::new();

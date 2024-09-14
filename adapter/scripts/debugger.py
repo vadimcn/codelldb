@@ -52,12 +52,12 @@ def display_html(html, title=None, position=None, reveal=False):
             if message['command'] == 'execute':
                 lldb.debugger.HandleCommand(message['text'])
 
-        def on_dispoed(message):
+        def on_disposed(message):
             global html_webview
             html_webview = None
 
         html_webview.on_did_receive_message.add(on_message)
-        html_webview.on_did_dispose.add(on_dispoed)
+        html_webview.on_did_dispose.add(on_disposed)
     else:
         html_webview.set_html(html)
         if reveal:

@@ -10,14 +10,11 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
                                         '^<?(std|core|alloc)::', debugger.GetInstanceName())
 
-    sysroot = subprocess.check_output(
-        ['rustc', '--print=sysroot'], encoding='utf-8').strip()
+    sysroot = subprocess.check_output(['rustc', '--print=sysroot'], encoding='utf-8').strip()
     etc = path.join(sysroot, 'lib/rustlib/etc')
     log.info('Loading Rust formatters from {}'.format(etc))
-    debugger.HandleCommand("command script import '{}'".format(
-        path.join(etc, 'lldb_lookup.py')))
-    debugger.HandleCommand(
-        "command source -s true '{}'".format(path.join(etc, 'lldb_commands')))
+    debugger.HandleCommand("command script import '{}'".format(path.join(etc, 'lldb_lookup.py')))
+    debugger.HandleCommand("command source -s true '{}'".format(path.join(etc, 'lldb_commands')))
 
     import lldb_lookup
     if hasattr(lldb_lookup, 'ClangEncodedEnumProvider'):

@@ -6,7 +6,9 @@ log = logging.getLogger(__name__)
 
 
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
-    for lang in internal_dict['source_languages']:
+    adapter_settings = internal_dict['adapter_settings']
+    langs = adapter_settings.get('sourceLanguages', [])
+    for lang in langs:
         try:
             ns = __import__('lang_support', fromlist=[lang])
         except ImportError:

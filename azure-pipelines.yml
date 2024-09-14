@@ -134,7 +134,7 @@ jobs:
 
 - job: OSX
   pool:
-    vmImage: 'macOS-11'
+    vmImage: 'macOS-latest'
 
   strategy:
     matrix:

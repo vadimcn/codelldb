@@ -9,8 +9,10 @@ log = logging.getLogger(__name__)
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
                                         '^<?(std|core|alloc)::', debugger.GetInstanceName())
-
-    sysroot = subprocess.check_output(['rustc', '--print=sysroot'], encoding='utf-8').strip()
+    si = None
+    if hasattr(subprocess, 'STARTUPINFO'):
+        si = subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW, wShowWindow=subprocess.SW_HIDE)
+    sysroot = subprocess.check_output(['rustc', '--print=sysroot'], startupinfo=si, encoding='utf-8').strip()
     etc = path.join(sysroot, 'lib/rustlib/etc')
     log.info('Loading Rust formatters from {}'.format(etc))
     debugger.HandleCommand("command script import '{}'".format(path.join(etc, 'lldb_lookup.py')))

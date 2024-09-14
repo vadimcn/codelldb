@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-#![cfg(not(feature = "test"))]
 
 use serde::{Deserialize, Serialize};
 

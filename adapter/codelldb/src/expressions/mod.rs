@@ -9,7 +9,7 @@ pub mod prelude {
         AsChar, InputTakeAtPosition, Parser,
     };
 
-    pub use crate::error::{as_user_error, Error};
+    pub use crate::error::Error;
 
     pub type Span<'a> = &'a str;
 

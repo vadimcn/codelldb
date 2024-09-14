@@ -184,7 +184,7 @@ impl PythonInterface {
     }
 
     // Compiles Python source, returns a code object.
-    pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, String> {
+    pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, Error> {
         let expt_ptr = expr.as_ptr() as *const c_char;
         let expr_size = expr.len();
         let filename_ptr = filename.as_ptr() as *const c_char;
@@ -198,7 +198,7 @@ impl PythonInterface {
                 object: object,
                 destructor: *self.drop_pyobject_ptr.unwrap(),
             }),
-            PyResult::Err(error) => Err(error.to_string()),
+            PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
     }
@@ -209,14 +209,14 @@ impl PythonInterface {
         code: &PyObject,
         is_simple_expr: bool,
         context: &SBExecutionContext,
-    ) -> Result<SBValue, String> {
+    ) -> Result<SBValue, Error> {
         let mut result = PyResult::Invalid;
         unsafe {
             (*self.evaluate_ptr)(&mut result, code.object, is_simple_expr, context.clone());
         }
         match result {
             PyResult::Ok(value) => Ok(value),
-            PyResult::Err(error) => Err(error.to_string()),
+            PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
     }
@@ -227,14 +227,14 @@ impl PythonInterface {
         code: &PyObject,
         is_simple_expr: bool,
         context: &SBExecutionContext,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, Error> {
         let mut result = PyResult::Invalid;
         unsafe {
             (*self.evaluate_as_bool_ptr)(&mut result, code.object, is_simple_expr, context.clone());
         }
         match result {
             PyResult::Ok(value) => Ok(value),
-            PyResult::Err(error) => Err(error.to_string()),
+            PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
     }
@@ -248,34 +248,20 @@ impl PythonInterface {
     }
 
     // Execute compiled code in the context of debugger instance's dictionary.
-    fn execute_in_instance(&self, code: &PyObject, debugger: &SBDebugger) -> Result<(), String> {
+    fn execute_in_instance(&self, code: &PyObject, debugger: &SBDebugger) -> Result<(), Error> {
         let mut result = PyResult::Invalid;
         unsafe {
             (*self.execute_in_instance_ptr)(&mut result, code.object, debugger.clone());
         }
         match result {
             PyResult::Ok(()) => Ok(()),
-            PyResult::Err(error) => Err(error.to_string()),
+            PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
     }
 
-    // Loads formatters.
-    // This invokes __lldb_init_module() of each formatter module.
-    pub fn load_formatters(&self) -> Result<(), String> {
-        let formatters = self.adapter_dir.parent().unwrap().join("formatters");
-        let command = format!("command script import '{}'", formatters.to_str().unwrap());
-        let mut command_result = SBCommandReturnObject::new();
-        self.interpreter.handle_command(&command, &mut command_result, false);
-        if command_result.succeeded() {
-            Ok(())
-        } else {
-            Err(format!("{:?}", command_result))
-        }
-    }
-
-    // Sets source_languages in the internal globals dictionary of SBDebugger
-    pub fn set_source_languages<T: AsRef<str>>(&self, langs: &[T]) -> Result<(), Error> {
+    // Load the language support module
+    pub fn init_lang_support(&self, langs: &[impl AsRef<str>]) -> Result<(), Error> {
         let mut stmt = String::from("source_languages = [");
         for lang in langs {
             use std::fmt::Write;
@@ -284,6 +270,14 @@ impl PythonInterface {
         stmt.push_str("]");
         let code = self.compile_code(&stmt, "<string>")?;
         self.execute_in_instance(&code, &self.interpreter.debugger())?;
+
+        let lang_support = self.adapter_dir.parent().unwrap().join("lang_support");
+        let command = format!("command script import '{}'", lang_support.to_str().unwrap());
+        let mut command_result = SBCommandReturnObject::new();
+        self.interpreter.handle_command(&command, &mut command_result, false);
+        if !command_result.succeeded() {
+            bail!(format!("{:?}", command_result))
+        }
         Ok(())
     }
 }

@@ -98,9 +98,9 @@ endif()
 
 add_subdirectory(adapter)
 add_subdirectory(lldb)
-add_subdirectory(formatters)
+add_subdirectory(lang_support)
 
-add_dependencies(adapter lldb formatters)
+add_dependencies(adapter lldb lang_support)
 
 # Extension package content
 
@@ -209,7 +209,7 @@ set(PackagedFilesFull
     lldb/bin/**/*
     lldb/lib/**/*
     lldb/DLLs/**/*
-    formatters/**/*.py
+    lang_support/**/*.py
 )
 
 # Indicator file used to determine whether we have the platform package.

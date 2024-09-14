@@ -1447,9 +1447,6 @@ impl DebugSession {
                 caps.exception_breakpoint_filters = Some(self.get_exception_filters_for(&self.source_languages));
             }
         }
-        if let Some(python) = &self.python {
-            log_errors!(python.set_source_languages(&self.source_languages));
-        }
         caps
     }
 

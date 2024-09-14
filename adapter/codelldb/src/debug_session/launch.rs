@@ -446,6 +446,15 @@ impl super::DebugSession {
             self.update_adapter_settings_and_caps(settings);
         }
 
+        // Normally, source_langiuages is set in adapter settings we get on the command line,
+        // but for the sake of people who use bare adapter, we also allow setting it via launch config.
+        if let Some(ref source_languages) = args_common.source_languages {
+            self.update_adapter_settings_and_caps(&AdapterSettings {
+                source_languages: Some(source_languages.clone()),
+                ..Default::default()
+            });
+        }
+
         self.print_console_mode();
 
         if let Some(commands) = &args_common.init_commands {
@@ -453,7 +462,7 @@ impl super::DebugSession {
         }
 
         if let Some(python) = &self.python {
-            log_errors!(python.load_formatters());
+            log_errors!(python.init_lang_support(&self.source_languages));
         }
 
         Ok(())

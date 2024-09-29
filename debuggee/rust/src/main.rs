@@ -7,6 +7,6 @@ fn main() {
     arrays();
     boxes();
     strings();
-    hashes();
+    maps();
     misc();
 }

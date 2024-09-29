@@ -4,7 +4,7 @@ mod tests;
 
 use std::borrow::Cow;
 use std::cell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::path;
 use std::rc;
 use std::sync;
@@ -225,16 +225,18 @@ pub fn boxes() {
     println!("---");
 }
 
-pub fn hashes() {
+pub fn maps() {
     let mut hash: HashMap<String, i32> = HashMap::default();
     hash.insert("Einar".into(), 25);
     hash.insert("Olaf".into(), 24);
     hash.insert("Harald".into(), 12);
     hash.insert("Conan".into(), 29);
 
-    let set = hash.iter().map(|(name, age)| name.clone()).collect::<HashSet<String>>();
+    let hash_set = hash.iter().map(|(name, age)| name.clone()).collect::<HashSet<String>>();
+    let btree = hash.iter().map(|(name, age)| (name.clone(), *age)).collect::<BTreeMap<String, i32>>();
+    let btree_set = hash.iter().map(|(name, age)| name.clone()).collect::<BTreeSet<String>>();
 
-    println!("---"); // #BP_hashes
+    println!("---"); // #BP_maps
     println!("---");
     println!("---");
 }

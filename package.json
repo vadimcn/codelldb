@@ -330,6 +330,13 @@
 						"default": {},
 						"scope": "resource",
 						"order": 100
+					},
+					"lldb.script": {
+						"description": "Settings for scripts running within the debugger context. These may be accessed via `debugger.get_config()`. The schema is free-form, except that the `lang` subtree is reserved for built-in language support helpers.",
+						"type": "object",
+						"default": {},
+						"scope": "resource",
+						"order": 100
 					}
 				}
 			},

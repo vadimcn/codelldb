@@ -77,9 +77,11 @@ pub struct PythonInterface {
 // Initialize Python interface.
 // In order to maintain compatibility with Python 2 (in case we need to load an older liblldb),
 // we eschew Python C API, preferring to interact with it via `ctypes` module:
-// - We use SBCommandInterpreter to import `codelldb` module and to invoke `initialize` function,
-//   passing it pointers to callbacks and data on Rust side, the `init_callback` function among them.
-// - `codelldb.initialize` invokes `init_callback` with pointers to C ABI stubs wrapping Python side callbacks,
+// - We use SBCommandInterpreter to import `adapter/scripts/codelldb` module (which also addes `adapter/scripts`
+//   to Python sys.path).
+// - We then invoke `codelldb.interface.initialize` function, passing it pointers to various callbacks and data
+//   on Rust side.
+// - `initialize()` invokes `init_callback` with pointers to C ABI stubs wrapping Python side callbacks,
 //    which are saved and later used to invoke Python code directly, bypassing the slow SBCommandInterpreter API.
 // - If any of the above fails, we declare Python scripting defunct and proceed in reduced functionality mode.
 pub fn initialize(
@@ -89,8 +91,7 @@ pub fn initialize(
 ) -> Result<(Box<PythonInterface>, mpsc::Receiver<EventBody>), Error> {
     let mut command_result = SBCommandReturnObject::new();
 
-    // Import debugger.py into script interpreter's namespace. This also adds our `bin` directory to `sys.path`.
-    let init_script = adapter_dir.join("scripts/debugger.py");
+    let init_script = adapter_dir.join("scripts/codelldb");
     let command = format!("command script import '{}'", init_script.to_str().unwrap());
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
@@ -152,7 +153,7 @@ pub fn initialize(
     };
 
     let command = format!(
-        "script import codelldb; codelldb.initialize({}, {:p}, {:p}, {:p})",
+        "script codelldb.interface.initialize({}, {:p}, {:p}, {:p})",
         py_log_level, init_callback as *const c_void, send_message_callback as *const c_void, interface
     );
     interface.interpreter.handle_command(&command, &mut command_result, false);
@@ -170,6 +171,11 @@ pub fn initialize(
             (*interface.postinit_ptr)(get_raw_fd(console_stream));
         }
     }
+
+    // Import legacy alias for the codelldb module
+    let script = adapter_dir.join("scripts/debugger.py");
+    let command = format!("command script import '{}'", script.to_str().unwrap());
+    interface.interpreter.handle_command(&command, &mut command_result, false);
 
     Ok((interface, receiver))
 }
@@ -263,7 +269,7 @@ impl PythonInterface {
     // Propagate adapter settings to the Python side.
     pub fn update_adapter_settings(&self, settings: &AdapterSettings) -> Result<(), Error> {
         let settings_json = serde_json::to_string(settings)?;
-        let stmt = format!(r#"codelldb.update_adapter_settings("""{settings_json}""", globals())"#);
+        let stmt = format!(r#"codelldb.interface.update_adapter_settings("""{settings_json}""", globals())"#);
         let code = self.compile_code(&stmt, "<string>")?;
         self.execute_in_instance(&code, &self.interpreter.debugger())
     }

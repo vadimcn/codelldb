@@ -8,6 +8,7 @@ export class AdapterSettings {
     suppressMissingSourceFiles?: boolean;
     consoleMode?: 'commands' | 'evaluate';
     sourceLanguages?: string[];
+    scriptConfig?: object;
     terminalPromptClear?: string[];
     evaluateForHovers?: boolean;
     commandCompletions?: boolean;

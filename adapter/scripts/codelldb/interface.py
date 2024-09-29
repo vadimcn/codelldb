@@ -136,7 +136,10 @@ def initialize(log_level, init_callback_addr, send_message_addr, callback_contex
 
 def update_adapter_settings(settings_json, internal_dict):
     settings = json.loads(settings_json)
-    internal_dict.setdefault('adapter_settings', {}).update(settings)
+    adapter_settings = internal_dict.setdefault('adapter_settings', {})
+    for key, value in settings.items():
+        if value is not None:
+            adapter_settings[key] = value
 
 
 @CFUNCTYPE(c_bool, c_size_t)
@@ -228,7 +231,7 @@ def evaluate_as_bool(result, pycode, is_simple_expr, context):
 def execute_in_instance(result, pycode, debugger):
     try:
         debugger = into_swig_wrapper(debugger, SBDebugger)
-        eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
+        eval_globals = get_instance_dict(debugger)
         exec(pycode, eval_globals)
         result[0] = BoolResult.Ok(True)
     except Exception as err:
@@ -336,7 +339,7 @@ def evaluate_in_context(code, simple_expr, execution_context):
         eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
     else:
         debugger = execution_context.GetTarget().GetDebugger()
-        eval_globals = getattr(__main__, debugger.GetInstanceName() + '_dict')
+        eval_globals = get_instance_dict(debugger)
         eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
         eval_locals = {}
         lldb.frame = frame
@@ -345,3 +348,7 @@ def evaluate_in_context(code, simple_expr, execution_context):
         lldb.target = lldb.process.GetTarget()
         lldb.debugger = lldb.target.GetDebugger()
     return eval(code, eval_globals, eval_locals)
+
+
+def get_instance_dict(debugger):
+    return getattr(__main__, debugger.GetInstanceName() + '_dict')

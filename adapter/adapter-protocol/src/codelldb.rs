@@ -264,6 +264,7 @@ pub struct AdapterSettings {
     pub suppress_missing_source_files: Option<bool>,
     pub console_mode: Option<ConsoleMode>,
     pub source_languages: Option<Vec<String>>,
+    pub script_config: Option<serde_json::Value>,
     pub terminal_prompt_clear: Option<Vec<String>>,
     pub evaluate_for_hovers: Option<bool>,
     pub command_completions: Option<bool>,

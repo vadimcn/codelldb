@@ -1,4 +1,3 @@
-import lldb
 import logging
 from os import path
 
@@ -11,10 +10,8 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     for lang in langs:
         try:
             ns = __import__('lang_support', fromlist=[lang])
+            getattr(ns, lang).__lldb_init_module(debugger, internal_dict)
         except ImportError:
             pass
-
-        try:
-            getattr(ns, lang).__lldb_init_module(debugger, internal_dict)
         except:
             log.exception('Failed to initialize language support for {}'.format(lang))

@@ -78,11 +78,11 @@ pub struct PythonInterface {
 // In order to maintain compatibility with Python 2 (in case we need to load an older liblldb),
 // we eschew Python C API, preferring to interact with it via `ctypes` module:
 // - We use SBCommandInterpreter to import `adapter/scripts/codelldb` module (which also addes `adapter/scripts`
-//   to Python sys.path).
+//   to Python sys.path),
 // - We then invoke `codelldb.interface.initialize` function, passing it pointers to various callbacks and data
-//   on Rust side.
+//   on the Rust side,
 // - `initialize()` invokes `init_callback` with pointers to C ABI stubs wrapping Python side callbacks,
-//    which are saved and later used to invoke Python code directly, bypassing the slow SBCommandInterpreter API.
+//    which are saved and later used to invoke Python code directly, bypassing the slow SBCommandInterpreter API,
 // - If any of the above fails, we declare Python scripting defunct and proceed in reduced functionality mode.
 pub fn initialize(
     interpreter: SBCommandInterpreter,

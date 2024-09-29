@@ -115,7 +115,7 @@ jobs:
 
   - script: |
       $(setenvLinux)
-      cmake --build build --target check
+      ctest --verbose
     displayName: 'Test'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
@@ -216,7 +216,7 @@ jobs:
   - script: |
       $(setenvOSX)
       export MACOSX_DEPLOYMENT_TARGET=$(DeploymentTarget)
-      xcrun -sdk macosx cmake --build build --target check
+      xcrun -sdk macosx ctest --verbose
     displayName: 'Test'
     condition: not(eq(variables.CrossBuilding, 'true'))
 
@@ -316,7 +316,7 @@ jobs:
 
   - script: |
       $(setenvWindows)
-      cmake --build build --target check_adapter
+      ctest --verbose -E cargo_test
     displayName: 'Test'
 
   - script: |

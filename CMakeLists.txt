@@ -168,7 +168,7 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
-add_custom_target(tests
+add_custom_target(adapter_tests
     DEPENDS tests.js
 )
 
@@ -306,7 +306,7 @@ else()
     )
 endif()
 
-# Tests
+# Tests and test targets
 
 set(MochaTest ${NPM} run mocha --
     --ui tdd --timeout ${TEST_TIMEOUT} --exit
@@ -315,11 +315,6 @@ set(MochaTest ${NPM} run mocha --
     #-g "rust_variables"
     ${CMAKE_BINARY_DIR}/tests.js
 )
-
-# Build everything for testing
-add_dependencies(tests adapter debuggee)
-
-# Tests and test targets
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
@@ -337,16 +332,16 @@ foreach(TestTriple ${TestTriples})
     set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
 endforeach(TestTriple)
 
-# Run adapter tests
-add_custom_target(check_adapter
-    DEPENDS adapter debuggee tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
-    USES_TERMINAL
+# Build testing pre-requisites
+add_custom_target(tests
+    DEPENDS lldb adapter debuggee adapter_tests
 )
 
 # Run all tests
 add_custom_target(check
-    DEPENDS cargo_test check_adapter
+    DEPENDS tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+    USES_TERMINAL
 )
 
 # Install

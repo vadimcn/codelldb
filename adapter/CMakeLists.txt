@@ -68,13 +68,12 @@ add_custom_target(codelldb_exe
     USES_TERMINAL
 )
 
-add_custom_target(cargo_test
-    COMMAND cargo test --lib -p=lldb -p=adapter-protocol -p=codelldb ${CargoFlags} -- --test-threads=1
+add_test(NAME cargo_test
+    COMMAND cargo test --lib -p=lldb -p=adapter-protocol -p=codelldb ${CargoFlags} -vv -- --test-threads=1
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    USES_TERMINAL
 )
 
 # Create dependency check tests
-add_test(NAME dependencies:adapter}
+add_test(NAME dependencies:adapter
     COMMAND ${Python} ${CMAKE_SOURCE_DIR}/tools/check_dependencies.py ${CMAKE_CURRENT_BINARY_DIR} ${AllowedDependencies}
 )

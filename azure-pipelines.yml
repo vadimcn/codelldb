@@ -1,5 +1,5 @@
 variables:
-  lldbBuildId: 2201
+  lldbBuildId: 2205
   lldbBuildProject: 'llvm'
   lldbBuildPipeline: 'lldb-build'
   rustcVersion: '1.80.1'

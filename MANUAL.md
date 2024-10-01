@@ -38,7 +38,7 @@
 
 # Starting a New Debug Session
 
-To start a debugging session you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.   Here's a minimal one:
+To start a debugging session, you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.   Here's a minimal one:
 
 ```javascript
 {
@@ -60,7 +60,7 @@ To start a debugging session you will need to create a [launch configuration](ht
 |**initCommands**         |[string]| LLDB commands executed upon debugger startup.
 |**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
 |**preRunCommands**       |[string]| LLDB commands executed just before launching/attaching the debuggee.
-|**processCreateCommands**|[string]| LLDB commands executed to created/attach the debuggee process.
+|**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.
 |**postRunCommands**      |[string]| LLDB commands executed just after launching/attaching the debuggee.
 |**exitCommands**         |[string]| LLDB commands executed at the end of the debugging session.
 |**expressions**          |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
@@ -85,7 +85,7 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**env**            |dictionary| Environment variables to set in addition to the ones inherited from the parent process environment (unless LLDB's `target.inherit-env` setting has been set to `false`, in which case the initial process environment is empty).  You may refer to existing environment variables using `${env:NAME}` syntax.  For example, in order to alter the inherited `PATH` variable, you can do this: `"PATH":"${env:HOME}/bin:${env:PATH}"`.
 |**envFile**        |string| Path of the file to read the environment variables from.  Note that `env` entries will override `envPath` entries.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
-|**terminal**       |string| Destination for debuggee stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**terminal**       |string| Destination for debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
 
 Operations performed for launch:
@@ -96,7 +96,7 @@ Operations performed for launch:
   - Otherwise, target is created from the binary pointed to by the `program` attribute.
 - Target properties are configured using `args`, `env`, `cwd`, `stdio`, etc, configuration attributes.
 - Breakpoints are created.
-- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. alter args or env).
+- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. args or env).
 - The debuggee process is created:
   - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have created
     a process corresponding to the debug target.
@@ -127,7 +127,7 @@ These attributes are applicable when the "attach" initiation method is selected:
 |attribute          |type    |         |
 |-------------------|--------|---------|
 |**program**        |string  |Path of the executable file.
-|**pid**            |number  |Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also put `${command:pickProcess}` or `${command:pickMyProcess}` here to choose a process interactively.
+|**pid**            |number  |Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also use [`${command:pickProcess}` or `${command:pickMyProcess}`](#pick-process-command) here to choose process interactively.
 |**stopOnEntry**    |boolean |Whether to stop the debuggee immediately after attaching.
 |**waitFor**        |boolean |Wait for the process to launch.
 
@@ -365,7 +365,7 @@ target modules load --file ${workspaceFolder}/build/debuggee -s <base load addre
 Also known as [Time travel debugging](https://en.wikipedia.org/wiki/Time_travel_debugging).  Provided you use a debugging backend that supports
 [these commands](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB be used to control reverse execution and stepping.
 
-As of this writing, the only backend known to work is [Mozilla's rr](https://rr-project.org/).  The minimum supported version is 5.3.0.
+As of this writing, the only known backend that works is [Mozilla's rr](https://rr-project.org/).  The minimum supported version is 5.3.0.
 
 There are others mentioned [here](http://www.sourceware.org/gdb/news/reversible.html) and [here](https://github.com/mozilla/rr/wiki/Related-work).
 [QEMU](https://www.qemu.org/) reportedly [supports record/replay](https://github.com/qemu/qemu/blob/master/docs/replay.txt) in full system emulation mode.
@@ -406,8 +406,7 @@ Use custom launch with `target create -c <core path>` command:
 ```
 
 ## Source Path Remapping
-Source path remapping is helpful in cases when program's source code is located in a different
-directory then it was in at build time (for example, if a build server was used).
+Source path remapping is helpful when the program's source code is located in a different directory than it was at build time (for example, if a build server was used).
 
 A source map consists of pairs of "from" and "to" path prefixes.  When the debugger encounters a source
 file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
@@ -585,7 +584,7 @@ views](https://lldb.llvm.org/use/varformats.html) of the debuggee variables.  Fo
 `std::vector` or comparing `std::string` to a string literal should "just work".
 
 The followng features are supported:
-- References to variables: all identifiers are assumed to refer to variables in the debuggee's current stack frame.
+- References to variables: all identifiers are assumed to refer to variables in the debuggee current stack frame.
   The identifiers may be qualified with namespaces and template parameters (e.g. `std::numeric_limits<float>::digits`).
 - Embedded [native expressions](#native-expressions): these must be delimited with `${` and `}`.
 - Literals: integers, floats and strings, `True`, `False`.
@@ -627,42 +626,70 @@ thus they are often not as convenient as "simple" or "python" expressions.
 
 ## Debugger API
 
-CodeLLDB provides extended Python API via the `debugger` module (which is auto-imported into debugger's main script context).
-This module exports the following functions:
+CodeLLDB provides extended Python API via the `codelldb` module (also aliased as `debugger`),
+which is auto-imported into debugger's main script context:
 
-def **evaluate(expression: `str`, unwrap=False) -> `Value` | `lldb.SBValue`** : Performs dynamic evaluation of [native expressions](#native-expressions) returning instances of [`Value`](#value).
-- **expression**: The expression to evaluate.
-- **unwrap**: Whether to unwrap the result and return it as `lldb.SBValue`.
+```python
+# codelldb
 
-**unwrap(obj: `Value`) -> `lldb.SBValue`** : Extracts an [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) from [`Value`](#value).
-
-**wrap(obj: `lldb.SBValue`) -> `Value`** : Wraps [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html) in a [`Value`](#value) object.
-
-**create_webview(html: `str`=None, title: `str`=None, view_column: `int`=None, preserve_focus: `bool`=False, enable_find_widget: `bool`=False, retain_context_when_hidden: `bool`=False, enable_scripts: `bool`=False) -> Webview** :
-Create a [Webview](#webview), which can be used to display HTML content in VSCode UI.
-
-**display_html(html: `str`, title: `str` = None, position: `int` = None, reveal: `bool` = False)** : (deprecated - use webviews instead) Displays content in a VSCode Webview panel:
-- **html**: HTML markup to display.
-- **title**: Title of the panel.  Defaults to the name of the current launch configuration.
-- **position**: Position (column) of the panel.  The allowed range is 1 through 3.
-- **reveal**: Whether to reveal the panel if one already exists.
+def get_config(name: str, default: Any = None) -> Any:
+    '''Retrieve a configuration value from the adapter settings.
+        name:    Dot-separated path of the setting to retrieve.  For example, 'foo.bar', will retrieve the value of `lldb.script.foo.bar`.
+        default: The default value to return if the configuration value is not found.
+    '''
+def evaluate(expr: str, unwrap: bool = False) -> Value | lldb.SBValue:
+    '''Performs dynamic evaluation of native expressions returning instances of Value or SBValue.
+        expression: The expression to evaluate.
+        unwrap: Whether to unwrap the result and return it as lldb.SBValue
+    '''
+def wrap(obj: lldb.SBValue) -> Value:
+    '''Extracts an lldb.SBValue from Value'''
+def unwrap(obj: Value) -> lldb.SBValue:
+    '''Wraps lldb.SBValue in a Value object'''
+def create_webview(html: Optional[str] = None, title: Optional[str] = None, view_column: Optional[int] = None,
+                   preserve_focus: bool = False, enable_find_widget: bool = False,
+                   retain_context_when_hidden: bool = False, enable_scripts: bool = False):
+    '''Create a webview panel.
+        html:               HTML content to display in the webview.  May be later replaced via Webview.set_html().
+        title:              Panel title.
+        view_column:        Column in which to show the webview.
+        preserve_focus:     Whether to preserve focus in the current editor when revealing the webview.
+        enable_find_widget: Controls if the find widget is enabled in the panel.
+        retain_context_when_hidden: Controls if the webview panel retains its context when it is hidden.
+        enable_scripts:     Controls if scripts are enabled in the webview.
+    '''
+```
 
 ## Webview
-The Webview class provides a simplified interface to VSCode [Webview](https://code.visualstudio.com/api/references/vscode-api#WebviewPanel).
+A simplified interface for [webview panels](https://code.visualstudio.com/api/references/vscode-api#WebviewPanel).
 
-class **Webview:**
- - **set_html(html: `str`)**: Set HTML contents of the webview.
- - **reveal(view_column: `int`=None, preserve_focus: `bool`=False)**: Show the webview panel in a given column.
- - **post_message(message: `object`)**: Post a message to the webview content.
- - **dispose()**: Destroy the webview panel
- - **on_did_receive_message: `Event[object]`**: Fired when the webview content posts a message.
- - **on_did_dispose: `Event`**: Fired when the webview panel is disposed (either by the user or by calling dispose()).
+```python
+class Webview:
+    def dispose(self):
+        '''Destroy webview panel.'''
+    def set_html(self, html: str):
+        '''Set HTML contents of the webview.'''
+    def reveal(self,  view_column: Optional[int] = None, preserve_focus: bool = False):
+        '''Show the webview panel in a given column.'''
+    def post_message(self, message: Any):
+        '''Post a message to the webview content.'''
+        interface.send_message(dict(message='webviewPostMessage', id=self.id, inner=message))
+    @property
+    def on_did_receive_message(self) -> Event:
+        '''Fired when webview content posts a new message.'''
+    @property
+    def on_did_dispose(self) -> Event:
+        '''Fired when the webview panel is disposed (either by the user or by calling dispose())'''
+```
 
 ## Event
-class **Event[T]:**
- - **add(handler: `Callable[T]`)**: Add event listener.
- - **remove(handler: `Callable[T]`)**: Remove event listener.
-
+```python
+class Event:
+    def add(self, listener: Callable[[Any]]):
+        '''Add an event listener.'''
+    def remove(self, listener: Callable[[Any]]):
+        '''Remove an event listener.'''
+```
 
 ## Value
 `Value` objects ([source](adapter/scripts/codelldb/value.py)) are proxy wrappers around [`lldb.SBValue`](https://lldb.llvm.org/python_api/lldb.SBValue.html),
@@ -700,19 +727,18 @@ this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-s
 
 # Rust Language Support
 
-CodeLLDB natively supports visualization of most common Rust data types:
-- Built-in types: tuples, enums, arrays, array and string slices.
-- Standard library types: `Vec`, `String`, `CString`, `OSString`, `Path`, `Cell`, `Rc`, `Arc` and more.
+CodeLLDB will attempt to locate and load LLDB data formatters provided by the Rust toolchain.  By default, the configured
+toolchain of your workspace root will be used, however this can be overridden via these configuration settings:
+- **lldb.script.lang.rust.toolchain** - override toolchain name, for example `beta`.
+- **lldb.script.lang.rust.sysroot** - set toolchain sysroot directly, for example `/home/user/.rustup/toolchains/beta-x86_64-unknown-linux-gnu`.
 
 To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
-
-![source](images/source.png)
 
 ## Cargo support
 
 Several Rust users had pointed out that debugging tests and benchmarks in Cargo-based projects is somewhat
 difficult since names of the output test/bench binary generated by Cargo is not deterministic.
-To cope with this problem, CodeLLDB can query Cargo for a list of its compilation outputs.  In order
+To address this problem, CodeLLDB can query Cargo for a list of its compilation outputs.  In order
 to use this feature, replace `program` property in your launch configuration with `cargo`:
 ```javascript
 {
@@ -805,6 +831,8 @@ These settings specify the default values for launch configuration setting of th
 |**lldb.dereferencePointers**       |Whether to show summaries of the pointees instead of numeric values of the pointers themselves.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).
 |**lldb.consoleMode**               |Controls whether the DEBUG CONSOLE input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat DEBUG CONSOLE input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or '\`' (backtick), <li>`split` - (experimental) use the DEBUG CONSOLE for evaluation of expressions, open a separate terminal for LLDB console.
+|**lldb.script**                    |Configuration settings provided to Python scripts running in the context of CodeLLDB.  These may be read via [`get_config()`](#debugger-api).
+
 
 ## Advanced
 |                       |                                                         |

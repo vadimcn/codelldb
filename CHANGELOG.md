@@ -1,5 +1,21 @@
 # Release Notes
 
+# 1.11.0
+
+### New
+- Updated bundled LLDB to v19.1.0.
+- The Python module implementing the CodeLLDB Python API is now called `codelldb` (aliased to `debugger` for backward
+  compatibility).
+- Python scripts running in the context of CodeLLDB can now read workspace configuration settings stored under
+  the `lldb.script` namespace via `codelldb.get_config()`.
+
+### Changed
+- To reduce the maintenance burden, support for the Rust language service and custom data formatters in CodeLLDB has
+  been removed. The constant breaking changes in LLDB's language service API, along with Rust's evolving internal
+  representation of `std::` types, have made it increasingly difficult to maintain these updates. Future versions of
+  CodeLLDB will be based on stock LLDB, without the Rust language service. Rust data types will still have partial
+  support via the data formatters provided by `rustc`, but custom formatters will no longer be maintained.
+
 # 1.10.0
 
 ## New
@@ -14,11 +30,11 @@
 # 1.9.2
 
 ## New
-- Implemented [Excluded Callers](MANUAL.md#excluded-callers) feature, similar to the [one in Javascript debugger](https://code.visualstudio.com/updates/v1_64#_javascript-debugging).
+- Implemented [Excluded Callers](MANUAL.md#excluded-callers) feature, similar to the
+  [one in Javascript debugger](https://code.visualstudio.com/updates/v1_64#_javascript-debugging).
 - Added [create_webview()](MANUAL.md#webview) Python API, which allows scripts to create and manipulate VSCode Webviews.
-This function supersedes functionality of the older `display_html` API.
+  This function supersedes functionality of the older `display_html` API.
 - Enabled conditions on exception breakpoints.
-
 
 # 1.9.1
 

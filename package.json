@@ -29,7 +29,7 @@
 	},
 	"qna": "https://github.com/vadimcn/codelldb/discussions",
 	"engines": {
-		"vscode": "^1.60.0"
+		"vscode": "^1.61.0"
 	},
 	"dependencies": {
 		"string-argv": "^0.3.1",
@@ -1129,13 +1129,13 @@
 		"platformPackages": {
 			"url": "@PLATFORM_PACKAGE_URL@",
 			"platforms": {
-				"x64-linux": "codelldb-x86_64-linux.vsix",
-				"arm64-linux": "codelldb-aarch64-linux.vsix",
-				"arm-linux": "codelldb-arm-linux.vsix",
-				"x64-darwin": "codelldb-x86_64-darwin.vsix",
-				"arm64-darwin": "codelldb-aarch64-darwin.vsix",
-				"x64-win32": "codelldb-x86_64-windows.vsix",
-				"ia32-win32": "codelldb-x86_64-windows.vsix"
+				"linux-x64": "codelldb-linux-x64.vsix",
+				"linux-arm64": "codelldb-linux-arm64.vsix",
+				"linux-arm": "codelldb-linux-armhf.vsix",
+				"darwin-x64": "codelldb-darwin-x64.vsix",
+				"darwin-arm64": "codelldb-darwin-arm64.vsix",
+				"win32-x64": "codelldb-win32-x64.vsix",
+				"win32-ia32": "codelldb-win32-x64.vsix"
 			}
 		}
 	}

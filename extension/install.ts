@@ -99,7 +99,7 @@ async function getPlatformPackageUrl(): Promise<Uri> {
     if (await isRosetta()) {
         arch = 'arm64';
     }
-    let id = `${arch}-${platform}`;
+    let id = `${platform}-${arch}`;
     let platformPackage = pp.platforms[id];
     if (platformPackage == undefined) {
         throw new Error(`This platform (${id}) is not suported.`);

@@ -30,17 +30,17 @@ jobs:
   strategy:
     matrix:
       x86_64:
-        PlatformId: 'x86_64-linux'
+        PlatformId: 'linux-x64'
         Triple: 'x86_64-linux-gnu'
         RustTarget: 'x86_64-unknown-linux-gnu'
         CrossBuilding: false
       arm:
-        PlatformId: 'arm-linux'
+        PlatformId: 'linux-armhf'
         Triple: 'arm-linux-gnueabihf'
         RustTarget: 'armv7-unknown-linux-gnueabihf'
         CrossBuilding: true
       aarch64:
-        PlatformId: 'aarch64-linux'
+        PlatformId: 'linux-arm64'
         Triple: 'aarch64-linux-gnu'
         RustTarget: 'aarch64-unknown-linux-gnu'
         CrossBuilding: true
@@ -89,6 +89,7 @@ jobs:
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
+            -DPLATFORM_ID=$(PlatformId)\
             -DCMAKE_SYSROOT=/stretch\
             ..
       cat CMakeCache.txt
@@ -140,13 +141,13 @@ jobs:
     matrix:
       x86_64:
         DeploymentTarget: '10.10'
-        PlatformId: 'x86_64-darwin'
+        PlatformId: 'darwin-x64'
         Triple: 'x86_64-apple-darwin'
         RustTarget: 'x86_64-apple-darwin'
         CrossBuilding: false
       aarch64:
         DeploymentTarget: '11.0'
-        PlatformId: 'aarch64-darwin'
+        PlatformId: 'darwin-arm64'
         Triple: 'aarch64-apple-darwin'
         RustTarget: 'aarch64-apple-darwin'
         CrossBuilding: true
@@ -197,6 +198,7 @@ jobs:
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
+            -DPLATFORM_ID=$(PlatformId)\
             ..
       cat CMakeCache.txt
     displayName: 'Configure'
@@ -237,7 +239,7 @@ jobs:
     vmImage: 'windows-2019'
 
   variables:
-    PlatformId: 'x86_64-windows'
+    PlatformId: 'win32-x64'
     Triple: 'x86_64-windows-msvc'
 
   steps:
@@ -299,6 +301,7 @@ jobs:
             -DTEST_TIMEOUT=30000^
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip^
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-x86_64-windows-msvc.cmake^
+            -DPLATFORM_ID=$(PlatformId)^
             ..
       type CMakeCache.txt
     displayName: 'Configure'

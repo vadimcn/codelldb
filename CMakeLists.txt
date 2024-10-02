@@ -42,6 +42,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-unknown-linux-gnu)
+    set(DefaultPlatformId linux-x64)
     set(AllowedDependencies linux-vdso.so.1 librt.so.1 libdl.so.2 libpthread.so.0 libgcc_s.so.1
                             libm.so.6 libc.so.6 libz.so.1 libutil.so.1
                             /lib64/ld-linux-x86-64.so.2)
@@ -54,6 +55,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(NPM npm)
     set(PathSep ":")
     set(DefaultTarget x86_64-apple-darwin)
+    set(DefaultPlatformId darwin-x64)
     set(AllowedDependencies Foundation CoreFoundation CoreServices Security SystemConfiguration
                             libcompression.dylib libz.1.dylib libSystem.B.dylib libc...1.dylib
                             libresolv.*.dylib libpmenergy.dylib libpmsample.dylib libobjc.A.dylib libiconv.*.dylib)
@@ -66,6 +68,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(NPM npm.cmd)
     set(PathSep "$<SEMICOLON>")
     set(DefaultTarget x86_64-pc-windows-msvc)
+    set(DefaultPlatformId win32-x64)
     set(AllowedDependencies api-ms-.* ws2_32.dll kernel32.dll ntdll.dll advapi32.dll user32.dll version.dll dbghelp.dll
                             psapi.dll oleaut32.dll shlwapi.dll rpcrt4.dll ole32.dll bcrypt.dll bcryptprimitives.dll
                             userenv.dll ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll)
@@ -75,8 +78,12 @@ endif()
 
 string(JOIN "|" AllowedDependencies ${AllowedDependencies}) # Compose a regex
 
-if (NOT LLVM_TRIPLE)
+if (NOT LLVM_TRIPLE) # Normally set by cmake toolchain file
     set(LLVM_TRIPLE ${DefaultTarget})
+endif()
+
+if (NOT PLATFORM_ID)
+    set(PLATFORM_ID ${DefaultPlatformId})
 endif()
 
 set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml --target=${LLVM_TRIPLE})
@@ -243,7 +250,7 @@ add_custom_target(vsix_bootstrap
 add_custom_target(vsix_full
     DEPENDS extension lldb adapter ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
+    COMMAND ${NPM} run vsce -- package ${VsceOptions} --target ${PLATFORM_ID} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )

@@ -1,12 +1,11 @@
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-#[derive(Debug)]
 struct Inner {
     flag: AtomicBool,
     receiver_count: AtomicU16,
+    callbacks: Mutex<Vec<Box<dyn Fn() + Send + Sync>>>,
 }
-#[derive(Debug)]
 pub struct Sender(Arc<Inner>);
 
 impl Sender {
@@ -14,16 +13,23 @@ impl Sender {
         Sender(Arc::new(Inner {
             flag: AtomicBool::new(false),
             receiver_count: AtomicU16::new(0),
+            callbacks: Mutex::new(Vec::new()),
         }))
     }
 
+    // Create a new Receiver.
     pub fn subscribe(&self) -> Receiver {
         self.0.receiver_count.fetch_add(1, Ordering::Relaxed);
         Receiver(self.0.clone())
     }
 
+    // Request cancellation.
     pub fn send(&self) {
         self.0.flag.store(true, Ordering::Release);
+        let callbacks = self.0.callbacks.lock().unwrap();
+        for callback in callbacks.iter() {
+            callback();
+        }
     }
 
     pub fn receiver_count(&self) -> usize {
@@ -37,12 +43,17 @@ impl Clone for Sender {
     }
 }
 
-#[derive(Debug)]
 pub struct Receiver(Arc<Inner>);
 
 impl Receiver {
+    // Determine if the cancellation has been requested.
     pub fn is_cancelled(&self) -> bool {
         self.0.flag.load(Ordering::Acquire)
+    }
+    // Add a callback to be called asynchonously when the cancellation is requested.
+    // This object may outlive the Receiver through which it was added.
+    pub fn add_callback<F: Fn() + Send + Sync + 'static>(&self, callback: F) {
+        self.0.callbacks.lock().unwrap().push(Box::new(callback));
     }
 }
 

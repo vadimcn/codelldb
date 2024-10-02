@@ -71,6 +71,7 @@ pub struct PythonInterface {
     >,
     modules_loaded_ptr: MustInitialize<unsafe extern "C" fn(modules: *const SBModule, modules_len: usize) -> bool>,
     drop_pyobject_ptr: MustInitialize<unsafe extern "C" fn(obj: *mut c_void)>,
+    interrupt_ptr: MustInitialize<unsafe extern "C" fn()>,
     shutdown_ptr: MustInitialize<unsafe extern "C" fn() -> bool>,
 }
 
@@ -112,11 +113,13 @@ pub fn initialize(
         execute_in_instance_ptr: NotInitialized,
         modules_loaded_ptr: NotInitialized,
         drop_pyobject_ptr: NotInitialized,
+        interrupt_ptr: NotInitialized,
     });
 
     unsafe extern "C" fn init_callback(
         interface: *mut PythonInterface,
         postinit_ptr: *const c_void,
+        interrupt_ptr: *const c_void,
         shutdown_ptr: *const c_void,
         handle_message_ptr: *const c_void,
         compile_code_ptr: *const c_void,
@@ -127,6 +130,7 @@ pub fn initialize(
         drop_pyobject_ptr: *const c_void,
     ) {
         (*interface).postinit_ptr = Initialized(mem::transmute(postinit_ptr));
+        (*interface).interrupt_ptr = Initialized(mem::transmute(interrupt_ptr));
         (*interface).shutdown_ptr = Initialized(mem::transmute(shutdown_ptr));
         (*interface).handle_message_ptr = Initialized(mem::transmute(handle_message_ptr));
         (*interface).compile_code_ptr = Initialized(mem::transmute(compile_code_ptr));
@@ -284,6 +288,15 @@ impl PythonInterface {
             bail!(format!("{:?}", command_result))
         }
         Ok(())
+    }
+
+    // Return a callable that sends an interrupt to the Python interpreter.
+    pub fn interrupt_sender(&self) -> impl Fn() {
+        let interrupt_ptr = *self.interrupt_ptr;
+        // This should be safe to call from any thread, even after this instance of PythonInterface is dropped,
+        move || unsafe {
+            interrupt_ptr();
+        }
     }
 }
 

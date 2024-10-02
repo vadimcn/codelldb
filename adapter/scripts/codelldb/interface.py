@@ -123,7 +123,8 @@ def initialize(log_level, init_callback_addr, send_message_addr, callback_contex
     global send_message
     logging.getLogger().setLevel(log_level)
 
-    args = [callback_context, postinit, shutdown, handle_message, compile_code, evaluate,
+    interrupt = ctypes.pythonapi.PyErr_SetInterrupt
+    args = [callback_context, postinit, interrupt, shutdown, handle_message, compile_code, evaluate,
             evaluate_as_bool, execute_in_instance, modules_loaded, drop_pyobject]
     init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
     init_callback(*args)

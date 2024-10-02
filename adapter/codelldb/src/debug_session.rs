@@ -291,6 +291,10 @@ impl DebugSession {
                         let sender = cancellation::Sender::new();
                         let receiver = sender.subscribe();
 
+                        // Clean out entries which don't have any receivers.
+                        pending_requests.retain(|_k, v| v.receiver_count() > 0);
+                        cancellable_requests.retain(|v| v.receiver_count() > 0);
+
                         match request {
                             RequestArguments::cancel(args) => {
                                 info!("Cancellation {:?}", args);
@@ -324,10 +328,6 @@ impl DebugSession {
 
                         pending_requests.insert(seq, sender);
                         log_errors!(requests_sender.send((seq, request, receiver)).await);
-
-                        // Clean out entries which don't have any receivers.
-                        pending_requests.retain(|_k, v| v.receiver_count() > 0);
-                        cancellable_requests.retain(|v| v.receiver_count() > 0);
                     }
                     Err(RecvError::Lagged(count)) => error!("Missed {} messages", count),
                     Err(RecvError::Closed) => break,
@@ -343,6 +343,9 @@ impl DebugSession {
         if cancellation.is_cancelled() {
             self.send_response(seq, Err("canceled".into()));
         } else {
+            if let Some(python) = &self.python {
+                cancellation.add_callback(python.interrupt_sender())
+            }
             self.current_cancellation = cancellation;
             if let RequestArguments::unknown = request_args {
                 info!("Received an unknown command");

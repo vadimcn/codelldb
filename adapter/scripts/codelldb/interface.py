@@ -152,7 +152,7 @@ def postinit(console_fd):
         import msvcrt
         console_fd = msvcrt.open_osfhandle(console_fd, 0)
     save_stdout = sys.stdout
-    sys.stdout = os.fdopen(console_fd, 'w', 1)  # line-buffered
+    sys.stdout = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
     return True
 
 

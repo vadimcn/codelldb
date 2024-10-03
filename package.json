@@ -158,11 +158,6 @@
 				"title": "Remove All Caller Exclusions",
 				"command": "lldb.excludedCallers.removeAll",
 				"icon": "$(clear-all)"
-			},
-			{
-				"category": "LLDB",
-				"title": "Pick Process",
-				"command": "lldb.pickProcess"
 			}
 		],
 		"languages": [

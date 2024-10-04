@@ -16,10 +16,10 @@ log = logging.getLogger(__name__)
 module = sys.modules[__name__]
 rust_category = None
 
-max_string_summary_langth = 1024
+max_string_summary_length = 1024
 
 def initialize_category(debugger, internal_dict):
-    global module, rust_category, max_string_summary_langth
+    global module, rust_category, max_string_summary_length
 
     rust_category = debugger.CreateCategory('Rust')
     # rust_category.AddLanguage(lldb.eLanguageTypeRust)
@@ -83,7 +83,7 @@ def initialize_category(debugger, internal_dict):
         lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
                                             '^<?(std|core|alloc)::', debugger.GetInstanceName())
 
-    max_string_summary_langth = debugger.GetSetting('target.max-string-summary-length').GetIntegerValue()
+    max_string_summary_length = debugger.GetSetting('target.max-string-summary-length').GetIntegerValue()
 
 
 def attach_synthetic_to_type(synth_class, type_name, is_regex=False):
@@ -354,8 +354,8 @@ class StringLikeSynthProvider(ArrayLikeSynthProvider):
         return ch
 
     def get_summary(self):
-        strval = string_from_ptr(self.ptr, min(self.len, max_string_summary_langth))
-        if self.len > max_string_summary_langth:
+        strval = string_from_ptr(self.ptr, min(self.len, max_string_summary_length))
+        if self.len > max_string_summary_length:
             strval += u'...'
         return u'"%s"' % strval
 

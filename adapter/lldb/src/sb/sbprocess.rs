@@ -79,9 +79,9 @@ impl SBProcess {
         })
         .into_result()
     }
-    pub fn detach(&self) -> Result<(), SBError> {
-        cpp!(unsafe [self as "SBProcess*"] -> SBError as "SBError" {
-            return self->Detach();
+    pub fn detach(&self, keep_stopped: bool) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBProcess*", keep_stopped as "bool"] -> SBError as "SBError" {
+            return self->Detach(keep_stopped);
         })
         .into_result()
     }
@@ -156,6 +156,17 @@ impl SBProcess {
         } else {
             Err(error)
         }
+    }
+    pub fn unix_signals(&self) -> SBUnixSignals {
+        cpp!(unsafe [self as "SBProcess*"] -> SBUnixSignals as "SBUnixSignals" {
+            return self->GetUnixSignals();
+        })
+    }
+    pub fn signal(&self, signo: SignalNumber) -> Result<(), SBError> {
+        cpp!(unsafe [self as "SBProcess*", signo as "int"] -> SBError as "SBError" {
+            return self->Signal(signo);
+        })
+        .into_result()
     }
 }
 

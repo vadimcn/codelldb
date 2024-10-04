@@ -1147,7 +1147,7 @@ impl DebugSession {
                     if terminate {
                         process.kill()?;
                     } else {
-                        process.detach()?;
+                        process.detach(false)?;
                     }
                 }
             }

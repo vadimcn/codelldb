@@ -13,11 +13,13 @@ pub type ThreadID = u64;
 pub type BreakpointID = u32;
 pub type WatchpointID = u32;
 pub type UserID = u64;
+pub type SignalNumber = i32;
 
-pub const INVALID_ADDRESS: Address = Address::max_value();
+pub const INVALID_ADDRESS: Address = Address::MAX;
 pub const INVALID_THREAD_ID: ThreadID = 0;
 pub const INVALID_PROCESS_ID: ProcessID = 0;
 pub const INVALID_BREAK_ID: BreakpointID = 0;
+pub const INVALID_SIGNAL_NUMBER: i32 = SignalNumber::MAX;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +158,7 @@ mod sb {
     pub mod sbtarget;
     pub mod sbthread;
     pub mod sbtype;
+    pub mod sbunixsignals;
     pub mod sbvalue;
     pub mod sbvaluelist;
     pub mod sbwatchpoint;
@@ -198,6 +201,7 @@ pub use sb::sbsymbolcontextlist::*;
 pub use sb::sbtarget::*;
 pub use sb::sbthread::*;
 pub use sb::sbtype::*;
+pub use sb::sbunixsignals::*;
 pub use sb::sbvalue::*;
 pub use sb::sbvaluelist::*;
 pub use sb::sbwatchpoint::*;

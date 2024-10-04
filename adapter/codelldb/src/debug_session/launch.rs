@@ -478,6 +478,9 @@ impl super::DebugSession {
             if let Some(ConsoleMode::Split) = settings.console_mode {
                 let name = args_common.name.as_deref().unwrap_or("Debug");
                 self.create_debugger_terminal(name);
+            } else {
+                // Witoout a terminal, confirmations will just hang the session.
+                self.debugger.set_variable("auto-confirm", "true")?;
             }
         }
 

@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.11.1
+
+### Fixed
+- #1126: Highlight the current hit breakpoint
+
 # 1.11.0
 
 ### New

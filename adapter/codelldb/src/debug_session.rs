@@ -1106,8 +1106,9 @@ impl DebugSession {
                 _ => unreachable!(),
             };
             let res = match self.target.watch_address(addr, size, read, write) {
-                Ok(_wp) => Breakpoint {
+                Ok(wp) => Breakpoint {
                     verified: true,
+                    id: Some(DebugSession::wpid_to_bpid(wp.id())),
                     message: Some(format!("Break on {}", when)),
                     ..Default::default()
                 },
@@ -1122,6 +1123,12 @@ impl DebugSession {
         Ok(SetDataBreakpointsResponseBody {
             breakpoints: watchpoints,
         })
+    }
+
+    // Merge watchpoint ids into breakpoint ids namespace.
+    fn wpid_to_bpid(id: WatchpointID) -> i64 {
+        // Avoid collision with regular breakpoints; let's hope 1M breakpoints is "enough for everyone".
+        id as i64 + 1_000_000
     }
 
     fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
@@ -1565,14 +1572,20 @@ impl DebugSession {
         };
 
         // Analyze stop reason
-        let (stop_reason, description) = match stopped_thread.stop_reason() {
-            StopReason::Breakpoint => ("breakpoint", None),
+        let (stop_reason, description, hit_breakpoint) = match stopped_thread.stop_reason() {
+            StopReason::Breakpoint => {
+                let bp_id = stopped_thread.stop_reason_data_at_index(0);
+                ("breakpoint", None, Some(vec![bp_id as i64]))
+            },
+            StopReason::Watchpoint => {
+                let wp_id = stopped_thread.stop_reason_data_at_index(0) as WatchpointID;
+                ("data breakpoint", None, Some(vec![DebugSession::wpid_to_bpid(wp_id)]))
+            },
             StopReason::Trace | //.
-                StopReason::PlanComplete => ("step", None),
-                StopReason::Watchpoint => ("data breakpoint", None),
-                StopReason::Signal => ("exception", Some(stopped_thread.stop_description())),
-                StopReason::Exception => ("exception", Some(stopped_thread.stop_description())),
-                _ => ("unknown", Some(stopped_thread.stop_description())),
+            StopReason::PlanComplete => ("step", None, None),
+            StopReason::Signal => ("exception", Some(stopped_thread.stop_description()), None),
+            StopReason::Exception => ("exception", Some(stopped_thread.stop_description()), None),
+            _ => ("unknown", Some(stopped_thread.stop_description()), None),
         };
 
         if let Some(description) = &description {
@@ -1585,6 +1598,7 @@ impl DebugSession {
             reason: stop_reason.to_owned(),
             description: description,
             preserve_focus_hint: None,
+            hit_breakpoint_ids: hit_breakpoint,
             ..Default::default()
         }));
 

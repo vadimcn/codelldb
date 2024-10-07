@@ -121,50 +121,6 @@ impl DebugSession {
                 }
             };
 
-            // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings to the console.
-            if bp.num_locations() == 0 && matches!(self.breakpoint_mode, BreakpointMode::Path) {
-                if let Some(filename) = file_path_norm.file_name() {
-                    let bp2 = self.target.breakpoint_create_by_location(
-                        Path::new(filename),
-                        req.line as u32,
-                        req.column.map(|c| c as u32),
-                    );
-
-                    // If we end up with multiple locations, select the one with the longest path match.
-                    let mut best_count = 0;
-                    let mut best_path = None;
-                    for loc in bp2.locations() {
-                        if let Some(le) = loc.address().line_entry() {
-                            if le.line() == req.line as u32 {
-                                let path = le.file_spec().path();
-                                let count = path
-                                    .components()
-                                    .rev()
-                                    .zip(file_path_norm.components().rev())
-                                    .take_while(|(a, b)| a == b)
-                                    .count();
-                                if count > best_count {
-                                    best_count = count;
-                                    best_path = Some(path);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(best_path) = best_path {
-                        self.console_message(format!(
-                            "Could not resolve any locations for breakpoint at {}:{}, but found a valid location at {}:{}",
-                            file_path_norm.display(),
-                            req.line,
-                            best_path.display(),
-                            req.line
-                        ));
-                    }
-
-                    self.target.breakpoint_delete(bp2.id());
-                }
-            }
-
             let bp_info = self.make_bp_info(
                 bp,
                 BreakpointKind::Source,
@@ -173,10 +129,26 @@ impl DebugSession {
                 req.hit_condition.as_deref(),
             );
             self.init_bp_actions(&bp_info);
-            result.push(self.make_bp_response(&bp_info, false));
+            let mut breakpoint = self.make_bp_response(&bp_info, false);
+            // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings.
+            if bp_info.breakpoint.num_locations() == 0 && matches!(self.breakpoint_mode, BreakpointMode::Path) {
+                if let Some((path, line)) = self.get_breakpoint_hint(&file_path_norm, req.line, req.column) {
+                    let message = format!(
+                        "Breakpoint at {}:{} could not be resolved, but a valid location was found at {}:{}",
+                        file_path_norm.display(),
+                        req.line,
+                        path.display(),
+                        line
+                    );
+                    self.console_message(&message);
+                    breakpoint.message = Some(message);
+                }
+            }
+            result.push(breakpoint);
             new_bps.insert(req.line, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
         }
+
         for (line, bp_id) in existing_bps.iter() {
             if !new_bps.contains_key(line) {
                 self.target.breakpoint_delete(*bp_id);
@@ -185,6 +157,45 @@ impl DebugSession {
         }
         drop(mem::replace(existing_bps, new_bps));
         Ok(result)
+    }
+
+    // Try to find likely location for a breakpoint in a different file.
+    fn get_breakpoint_hint(&self, filepath: &Path, line: i64, column: Option<i64>) -> Option<(PathBuf, u32)> {
+        let Some(filename) = filepath.file_name() else {
+            return None;
+        };
+        let line = line as u32;
+        let column = column.map(|c| c as u32);
+
+        let bp = self.target.breakpoint_create_by_location(Path::new(filename), line, column);
+
+        // If we end up with multiple locations, select the one with the longest path match.
+        let mut best_count = 0;
+        let mut best_path = None;
+        for loc in bp.locations() {
+            if let Some(le) = loc.address().line_entry() {
+                if le.line() == line {
+                    let path = le.file_spec().path();
+                    let count = path
+                        .components()
+                        .rev()
+                        .zip(filepath.components().rev())
+                        .take_while(|(a, b)| a == b)
+                        .count();
+                    if count > best_count {
+                        best_count = count;
+                        best_path = Some(path);
+                    }
+                }
+            }
+        }
+        self.target.breakpoint_delete(bp.id());
+
+        if let Some(best_path) = best_path {
+            Some((best_path, line))
+        } else {
+            None
+        }
     }
 
     fn set_dasm_breakpoints(

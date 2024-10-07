@@ -295,6 +295,7 @@ impl PythonInterface {
         let interrupt_ptr = *self.interrupt_ptr;
         // This should be safe to call from any thread, even after this instance of PythonInterface is dropped,
         move || unsafe {
+            info!("Sending interrupt to Python interpreter");
             interrupt_ptr();
         }
     }

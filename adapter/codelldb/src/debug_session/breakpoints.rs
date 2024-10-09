@@ -399,6 +399,7 @@ impl DebugSession {
         }
         Ok(())
     }
+
     pub(super) fn get_exception_filters() -> &'static [ExceptionBreakpointsFilter] {
         lazy_static::lazy_static! {
             static ref FILTERS: [ExceptionBreakpointsFilter; 4] = [
@@ -759,7 +760,7 @@ impl DebugSession {
             let (pp_expr, format_spec) = expressions::prepare_with_format(expr, self.default_expr_type).unwrap();
             let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame))?;
             let sbval = self.apply_format_spec(sbval, &format_spec)?;
-            let str_val = self.get_var_summary(&sbval, sbval.num_children() > 0);
+            let str_val = self.get_var_summary(&sbval, false);
             Ok(str_val)
         })
     }

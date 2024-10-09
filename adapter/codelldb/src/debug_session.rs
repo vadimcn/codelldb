@@ -582,6 +582,7 @@ impl DebugSession {
             supports_completions_request: Some(self.command_completions),
             supports_exception_info_request: Some(true),
             supports_exception_filter_options: Some(true),
+            supports_clipboard_context: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }

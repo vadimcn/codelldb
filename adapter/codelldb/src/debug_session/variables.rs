@@ -211,7 +211,7 @@ impl super::DebugSession {
     ) -> Variable {
         let name = var.name().unwrap_or_default();
         let dtype = var.display_type_name();
-        let value = self.get_var_summary(&var, container_handle.is_some());
+        let value = self.get_var_summary(&var, false);
         let handle = self.get_var_handle(container_handle, name, &var);
 
         let eval_name = if var.prefer_synthetic_value() {
@@ -275,7 +275,7 @@ impl super::DebugSession {
     }
 
     // Get displayable string from an SBValue
-    pub fn get_var_summary(&self, var: &SBValue, is_container: bool) -> String {
+    pub fn get_var_summary(&self, var: &SBValue, unlimited: bool) -> String {
         let err = var.error();
         if err.is_failure() {
             return format!("<{}>", err);
@@ -300,9 +300,9 @@ impl super::DebugSession {
             summary_str
         } else if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
             value_str
-        } else if is_container {
+        } else if var.might_have_children() && var.num_children() > 0 {
             // Try to synthesize a summary from var's children.
-            self.get_container_summary(var.as_ref())
+            self.get_container_summary(var.as_ref(), unlimited)
         } else {
             // Otherwise give up.
             "<not available>".to_owned()
@@ -351,12 +351,17 @@ impl super::DebugSession {
         }
     }
 
-    fn get_container_summary(&self, var: &SBValue) -> String {
+    // unlimited: if true, return the full summary without truncating or timing out.
+    fn get_container_summary(&self, var: &SBValue, unlimited: bool) -> String {
         let start = time::SystemTime::now();
         let mut summary = String::from("{");
         let mut sep = "";
         for child in var.children() {
-            if summary.len() > self.max_summary_length || start.elapsed().unwrap_or_default() > self.summary_timeout {
+            let should_stop = self.current_cancellation.is_cancelled()
+                || (!unlimited
+                    && (summary.len() > self.max_summary_length
+                        || start.elapsed().unwrap_or_default() > self.summary_timeout));
+            if should_stop {
                 log_errors!(write!(summary, "{}...", sep));
                 break;
             }
@@ -437,7 +442,7 @@ impl super::DebugSession {
             Some("repl") => match self.console_mode {
                 ConsoleMode::Commands => {
                     if args.expression.starts_with("?") {
-                        self.handle_evaluate_expression(&args.expression[1..], frame)
+                        self.handle_evaluate_expression(&args.expression[1..], frame, false)
                     } else {
                         self.handle_execute_command(&args.expression, frame, false)
                     }
@@ -448,15 +453,16 @@ impl super::DebugSession {
                     } else if args.expression.starts_with("/cmd ") {
                         self.handle_execute_command(&args.expression[5..], frame, false)
                     } else {
-                        self.handle_evaluate_expression(&args.expression, frame)
+                        self.handle_evaluate_expression(&args.expression, frame, false)
                     }
                 }
             },
+            Some("clipboard") => self.handle_evaluate_expression(&args.expression, frame, true),
             Some("hover") if !self.evaluate_for_hovers => bail!("Hovers are disabled."),
             // out protocol extension for testing
             Some("_command") => self.handle_execute_command(&args.expression, frame, true),
             // "watch"
-            _ => self.handle_evaluate_expression(&args.expression, frame),
+            _ => self.handle_evaluate_expression(&args.expression, frame, false),
         };
 
         // Return async, even though we already have the response,
@@ -496,6 +502,7 @@ impl super::DebugSession {
         &mut self,
         expression: &str,
         frame: Option<SBFrame>,
+        for_clipboard: bool,
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
         let (pp_expr, format_spec) =
@@ -505,8 +512,9 @@ impl super::DebugSession {
             Ok(sbval) => {
                 let sbval = self.apply_format_spec(sbval, &format_spec)?;
                 let handle = self.get_var_handle(None, expression, &sbval);
+                let summary = self.get_var_summary(&sbval, for_clipboard);
                 Ok(EvaluateResponseBody {
-                    result: self.get_var_summary(&sbval, handle.is_some()),
+                    result: summary,
                     type_: sbval.display_type_name().map(|s| s.to_owned()),
                     variables_reference: handles::to_i64(handle),
                     memory_reference: self.get_mem_ref_for_var(&sbval),
@@ -560,7 +568,7 @@ impl super::DebugSession {
                 Ok(()) => {
                     let handle = self.get_var_handle(Some(container_handle), child.name().unwrap_or_default(), &child);
                     let response = SetVariableResponseBody {
-                        value: self.get_var_summary(&child, handle.is_some()),
+                        value: self.get_var_summary(&child, false),
                         type_: child.type_name().map(|s| s.to_owned()),
                         variables_reference: Some(handles::to_i64(handle)),
                         named_variables: None,

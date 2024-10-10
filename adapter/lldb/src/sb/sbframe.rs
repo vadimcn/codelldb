@@ -31,6 +31,11 @@ impl SBFrame {
         })
         .check()
     }
+    pub fn module(&self) -> SBModule {
+        cpp!(unsafe [self as "SBFrame*"] -> SBModule as "SBModule" {
+            return self->GetModule();
+        })
+    }
     pub fn pc_address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBFrame*"] -> SBAddress as "SBAddress" {
             return self->GetPCAddress();

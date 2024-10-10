@@ -7,16 +7,10 @@ unsafe impl Send for SBFileSpec {}
 
 impl SBFileSpec {
     pub fn filename(&self) -> &Path {
-        let ptr = cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
-            return self->GetFilename();
-        });
-        unsafe { get_str(ptr).as_ref() }
+        unsafe { get_str(self.filename_ptr()).as_ref() }
     }
     pub fn directory(&self) -> &Path {
-        let ptr = cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
-            return self->GetDirectory();
-        });
-        unsafe { get_str(ptr).as_ref() }
+        unsafe { get_str(self.directory_ptr()).as_ref() }
     }
     pub fn path(&self) -> PathBuf {
         get_cstring(|ptr, size| {
@@ -28,12 +22,39 @@ impl SBFileSpec {
         .unwrap()
         .into()
     }
+    // If pattern contains directory path, then do a full compare, otherwise just compare filenames.
+    pub fn matches(&self, pattern: &SBFileSpec) -> bool {
+        let ptr = pattern.directory_ptr();
+        if ptr.is_null() || unsafe { *ptr == 0 } {
+            self.filename() == pattern.filename()
+        } else {
+            self == pattern
+        }
+    }
+    fn directory_ptr(&self) -> *const c_char {
+        cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
+            return self->GetDirectory();
+        })
+    }
+    fn filename_ptr(&self) -> *const c_char {
+        cpp!(unsafe [self as "SBFileSpec*"] -> *const c_char as "const char*" {
+            return self->GetFilename();
+        })
+    }
 }
 
 impl IsValid for SBFileSpec {
     fn is_valid(&self) -> bool {
         cpp!(unsafe [self as "SBFileSpec*"] -> bool as "bool" {
             return self->IsValid();
+        })
+    }
+}
+
+impl PartialEq for SBFileSpec {
+    fn eq(&self, other: &Self) -> bool {
+        cpp!(unsafe [self as "SBFileSpec*", other as "SBFileSpec*"] -> bool as "bool" {
+            return *self == *other;
         })
     }
 }
@@ -59,4 +80,15 @@ impl fmt::Debug for SBFileSpec {
             })
         })
     }
+}
+
+#[test]
+fn test_matches() {
+    SBDebugger::initialize();
+
+    let file = SBFileSpec::from("foo/bar/baz.txt");
+    assert!(file.matches(&file));
+
+    let pattern = SBFileSpec::from("baz.txt");
+    assert!(file.matches(&pattern));
 }

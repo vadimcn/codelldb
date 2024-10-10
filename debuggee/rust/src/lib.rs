@@ -254,6 +254,7 @@ pub fn misc() {
     let i32_ = 32;
     let f32_ = 42.0;
     let closure = move |x: i32| (x + i32_) as f32 * f32_;
+    let even = (0..10).filter(|x| x % 2 ==0).collect::<Vec<_>>();
 
     static STATIC: i32 = 4321;
 

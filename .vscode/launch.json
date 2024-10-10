@@ -128,6 +128,7 @@
 			"env": {
 				"RUST_LOG": "debug",
 				"RUST_BACKTRACE": "1",
+				"LD_LIBRARY_PATH": "${workspaceFolder}/build/lldb/lib"
 			},
 			"sourceLanguages": [
 				"cpp",

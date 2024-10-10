@@ -456,6 +456,9 @@ impl DebugSession {
                         RequestArguments::source(args) =>
                             self.handle_source(args)
                                 .map(|r| ResponseBody::source(r)),
+                        RequestArguments::modules(args) =>
+                            self.handle_modules(args)
+                                .map(|r| ResponseBody::modules(r)),
                         RequestArguments::completions(args) =>
                             self.handle_completions(args)
                                 .map(|r| ResponseBody::completions(r)),
@@ -583,6 +586,7 @@ impl DebugSession {
             supports_exception_info_request: Some(true),
             supports_exception_filter_options: Some(true),
             supports_clipboard_context: Some(true),
+            supports_modules_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }
@@ -680,6 +684,11 @@ impl DebugSession {
             } else {
                 format!("{:X}", pc_address.file_address())
             };
+
+            let module = frame.module();
+            if module.is_valid() {
+                stack_frame.module_id = Some(serde_json::Value::String(self.module_id(&module)))
+            }
 
             if !self.in_disassembly(&frame) {
                 if let Some(le) = frame.line_entry() {
@@ -874,6 +883,23 @@ impl DebugSession {
         Ok(SourceResponseBody {
             content: dasm.get_source_text(),
             mime_type: Some("text/x-lldb.disassembly".to_owned()),
+        })
+    }
+
+    fn handle_modules(&mut self, args: ModulesArguments) -> Result<ModulesResponseBody, Error> {
+        let start = args.start_module.unwrap_or(0);
+        let count = args.module_count.unwrap_or(std::i64::MAX);
+        let mut modules = Vec::new();
+        for i in start..start + count {
+            let module = self.target.module_at_index(i as u32);
+            if !module.is_valid() {
+                break;
+            }
+            modules.push(self.make_module_detail(&module));
+        }
+        Ok(ModulesResponseBody {
+            modules: modules,
+            total_modules: Some(self.target.num_modules() as i64),
         })
     }
 

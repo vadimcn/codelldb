@@ -4,7 +4,7 @@ use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
 use crate::handles::{self, Handle};
 use crate::prelude::*;
-use crate::python::PyObject;
+use crate::python::{EvalContext, PyObject};
 
 use std::collections::HashMap;
 use std::mem;
@@ -597,7 +597,7 @@ impl DebugSession {
     // Propagate breakpoint options from BreakpointInfo into the associated SBBreakpoint.
     fn init_bp_actions(&self, bp_info: &BreakpointInfo) {
         // Determine type of the break condition expression.
-        let py_condition: Option<(PyObject, bool)> = if let Some(ref condition) = bp_info.condition {
+        let py_condition: Option<(PyObject, EvalContext)> = if let Some(ref condition) = bp_info.condition {
             match expressions::prepare(condition, self.default_expr_type) {
                 Ok(pp_expr) => match &pp_expr {
                     // if native, use that directly,
@@ -611,8 +611,12 @@ impl DebugSession {
                         if let Some(python) = &self.python {
                             match python.compile_code(&expr, "<breakpoint condition>") {
                                 Ok(pycode) => {
-                                    let is_simple_expr = matches!(pp_expr, PreparedExpression::Simple(_));
-                                    Some((pycode, is_simple_expr))
+                                    let eval_context = if matches!(pp_expr, PreparedExpression::Simple(_)) {
+                                        EvalContext::SimpleExpression
+                                    } else {
+                                        EvalContext::PythonExpression
+                                    };
+                                    Some((pycode, eval_context))
                                 }
                                 Err(err) => {
                                     self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
@@ -646,7 +650,7 @@ impl DebugSession {
         _process: &SBProcess,
         thread: &SBThread,
         location: &SBBreakpointLocation,
-        py_condition: &Option<(PyObject, bool)>,
+        py_condition: &Option<(PyObject, EvalContext)>,
     ) -> bool {
         let mut breakpoints = self.breakpoints.borrow_mut();
         let bp_info = breakpoints.breakpoint_infos.get_mut(&location.breakpoint().id()).unwrap();
@@ -670,12 +674,12 @@ impl DebugSession {
             }
         }
 
-        if let Some((pycode, is_simple_expr)) = py_condition {
+        if let Some((pycode, eval_context)) = py_condition {
             let frame = thread.frame_at_index(0);
-            let context = self.context_from_frame(Some(&frame));
+            let exec_context = self.context_from_frame(Some(&frame));
             // TODO: pass bpno
             let should_stop = match &self.python {
-                Some(python) => match python.evaluate_as_bool(&pycode, *is_simple_expr, &context) {
+                Some(python) => match python.evaluate_as_bool(&pycode, &exec_context, *eval_context) {
                     Ok(val) => val,
                     Err(err) => {
                         self.console_error(format!("Could not evaluate breakpoint condition:\n{}", err));

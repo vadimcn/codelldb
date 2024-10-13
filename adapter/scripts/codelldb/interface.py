@@ -6,7 +6,7 @@ import logging
 import traceback
 import ctypes
 import json
-from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove,
+from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove, cast,
                     c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
 from .value import Value
 from .event import Event
@@ -90,9 +90,6 @@ def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
             name = variants[self.discr][0]
             return '{0}({1})'.format(name, getattr(self.var, name))
 
-        @classmethod
-        def __getattr__(cls, name): pass
-
     for discr, (name, ty) in enumerate(variants):
         def constructor(value, discr=discr, name=name):
             e = Enum(discr)
@@ -114,66 +111,59 @@ PyObjectResult = PyResult('PyObjectResult', py_object)
 
 # ============================================================================================
 
-send_message = None
-save_stdout = None
+
 on_did_receive_message = Event()
 
 
-def initialize(log_level, init_callback_addr, send_message_addr, callback_context):
+def send_message(debugger_id, message):
+    log.error('interface has not been initialized yet')
+
+
+def initialize(init_callback_addr, callback_context, send_message_addr, log_level):
+    '''One-time initialization of Rust-Python interface'''
     global send_message
     logging.getLogger().setLevel(log_level)
 
     interrupt = ctypes.pythonapi.PyErr_SetInterrupt
-    args = [callback_context, postinit, interrupt, shutdown, handle_message, compile_code, evaluate,
-            evaluate_as_bool, execute_in_instance, modules_loaded, drop_pyobject]
-    init_callback = CFUNCTYPE(None, *([c_void_p] * len(args)))(init_callback_addr)
-    init_callback(*args)
+    pointers = [
+        session_init,
+        session_deinit,
+        interrupt,
+        drop_pyobject,
+        handle_message,
+        compile_code,
+        evaluate_as_sbvalue,
+        evaluate_as_bool
+    ]
+    ptr_arr = (c_void_p * len(pointers))(*[cast(p, c_void_p) for p in pointers])
+    init_callback = CFUNCTYPE(None, c_void_p, POINTER(c_void_p), c_size_t)(init_callback_addr)
+    init_callback(callback_context, ptr_arr, len(pointers))
 
-    send_message_raw = CFUNCTYPE(None, c_void_p, c_char_p)(send_message_addr)
+    send_message_raw = CFUNCTYPE(None, c_void_p, c_int, c_char_p)(send_message_addr)
 
-    def send_message(body):
-        return send_message_raw(callback_context, str_to_bytes(json.dumps(body)))
-
-
-def update_adapter_settings(settings_json, internal_dict):
-    settings = json.loads(settings_json)
-    adapter_settings = internal_dict.setdefault('adapter_settings', {})
-    for key, value in settings.items():
-        if value is not None:
-            adapter_settings[key] = value
+    def _send_message(debugger_id, message):
+        return send_message_raw(callback_context, debugger_id, str_to_bytes(json.dumps(message)))
+     # Override the global dummy function
+    send_message = _send_message
 
 
-@CFUNCTYPE(c_bool, c_size_t)
-def postinit(console_fd):
-    global save_stdout
-    # Can't set this from inside SBInterpreter::handle_command() context,
-    # because LLDB would restore sys.stdout to the original value.
+session_stdouts = {}
+
+
+@CFUNCTYPE(c_bool, c_int, c_size_t)
+def session_init(session_id, console_fd):
+    '''Called once to initialize a new debug session'''
     if sys.platform.startswith('win32'):
         import msvcrt
-        console_fd = msvcrt.open_osfhandle(console_fd, 0)
-    save_stdout = sys.stdout
-    sys.stdout = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
+        console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
+    session_stdouts[session_id] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
     return True
 
 
-@CFUNCTYPE(c_bool)
-def shutdown():
-    global send_message, save_stdout
-    sys.stdout = save_stdout
-    send_message = None
-    save_stdout = None
-    return True
-
-
-@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, SBDebugger)
-def handle_message(body_ptr, body_len, debugger):
-    try:
-        body_json = ctypes.string_at(body_ptr, body_len)
-        body = json.loads(body_json)
-        lldb.debugger = debugger = into_swig_wrapper(debugger, SBDebugger)
-        on_did_receive_message.emit(body)
-    except Exception as err:
-        log.error(traceback.format_exc())
+@CFUNCTYPE(c_bool, c_int)
+def session_deinit(session_id):
+    '''Called once to deinitialize a debug session'''
+    del session_stdouts[session_id]
     return True
 
 
@@ -197,12 +187,13 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, c_bool, SBExecutionContext)
-def evaluate(result, pycode, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, SBExecutionContext, c_int)
+def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
+    '''Evaluate code in the context specified by SBExecutionContext, and return a SBValue result'''
     try:
-        context = into_swig_wrapper(context, SBExecutionContext)
-        value = evaluate_in_context(pycode, is_simple_expr, context)
-        value = to_sbvalue(value, context.target)
+        exec_context = into_swig_wrapper(exec_context, SBExecutionContext)
+        value = evaluate_in_context(pycode, exec_context, eval_context)
+        value = to_sbvalue(value, exec_context.target)
         result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
     except Exception as err:
         log.error(traceback.format_exc())
@@ -213,11 +204,12 @@ def evaluate(result, pycode, is_simple_expr, context):
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, c_bool, SBExecutionContext)
-def evaluate_as_bool(result, pycode, is_simple_expr, context):
+@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, SBExecutionContext, c_int)
+def evaluate_as_bool(result, pycode, exec_context, eval_context):
+    '''Evaluate code in the context specified by SBExecutionContext, and return a boolean result'''
     try:
-        context = into_swig_wrapper(context, SBExecutionContext)
-        value = bool(evaluate_in_context(pycode, is_simple_expr, context))
+        exec_context = into_swig_wrapper(exec_context, SBExecutionContext)
+        value = bool(evaluate_in_context(pycode, exec_context, eval_context))
         result[0] = BoolResult.Ok(value)
     except Exception as err:
         log.error(traceback.format_exc())
@@ -228,24 +220,16 @@ def evaluate_as_bool(result, pycode, is_simple_expr, context):
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, SBDebugger)
-def execute_in_instance(result, pycode, debugger):
+@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, SBExecutionContext)
+def handle_message(body_ptr, body_len, context):
+    '''Handle a message intended for Python code'''
     try:
-        debugger = into_swig_wrapper(debugger, SBDebugger)
-        eval_globals = get_instance_dict(debugger)
-        exec(pycode, eval_globals)
-        result[0] = BoolResult.Ok(True)
+        body_json = ctypes.string_at(body_ptr, body_len)
+        context = into_swig_wrapper(context, SBExecutionContext)
+        body = json.loads(body_json)
+        on_did_receive_message.emit(body)
     except Exception as err:
         log.error(traceback.format_exc())
-        error = lldb.SBError()
-        error.SetErrorString(str(err))
-        error = from_swig_wrapper(error, SBError)
-        result[0] = BoolResult.Err(error)
-    return True
-
-
-@CFUNCTYPE(c_bool, POINTER(SBModule), c_size_t)
-def modules_loaded(modules_ptr, modules_len):
     return True
 
 
@@ -263,10 +247,17 @@ decref.argtypes = [ctypes.py_object]
 
 dummy_sberror = lldb.SBError()
 
-# Convert a native Python object into a SBValue.
+
+def update_adapter_settings(settings_json, internal_dict):
+    settings = json.loads(settings_json)
+    adapter_settings = internal_dict.setdefault('adapter_settings', {})
+    for key, value in settings.items():
+        if value is not None:
+            adapter_settings[key] = value
 
 
 def to_sbvalue(value, target):
+    '''Convert a native Python object into a SBValue.'''
     value = Value.unwrap(value)
 
     if isinstance(value, lldb.SBValue):
@@ -309,7 +300,40 @@ def str_to_bytes(s):
 def bytes_to_str(b):
     return b.decode('utf8') if b != None else None
 
-# ============================================================================================
+
+def evaluate_in_context(code, exec_context, eval_context):
+    debugger = exec_context.GetTarget().GetDebugger()
+    prev_stdout = sys.stdout
+    sess_stdout = session_stdouts.get(debugger.GetID())
+    if sess_stdout:
+        sys.stdout = sess_stdout
+    try:
+        if eval_context == 2:  # EvalContext::SimpleExpression
+            frame = exec_context.GetFrame()
+            eval_globals = {}
+            eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
+            return eval(code, eval_globals, {})
+        else:
+            lldb.frame = exec_context.GetFrame()
+            lldb.thread = exec_context.GetThread()
+            lldb.process = exec_context.GetProcess()
+            lldb.target = exec_context.GetTarget()
+            lldb.debugger = debugger
+            if eval_context == 1:  # EvalContext::PythonExpression
+                frame = exec_context.GetFrame()
+                eval_globals = get_instance_dict(lldb.debugger)
+                eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
+                return eval(code, eval_globals)
+            else:  # EvalContext::Statement
+                eval_globals = get_instance_dict(lldb.debugger)
+                return eval(code, eval_globals)
+    finally:
+        sys.stdout = prev_stdout
+        lldb.frame = None
+        lldb.process = None
+        lldb.thread = None
+        lldb.target = None
+        lldb.debugger = None
 
 
 def nat_eval(sbframe, expr):
@@ -330,25 +354,6 @@ def nat_eval(sbframe, expr):
         if err.Fail():
             raise Exception(err.GetCString())
     return Value(val)
-
-
-def evaluate_in_context(code, simple_expr, execution_context):
-    frame = execution_context.GetFrame()
-    if simple_expr:
-        eval_globals = {}
-        eval_locals = {}
-        eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
-    else:
-        debugger = execution_context.GetTarget().GetDebugger()
-        eval_globals = get_instance_dict(debugger)
-        eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
-        eval_locals = {}
-        lldb.frame = frame
-        lldb.thread = frame.GetThread()
-        lldb.process = lldb.thread.GetProcess()
-        lldb.target = lldb.process.GetTarget()
-        lldb.debugger = lldb.target.GetDebugger()
-    return eval(code, eval_globals, eval_locals)
 
 
 def get_instance_dict(debugger):

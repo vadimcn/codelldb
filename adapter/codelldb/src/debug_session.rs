@@ -13,7 +13,7 @@ use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::platform::{get_fs_path_case, make_case_folder, pipe};
-use crate::python::{self, PythonInterface};
+use crate::python::{PythonInterface, PythonSession};
 use crate::shared::Shared;
 use crate::terminal::Terminal;
 use breakpoints::Breakpoints;
@@ -31,6 +31,7 @@ use std::io::{Cursor, LineWriter};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
+use std::sync::Arc;
 use std::time;
 
 use adapter_protocol::*;
@@ -44,7 +45,7 @@ use tokio::sync::{broadcast, mpsc};
 pub struct DebugSession {
     self_ref: MustInitialize<Shared<DebugSession>>,
     dap_session: DAPSession,
-    python: Option<Box<PythonInterface>>,
+    python: Option<PythonSession>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with the current request
     configuration_done_sender: broadcast::Sender<()>,
 
@@ -60,7 +61,6 @@ pub struct DebugSession {
     var_refs: HandleTree<Container>,
     disassembly: MustInitialize<disassembly::AddressSpace>,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
-    loaded_modules: Vec<SBModule>,
     relative_path_base: MustInitialize<PathBuf>,
     exit_commands: Option<Vec<String>>,
     debuggee_terminal: Option<Terminal>,
@@ -106,26 +106,23 @@ impl std::fmt::Display for AsyncResponse {
 unsafe impl Send for DebugSession {}
 
 impl DebugSession {
-    pub fn run(dap_session: DAPSession, settings: AdapterSettings) -> impl Future {
+    pub fn run(
+        dap_session: DAPSession,
+        settings: AdapterSettings,
+        python_interface: Option<Arc<PythonInterface>>,
+    ) -> impl Future {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
-        // Initialize Python
         let (con_reader, con_writer) = pipe().unwrap();
-        let current_exe = env::current_exe().unwrap();
-        let (python, python_events) = match python::initialize(
-            debugger.command_interpreter(),
-            current_exe.parent().unwrap(),
-            Some(con_writer.try_clone().unwrap()),
-        ) {
-            Ok((python, events)) => (Some(python), Some(events)),
-            Err(err) => {
-                error!("Initialize Python interpreter: {}", err);
-                (None, None)
-            }
-        };
 
-        let con_reader = tokio::fs::File::from_std(con_reader);
+        let python = if let Some(python_interface) = python_interface {
+            let (python, python_events) = python_interface.new_session(&debugger, con_writer.try_clone().unwrap());
+            DebugSession::pipe_python_events(&dap_session, python_events);
+            Some(python)
+        } else {
+            None
+        };
 
         let mut debug_session = DebugSession {
             self_ref: NotInitialized,
@@ -146,7 +143,6 @@ impl DebugSession {
             var_refs: HandleTree::new(),
             disassembly: NotInitialized,
             source_map_cache: RefCell::new(HashMap::new()),
-            loaded_modules: Vec::new(),
             relative_path_base: NotInitialized,
             exit_commands: None,
             debuggee_terminal: None,
@@ -171,13 +167,10 @@ impl DebugSession {
             max_summary_length: 32,
         };
 
+        let con_reader = tokio::fs::File::from_std(con_reader);
+        DebugSession::pipe_console_ouput(&debug_session.dap_session, con_reader);
+
         debug_session.update_adapter_settings(&settings);
-
-        DebugSession::pipe_console_events(&debug_session.dap_session, con_reader);
-
-        if let Some(python_events) = python_events {
-            DebugSession::pipe_python_events(&debug_session.dap_session, python_events);
-        }
 
         let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
         let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.debugger.listener());
@@ -230,7 +223,8 @@ impl DebugSession {
         local_set
     }
 
-    fn pipe_console_events(dap_session: &DAPSession, mut con_reader: tokio::fs::File) {
+    // Pipe data received from con_reader to the DAP session as "console" events.
+    fn pipe_console_ouput(dap_session: &DAPSession, mut con_reader: tokio::fs::File) {
         use std::io::Write;
         let dap_session = dap_session.clone();
         tokio::spawn(async move {
@@ -261,6 +255,7 @@ impl DebugSession {
         });
     }
 
+    // Pipe events from the Python interface to the DAP session.
     fn pipe_python_events(dap_session: &DAPSession, mut python_events: mpsc::Receiver<EventBody>) {
         let dap_session = dap_session.clone();
         tokio::spawn(async move {
@@ -1628,11 +1623,6 @@ impl DebugSession {
             hit_breakpoint_ids: hit_breakpoint,
             ..Default::default()
         }));
-
-        if let Some(python) = &self.python {
-            python.modules_loaded(&mut self.loaded_modules.iter());
-        }
-        self.loaded_modules.clear();
     }
 
     fn handle_execption_info(&mut self, args: ExceptionInfoArguments) -> Result<ExceptionInfoResponseBody, Error> {
@@ -1660,10 +1650,6 @@ impl DebugSession {
                     reason: "new".to_owned(),
                     module: self.make_module_detail(&module),
                 }));
-
-                // Running scripts during target execution seems to trigger a bug in LLDB,
-                // so we defer loaded module notification till the next stop.
-                self.loaded_modules.push(module);
             }
         } else if flags & SBTargetEvent::BroadcastBitSymbolsLoaded != 0 {
             for module in event.modules() {

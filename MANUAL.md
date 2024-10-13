@@ -701,6 +701,10 @@ CodeLLDB bundles its own copy of Python, which may be different from the version
 As such, it likely won't be able to use third-party packages you've installed through `pip`.  In order to install packages
 for use in CodeLLDB, you will need to use the **LLDB: Command Prompt** command in VSCode, followed by `pip install --user <package>`.
 
+## Stdio in Python scripts
+- `stdout` output will be sent to the Debug Console
+- `stderr` output will be sent to the Output/LLDB panel
+
 # Alternate LLDB Backends
 
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging Swift programs,

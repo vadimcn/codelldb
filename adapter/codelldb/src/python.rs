@@ -1,13 +1,15 @@
 use crate::prelude::*;
 
-use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
+use crate::must_initialize::{Initialized, MustInitialize};
 use adapter_protocol::{AdapterSettings, EventBody};
 use lldb::*;
 
+use std::collections::HashMap;
 use std::ffi::CStr;
-use std::mem;
-use std::os::raw::{c_char, c_void};
+use std::mem::{self};
+use std::os::raw::{c_char, c_int, c_void};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 #[repr(C, i32)]
@@ -32,47 +34,39 @@ impl Drop for PyObject {
 
 unsafe impl Send for PyObject {}
 
-// Interface through which the rest of CodeLLDB interacts with Python.
+// Interface through which the rest of CodeLLDB interacts with Python, via C ABI.
+// It is intended to be a singleton, since there is only one Python interpreter in LLDB process.
 pub struct PythonInterface {
-    initialized: bool,
-    interpreter: SBCommandInterpreter,
     adapter_dir: PathBuf,
-    event_sender: mpsc::Sender<EventBody>,
-    postinit_ptr: MustInitialize<unsafe extern "C" fn(console_fd: usize) -> bool>,
-    handle_message_ptr:
-        MustInitialize<unsafe extern "C" fn(json: *const c_char, json_len: usize, debugger: SBDebugger) -> bool>,
-    compile_code_ptr: MustInitialize<
-        unsafe extern "C" fn(
-            result: *mut PyResult<*mut c_void>,
-            expr: *const c_char,
-            expr_len: usize,
-            filename: *const c_char,
-            filename_len: usize,
-        ) -> bool,
-    >,
-    evaluate_ptr: MustInitialize<
-        unsafe extern "C" fn(
-            result: *mut PyResult<SBValue>,
-            code: *mut c_void,
-            is_simple_expr: bool,
-            context: SBExecutionContext,
-        ) -> bool,
-    >,
-    evaluate_as_bool_ptr: MustInitialize<
-        unsafe extern "C" fn(
-            result: *mut PyResult<bool>,
-            pycode: *mut c_void,
-            is_simple_expr: bool,
-            context: SBExecutionContext,
-        ) -> bool,
-    >,
-    execute_in_instance_ptr: MustInitialize<
-        unsafe extern "C" fn(result: *mut PyResult<()>, pycode: *mut c_void, debugger: SBDebugger) -> bool,
-    >,
-    modules_loaded_ptr: MustInitialize<unsafe extern "C" fn(modules: *const SBModule, modules_len: usize) -> bool>,
-    drop_pyobject_ptr: MustInitialize<unsafe extern "C" fn(obj: *mut c_void)>,
-    interrupt_ptr: MustInitialize<unsafe extern "C" fn()>,
-    shutdown_ptr: MustInitialize<unsafe extern "C" fn() -> bool>,
+    py: MustInitialize<PythonCalls>,
+    session_event_senders: Mutex<HashMap<u64, mpsc::Sender<EventBody>>>,
+}
+
+struct PythonCalls {
+    session_init: unsafe extern "C" fn(session_id: c_int, console_fd: usize) -> bool,
+    session_deinit: unsafe extern "C" fn(session_id: c_int) -> bool,
+    interrupt: unsafe extern "C" fn(),
+    drop_pyobject: unsafe extern "C" fn(obj: *mut c_void),
+    handle_message: unsafe extern "C" fn(json: *const c_char, json_len: usize, debugger: SBDebugger) -> bool,
+    compile_code: unsafe extern "C" fn(
+        result: *mut PyResult<*mut c_void>,
+        expr: *const c_char,
+        expr_len: usize,
+        filename: *const c_char,
+        filename_len: usize,
+    ) -> bool,
+    evaluate_as_sbvalue: unsafe extern "C" fn(
+        result: *mut PyResult<SBValue>,
+        code: *mut c_void,
+        exec_context: SBExecutionContext,
+        eval_context: c_int,
+    ) -> bool,
+    evaluate_as_bool: unsafe extern "C" fn(
+        result: *mut PyResult<bool>,
+        pycode: *mut c_void,
+        exec_context: SBExecutionContext,
+        eval_context: c_int,
+    ) -> bool,
 }
 
 // Initialize Python interface.
@@ -85,11 +79,8 @@ pub struct PythonInterface {
 // - `initialize()` invokes `init_callback` with pointers to C ABI stubs wrapping Python side callbacks,
 //    which are saved and later used to invoke Python code directly, bypassing the slow SBCommandInterpreter API,
 // - If any of the above fails, we declare Python scripting defunct and proceed in reduced functionality mode.
-pub fn initialize(
-    interpreter: SBCommandInterpreter,
-    adapter_dir: &Path,
-    console_stream: Option<std::fs::File>,
-) -> Result<(Box<PythonInterface>, mpsc::Receiver<EventBody>), Error> {
+pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<PythonInterface>, Error> {
+    let interpreter = debugger.command_interpreter();
     let mut command_result = SBCommandReturnObject::new();
 
     let init_script = adapter_dir.join("scripts/codelldb");
@@ -97,55 +88,6 @@ pub fn initialize(
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         bail!(format!("{:?}", command_result));
-    }
-    let (sender, receiver) = mpsc::channel(10);
-    let interface = Box::new(PythonInterface {
-        initialized: false,
-        interpreter: interpreter,
-        adapter_dir: adapter_dir.to_owned(),
-        event_sender: sender,
-        postinit_ptr: NotInitialized,
-        handle_message_ptr: NotInitialized,
-        compile_code_ptr: NotInitialized,
-        shutdown_ptr: NotInitialized,
-        evaluate_ptr: NotInitialized,
-        evaluate_as_bool_ptr: NotInitialized,
-        execute_in_instance_ptr: NotInitialized,
-        modules_loaded_ptr: NotInitialized,
-        drop_pyobject_ptr: NotInitialized,
-        interrupt_ptr: NotInitialized,
-    });
-
-    unsafe extern "C" fn init_callback(
-        interface: *mut PythonInterface,
-        postinit_ptr: *const c_void,
-        interrupt_ptr: *const c_void,
-        shutdown_ptr: *const c_void,
-        handle_message_ptr: *const c_void,
-        compile_code_ptr: *const c_void,
-        evaluate_ptr: *const c_void,
-        evaluate_as_bool_ptr: *const c_void,
-        execute_in_instance_ptr: *const c_void,
-        modules_loaded_ptr: *const c_void,
-        drop_pyobject_ptr: *const c_void,
-    ) {
-        (*interface).postinit_ptr = Initialized(mem::transmute(postinit_ptr));
-        (*interface).interrupt_ptr = Initialized(mem::transmute(interrupt_ptr));
-        (*interface).shutdown_ptr = Initialized(mem::transmute(shutdown_ptr));
-        (*interface).handle_message_ptr = Initialized(mem::transmute(handle_message_ptr));
-        (*interface).compile_code_ptr = Initialized(mem::transmute(compile_code_ptr));
-        (*interface).evaluate_ptr = Initialized(mem::transmute(evaluate_ptr));
-        (*interface).evaluate_as_bool_ptr = Initialized(mem::transmute(evaluate_as_bool_ptr));
-        (*interface).execute_in_instance_ptr = Initialized(mem::transmute(execute_in_instance_ptr));
-        (*interface).modules_loaded_ptr = Initialized(mem::transmute(modules_loaded_ptr));
-        (*interface).drop_pyobject_ptr = Initialized(mem::transmute(drop_pyobject_ptr));
-        (*interface).initialized = true;
-    }
-
-    unsafe extern "C" fn send_message_callback(interface: *mut PythonInterface, body_json: *const c_char) {
-        let body_json = CStr::from_ptr(body_json).to_str().unwrap().to_string();
-        let event = EventBody::_pythonMessage(serde_json::value::RawValue::from_string(body_json).unwrap());
-        log_errors!((*interface).event_sender.try_send(event));
     }
 
     let py_log_level = match log::max_level() {
@@ -156,41 +98,134 @@ pub fn initialize(
         log::LevelFilter::Trace | log::LevelFilter::Off => 0,
     };
 
+    // A callback for sending events from Python.
+    unsafe extern "C" fn python_event_callback(
+        interface: *mut PythonInterface,
+        session_id: c_int,
+        body_json: *const c_char,
+    ) {
+        let body_json = CStr::from_ptr(body_json).to_str().unwrap().to_string();
+        let event = EventBody::_pythonMessage(serde_json::value::RawValue::from_string(body_json).unwrap());
+        (*interface).dispatch_python_event(session_id as u64, event);
+    }
+
+    unsafe extern "C" fn init_callback(
+        interface_ptr: *mut PythonInterface,
+        pointers: *const *const c_void,
+        pointers_len: usize,
+    ) {
+        if pointers_len != 8 {
+            error!("Invalid number of pointers passed to init_callback: {}", pointers_len);
+            return;
+        }
+        let pointers = std::slice::from_raw_parts(pointers, pointers_len);
+
+        let py_calls = PythonCalls {
+            session_init: mem::transmute(pointers[0]),
+            session_deinit: mem::transmute(pointers[1]),
+            interrupt: mem::transmute(pointers[2]),
+            drop_pyobject: mem::transmute(pointers[3]),
+            handle_message: mem::transmute(pointers[4]),
+            compile_code: mem::transmute(pointers[5]),
+            evaluate_as_sbvalue: mem::transmute(pointers[6]),
+            evaluate_as_bool: mem::transmute(pointers[7]),
+        };
+        (*interface_ptr).py = Initialized(py_calls);
+    }
+
+    let mut interface = Arc::new(PythonInterface {
+        adapter_dir: adapter_dir.to_path_buf(),
+        py: MustInitialize::NotInitialized,
+        session_event_senders: Mutex::new(HashMap::new()),
+    });
+
     let command = format!(
-        "script codelldb.interface.initialize({}, {:p}, {:p}, {:p})",
-        py_log_level, init_callback as *const c_void, send_message_callback as *const c_void, interface
+        "script codelldb.interface.initialize({:p}, {:p}, {:p}, {})",
+        init_callback as *const c_void,
+        Arc::get_mut(&mut interface).unwrap() as *mut _,
+        python_event_callback as *const c_void,
+        py_log_level,
     );
-    interface.interpreter.handle_command(&command, &mut command_result, false);
+    interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         bail!(format!("{:?}", command_result));
     }
-
-    // Make sure Python side had called us back.
-    if !interface.initialized {
+    // Make sure that Python side had called us back.
+    if !interface.py.is_initialized() {
         bail!("Could not initialize Python environment.");
     }
-
-    if let Some(console_stream) = console_stream {
-        unsafe {
-            (*interface.postinit_ptr)(get_raw_fd(console_stream));
-        }
-    }
+    // Leak one reference to keep the interface alive in case python_event_callback() is called unexpectedly.
+    mem::forget(interface.clone());
 
     // Import legacy alias for the codelldb module
     let script = adapter_dir.join("scripts/debugger.py");
     let command = format!("command script import '{}'", script.to_str().unwrap());
-    interface.interpreter.handle_command(&command, &mut command_result, false);
+    interpreter.handle_command(&command, &mut command_result, false);
 
-    Ok((interface, receiver))
+    Ok(interface)
 }
 
 impl PythonInterface {
-    pub fn handle_message(&self, body_json: &str) {
-        let json_ptr = body_json.as_ptr() as *const c_char;
-        let json_size = body_json.len();
-        unsafe {
-            (*self.handle_message_ptr)(json_ptr, json_size, self.interpreter.debugger());
+    pub fn new_session(
+        self: Arc<PythonInterface>,
+        debugger: &SBDebugger,
+        console_stream: std::fs::File,
+    ) -> (PythonSession, mpsc::Receiver<EventBody>) {
+        let (sender, receiver) = mpsc::channel(100);
+        let session = PythonSession {
+            interface: self.clone(),
+            debugger: debugger.clone(),
+        };
+        let interpreter = debugger.command_interpreter();
+        let mut result = SBCommandReturnObject::new();
+        // Initialize session dictionary
+        interpreter.handle_command("script import codelldb, debugger", &mut result, false);
+        if !result.succeeded() {
+            error!("{:?}", result.error());
         }
+        unsafe { (self.py.session_init)(debugger.id() as c_int, get_raw_fd(console_stream)) };
+        let mut senders = self.session_event_senders.lock().unwrap();
+        senders.insert(debugger.id(), sender);
+        (session, receiver)
+    }
+
+    // Send event generated by Python to DAP client
+    fn dispatch_python_event(&self, session_id: u64, event: EventBody) {
+        let senders = self.session_event_senders.lock().unwrap();
+        if let Some(sender) = senders.get(&session_id) {
+            log_errors!(sender.try_send(event));
+        } else {
+            error!("Received event for non-existent session {}", session_id);
+        }
+    }
+}
+
+// These are per-DebugSession
+pub struct PythonSession {
+    interface: Arc<PythonInterface>,
+    debugger: SBDebugger,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum EvalContext {
+    Statement = 0,
+    PythonExpression = 1,
+    SimpleExpression = 2,
+}
+
+impl Drop for PythonSession {
+    fn drop(&mut self) {
+        unsafe { (self.interface.py.session_deinit)(self.debugger.id() as c_int) };
+        let mut senders = self.interface.session_event_senders.lock().unwrap();
+        senders.remove(&self.debugger.id());
+    }
+}
+
+impl PythonSession {
+    pub fn handle_message(&self, json: &str) -> bool {
+        let json_ptr = json.as_ptr() as *const c_char;
+        let json_len = json.len();
+        unsafe { (self.interface.py.handle_message)(json_ptr, json_len, self.debugger.clone()) }
     }
 
     // Compiles Python source, returns a code object.
@@ -201,12 +236,12 @@ impl PythonInterface {
         let filename_size = filename.len();
         let mut result = PyResult::Invalid;
         unsafe {
-            (*self.compile_code_ptr)(&mut result, expt_ptr, expr_size, filename_ptr, filename_size);
+            (self.interface.py.compile_code)(&mut result, expt_ptr, expr_size, filename_ptr, filename_size);
         }
         match result {
             PyResult::Ok(object) => Ok(PyObject {
                 object: object,
-                destructor: *self.drop_pyobject_ptr.unwrap(),
+                destructor: self.interface.py.drop_pyobject,
             }),
             PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
@@ -217,12 +252,14 @@ impl PythonInterface {
     pub fn evaluate(
         &self,
         code: &PyObject,
-        is_simple_expr: bool,
-        context: &SBExecutionContext,
+        exec_context: &SBExecutionContext,
+        eval_context: EvalContext,
     ) -> Result<SBValue, Error> {
+        let exec_context = exec_context.clone();
+        let eval_context = eval_context as c_int;
         let mut result = PyResult::Invalid;
         unsafe {
-            (*self.evaluate_ptr)(&mut result, code.object, is_simple_expr, context.clone());
+            (self.interface.py.evaluate_as_sbvalue)(&mut result, code.object, exec_context, eval_context);
         }
         match result {
             PyResult::Ok(value) => Ok(value),
@@ -235,36 +272,17 @@ impl PythonInterface {
     pub fn evaluate_as_bool(
         &self,
         code: &PyObject,
-        is_simple_expr: bool,
-        context: &SBExecutionContext,
+        exec_context: &SBExecutionContext,
+        eval_context: EvalContext,
     ) -> Result<bool, Error> {
+        let exec_context = exec_context.clone();
+        let eval_context = eval_context as c_int;
         let mut result = PyResult::Invalid;
         unsafe {
-            (*self.evaluate_as_bool_ptr)(&mut result, code.object, is_simple_expr, context.clone());
+            (self.interface.py.evaluate_as_bool)(&mut result, code.object, exec_context, eval_context);
         }
         match result {
             PyResult::Ok(value) => Ok(value),
-            PyResult::Err(error) => Err(error.into()),
-            _ => Err("Evaluation failed".into()),
-        }
-    }
-
-    // Notifies codelldb.py about newly loaded modules.
-    pub fn modules_loaded(&self, modules: &mut dyn Iterator<Item = &SBModule>) {
-        let modules = modules.cloned().collect::<Vec<SBModule>>();
-        unsafe {
-            (*self.modules_loaded_ptr)(modules.as_ptr(), modules.len());
-        }
-    }
-
-    // Execute compiled code in the context of debugger instance's dictionary.
-    fn execute_in_instance(&self, code: &PyObject, debugger: &SBDebugger) -> Result<(), Error> {
-        let mut result = PyResult::Invalid;
-        unsafe {
-            (*self.execute_in_instance_ptr)(&mut result, code.object, debugger.clone());
-        }
-        match result {
-            PyResult::Ok(()) => Ok(()),
             PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
@@ -275,15 +293,18 @@ impl PythonInterface {
         let settings_json = serde_json::to_string(settings)?;
         let stmt = format!(r#"codelldb.interface.update_adapter_settings("""{settings_json}""", globals())"#);
         let code = self.compile_code(&stmt, "<string>")?;
-        self.execute_in_instance(&code, &self.interpreter.debugger())
+        let context = SBExecutionContext::from_target(&self.debugger.dummy_target());
+        self.evaluate(&code, &context, EvalContext::Statement)?;
+        Ok(())
     }
 
     // Load the language support module
     pub fn init_lang_support(&self) -> Result<(), Error> {
-        let lang_support = self.adapter_dir.parent().unwrap().join("lang_support");
+        let lang_support = self.interface.adapter_dir.parent().unwrap().join("lang_support");
         let command = format!("command script import '{}'", lang_support.to_str().unwrap());
         let mut command_result = SBCommandReturnObject::new();
-        self.interpreter.handle_command(&command, &mut command_result, false);
+        let interpreter = self.debugger.command_interpreter();
+        interpreter.handle_command(&command, &mut command_result, false);
         if !command_result.succeeded() {
             bail!(format!("{:?}", command_result))
         }
@@ -292,21 +313,10 @@ impl PythonInterface {
 
     // Return a callable that sends an interrupt to the Python interpreter.
     pub fn interrupt_sender(&self) -> impl Fn() {
-        let interrupt_ptr = *self.interrupt_ptr;
-        // This should be safe to call from any thread, even after this instance of PythonInterface is dropped,
+        let interrupt_ptr = self.interface.py.interrupt;
         move || unsafe {
             info!("Sending interrupt to Python interpreter");
             interrupt_ptr();
-        }
-    }
-}
-
-impl Drop for PythonInterface {
-    fn drop(&mut self) {
-        if self.initialized {
-            unsafe {
-                (*self.shutdown_ptr)();
-            }
         }
     }
 }
@@ -358,12 +368,15 @@ fn pypath() {
 #[test]
 fn evaluate() {
     use lldb::*;
-    let interp = DEBUGGER.command_interpreter();
     let adapter_dir = std::env::var("ADAPTER_SOURCE_DIR").unwrap();
-    let (python, _) = initialize(interp, Path::new(&adapter_dir), None).unwrap();
+    let interface = initialize(&DEBUGGER, Path::new(&adapter_dir)).unwrap();
+    let (session, _events) = interface.new_session(
+        &DEBUGGER,
+        std::fs::File::create(if cfg!(unix) { "/dev/null" } else { "NUL" }).unwrap(),
+    );
     let context = SBExecutionContext::from_target(&DEBUGGER.dummy_target());
-    let pycode = python.compile_code("2+2", "<string>").unwrap();
-    let result = python.evaluate(&pycode, true, &context);
+    let pycode = session.compile_code("2+2", "<string>").unwrap();
+    let result = session.evaluate(&pycode, &context, EvalContext::PythonExpression);
     println!("result = {:?}", result);
     let value = result.unwrap().value_as_signed(0);
     assert_eq!(value, 4);

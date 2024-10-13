@@ -13,5 +13,7 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
             getattr(ns, lang).__lldb_init_module(debugger, internal_dict)
         except ImportError:
             pass
-        except:
-            log.exception('Failed to initialize language support for {}'.format(lang))
+        except Exception as e:
+            message = 'Failed to initialize language support for {}:'.format(lang)
+            log.exception(message)
+            print(message, str(e))

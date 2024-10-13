@@ -3,9 +3,10 @@ use adapter_protocol::{AdapterSettings, Either};
 use clap::ArgMatches;
 use dap_session::DAPChannel;
 use lldb::*;
-use std::net;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::{env, net};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Duration;
@@ -56,13 +57,23 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
 
     SBDebugger::initialize();
 
-    // Execute startup command
+    let debugger = SBDebugger::create(false);
+    // Execute Python startup command
     if let Ok(command) = std::env::var("CODELLDB_STARTUP") {
         debug!("Executing {}", command);
-        let debugger = SBDebugger::create(false);
         let mut command_result = SBCommandReturnObject::new();
         debugger.command_interpreter().handle_command(&command, &mut command_result, false);
     }
+
+    let current_exe = env::current_exe().unwrap();
+    let adapter_dir = current_exe.parent().unwrap();
+    let python_interface = match python::initialize(&debugger, &adapter_dir) {
+        Ok(python) => Some(python),
+        Err(err) => {
+            error!("Initialize Python interpreter: {}", err);
+            None
+        }
+    };
 
     let (use_stdio, port, connect) = if let Some(port) = matches.value_of("connect") {
         (false, port.parse()?, true)
@@ -85,7 +96,7 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
             debug!("Starting on stdio");
             let stream = stdio_stream::StdioStream::new();
             let framed_stream = dap_codec::DAPCodec::new().framed(stream);
-            run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+            run_debug_session(Box::new(framed_stream), &adapter_settings, &python_interface).await;
         } else {
             let localhost = net::Ipv4Addr::new(127, 0, 0, 1);
             let addr = net::SocketAddr::new(localhost.into(), port);
@@ -98,7 +109,7 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
                     tcp_stream.write_all(&auth_header.as_bytes()).await?;
                 }
                 let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
-                run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+                run_debug_session(Box::new(framed_stream), &adapter_settings, &python_interface).await;
             } else {
                 let listener = TcpListener::bind(&addr).await?;
                 while {
@@ -106,7 +117,7 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
                     let (tcp_stream, _) = listener.accept().await?;
                     tcp_stream.set_nodelay(true).unwrap();
                     let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
-                    run_debug_session(Box::new(framed_stream), adapter_settings.clone()).await;
+                    run_debug_session(Box::new(framed_stream), &adapter_settings, &python_interface).await;
                     multi_session
                 } {}
             }
@@ -124,10 +135,18 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-async fn run_debug_session(framed_stream: Box<dyn DAPChannel>, adapter_settings: adapter_protocol::AdapterSettings) {
+async fn run_debug_session(
+    framed_stream: Box<dyn DAPChannel>,
+    adapter_settings: &adapter_protocol::AdapterSettings,
+    python_interface: &Option<Arc<python::PythonInterface>>,
+) {
     debug!("New debug session");
     let (dap_session, dap_fut) = dap_session::DAPSession::new(framed_stream);
-    let session_fut = debug_session::DebugSession::run(dap_session, adapter_settings.clone());
+    let session_fut = debug_session::DebugSession::run(
+        dap_session,
+        adapter_settings.clone(),
+        python_interface.as_ref().map(|i| i.clone()),
+    );
     tokio::spawn(dap_fut);
     session_fut.await;
     debug!("End of the debug session");

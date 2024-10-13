@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use crate::expressions::{self, FormatSpec, PreparedExpression};
 use crate::handles::{self, Handle};
+use crate::python::EvalContext;
 
 use super::into_string_lossy;
 use super::AsyncResponse;
@@ -543,10 +544,14 @@ impl super::DebugSession {
         }
         (PreparedExpression::Python(pp_expr), Some(python)) | //.
         (PreparedExpression::Simple(pp_expr), Some(python)) => {
-            let context = self.context_from_frame(frame);
             let pycode = python.compile_code(pp_expr, "<input>").map_err(as_user_error)?;
-            let is_simple_expr = matches!(expression, PreparedExpression::Simple(_));
-            let result = python.evaluate(&pycode, is_simple_expr, &context).map_err(as_user_error)?;
+            let exec_context = self.context_from_frame(frame);
+            let eval_cotext = if matches!(expression, PreparedExpression::Simple(_)) {
+                EvalContext::SimpleExpression
+            }else {
+                EvalContext::PythonExpression
+            };
+            let result = python.evaluate(&pycode, &exec_context, eval_cotext).map_err(as_user_error)?;
             Ok(result)
         }
         _ => bail!(as_user_error("Python expressions are disabled.")),

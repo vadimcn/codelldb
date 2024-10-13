@@ -53,8 +53,10 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
         retain_context_when_hidden: Controls if the webview panel retains its context when it is hidden.
         enable_scripts:     Controls if scripts are enabled in the webview.
     '''
-    webview = Webview()
-    interface.send_message(dict(message='webviewCreate',
+    debugger_id = lldb.debugger.GetID()
+    webview = Webview(debugger_id)
+    interface.send_message(debugger_id,
+                           dict(message='webviewCreate',
                                 id=webview.id,
                                 html=html,
                                 title=title,
@@ -63,7 +65,8 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
                                 enableFindWidget=enable_find_widget,
                                 retainContextWhenHidden=retain_context_when_hidden,
                                 enableScripts=enable_scripts
-                                ))
+                                )
+                           )
     return webview
 
 

@@ -31,6 +31,11 @@ impl SBDebugger {
             return self->Clear();
         })
     }
+    pub fn id(&self) -> u64 {
+        cpp!(unsafe [self as "SBDebugger*"] -> u64 as "uint64_t" {
+            return self->GetID();
+        })
+    }
     pub fn async_mode(&self) -> bool {
         cpp!(unsafe [self as "SBDebugger*"]-> bool as "bool" {
             return self->GetAsync();

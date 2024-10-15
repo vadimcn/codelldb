@@ -14,7 +14,7 @@ use tokio_util::codec::Decoder;
 
 #[allow(unused_imports)]
 mod prelude {
-    pub use crate::error::{as_user_error, Error};
+    pub use crate::error::{blame_user, str_error, Blame, BlamedError, Error};
     pub use log::{debug, error, info, warn};
 }
 #[macro_use]

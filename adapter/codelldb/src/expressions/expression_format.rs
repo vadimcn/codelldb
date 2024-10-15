@@ -19,7 +19,7 @@ impl FormatSpec {
     };
 }
 
-pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, FormatSpec), String> {
+pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, FormatSpec), Error> {
     if let Some(pos) = expr.rfind(',') {
         let spec = &expr[pos + 1..];
 
@@ -52,7 +52,7 @@ pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, FormatSpec),
                 let format = match format_ch {
                     Some(c) => match convert_format(c) {
                         Some(format) => Some(format),
-                        None => return Err(format!("Invlaid format specifier: {}", c)),
+                        None => bail!(format!("Invlaid format specifier: {}", c)),
                     },
                     _ => None,
                 };
@@ -62,7 +62,7 @@ pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, FormatSpec),
             // Partially parsed
             Ok(_) => Ok((expr, FormatSpec::NONE)),
             // Error
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(str_error(err.to_string())),
         }
     } else {
         // No format specifier, return expression as-is

@@ -185,7 +185,7 @@ impl super::DebugSession {
             }
 
             if self.current_cancellation.is_cancelled() {
-                bail!(as_user_error("<cancelled>"));
+                bail!(blame_user(str_error("<cancelled>")));
             }
 
             // Bail out if timeout has expired.
@@ -459,7 +459,13 @@ impl super::DebugSession {
                 }
             },
             Some("clipboard") => self.handle_evaluate_expression(&args.expression, frame, true),
-            Some("hover") if !self.evaluate_for_hovers => bail!("Hovers are disabled."),
+            Some("hover") => {
+                if !self.evaluate_for_hovers {
+                    bail!("Hovers are disabled.")
+                }
+                let result = self.handle_evaluate_expression(&args.expression, frame, false);
+                result.map_err(|err| BlamedError::from(err).assign_blame(Blame::Nobody).into())
+            }
             // out protocol extension for testing
             Some("_command") => self.handle_execute_command(&args.expression, frame, true),
             // "watch"
@@ -494,8 +500,8 @@ impl super::DebugSession {
                 ..Default::default()
             })
         } else {
-            let message = into_string_lossy(result.error()).trim_end().to_string();
-            bail!(as_user_error(message))
+            let err_msg = into_string_lossy(result.error());
+            bail!(blame_user(err_msg.trim_end().into()))
         }
     }
 
@@ -507,11 +513,11 @@ impl super::DebugSession {
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
         let (pp_expr, format_spec) =
-            expressions::prepare_with_format(expression, self.default_expr_type).map_err(as_user_error)?;
+            expressions::prepare_with_format(expression, self.default_expr_type).map_err(blame_user)?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
             Ok(sbval) => {
-                let sbval = self.apply_format_spec(sbval, &format_spec)?;
+                let sbval = self.apply_format_spec(sbval, &format_spec).map_err(blame_user)?;
                 let handle = self.get_var_handle(None, expression, &sbval);
                 let summary = self.get_var_summary(&sbval, for_clipboard);
                 Ok(EvaluateResponseBody {
@@ -539,22 +545,22 @@ impl super::DebugSession {
                 Some(frame) => frame.evaluate_expression(&pp_expr).into_result(),
                 None => self.target.evaluate_expression(&pp_expr).into_result(),
             };
-            let result = result.map_err(as_user_error)?;
+            let result = result.map_err(|err| blame_user(err.into()))?;
             Ok(result)
         }
         (PreparedExpression::Python(pp_expr), Some(python)) | //.
         (PreparedExpression::Simple(pp_expr), Some(python)) => {
-            let pycode = python.compile_code(pp_expr, "<input>").map_err(as_user_error)?;
+            let pycode = python.compile_code(pp_expr, "<input>").map_err(blame_user)?;
             let exec_context = self.context_from_frame(frame);
             let eval_cotext = if matches!(expression, PreparedExpression::Simple(_)) {
                 EvalContext::SimpleExpression
             }else {
                 EvalContext::PythonExpression
             };
-            let result = python.evaluate(&pycode, &exec_context, eval_cotext).map_err(as_user_error)?;
+            let result = python.evaluate(&pycode, &exec_context, eval_cotext).map_err(blame_user)?;
             Ok(result)
         }
-        _ => bail!(as_user_error("Python expressions are disabled.")),
+        _ => bail!(blame_user("Python expressions are disabled.".into())),
     }
     }
 
@@ -581,10 +587,10 @@ impl super::DebugSession {
                     };
                     Ok(response)
                 }
-                Err(err) => Err(as_user_error(err))?,
+                Err(err) => Err(blame_user(err.into()))?,
             }
         } else {
-            bail!(as_user_error("Could not set variable value."));
+            bail!(blame_user(str_error("Could not set variable value.")));
         }
     }
 
@@ -596,18 +602,18 @@ impl super::DebugSession {
             sbval = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
                 // For pointers and references we re-interpret the pointee.
                 let array_type = var_type.pointee_type().array_type(size as u64);
-                let pointee = sbval.dereference().into_result().map_err(as_user_error)?;
-                let addr = pointee.address().ok_or_else(|| as_user_error("No address"))?;
+                let pointee = sbval.dereference().into_result()?;
+                let addr = pointee.address().ok_or_else(|| str_error("No address"))?;
                 sbval.target().create_value_from_address("(as array)", &addr, &array_type)
             } else if type_class.intersects(TypeClass::Array) {
                 // For arrays, re-interpret the array length.
                 let array_type = var_type.array_element_type().array_type(size as u64);
-                let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
+                let addr = sbval.address().ok_or_else(|| str_error("No address"))?;
                 sbval.target().create_value_from_address("(as array)", &addr, &array_type)
             } else {
                 // For other types re-interpret the value itself.
                 let array_type = var_type.array_type(size as u64);
-                let addr = sbval.address().ok_or_else(|| as_user_error("No address"))?;
+                let addr = sbval.address().ok_or_else(|| str_error("No address"))?;
                 sbval.target().create_value_from_address("(as array)", &addr, &array_type)
             };
         }

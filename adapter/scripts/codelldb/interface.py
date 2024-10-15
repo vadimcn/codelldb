@@ -179,9 +179,8 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
         incref(pycode)
         result[0] = PyObjectResult.Ok(pycode)
     except Exception as err:
-        log.error(traceback.format_exc())
         error = lldb.SBError()
-        error.SetErrorString(str(err))
+        error.SetErrorString(traceback.format_exc())
         error = from_swig_wrapper(error, SBError)
         result[0] = PyObjectResult.Err(error)
     return True
@@ -196,9 +195,8 @@ def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
         value = to_sbvalue(value, exec_context.target)
         result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
     except Exception as err:
-        log.error(traceback.format_exc())
         error = lldb.SBError()
-        error.SetErrorString(str(err))
+        error.SetErrorString(traceback.format_exc())
         error = from_swig_wrapper(error, SBError)
         result[0] = ValueResult.Err(error)
     return True
@@ -212,9 +210,8 @@ def evaluate_as_bool(result, pycode, exec_context, eval_context):
         value = bool(evaluate_in_context(pycode, exec_context, eval_context))
         result[0] = BoolResult.Ok(value)
     except Exception as err:
-        log.error(traceback.format_exc())
         error = lldb.SBError()
-        error.SetErrorString(str(err))
+        error.SetErrorString(traceback.format_exc())
         error = from_swig_wrapper(error, SBError)
         result[0] = BoolResult.Err(error)
     return True
@@ -229,7 +226,7 @@ def handle_message(body_ptr, body_len, context):
         body = json.loads(body_json)
         on_did_receive_message.emit(body)
     except Exception as err:
-        log.error(traceback.format_exc())
+        log.exception('handle_message failed')
     return True
 
 

@@ -8,7 +8,10 @@ use lldb::*;
 
 impl super::DebugSession {
     pub fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
-        bail!(as_user_error(format!("Could not parse launch configuration: {}", err)))
+        bail!(blame_user(str_error(format!(
+            "Could not parse launch configuration: {}",
+            err
+        ))))
     }
 
     pub fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
@@ -25,7 +28,9 @@ impl super::DebugSession {
             } else {
                 let program = match &args.program {
                     Some(program) => program,
-                    None => bail!(as_user_error("The \"program\" attribute is required for launch.")),
+                    None => bail!(blame_user(str_error(
+                        "The \"program\" attribute is required for launch."
+                    ))),
                 };
                 self.create_target_from_program(program)?
             };
@@ -163,7 +168,7 @@ impl super::DebugSession {
                         ));
                     }
                 }
-                bail!(as_user_error(msg))
+                bail!(blame_user(str_error(msg)))
             }
         };
         self.console_message(format!("Launched process {}", process.process_id()));
@@ -216,7 +221,9 @@ impl super::DebugSession {
         self.common_init_session(&args.common)?;
 
         if args.program.is_none() && args.pid.is_none() && args.target_create_commands.is_none() {
-            bail!(as_user_error(r#"Either "program" or "pid" is required for attach."#));
+            bail!(blame_user(str_error(
+                "Either \"program\" or \"pid\" is required to attach."
+            )));
         }
 
         let target = if let Some(commands) = &args.target_create_commands {
@@ -267,7 +274,7 @@ impl super::DebugSession {
                     Pid::Number(n) => *n as ProcessID,
                     Pid::String(s) => match s.parse() {
                         Ok(n) => n,
-                        Err(_) => bail!(as_user_error("Process id must be a positive integer.")),
+                        Err(_) => bail!(blame_user(str_error("Process id must be a positive integer."))),
                     },
                 };
                 attach_info.set_process_id(pid);
@@ -287,7 +294,7 @@ impl super::DebugSession {
 
             match self.target.attach(&attach_info) {
                 Ok(process) => process,
-                Err(err) => bail!(as_user_error(format!("Could not attach: {}", err))),
+                Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),
             }
         };
         self.console_message(format!("Attached to process {}", process.process_id()));
@@ -317,7 +324,7 @@ impl super::DebugSession {
                 }
             }
         }
-        .map_err(|e| as_user_error(e).into())
+        .map_err(|err| blame_user(err.into()).into())
     }
 
     fn set_target(&mut self, target: SBTarget) {

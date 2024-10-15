@@ -830,9 +830,9 @@ impl DebugSession {
                     return Ok(ExcludeCallerResponse { breakpoint_id, symbol });
                 }
             }
-            bail!(as_user_error("Could not locate symbol for this stack frame."))
+            bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
         } else {
-            bail!(as_user_error("Must be stopped on a breakpoint."))
+            bail!(blame_user(str_error("Must be stopped on a breakpoint.")));
         }
     }
 

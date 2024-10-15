@@ -508,19 +508,24 @@ impl DebugSession {
                 result: ResponseResult::Success { body: body },
             },
             Err(err) => {
-                let message = if let Some(user_err) = err.downcast_ref::<crate::error::UserError>() {
-                    format!("{}", user_err)
-                } else {
-                    format!("Internal debugger error: {}", err)
+                let blamed = BlamedError::from(err);
+                let (message, show) = match blamed.blame {
+                    Blame::Internal => (format!("Internal debugger error: {}", blamed.inner), true),
+                    Blame::User => (format!("{}", blamed.inner), true),
+                    Blame::Nobody => (format!("{}", blamed.inner), false),
                 };
-                error!("{}", message);
+                if show {
+                    error!("{}", message);
+                } else {
+                    debug!("{}", message);
+                }
                 Response {
                     request_seq: request_seq,
                     success: false,
                     result: ResponseResult::Error {
-                        command: "".into(),
+                        command: String::new(),
                         message: message,
-                        show_user: Some(true),
+                        show_user: Some(show),
                     },
                 }
             }
@@ -611,9 +616,9 @@ impl DebugSession {
                 self.console_message(output);
             }
             if !result.succeeded() {
-                let err = result.error().to_string_lossy().into_owned();
-                self.console_error(err.clone());
-                bail!(as_user_error(err))
+                let err_msg = result.error().to_string_lossy();
+                self.console_error(&err_msg);
+                bail!(blame_user(str_error(err_msg)))
             }
         }
         Ok(())
@@ -737,13 +742,13 @@ impl DebugSession {
     fn handle_pause(&mut self, _args: PauseArguments) -> Result<(), Error> {
         match self.target.process().stop() {
             Ok(()) => Ok(()),
-            Err(error) => {
+            Err(err) => {
                 if self.target.process().state().is_stopped() {
                     // Did we lose a 'stopped' event?
                     self.notify_process_stopped();
                     Ok(())
                 } else {
-                    bail!(as_user_error(error));
+                    bail!(blame_user(err.into()));
                 }
             }
         }
@@ -764,7 +769,7 @@ impl DebugSession {
                         all_threads_continued: Some(true),
                     })
                 } else {
-                    bail!(as_user_error(err))
+                    bail!(blame_user(err.into()))
                 }
             }
         }
@@ -997,7 +1002,7 @@ impl DebugSession {
                                 self.refresh_client_display(Some(thread_id));
                                 Ok(())
                             } else {
-                                bail!(as_user_error("Failed to set the instruction pointer."));
+                                bail!(blame_user(str_error("Failed to set the instruction pointer.")));
                             }
                         }
                         // Normal source file
@@ -1010,7 +1015,7 @@ impl DebugSession {
                                     Ok(())
                                 }
                                 Err(err) => {
-                                    bail!(as_user_error(err))
+                                    bail!(blame_user(err.into()))
                                 }
                             }
                         }
@@ -1345,14 +1350,17 @@ impl DebugSession {
                 }
             }
         }
-        if allow_partial {
-            Ok(WriteMemoryResponseBody {
-                bytes_written: Some(0),
-                ..Default::default()
-            })
-        } else {
-            Err(as_user_error(format!("Cannot write {} bytes at {:08X}", data.len(), address)).into())
+        if !allow_partial {
+            bail!(blame_user(str_error(format!(
+                "Cannot write {} bytes at {:08X}",
+                data.len(),
+                address
+            ))));
         }
+        Ok(WriteMemoryResponseBody {
+            bytes_written: Some(0),
+            ..Default::default()
+        })
     }
 
     fn handle_symbols(&mut self, args: SymbolsRequest) -> Result<SymbolsResponse, Error> {

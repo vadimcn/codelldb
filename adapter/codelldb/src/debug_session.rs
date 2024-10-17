@@ -572,6 +572,7 @@ impl DebugSession {
             support_terminate_debuggee: Some(true),
             supports_log_points: Some(true),
             supports_data_breakpoints: Some(true),
+            supports_data_breakpoint_bytes: Some(true),
             supports_cancel_request: Some(true),
             supports_disassemble_request: Some(true),
             supports_stepping_granularity: Some(true),
@@ -1019,52 +1020,138 @@ impl DebugSession {
         &mut self,
         args: DataBreakpointInfoArguments,
     ) -> Result<DataBreakpointInfoResponseBody, Error> {
-        let container_handle = handles::from_i64(args.variables_reference.ok_or("variables_reference")?)?;
-        let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
-        let child = match container {
-            Container::SBValue(container) => container.child_member_with_name(&args.name),
-            Container::Locals(frame) => frame.find_variable(&args.name),
-            Container::Globals(frame) => frame.find_value(&args.name, ValueType::VariableGlobal),
-            Container::Statics(frame) => frame.find_value(&args.name, ValueType::VariableStatic),
-            _ => None,
-        };
-        if let Some(child) = child {
-            let addr = child.load_address();
-            if addr != lldb::INVALID_ADDRESS {
-                let size = child.byte_size();
-                if self.is_valid_watchpoint_size(size) {
-                    let data_id = format!("{}/{}", addr, size);
-                    let desc = child.name().unwrap_or("");
-                    Ok(DataBreakpointInfoResponseBody {
-                        data_id: Some(data_id),
-                        access_types: Some(vec![
-                            DataBreakpointAccessType::Read,
-                            DataBreakpointAccessType::Write,
-                            DataBreakpointAccessType::ReadWrite,
-                        ]),
-                        description: format!("{} bytes at {:X} ({})", size, addr, desc),
-                        ..Default::default()
-                    })
+        if let Some(variables_reference) = args.variables_reference {
+            let container_handle = handles::from_i64(variables_reference)?;
+            let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
+            let child = match container {
+                Container::SBValue(container) => container.child_member_with_name(&args.name),
+                Container::Locals(frame) => frame.find_variable(&args.name),
+                Container::Globals(frame) => frame.find_value(&args.name, ValueType::VariableGlobal),
+                Container::Statics(frame) => frame.find_value(&args.name, ValueType::VariableStatic),
+                _ => None,
+            };
+            if let Some(child) = child {
+                let addr = child.load_address();
+                if addr != lldb::INVALID_ADDRESS {
+                    let size = child.byte_size();
+                    if self.is_valid_watchpoint_size(size) {
+                        let data_id = format!("{}/{}", addr, size);
+                        let desc = child.name().unwrap_or("");
+                        Ok(DataBreakpointInfoResponseBody {
+                            data_id: Some(data_id),
+                            access_types: Some(vec![
+                                DataBreakpointAccessType::Read,
+                                DataBreakpointAccessType::Write,
+                                DataBreakpointAccessType::ReadWrite,
+                            ]),
+                            description: format!("{} bytes at {:X} ({})", size, addr, desc),
+                            ..Default::default()
+                        })
+                    } else {
+                        Ok(DataBreakpointInfoResponseBody {
+                            data_id: None,
+                            description: "Invalid watchpoint size.".into(),
+                            ..Default::default()
+                        })
+                    }
                 } else {
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: None,
-                        description: "Invalid watchpoint size.".into(),
+                        description: "This variable doesn't have an address.".into(),
                         ..Default::default()
                     })
                 }
             } else {
                 Ok(DataBreakpointInfoResponseBody {
                     data_id: None,
-                    description: "This variable doesn't have an address.".into(),
+                    description: "Variable not found.".into(),
                     ..Default::default()
                 })
             }
         } else {
-            Ok(DataBreakpointInfoResponseBody {
-                data_id: None,
-                description: "Variable not found.".into(),
-                ..Default::default()
-            })
+            let frame = match args.frame_id {
+                Some(frame_id) => {
+                    let handle = handles::from_i64(frame_id)?;
+                    match self.var_refs.get(handle) {
+                        Some(Container::StackFrame(ref frame)) => {
+                            // If they had used `frame select` command after the last stop,
+                            // use currently selected frame from frame's thread, instead of the frame itself.
+                            if self.selected_frame_changed {
+                                Some(frame.thread().selected_frame())
+                            } else {
+                                Some(frame.clone())
+                            }
+                        }
+                        _ => {
+                            None
+                        }
+                    }
+                }
+                None => None,
+            };
+            if args.as_address.unwrap_or(false) {
+                // name is an address
+                let addr = parse_int::parse::<u64>(&args.name).unwrap_or(lldb::INVALID_ADDRESS);
+                let size = args.bytes.unwrap_or( self.target.address_byte_size() as i64 ) as usize;
+                if addr == lldb::INVALID_ADDRESS || !SBAddress::from(addr).is_valid() {
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: None,
+                        description: format!("Invalid address {}", addr),
+                        ..Default::default()
+                    })
+                } else if self.is_valid_watchpoint_size(size) {
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: None,
+                        description: format!("Invalid size {} for watchpoint", size),
+                        ..Default::default()
+                    })
+                } else {
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: Some(format!("{}/{}", addr, size)),
+                        access_types: Some(vec![
+                            DataBreakpointAccessType::Read,
+                            DataBreakpointAccessType::Write,
+                            DataBreakpointAccessType::ReadWrite,
+                        ]),
+                        description: format!("{} bytes at {:X}", size, addr),
+                        ..Default::default()
+                    })
+                }
+            } else {
+                // Otherwise name is an expression
+                let expr = &args.name;
+                let result = self.evaluate_user_supplied_expr(expr, frame)?;
+                let addr = result.load_address();
+                if addr != lldb::INVALID_ADDRESS {
+                    let size = args.bytes.unwrap_or(result.byte_size() as i64) as usize;
+                    if self.is_valid_watchpoint_size(size) {
+                        let data_id = format!("{}/{}", addr, size);
+                        let desc = result.name().unwrap_or(expr);
+                        Ok(DataBreakpointInfoResponseBody {
+                            data_id: Some(data_id),
+                            access_types: Some(vec![
+                                DataBreakpointAccessType::Read,
+                                DataBreakpointAccessType::Write,
+                                DataBreakpointAccessType::ReadWrite,
+                            ]),
+                            description: format!("{} bytes at {:X} ({})", size, addr, desc),
+                            ..Default::default()
+                        })
+                    } else {
+                        Ok(DataBreakpointInfoResponseBody {
+                            data_id: None,
+                            description: format!("Expression '{}' results in invalid watchpoint size: {}.", expr, size),
+                            ..Default::default()
+                        })
+                    }
+                } else {
+                    Ok(DataBreakpointInfoResponseBody {
+                        data_id: None,
+                        description: "This variable doesn't have an address.".into(),
+                        ..Default::default()
+                    })
+                }
+            }
         }
     }
 

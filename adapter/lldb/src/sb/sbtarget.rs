@@ -157,7 +157,21 @@ impl SBTarget {
         let mut error = SBError::new();
         let wp = cpp!(unsafe [self as "SBTarget*", addr as "addr_t", size as "size_t",
                      read as "bool", write as "bool", mut error as "SBError"] -> SBWatchpoint as "SBWatchpoint" {
-            return self->WatchAddress(addr, size, read, write, error);
+
+            //
+            // The LLDB API WatchAddress is a wrapper for
+            // WatchpointCreateByAddress, but it's bugged and ignores what you
+            // put in 'modify', meaning it always stops even for read-only
+            // breakpoing requests. Fortunately, the implementation is trivial,
+            // so we can just call WatchpointCreateByAddress directly.
+            //
+            SBWatchpointOptions options = {};
+            options.SetWatchpointTypeRead(read);
+            if (write) {
+              options.SetWatchpointTypeWrite(eWatchpointWriteTypeOnModify);
+            }
+
+            return self->WatchpointCreateByAddress(addr, size, options, error);
         });
         if error.is_success() {
             Ok(wp)

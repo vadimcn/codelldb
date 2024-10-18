@@ -1386,6 +1386,18 @@
 				"name": {
 					"type": "string",
 					"description": "The name of the Variable's child to obtain data breakpoint information for.\nIf variablesReference isn't provided, this can be an expression."
+				},
+				"frameId": {
+					"type": "integer",
+					"description": "When `name` is an expression, evaluate it in the scope of this stack frame. If not specified, the expression is evaluated in the global scope. When `variablesReference` is specified, this property has no effect."
+				},
+				"asAddress": {
+					"type": "boolean",
+					"description": "If `true`, the `name` is a memory address and the debugger should interpret it as a decimal value, or hex value if it is prefixed with `0x`.  Clients may set this property only if the `supportsDataBreakpointBytes` capability is true."
+				},
+				"bytes": {
+					"type": "integer",
+                                        "description": "If specified, a debug adapter should return information for the range of memory extending `bytes` number of bytes from the address or variable specified by `name`. Breakpoints set using the resulting data ID should pause on data access anywhere within that range. Clients may set this property only if the `supportsDataBreakpointBytes` capability is true."
 				}
 			},
 			"required": [ "name" ]
@@ -3145,7 +3157,11 @@
 				"supportsSingleThreadExecutionRequests": {
 					"type": "boolean",
 					"description": "The debug adapter supports the 'singleThread' property on the execution requests ('continue', 'next', 'stepIn', 'stepOut', 'reverseContinue', 'stepBack')."
-				}
+				},
+                                "supportsDataBreakpointBytes": {
+					"type": "boolean",
+					"description": "The debug adapter supports the `asAddress` and `bytes` fields in the `dataBreakpointInfo` request."
+                                }
 			}
 		},
 

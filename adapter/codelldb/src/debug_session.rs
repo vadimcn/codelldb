@@ -714,7 +714,11 @@ impl DebugSession {
                     });
                 }
                 stack_frame.column = 0;
-                stack_frame.presentation_hint = Some("subtle".to_owned());
+                // Mark disassembly frames as "subtle" to reduce visual clutter,
+                // unless we are in "Always Show Disassembly" mode, or this is the first frame.
+                if i > 0 && self.show_disassembly != ShowDisassembly::Always {
+                    stack_frame.presentation_hint = Some("subtle".to_owned());
+                }
             }
             stack_frames.push(stack_frame);
         }

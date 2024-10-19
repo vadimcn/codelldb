@@ -282,7 +282,7 @@ pub enum DisplayFormat {
     Binary,
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ShowDisassembly {
     Always,

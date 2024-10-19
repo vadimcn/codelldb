@@ -72,7 +72,9 @@ impl AddressSpace {
                 // How many instructions to put into DisassembledRange if the address is not in scope of any symbol.
                 const NO_SYMBOL_INSTRUCTIONS: u32 = 32;
                 start_addr = addr.clone();
-                instructions = self.target.read_instructions(&start_addr, NO_SYMBOL_INSTRUCTIONS + 1);
+                let flavor = self.target.disassembly_flavor();
+                instructions =
+                    self.target.read_instructions(&start_addr, NO_SYMBOL_INSTRUCTIONS + 1, flavor.as_deref());
                 end_addr = if instructions.len() > 0 {
                     let last_instr = instructions.instruction_at_index((instructions.len() - 1) as u32);
                     last_instr.address()

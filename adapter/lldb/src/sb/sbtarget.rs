@@ -203,14 +203,35 @@ impl SBTarget {
             })
         })
     }
-    pub fn read_instructions(&self, base_addr: &SBAddress, count: u32) -> SBInstructionList {
-        cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*", count as "uint32_t"] -> SBInstructionList as "SBInstructionList" {
-            SBDebugger debugger = self->GetDebugger();
-            SBStringList value = SBDebugger::GetInternalVariableValue("target.x86-disassembly-flavor",
-                                                                      debugger.GetInstanceName());
-            const char* flavor = value.GetSize() > 0 ? value.GetStringAtIndex(0) : nullptr;
-            return self->ReadInstructions(*base_addr, count, flavor);
+    pub fn read_instructions(&self, base_addr: &SBAddress, count: u32, flavor: Option<&str>) -> SBInstructionList {
+        with_opt_cstr(flavor, |flavor| {
+            cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*", count as "uint32_t",
+                         flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
+                return self->ReadInstructions(*base_addr, count, flavor);
+            })
         })
+    }
+    pub fn read_instructions_addr_range(
+        &self,
+        start_addr: &SBAddress,
+        end_addr: &SBAddress,
+        flavor: Option<&str>,
+    ) -> SBInstructionList {
+        with_opt_cstr(flavor, |flavor| {
+            cpp!(unsafe [self as "SBTarget*", start_addr as "SBAddress*", end_addr as "SBAddress*",
+                         flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
+                return self->ReadInstructions(*start_addr, *end_addr, flavor);
+            })
+        })
+    }
+    /// Returns the default disassembly flavor for the target.
+    pub fn disassembly_flavor(&self) -> Option<String> {
+        let strings = self.debugger().get_variable("target.x86-disassembly-flavor");
+        if let Some(flavor) = strings.string_at_index(0) {
+            Some(flavor.to_string())
+        } else {
+            None
+        }
     }
     pub fn read_memory(&self, base_addr: &SBAddress, buffer: &mut [u8]) -> Result<usize, SBError> {
         let ptr = buffer.as_mut_ptr();
@@ -329,7 +350,7 @@ impl fmt::Debug for SBTarget {
 #[allow(non_camel_case_types)]
 pub enum LanguageType {
     #[default]
-    Unknown = 0x0000,        // Unknown or invalid language value.
+    Unknown = 0x0000, // Unknown or invalid language value.
     C89 = 0x0001,            // ISO C:1989.
     C = 0x0002,              // Non-standardized C, such as K&R.
     Ada83 = 0x0003,          // ISO Ada:1983.

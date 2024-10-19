@@ -1215,12 +1215,14 @@ impl DebugSession {
         let instruction_count = args.instruction_count as usize;
         let resolve_symbols = args.resolve_symbols.unwrap_or(true);
 
+        let flavor = self.target.disassembly_flavor();
         let mut result = if instruction_offset >= 0 {
             let start_addr = SBAddress::from_load_address(base_addr, &self.target);
-            let instructions = self
-                .target
-                .read_instructions(&start_addr, (instruction_offset + args.instruction_count) as u32);
-
+            let instructions = self.target.read_instructions(
+                &start_addr,
+                (instruction_offset + args.instruction_count) as u32,
+                flavor.as_deref(),
+            );
             let mut dis_instructions = Vec::new();
             for instr in instructions.iter().skip(instruction_offset as usize) {
                 dis_instructions.push(disassembly::sbinstr_to_disinstr(

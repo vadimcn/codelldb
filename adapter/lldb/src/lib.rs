@@ -137,6 +137,7 @@ mod sb {
     pub mod sbfile;
     pub mod sbfilespec;
     pub mod sbframe;
+    pub mod sbfunction;
     pub mod sbinstruction;
     pub mod sbinstructionlist;
     pub mod sblaunchinfo;
@@ -180,6 +181,7 @@ pub use sb::sbexecutioncontext::*;
 pub use sb::sbfile::*;
 pub use sb::sbfilespec::*;
 pub use sb::sbframe::*;
+pub use sb::sbfunction::*;
 pub use sb::sbinstruction::*;
 pub use sb::sbinstructionlist::*;
 pub use sb::sblaunchinfo::*;

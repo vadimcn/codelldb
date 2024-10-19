@@ -254,7 +254,6 @@ pub fn misc() {
     let i32_ = 32;
     let f32_ = 42.0;
     let closure = move |x: i32| (x + i32_) as f32 * f32_;
-    let even = (0..10).filter(|x| x % 2 ==0).collect::<Vec<_>>();
 
     static STATIC: i32 = 4321;
 
@@ -267,5 +266,28 @@ pub fn misc() {
 
     println!("---"); // #BP_misc
     println!("---");
+    println!("---");
+}
+
+pub fn step_in() {
+    let even = (0..10).filter(|x| x % 2 == 0).collect::<Vec<_>>();
+    println!("---");
+
+    fn add3(a: i32, b: i32, c: i32) -> i32 {
+        a + b + c
+    }
+    fn add2(a: i32, b: i32) -> i32 {
+        a + b
+    }
+    fn get1() -> i32 {
+        1
+    }
+    fn get2() -> i32 {
+        2
+    }
+    #[rustfmt::skip]
+    add3(get1(),
+         add2(get2(),
+              get1()), get1());
     println!("---");
 }

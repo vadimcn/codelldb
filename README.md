@@ -3,6 +3,9 @@
 - Hardware data access breakpoints (watchpoints),
 - Launch debuggee in integrated or external terminal,
 - Disassembly view with instruction-level stepping,
+- [Step Into Targets](https://code.visualstudio.com/updates/v1_46#_step-into-targets).
+- Caller exclusion for breakpoints.
+- Memory view.
 - Loaded modules view,
 - Python scripting,
 - HTML rendering for advanced visualizations,

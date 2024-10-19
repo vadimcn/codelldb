@@ -2,6 +2,10 @@
 
 # 1.11.1
 
+### New
+- Added support for [Step Into Targets](https://code.visualstudio.com/updates/v1_46#_step-into-targets).
+  When debugging statements such as `foo(bar(), baz())`, this allows stepping directly into `foo`, bypassing `bar` and `baz`.
+
 ### Fixed
 - #1126: Highlight the current hit breakpoint
 

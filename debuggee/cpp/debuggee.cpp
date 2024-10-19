@@ -1,24 +1,25 @@
 #include <cstdlib>
 #include <cstdio>
 #include <stdlib.h>
+#include <algorithm>
 #include <complex>
 #include <vector>
 #include <thread>
 #include <exception>
 
 #if !defined(_WIN32)
- #include <unistd.h>
- #include <dlfcn.h>
- #if defined(__APPLE__)
-  #include <crt_externs.h>
-  #define environ (*_NSGetEnviron())
- #endif
- #if defined(__linux__)
-  #include <sys/prctl.h>
- #endif
+#include <unistd.h>
+#include <dlfcn.h>
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+#endif
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 #else
- #include <windows.h>
- void sleep(unsigned secs) { Sleep(secs * 1000); }
+#include <windows.h>
+void sleep(unsigned secs) { Sleep(secs * 1000); }
 #endif
 
 #include "dir1/debuggee.h"
@@ -61,13 +62,13 @@ void threads(int num_threads, int linger_time = 1)
     for (int i = 0; i < num_threads; ++i)
     {
         int *am_alive = &alive[i];
-        std::thread thread([am_alive, linger_time](int id) {
+        std::thread thread([am_alive, linger_time](int id)
+                           {
             *am_alive = 1;
             printf("I'm thread %d\n", id);
             sleep(id % 4 + linger_time);
             printf("Thread %d exiting\n", id);
-            *am_alive = 0;
-        }, i);
+            *am_alive = 0; }, i);
         threads.push_back(std::move(thread));
     }
     sleep(1);
@@ -83,7 +84,7 @@ void threads(int num_threads, int linger_time = 1)
 
 void dump_env()
 {
-    char** pval = environ;
+    char **pval = environ;
     if (pval)
     {
         while (pval && *pval)
@@ -148,7 +149,7 @@ void mandelbrot()
     }
 }
 
-void call_target() 
+void call_target()
 {
     printf("call_target"); // #BP3
 }
@@ -158,6 +159,23 @@ void caller()
     call_target();
 }
 
+int add3(int a, int b, int c) { return a + b + c; }
+int add2(int a, int b) { return a + b; }
+int get1() { return 1; }
+int get2() { return 2; }
+
+void step_in()
+{
+    std::vector<int> ints = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    std::find_if(ints.begin(), ints.end(), [](int x) { return x == 5; });
+    printf("---\n");
+
+    add3(get1(),
+         add2(get2(),
+              get1()),
+         get1());
+    printf("---\n");
+}
 
 int main(int argc, char *argv[])
 {
@@ -182,7 +200,7 @@ int main(int argc, char *argv[])
     }
     else if (testcase == "invalid_stack_frame")
     {
-        using call_t = void(*)();
+        using call_t = void (*)();
         ((call_t)(nullptr))();
     }
     else if (testcase == "throw")
@@ -207,9 +225,9 @@ int main(int argc, char *argv[])
     }
     else if (testcase == "check_env")
     {
-        for (int i = 2; i+1 < argc; i+=2)
+        for (int i = 2; i + 1 < argc; i += 2)
         {
-            if (!check_env(argv[i], argv[i+1]))
+            if (!check_env(argv[i], argv[i + 1]))
                 return -1;
         }
     }
@@ -234,20 +252,22 @@ int main(int argc, char *argv[])
         header_fn1(1);
         header_fn2(2);
 #if !defined(_WIN32)
-    #if defined(__APPLE__)
+#if defined(__APPLE__)
         void *hlib = dlopen("@executable_path/libdebuggee2.dylib", RTLD_NOW);
-    #else
+#else
         void *hlib = dlopen("./libdebuggee2.so", RTLD_NOW);
-    #endif
-        if (!hlib) throw std::runtime_error(dlerror());
+#endif
+        if (!hlib)
+            throw std::runtime_error(dlerror());
         auto sharedlib_entry = reinterpret_cast<void (*)()>(dlsym(hlib, "sharedlib_entry"));
 #else
-    #if defined(_MSC_VER)
+#if defined(_MSC_VER)
         HMODULE hlib = LoadLibraryA("debuggee2.dll");
-    #else
+#else
         HMODULE hlib = LoadLibraryA("libdebuggee2.dll");
-    #endif
-        if (!hlib) throw std::runtime_error("Could not load libdebuggee");
+#endif
+        if (!hlib)
+            throw std::runtime_error("Could not load libdebuggee");
         auto sharedlib_entry = reinterpret_cast<void (*)()>(GetProcAddress(hlib, "sharedlib_entry"));
 #endif
         sharedlib_entry();
@@ -284,14 +304,18 @@ int main(int argc, char *argv[])
         fprintf(stderr, "stderr\n");
         fflush(stderr);
     }
-    else if (testcase == "exclude_caller") 
+    else if (testcase == "exclude_caller")
     {
         // set up exclusion
         caller();
 
-        //test exclusion
+        // test exclusion
         caller();
         call_target();
+    }
+    else if (testcase == "step_in")
+    {
+        step_in();
     }
     else
     {

@@ -43,6 +43,18 @@ impl SBAddress {
         })
         .check()
     }
+    pub fn function(&self) -> Option<SBFunction> {
+        cpp!(unsafe [self as "SBAddress*"] -> SBFunction as "SBFunction" {
+            return self->GetFunction();
+        })
+        .check()
+    }
+    /// Modifies object in-place
+    pub fn add_offset(&mut self, offset: u64) -> bool {
+        cpp!(unsafe [self as "SBAddress*", offset as "int64_t"] -> bool as "bool" {
+            return self->OffsetAddress(offset);
+        })
+    }
 }
 
 impl IsValid for SBAddress {

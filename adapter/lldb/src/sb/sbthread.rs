@@ -95,25 +95,63 @@ impl SBThread {
     pub fn frames<'a>(&'a self) -> impl Iterator<Item = SBFrame> + 'a {
         SBIterator::new(self.num_frames(), move |index| self.frame_at_index(index))
     }
-    pub fn step_over(&self, stop_others: RunMode) {
-        cpp!(unsafe [self as "SBThread*", stop_others as "lldb::RunMode"] {
-            self->StepOver(stop_others);
+    pub fn resume(&self) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", mut error as "SBError"]  {
+            self->Resume(error);
+        });
+        error.into_result()
+    }
+    pub fn run_to_addresss(&self, address: Address) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", address as "lldb::addr_t", mut error as "SBError"] {
+            self->RunToAddress(address, error);
+        });
+        error.into_result()
+    }
+    pub fn step_over(&self, stop_others: RunMode) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", mut error as "SBError", stop_others as "lldb::RunMode"] {
+            self->StepOver(stop_others, error);
+        });
+        error.into_result()
+    }
+    pub fn step_into(&self, stop_others: RunMode) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", mut error as "SBError", stop_others as "lldb::RunMode"] {
+            self->StepInto(nullptr, LLDB_INVALID_LINE_NUMBER, error, stop_others);
+        });
+        error.into_result()
+    }
+    pub fn step_into_target(
+        &self,
+        target_name: &str,
+        end_line: Option<u32>,
+        stop_others: RunMode,
+    ) -> Result<(), SBError> {
+        with_cstr(target_name, |target_name| {
+            let end_line = end_line.unwrap_or(u32::MAX);
+            let mut error = SBError::new();
+            cpp!(unsafe [self as "SBThread*", target_name as "const char*", end_line as "uint32_t",
+                         mut error as "SBError", stop_others as "lldb::RunMode"] {
+                self->StepInto(target_name, end_line, error, stop_others);
+            });
+            error.into_result()
         })
     }
-    pub fn step_into(&self, stop_others: RunMode) {
-        cpp!(unsafe [self as "SBThread*", stop_others as "lldb::RunMode"] {
-            self->StepInto(stop_others);
-        })
+    pub fn step_out(&self) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", mut error as "SBError"] {
+            self->StepOut(error);
+        });
+        error.into_result()
     }
-    pub fn step_out(&self) {
-        cpp!(unsafe [self as "SBThread*"] {
-            self->StepOut();
-        })
-    }
-    pub fn step_instruction(&self, step_over: bool) {
-        cpp!(unsafe [self as "SBThread*", step_over as "bool"] {
-            self->StepInstruction(step_over);
-        })
+    pub fn step_instruction(&self, step_over: bool) -> Result<(), SBError> {
+        let mut error = SBError::new();
+        cpp!(unsafe [self as "SBThread*", step_over as "bool", mut error as "SBError"] {
+            self->StepInstruction(step_over, error);
+        });
+        error.into_result()
     }
     pub fn jump_to_line(&self, file: &SBFileSpec, line: u32) -> Result<(), SBError> {
         cpp!(unsafe [self as "SBThread*", file as "SBFileSpec*", line as "uint32_t"] -> SBError as "SBError" {

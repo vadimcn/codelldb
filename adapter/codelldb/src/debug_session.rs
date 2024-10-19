@@ -1,6 +1,7 @@
 mod breakpoints;
 mod debugger_terminal;
 mod launch;
+mod step_in;
 mod variables;
 
 use crate::prelude::*;
@@ -66,6 +67,7 @@ pub struct DebugSession {
     debuggee_terminal: Option<Terminal>,
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
+    step_in_targets: Vec<step_in::StepInTargetInternal>,
 
     client_caps: MustInitialize<InitializeRequestArguments>,
 
@@ -148,6 +150,7 @@ impl DebugSession {
             debuggee_terminal: None,
             selected_frame_changed: false,
             last_goto_request: None,
+            step_in_targets: Vec::new(),
 
             client_caps: NotInitialized,
 
@@ -436,6 +439,9 @@ impl DebugSession {
                         RequestArguments::next(args) =>
                             self.handle_next(args)
                                 .map(|_| ResponseBody::next),
+                        RequestArguments::stepInTargets(args) =>
+                            self.handle_step_in_targets(args)
+                                .map(|r| ResponseBody::stepInTargets(r)),
                         RequestArguments::stepIn(args) =>
                             self.handle_step_in(args)
                                 .map(|_| ResponseBody::stepIn),
@@ -587,6 +593,7 @@ impl DebugSession {
             supports_exception_filter_options: Some(true),
             supports_clipboard_context: Some(true),
             supports_modules_request: Some(true),
+            supports_step_in_targets_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
             ..Default::default()
         }
@@ -800,37 +807,9 @@ impl DebugSession {
         };
 
         if step_instruction {
-            thread.step_instruction(true);
+            thread.step_instruction(true)?;
         } else {
-            thread.step_over(RunMode::OnlyDuringStepping);
-        }
-        Ok(())
-    }
-
-    fn handle_step_in(&mut self, args: StepInArguments) -> Result<(), Error> {
-        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
-            Some(thread) => thread,
-            None => {
-                error!("Received invalid thread id in step-in request.");
-                bail!("Invalid thread id.")
-            }
-        };
-
-        self.before_resume();
-
-        let step_instruction = match args.granularity {
-            Some(SteppingGranularity::Instruction) => true,
-            Some(SteppingGranularity::Line) | Some(SteppingGranularity::Statement) => false,
-            None => {
-                let frame = thread.frame_at_index(0);
-                self.in_disassembly(&frame)
-            }
-        };
-
-        if step_instruction {
-            thread.step_instruction(false);
-        } else {
-            thread.step_into(RunMode::OnlyDuringStepping);
+            thread.step_over(RunMode::OnlyDuringStepping)?;
         }
         Ok(())
     }
@@ -839,7 +818,7 @@ impl DebugSession {
         self.before_resume();
         let process = self.target.process();
         let thread = process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
-        thread.step_out();
+        thread.step_out()?;
         if process.state().is_stopped() {
             self.notify_process_stopped();
         }
@@ -1521,6 +1500,8 @@ impl DebugSession {
     fn before_resume(&mut self) {
         self.var_refs.reset();
         self.selected_frame_changed = false;
+        self.last_goto_request = None;
+        self.step_in_targets.clear();
     }
 
     fn handle_debug_event(&mut self, event: SBEvent) {

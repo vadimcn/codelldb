@@ -23,6 +23,7 @@ libc = "0.2.59"
 log = "0.4.7"
 nom = "7.1.1"
 parse_int = "0.5.0"
+regex-lite = "0.1.6"
 serde = "1.0.94"
 serde_derive = "1.0.94"
 serde_json = {version = "1.0.40", features = ["raw_value"]}

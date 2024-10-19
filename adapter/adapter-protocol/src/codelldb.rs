@@ -1,8 +1,5 @@
 #![allow(non_camel_case_types)]
 
-use crate::vec_map::VecMap;
-use serde_derive::*;
-
 pub use crate::dap::{
     Breakpoint, BreakpointEventBody, CancelArguments, Capabilities, CapabilitiesEventBody, CompletionItem,
     CompletionsArguments, CompletionsResponseBody, ContinueArguments, ContinueResponseBody, ContinuedEventBody,
@@ -18,10 +15,14 @@ pub use crate::dap::{
     SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetInstructionBreakpointsArguments,
     SetInstructionBreakpointsResponseBody, SetVariableArguments, SetVariableResponseBody, Source, SourceArguments,
     SourceBreakpoint, SourceResponseBody, StackFrame, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
-    StepInArguments, StepOutArguments, SteppingGranularity, StoppedEventBody, TerminateArguments, TerminatedEventBody,
-    Thread, ThreadEventBody, ThreadsResponseBody, Variable, VariablePresentationHint, VariablesArguments,
-    VariablesResponseBody, WriteMemoryArguments, WriteMemoryResponseBody,
+    StepInArguments, StepInTarget, StepInTargetsArguments, StepInTargetsResponseBody, StepOutArguments,
+    SteppingGranularity, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread, ThreadEventBody,
+    ThreadsResponseBody, Variable, VariablePresentationHint, VariablesArguments, VariablesResponseBody,
+    WriteMemoryArguments, WriteMemoryResponseBody,
 };
+
+use crate::vec_map::VecMap;
+use serde_derive::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 
@@ -82,6 +83,7 @@ pub enum RequestArguments {
     #[serde(rename = "continue")]
     continue_(ContinueArguments),
     next(NextArguments),
+    stepInTargets(StepInTargetsArguments),
     stepIn(StepInArguments),
     stepOut(StepOutArguments),
     stepBack(StepBackArguments),
@@ -135,6 +137,7 @@ pub enum ResponseBody {
     #[serde(rename = "continue")]
     continue_(ContinueResponseBody),
     next,
+    stepInTargets(StepInTargetsResponseBody),
     stepIn,
     stepOut,
     stepBack,

@@ -42,6 +42,11 @@ impl SBInstruction {
             return self->GetData(target);
         })
     }
+    pub fn control_flow_kind(&self, target: &SBTarget) -> InstructionControlFlowKind {
+        cpp!(unsafe [self as "SBInstruction*", target as "SBTarget*"] -> InstructionControlFlowKind as "InstructionControlFlowKind" {
+            return self->GetControlFlowKind(*target);
+        })
+    }
 }
 
 impl IsValid for SBInstruction {
@@ -60,4 +65,32 @@ impl fmt::Debug for SBInstruction {
             })
         })
     }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Default, Debug, FromPrimitive)]
+#[repr(u32)]
+pub enum InstructionControlFlowKind {
+    /// The instruction could not be classified.
+    #[default]
+    Unknown = 0,
+    /// The instruction is something not listed below, i.e. it's a sequential
+    /// instruction that doesn't affect the control flow of the program.
+    Other,
+    /// The instruction is a near (function) call.
+    Call,
+    /// The instruction is a near (function) return.
+    Return,
+    /// The instruction is a near unconditional jump.
+    Jump,
+    /// The instruction is a near conditional jump.
+    CondJump,
+    /// The instruction is a call-like far transfer.
+    /// E.g. SYSCALL, SYSENTER, or FAR CALL.
+    FarCall,
+    /// The instruction is a return-like far transfer.
+    /// E.g. SYSRET, SYSEXIT, IRET, or FAR RET.
+    FarReturn,
+    /// The instruction is a jump-like far transfer.
+    /// E.g. FAR JMP.
+    FarJump,
 }

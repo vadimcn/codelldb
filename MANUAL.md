@@ -454,12 +454,12 @@ Example:
 |**Toggle Pointee Summaries**     |Choose whether to display pointee's summaries rather than the numeric value of the pointer itself. See [Pointers](#pointers).
 |**Display Options...**           |Interactive configuration of the above display options.
 |**Attach to Process...**         |Choose a process to attach to from the list of currently running processes.
-|**Use Alternate Backend...**     |Choose alternate LLDB instance to be used instead of the bundled one. See [Alternate LLDB backends](#alternate-lldb-backends)
 |**Run Diagnostics**              |Run diagnostic test to make sure that the debugger is functional.
 |**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste desired sections into `launch.json`.|
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
 |**View Memory...**               |View raw memory starting at the specified address.|
 |**Search Symbols...**            |Search for a substring among the debug target's symbols.|
+|**Use Alternate Backend...**     |Choose alternate LLDB instance to be used instead of the bundled one. See [Alternate LLDB backends](#alternate-lldb-backends)
 
 
 ## Debugger Commands

@@ -209,6 +209,14 @@
 			"terminal": "integrated"
 		},
 		{
+			"name": "debuggee launch step_in",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["step_in"],
+			"terminal": "integrated"
+		},
+		{
 			"name": "rust-debuggee",
 			"type": "lldb",
 			"request": "launch",

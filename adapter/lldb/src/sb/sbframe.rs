@@ -25,9 +25,25 @@ impl SBFrame {
             unsafe { Some(get_str(ptr)) }
         }
     }
+    pub fn symbol(&self) -> SBSymbol {
+        cpp!(unsafe [self as "SBFrame*"] -> SBSymbol as "SBSymbol" {
+            return self->GetSymbol();
+        })
+    }
+    pub fn function(&self) -> SBFunction {
+        cpp!(unsafe [self as "SBFrame*"] -> SBFunction as "SBFunction" {
+            return self->GetFunction();
+        })
+    }
     pub fn line_entry(&self) -> Option<SBLineEntry> {
         cpp!(unsafe [self as "SBFrame*"] -> SBLineEntry as "SBLineEntry" {
             return self->GetLineEntry();
+        })
+        .check()
+    }
+    pub fn compile_uint(&self) -> Option<SBCompileUnit> {
+        cpp!(unsafe [self as "SBFrame*"] -> SBCompileUnit as "SBCompileUnit" {
+            return self->GetCompileUnit();
         })
         .check()
     }

@@ -3,3 +3,6 @@ name = "rust-debuggee"
 version = "0.1.0"
 authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
 edition = "2018"
+
+[lib]
+path = "src/rust-debuggee.rs"

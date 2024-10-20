@@ -42,7 +42,7 @@ const debuggeeSourceMap = function () {
 }();
 
 const rustDebuggee = path.join(debuggeeDir, 'rust-debuggee');
-const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'src', 'lib.rs'));
+const rustDebuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'rust', 'src', 'rust-debuggee.rs'));
 
 generateSuite(triple);
 

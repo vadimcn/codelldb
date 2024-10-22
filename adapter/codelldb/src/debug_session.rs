@@ -795,7 +795,7 @@ impl DebugSession {
             Some(thread) => thread,
             None => {
                 error!("Received invalid thread id in step request.");
-                bail!("Invalid thread id.");
+                bail!(blame_nobody(str_error("Invalid thread id.")));
             }
         };
 
@@ -1526,7 +1526,7 @@ impl DebugSession {
     fn handle_diagnostic_event(&mut self, event: &SBStructuredData) {
         let diag_type = event.value_for_key("type").string_value();
         let message = event.value_for_key("message").string_value();
-        self.console_error(format!("{diag_type}:{message}"));
+        self.console_message(format!("{diag_type}: {message}"));
     }
 
     fn handle_process_event(&mut self, process_event: &SBProcessEvent) {

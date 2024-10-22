@@ -55,6 +55,13 @@ pub fn blame_user(err: Error) -> BlamedError {
     }
 }
 
+pub fn blame_nobody(err: Error) -> BlamedError {
+    BlamedError {
+        blame: Blame::Nobody,
+        inner: err,
+    }
+}
+
 pub fn str_error(err_msg: impl ToString) -> Error {
     err_msg.to_string().into()
 }

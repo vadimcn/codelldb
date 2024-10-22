@@ -6,6 +6,13 @@ cpp_class!(pub unsafe struct SBTarget as "SBTarget");
 unsafe impl Send for SBTarget {}
 
 impl SBTarget {
+    pub const BroadcastBitBreakpointChanged: u32 = (1 << 0);
+    pub const BroadcastBitModulesLoaded: u32 = (1 << 1);
+    pub const BroadcastBitModulesUnloaded: u32 = (1 << 2);
+    pub const BroadcastBitWatchpointChanged: u32 = (1 << 3);
+    pub const BroadcastBitSymbolsLoaded: u32 = (1 << 4);
+    pub const BroadcastBitSymbolsChanged: u32 = (1 << 5);
+
     pub fn byte_order(&self) -> ByteOrder {
         cpp!(unsafe [self as "SBTarget*"] -> ByteOrder as "ByteOrder" {
             return self->GetByteOrder();

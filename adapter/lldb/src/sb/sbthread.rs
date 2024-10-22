@@ -5,6 +5,12 @@ cpp_class!(pub unsafe struct SBThread as "SBThread");
 unsafe impl Send for SBThread {}
 
 impl SBThread {
+    pub const BroadcastBitStackChanged: u32 = (1 << 0);
+    pub const BroadcastBitThreadSuspended: u32 = (1 << 1);
+    pub const BroadcastBitThreadResumed: u32 = (1 << 2);
+    pub const BroadcastBitSelectedFrameChanged: u32 = (1 << 3);
+    pub const BroadcastBitThreadSelected: u32 = (1 << 4);
+
     pub fn thread_id(&self) -> ThreadID {
         cpp!(unsafe [self as "SBThread*"] -> ThreadID as "tid_t" {
             return self->GetThreadID();

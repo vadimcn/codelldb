@@ -6,6 +6,12 @@ cpp_class!(pub unsafe struct SBDebugger as "SBDebugger");
 unsafe impl Send for SBDebugger {}
 
 impl SBDebugger {
+    pub const BroadcastBitProgress: u32 = (1 << 0);
+    pub const BroadcastBitWarning: u32 = (1 << 1);
+    pub const BroadcastBitError: u32 = (1 << 2);
+    pub const BroadcastSymbolChange: u32 = (1 << 3);
+    pub const BroadcastBitProgressCategory: u32 = (1 << 4);
+
     pub fn initialize() {
         cpp!(unsafe [] {
             SBDebugger::Initialize();
@@ -179,6 +185,17 @@ impl SBDebugger {
         cpp!(unsafe [self as "SBDebugger*"] {
             self->DispatchInputEndOfFile();
         })
+    }
+    pub fn broadcaster(&self) -> SBBroadcaster {
+        cpp!(unsafe [self as "SBDebugger*"] -> SBBroadcaster as "SBBroadcaster" {
+            return self->GetBroadcaster();
+        })
+    }
+    pub fn broadcaster_class_name() -> &'static str {
+        let ptr = cpp!(unsafe [] -> *const c_char as "const char*" {
+            return SBDebugger::GetBroadcasterClass();
+        });
+        unsafe { get_str(ptr) }
     }
 }
 

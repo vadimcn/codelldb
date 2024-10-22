@@ -560,6 +560,10 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
+        self.debugger.broadcaster().add_listener(
+            &self.debugger.listener(),
+            SBDebugger::BroadcastBitWarning | SBDebugger::BroadcastBitError,
+        );
         self.debugger.listener().start_listening_for_event_class(
             &self.debugger,
             SBThread::broadcaster_class_name(),
@@ -1514,13 +1518,21 @@ impl DebugSession {
             self.handle_breakpoint_event(&bp_event);
         } else if let Some(thread_event) = event.as_thread_event() {
             self.handle_thread_event(&thread_event);
+        } else if let Some(diag_event) = event.as_diagnostic_event() {
+            self.handle_diagnostic_event(&diag_event);
         }
     }
 
+    fn handle_diagnostic_event(&mut self, event: &SBStructuredData) {
+        let diag_type = event.value_for_key("type").string_value();
+        let message = event.value_for_key("message").string_value();
+        self.console_error(format!("{diag_type}:{message}"));
+    }
+
     fn handle_process_event(&mut self, process_event: &SBProcessEvent) {
-        let flags = process_event.as_event().flags();
+        let event_type = process_event.as_event().event_type();
         let process = self.target.process();
-        if flags & SBProcessEvent::BroadcastBitStateChanged != 0 {
+        if event_type & SBProcess::BroadcastBitStateChanged != 0 {
             match process_event.process_state() {
                 ProcessState::Running | ProcessState::Stepping => self.notify_process_running(),
                 ProcessState::Stopped => {
@@ -1542,11 +1554,11 @@ impl DebugSession {
                 _ => (),
             }
         }
-        if flags & (SBProcessEvent::BroadcastBitSTDOUT | SBProcessEvent::BroadcastBitSTDERR) != 0 {
+        if event_type & (SBProcess::BroadcastBitSTDOUT | SBProcess::BroadcastBitSTDERR) != 0 {
             let read_stdout = |b: &mut [u8]| process.read_stdout(b);
             let read_stderr = |b: &mut [u8]| process.read_stderr(b);
             let (read_stream, category): (&dyn for<'r> Fn(&mut [u8]) -> usize, &str) =
-                if flags & SBProcessEvent::BroadcastBitSTDOUT != 0 {
+                if event_type & SBProcess::BroadcastBitSTDOUT != 0 {
                     (&read_stdout, "stdout")
                 } else {
                     (&read_stderr, "stderr")
@@ -1638,22 +1650,22 @@ impl DebugSession {
     }
 
     fn handle_target_event(&mut self, event: &SBTargetEvent) {
-        let flags = event.as_event().flags();
-        if flags & SBTargetEvent::BroadcastBitModulesLoaded != 0 {
+        let event_type = event.as_event().event_type();
+        if event_type & SBTarget::BroadcastBitModulesLoaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
                     reason: "new".to_owned(),
                     module: self.make_module_detail(&module),
                 }));
             }
-        } else if flags & SBTargetEvent::BroadcastBitSymbolsLoaded != 0 {
+        } else if event_type & SBTarget::BroadcastBitSymbolsLoaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
                     reason: "changed".to_owned(),
                     module: self.make_module_detail(&module),
                 }));
             }
-        } else if flags & SBTargetEvent::BroadcastBitModulesUnloaded != 0 {
+        } else if event_type & SBTarget::BroadcastBitModulesUnloaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
                     reason: "removed".to_owned(),
@@ -1701,8 +1713,8 @@ impl DebugSession {
     }
 
     fn handle_thread_event(&mut self, event: &SBThreadEvent) {
-        let flags = event.as_event().flags();
-        if flags & SBThreadEvent::BroadcastBitSelectedFrameChanged != 0 {
+        let event_type = event.as_event().event_type();
+        if event_type & SBThread::BroadcastBitSelectedFrameChanged != 0 {
             self.selected_frame_changed = true;
         }
     }

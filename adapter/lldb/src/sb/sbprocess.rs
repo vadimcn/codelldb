@@ -5,6 +5,13 @@ cpp_class!(pub unsafe struct SBProcess as "SBProcess");
 unsafe impl Send for SBProcess {}
 
 impl SBProcess {
+    pub const BroadcastBitStateChanged: u32 = (1 << 0);
+    pub const BroadcastBitInterrupt: u32 = (1 << 1);
+    pub const BroadcastBitSTDOUT: u32 = (1 << 2);
+    pub const BroadcastBitSTDERR: u32 = (1 << 3);
+    pub const BroadcastBitProfileData: u32 = (1 << 4);
+    pub const BroadcastBitStructuredData: u32 = (1 << 5);
+
     pub fn process_id(&self) -> ProcessID {
         cpp!(unsafe [self as "SBProcess*"] -> ProcessID as "lldb::pid_t" {
             return self->GetProcessID();

@@ -5,6 +5,12 @@ cpp_class!(pub unsafe struct SBCommandInterpreter as "SBCommandInterpreter");
 unsafe impl Send for SBCommandInterpreter {}
 
 impl SBCommandInterpreter {
+    pub const BroadcastBitThreadShouldExit: u32 = (1 << 0);
+    pub const BroadcastBitResetPrompt: u32 = (1 << 1);
+    pub const BroadcastBitQuitCommandReceived: u32 = (1 << 2); // User entered quit
+    pub const BroadcastBitAsynchronousOutputData: u32 = (1 << 3);
+    pub const BroadcastBitAsynchronousErrorData: u32 = (1 << 4);
+
     pub fn debugger(&self) -> SBDebugger {
         cpp!(unsafe [self as "SBCommandInterpreter*"] -> SBDebugger as "SBDebugger" {
             return self->GetDebugger();

@@ -20,10 +20,25 @@ impl SBEvent {
             unsafe { Some(CStr::from_ptr(ptr)) }
         }
     }
-    pub fn flags(&self) -> u32 {
+    pub fn broadcaster(&self) -> SBBroadcaster {
+        cpp!(unsafe [self as "SBEvent*"] -> SBBroadcaster as "SBBroadcaster" {
+            return self->GetBroadcaster();
+        })
+    }
+    pub fn event_type(&self) -> u32 {
         cpp!(unsafe [self as "SBEvent*"] -> u32 as "uint32_t" {
             return self->GetType();
         })
+    }
+    pub fn as_diagnostic_event(&self) -> Option<SBStructuredData> {
+        let data = cpp!(unsafe [self as "SBEvent*"] -> SBStructuredData as "SBStructuredData" {
+            return SBDebugger::GetDiagnosticFromEvent(*self);
+        });
+        if data.is_valid() {
+            Some(data)
+        } else {
+            None
+        }
     }
     pub fn as_process_event(&self) -> Option<SBProcessEvent> {
         if cpp!(unsafe [self as "SBEvent*"] -> bool as "bool" {
@@ -128,13 +143,6 @@ impl<'a> SBProcessEvent<'a> {
             return SBProcess::GetStructuredDataFromEvent(*event);
         })
     }
-
-    pub const BroadcastBitStateChanged: u32 = (1 << 0);
-    pub const BroadcastBitInterrupt: u32 = (1 << 1);
-    pub const BroadcastBitSTDOUT: u32 = (1 << 2);
-    pub const BroadcastBitSTDERR: u32 = (1 << 3);
-    pub const BroadcastBitProfileData: u32 = (1 << 4);
-    pub const BroadcastBitStructuredData: u32 = (1 << 5);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -166,12 +174,6 @@ impl<'a> SBTargetEvent<'a> {
     pub fn modules<'b>(&'b self) -> impl Iterator<Item = SBModule> + 'b {
         SBIterator::new(self.num_modules() as u32, move |index| self.module_at_index(index))
     }
-
-    pub const BroadcastBitBreakpointChanged: u32 = (1 << 0);
-    pub const BroadcastBitModulesLoaded: u32 = (1 << 1);
-    pub const BroadcastBitModulesUnloaded: u32 = (1 << 2);
-    pub const BroadcastBitWatchpointChanged: u32 = (1 << 3);
-    pub const BroadcastBitSymbolsLoaded: u32 = (1 << 4);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,12 +196,6 @@ impl<'a> SBThreadEvent<'a> {
             return SBThread::GetStackFrameFromEvent(*event);
         })
     }
-
-    pub const BroadcastBitStackChanged: u32 = (1 << 0);
-    pub const BroadcastBitThreadSuspended: u32 = (1 << 1);
-    pub const BroadcastBitThreadResumed: u32 = (1 << 2);
-    pub const BroadcastBitSelectedFrameChanged: u32 = (1 << 3);
-    pub const BroadcastBitThreadSelected: u32 = (1 << 4);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

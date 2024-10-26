@@ -17,11 +17,11 @@ impl super::DebugSession {
     pub(super) fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
+        self.no_debug = args.no_debug.unwrap_or(false);
+
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)
         } else {
-            self.no_debug = args.no_debug.unwrap_or(false);
-
             let target = if let Some(commands) = &args.target_create_commands {
                 self.exec_commands("targetCreateCommands", &commands)?;
                 self.debugger.selected_target()
@@ -35,7 +35,6 @@ impl super::DebugSession {
                 self.create_target_from_program(program)?
             };
             self.set_target(target);
-            self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
             self.send_event(EventBody::initialized);
 
             let term_fut = self.create_terminal(&args);
@@ -189,7 +188,6 @@ impl super::DebugSession {
             self.exec_commands("targetCreateCommands", &commands)?;
         }
         self.set_target(self.debugger.selected_target());
-        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
         self.send_event(EventBody::initialized);
 
         let mut config_done_recv = self.configuration_done_sender.subscribe();
@@ -246,8 +244,6 @@ impl super::DebugSession {
             }
         };
         self.set_target(target);
-        self.disassembly = Initialized(disassembly::AddressSpace::new(&self.target));
-
         self.send_event(EventBody::initialized);
 
         let mut config_done_recv = self.configuration_done_sender.subscribe();
@@ -311,6 +307,64 @@ impl super::DebugSession {
         Ok(ResponseBody::attach)
     }
 
+    pub(super) fn handle_restart(&mut self, args: RestartRequestArguments) -> Result<(), Error> {
+        if let Some(commands) = &self.pre_terminate_commands {
+            self.exec_commands("preTerminateCommands", &commands)?;
+        }
+
+        self.debug_event_listener.cork();
+        self.debugger.set_async_mode(false);
+        self.terminate_debuggee(None)?;
+        self.debugger.set_async_mode(true);
+        self.debug_event_listener.uncork();
+
+        match args.arguments {
+            Either::First(args) => {
+                if let Some(true) = args.custom {
+                    self.complete_custom_launch(args)?;
+                } else {
+                    self.complete_launch(args)?;
+                }
+            }
+            Either::Second(args) => {
+                self.complete_attach(args)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
+        if let Some(commands) = &self.pre_terminate_commands {
+            self.exec_commands("preTerminateCommands", &commands)?;
+        }
+
+        // Let go of the terminal helper connection
+        self.debuggee_terminal = None;
+        self.terminate_debuggee(args.map(|a| a.terminate_debuggee).flatten())?;
+
+        if let Some(commands) = &self.exit_commands {
+            self.exec_commands("exitCommands", &commands)?;
+        }
+
+        Ok(())
+    }
+
+    fn terminate_debuggee(&mut self, force_terminate: Option<bool>) -> Result<(), Error> {
+        let process = self.target.process();
+        if process.is_valid() {
+            let state = process.state();
+            if state.is_alive() {
+                let terminate = force_terminate.unwrap_or(self.terminate_on_disconnect);
+                if terminate {
+                    process.kill()?;
+                } else {
+                    process.detach(false)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn create_target_from_program(&self, program: &str) -> Result<SBTarget, Error> {
         match self.debugger.create_target(Path::new(program), None, None, false) {
             Ok(target) => Ok(target),
@@ -328,7 +382,9 @@ impl super::DebugSession {
     }
 
     fn set_target(&mut self, target: SBTarget) {
-        self.target = Initialized(target);
+        self.debugger.listener().stop_listening_for_events(&self.target.broadcaster(), !0);
+        self.target = target;
+        self.disassembly = disassembly::AddressSpace::new(&self.target);
         self.debugger.listener().start_listening_for_events(&self.target.broadcaster(), !0);
     }
 
@@ -479,6 +535,7 @@ impl super::DebugSession {
         if let Some(commands) = args_common.post_run_commands {
             self.exec_commands("postRunCommands", &commands)?;
         }
+        self.pre_terminate_commands = args_common.pre_terminate_commands;
         self.exit_commands = args_common.exit_commands;
 
         if let Some(settings) = args_common.adapter_settings {

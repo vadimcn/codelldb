@@ -35,18 +35,22 @@ function isScalarValue(value: any): boolean {
         typeof value == 'string' || value instanceof String;
 }
 
-
-export function mergeValues(value1: any, value2: any): any {
-    if (value2 === undefined)
-        return value1;
-    // For non-container types, value2 wins.
-    if (isScalarValue(value1))
+// In conflicts, value1 wins.
+export function mergeValues(value1: any, value2: any, reverseSeq: boolean = false): any {
+    if (value1 === undefined) {
         return value2;
-    // Concatenate arrays.
-    if (value1 instanceof Array && value2 instanceof Array)
-        return value1.concat(value2);
-    // Merge dictionaries.
-    return Object.assign({}, value1, value2);
+    } else if (value2 === undefined) {
+        return value1;
+    } else if (isScalarValue(value1) || isScalarValue(value2)) {
+        return value1;
+    } else if (value1 instanceof Array && value2 instanceof Array) {
+        if (!reverseSeq)
+            return value1.concat(value2);
+        else
+            return value2.concat(value1)
+    } else {
+        return Object.assign({}, value2, value1);
+    }
 }
 
 // Expand ${env:...} placeholders in extraEnv and merge it with the current process' environment.

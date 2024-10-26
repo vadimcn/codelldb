@@ -370,6 +370,15 @@
 						"scope": "resource",
 						"order": 3
 					},
+					"lldb.launch.preTerminateCommands": {
+						"markdownDescription": "Commands executed *after* preTerminateCommands in individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 4
+					},
 					"lldb.launch.exitCommands": {
 						"markdownDescription": "Commands executed *after* exitCommands in individual launch configurations.",
 						"type": "array",
@@ -863,6 +872,14 @@
 							},
 							"postRunCommands": {
 								"description": "Commands executed just after the program has been launched.",
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"default": []
+							},
+							"preTerminateCommands": {
+								"description": "Commands executed just before the debuggee is terminated or disconnected from.",
 								"type": "array",
 								"items": {
 									"type": "string"

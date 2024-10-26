@@ -59,9 +59,10 @@ To start a debugging session, you will need to create a [launch configuration](h
 |**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process),<br><li>`custom` to [configure session "manually" using LLDB commands](#custom-launch).
 |**initCommands**         |[string]| LLDB commands executed upon debugger startup.
 |**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
-|**preRunCommands**       |[string]| LLDB commands executed just before launching/attaching the debuggee.
+|**preRunCommands**       |[string]| LLDB commands executed just before launching of attaching to the debuggee.
 |**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.
-|**postRunCommands**      |[string]| LLDB commands executed just after launching/attaching the debuggee.
+|**postRunCommands**      |[string]| LLDB commands executed just after launching or attaching to the debuggee.
+|**preTerminateCommands** |[string]| LLDB commands executed just before the debuggee is terminated or disconnected from.
 |**exitCommands**         |[string]| LLDB commands executed at the end of the debugging session.
 |**expressions**          |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
 |**sourceMap**            |dictionary| See [Source Path Remapping](#source-path-remapping).

@@ -186,7 +186,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
             return undefined;
 
         let launchDefaults = getExtensionConfig(folder, 'launch');
-        launchConfig = this.mergeWorkspaceSettings(launchDefaults, launchConfig);
+        this.mergeWorkspaceSettings(launchConfig, launchDefaults);
 
         let dbgconfigConfig = getExtensionConfig(folder, 'dbgconfig');
         launchConfig = util.expandDbgConfig(launchConfig, dbgconfigConfig);
@@ -273,18 +273,19 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         }
     }
 
-    // Merge launch configuration with workspace settings
-    mergeWorkspaceSettings(launchConfig: WorkspaceConfiguration, debugConfig: DebugConfiguration): DebugConfiguration {
-        let mergeConfig = (key: string, reverse: boolean = false) => {
-            let value1 = launchConfig.get(key);
-            let value2 = debugConfig[key];
-            let value = !reverse ? mergeValues(value1, value2) : mergeValues(value2, value1);
+    // Merge workspace launch defaults into debug configuration.
+    mergeWorkspaceSettings(debugConfig: DebugConfiguration, launchConfig: WorkspaceConfiguration) {
+        let mergeConfig = (key: string, reverseSeq: boolean = false) => {
+            let launchValue = debugConfig[key];
+            let defaultValue = launchConfig.get(key);
+            let value = mergeValues(launchValue, defaultValue, reverseSeq);
             if (!util.isEmpty(value))
                 debugConfig[key] = value;
         }
         mergeConfig('initCommands');
         mergeConfig('preRunCommands');
         mergeConfig('postRunCommands');
+        mergeConfig('preTerminateCommands', true);
         mergeConfig('exitCommands', true);
         mergeConfig('env');
         mergeConfig('envFile');
@@ -297,7 +298,6 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
         mergeConfig('breakpointMode');
-        return debugConfig;
     }
 
     async getCargoLaunchConfigs() {

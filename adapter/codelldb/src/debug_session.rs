@@ -4,11 +4,11 @@ mod launch;
 mod step_in;
 mod variables;
 
+use crate::debug_event_listener::DebugEventListener;
 use crate::prelude::*;
 
 use crate::cancellation;
 use crate::dap_session::DAPSession;
-use crate::debug_event_listener;
 use crate::disassembly;
 use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
@@ -47,22 +47,23 @@ pub struct DebugSession {
     self_ref: MustInitialize<Shared<DebugSession>>,
     dap_session: DAPSession,
     python: Option<PythonSession>,
+    debug_event_listener: Arc<DebugEventListener>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with the current request
     configuration_done_sender: broadcast::Sender<()>,
-
     console_pipe: std::fs::File,
 
     debugger: SBDebugger,
     debugger_terminal: Option<DebuggerTerminal>,
-    target: MustInitialize<SBTarget>,
+    target: SBTarget,
     terminate_on_disconnect: bool,
     no_debug: bool,
 
     breakpoints: RefCell<Breakpoints>,
     var_refs: HandleTree<Container>,
-    disassembly: MustInitialize<disassembly::AddressSpace>,
+    disassembly: disassembly::AddressSpace,
     source_map_cache: RefCell<HashMap<PathBuf, Option<Rc<PathBuf>>>>,
     relative_path_base: MustInitialize<PathBuf>,
+    pre_terminate_commands: Option<Vec<String>>,
     exit_commands: Option<Vec<String>>,
     debuggee_terminal: Option<Terminal>,
     selected_frame_changed: bool,
@@ -126,26 +127,29 @@ impl DebugSession {
             None
         };
 
+        let target = debugger.dummy_target();
+
         let mut debug_session = DebugSession {
             self_ref: NotInitialized,
             dap_session: dap_session,
             python: python,
+            debug_event_listener: DebugEventListener::new(),
             current_cancellation: cancellation::dummy(),
             configuration_done_sender: broadcast::channel(1).0,
-
             console_pipe: con_writer,
 
             debugger: debugger,
+            target: target.clone(),
             debugger_terminal: None,
-            target: NotInitialized,
             terminate_on_disconnect: false,
             no_debug: false,
 
             breakpoints: RefCell::new(Breakpoints::new()),
             var_refs: HandleTree::new(),
-            disassembly: NotInitialized,
+            disassembly: disassembly::AddressSpace::new(&target),
             source_map_cache: RefCell::new(HashMap::new()),
             relative_path_base: NotInitialized,
+            pre_terminate_commands: None,
             exit_commands: None,
             debuggee_terminal: None,
             selected_frame_changed: false,
@@ -176,7 +180,8 @@ impl DebugSession {
         debug_session.update_adapter_settings(&settings);
 
         let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
-        let mut debug_events_stream = debug_event_listener::start_polling(&debug_session.debugger.listener());
+        let mut debug_events_stream =
+            debug_session.debug_event_listener.start_polling(&debug_session.debugger.listener(), 1000);
 
         let con_writer = debug_session.console_pipe.try_clone().unwrap();
         log_errors!(debug_session.debugger.set_output_file(SBFile::from(con_writer, false)));
@@ -380,13 +385,19 @@ impl DebugSession {
                 self.handle_initialize(args)
                     .map(|r| ResponseBody::initialize(r)),
             RequestArguments::launch(Either::First(args)) =>
-                    self.handle_launch(args),
-            RequestArguments::launch(Either::Second(args)) =>
-                    self.report_launch_cfg_error(serde_json::from_value::<LaunchRequestArguments>(args).unwrap_err()),
+                self.handle_launch(args),
+            RequestArguments::launch(Either::Second(json)) =>
+                self.report_launch_cfg_error(serde_json::from_value::<LaunchRequestArguments>(json).unwrap_err()),
             RequestArguments::attach(Either::First(args)) =>
-                    self.handle_attach(args),
-            RequestArguments::attach(Either::Second(args)) =>
-                    self.report_launch_cfg_error(serde_json::from_value::<AttachRequestArguments>(args).unwrap_err()),
+                self.handle_attach(args),
+            RequestArguments::attach(Either::Second(json)) =>
+                self.report_launch_cfg_error(serde_json::from_value::<AttachRequestArguments>(json).unwrap_err()),
+            RequestArguments::restart(Either::First(args)) =>
+                self.handle_restart(args)
+                    .map(|_| ResponseBody::restart),
+            RequestArguments::restart(Either::Second(json)) =>
+                self.report_launch_cfg_error(serde_json::from_value::<
+                    Either<LaunchRequestArguments, AttachRequestArguments>>(json).unwrap_err()),
             RequestArguments::configurationDone(_) =>
                 self.handle_configuration_done()
                     .map(|_| ResponseBody::configurationDone),
@@ -575,30 +586,31 @@ impl DebugSession {
 
     fn make_capabilities(&self) -> Capabilities {
         Capabilities {
-            supports_configuration_done_request: Some(true),
-            supports_function_breakpoints: Some(true),
-            supports_conditional_breakpoints: Some(true),
-            supports_hit_conditional_breakpoints: Some(true),
-            supports_set_variable: Some(true),
-            supports_goto_targets_request: Some(true),
-            supports_delayed_stack_trace_loading: Some(true),
-            support_terminate_debuggee: Some(true),
-            supports_log_points: Some(true),
-            supports_data_breakpoints: Some(true),
-            supports_cancel_request: Some(true),
-            supports_disassemble_request: Some(true),
-            supports_stepping_granularity: Some(true),
-            supports_instruction_breakpoints: Some(true),
-            supports_read_memory_request: Some(true),
-            supports_write_memory_request: Some(true),
-            supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
-            supports_completions_request: Some(self.command_completions),
-            supports_exception_info_request: Some(true),
-            supports_exception_filter_options: Some(true),
-            supports_clipboard_context: Some(true),
-            supports_modules_request: Some(true),
-            supports_step_in_targets_request: Some(true),
             exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
+            support_terminate_debuggee: Some(true),
+            supports_cancel_request: Some(true),
+            supports_clipboard_context: Some(true),
+            supports_completions_request: Some(self.command_completions),
+            supports_conditional_breakpoints: Some(true),
+            supports_configuration_done_request: Some(true),
+            supports_data_breakpoints: Some(true),
+            supports_delayed_stack_trace_loading: Some(true),
+            supports_disassemble_request: Some(true),
+            supports_evaluate_for_hovers: Some(self.evaluate_for_hovers),
+            supports_exception_filter_options: Some(true),
+            supports_exception_info_request: Some(true),
+            supports_function_breakpoints: Some(true),
+            supports_goto_targets_request: Some(true),
+            supports_hit_conditional_breakpoints: Some(true),
+            supports_instruction_breakpoints: Some(true),
+            supports_log_points: Some(true),
+            supports_modules_request: Some(true),
+            supports_read_memory_request: Some(true),
+            supports_restart_request: Some(true),
+            supports_set_variable: Some(true),
+            supports_step_in_targets_request: Some(true),
+            supports_stepping_granularity: Some(true),
+            supports_write_memory_request: Some(true),
             ..Default::default()
         }
     }
@@ -1143,38 +1155,6 @@ impl DebugSession {
     fn wpid_to_bpid(id: WatchpointID) -> i64 {
         // Avoid collision with regular breakpoints; let's hope 1M breakpoints is "enough for everyone".
         id as i64 + 1_000_000
-    }
-
-    fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
-        if let Some(commands) = &self.exit_commands {
-            self.exec_commands("exitCommands", &commands)?;
-        }
-
-        // Let go of the terminal helper connection
-        self.debuggee_terminal = None;
-
-        if let Initialized(ref target) = self.target {
-            let process = target.process();
-            if process.is_valid() {
-                let state = process.state();
-                if state.is_alive() {
-                    let terminate = match args {
-                        Some(args) => match args.terminate_debuggee {
-                            Some(terminate) => terminate,
-                            None => self.terminate_on_disconnect,
-                        },
-                        None => self.terminate_on_disconnect,
-                    };
-                    if terminate {
-                        process.kill()?;
-                    } else {
-                        process.detach(false)?;
-                    }
-                }
-            }
-        }
-
-        Ok(())
     }
 
     fn handle_disassemble(&mut self, args: DisassembleArguments) -> Result<DisassembleResponseBody, Error> {

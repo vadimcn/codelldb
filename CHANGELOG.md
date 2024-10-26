@@ -5,6 +5,11 @@
 ### New
 - Added support for [Step Into Targets](https://code.visualstudio.com/updates/v1_46#_step-into-targets).
   When debugging statements such as `foo(bar(), baz())`, this allows stepping directly into `foo`, bypassing `bar` and `baz`.
+- Added support for the `restart` request: This enables restarting the debuggee without ending the current session,
+  making restarts faster by reusing the same debug adapter instance and cached debug info from the debuggee binary.<br>
+  Note that, because the session is retained, the **exitCommands** sequence will not run before terminating the old instance
+  of the debuggee. To address this, a new **preTerminateCommands** sequence has been added.
+  Additionally, **initCommands** will not be re-executed, while **preRunCommands** and **postRunCommands** will be.
 
 ### Fixed
 - #1126: Highlight the current hit breakpoint
@@ -61,8 +66,7 @@
 - #776: Error: there is no registered task type 'codelldb.cargo'
 - #891: Incorrect matcher
 - #904: Cannot see VecDeque values in "Variables" panel after insert
-- #911: Vec in sidebar shows wrong (old) value
-- #920: Rust: local variables not updated during debugging
+- #911: Vec in sidebar shows wrong (old) value- #920: Rust: local variables not updated during debugging
 - #915: Pick(My)Process not working
 
 # 1.9.0

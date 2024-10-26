@@ -73,6 +73,7 @@ pub enum RequestArguments {
     cancel(CancelArguments),
     launch(Either<LaunchRequestArguments, serde_json::Value>),
     attach(Either<AttachRequestArguments, serde_json::Value>),
+    restart(Either<RestartRequestArguments, serde_json::Value>),
     setBreakpoints(SetBreakpointsArguments),
     setInstructionBreakpoints(SetInstructionBreakpointsArguments),
     setFunctionBreakpoints(SetFunctionBreakpointsArguments),
@@ -127,6 +128,7 @@ pub enum ResponseBody {
     cancel,
     launch,
     attach,
+    restart,
     setBreakpoints(SetBreakpointsResponseBody),
     setInstructionBreakpoints(SetInstructionBreakpointsResponseBody),
     setFunctionBreakpoints(SetBreakpointsResponseBody),
@@ -210,6 +212,7 @@ pub struct CommonLaunchFields {
     pub init_commands: Option<Vec<String>>,
     pub pre_run_commands: Option<Vec<String>>,
     pub post_run_commands: Option<Vec<String>>,
+    pub pre_terminate_commands: Option<Vec<String>>,
     pub exit_commands: Option<Vec<String>>,
     pub source_languages: Option<Vec<String>>,
     pub reverse_debugging: Option<bool>,
@@ -247,6 +250,12 @@ pub struct AttachRequestArguments {
     pub wait_for: Option<bool>,
     pub target_create_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RestartRequestArguments {
+    pub arguments: Either<LaunchRequestArguments, AttachRequestArguments>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]

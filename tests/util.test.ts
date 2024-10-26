@@ -30,16 +30,21 @@ suite('Util', () => {
     });
 
     test('mergeValues', async () => {
+        assert.deepEqual(mergeValues(undefined, undefined), undefined);
         assert.deepEqual(mergeValues(10, undefined), 10);
-        assert.deepEqual(mergeValues(false, true), true);
-        assert.deepEqual(mergeValues(10, 0), 0);
-        assert.deepEqual(mergeValues("100", "200"), "200");
+        assert.deepEqual(mergeValues(undefined, 10), 10);
+        assert.deepEqual(mergeValues(true, false), true);
+        assert.deepEqual(mergeValues(0, 10), 0);
+        assert.deepEqual(mergeValues("100", "200"), "100");
         assert.deepEqual(mergeValues(
             [1, 2], [3, 4]),
             [1, 2, 3, 4]);
         assert.deepEqual(mergeValues(
-            { a: 1, b: 2, c: 3 }, { a: 10, d: 40 }),
-            { a: 10, b: 2, c: 3, d: 40 });
+            [1, 2], [3, 4], true),
+            [3, 4, 1, 2]);
+        assert.deepEqual(mergeValues(
+            { a: 1, b: 2, }, { b: 20, c: 40 }),
+            { a: 1, b: 2, c: 40 });
     });
 
     test('Environment', async () => {

@@ -11,13 +11,13 @@ use lldb::*;
 use regex_lite::Regex;
 
 #[derive(Debug, Clone)]
-pub(crate) struct StepInTargetInternal {
+pub(super) struct StepInTargetInternal {
     target_fn: SBFunction,
     stmt_range: Range<Address>,
 }
 
 impl super::DebugSession {
-    pub(crate) fn handle_step_in_targets(
+    pub(super) fn handle_step_in_targets(
         &mut self,
         args: StepInTargetsArguments,
     ) -> Result<StepInTargetsResponseBody, Error> {
@@ -145,7 +145,7 @@ impl super::DebugSession {
         Ok(SBAddress::from_load_address(load_addr, &self.target))
     }
 
-    pub(crate) fn handle_step_in(&mut self, args: StepInArguments) -> Result<(), Error> {
+    pub(super) fn handle_step_in(&mut self, args: StepInArguments) -> Result<(), Error> {
         let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
             Some(thread) => thread,
             None => {

@@ -26,7 +26,7 @@ pub enum Container {
 }
 
 impl super::DebugSession {
-    pub fn handle_scopes(&mut self, args: ScopesArguments) -> Result<ScopesResponseBody, Error> {
+    pub(super) fn handle_scopes(&mut self, args: ScopesArguments) -> Result<ScopesResponseBody, Error> {
         let frame_id = Handle::new(args.frame_id as u32).unwrap();
         if let Some(Container::StackFrame(frame)) = self.var_refs.get(frame_id) {
             let frame = frame.clone();
@@ -66,7 +66,7 @@ impl super::DebugSession {
         }
     }
 
-    pub fn handle_variables(&mut self, args: VariablesArguments) -> Result<VariablesResponseBody, Error> {
+    pub(super) fn handle_variables(&mut self, args: VariablesArguments) -> Result<VariablesResponseBody, Error> {
         let container_handle = handles::from_i64(args.variables_reference)?;
 
         if let Some(container) = self.var_refs.get(container_handle) {
@@ -276,7 +276,7 @@ impl super::DebugSession {
     }
 
     // Get displayable string from an SBValue
-    pub fn get_var_summary(&self, var: &SBValue, unlimited: bool) -> String {
+    pub(super) fn get_var_summary(&self, var: &SBValue, unlimited: bool) -> String {
         let err = var.error();
         if err.is_failure() {
             return format!("<{}>", err);
@@ -415,7 +415,7 @@ impl super::DebugSession {
         }
     }
 
-    pub fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<ResponseBody, Error> {
+    pub(super) fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<ResponseBody, Error> {
         let frame = match args.frame_id {
             Some(frame_id) => {
                 let handle = handles::from_i64(frame_id)?;
@@ -534,7 +534,7 @@ impl super::DebugSession {
 
     // Evaluates expr in the context of frame (or in global context if frame is None)
     // Returns expressions.Value or SBValue on success, SBError on failure.
-    pub fn evaluate_expr_in_frame(
+    pub(super) fn evaluate_expr_in_frame(
         &self,
         expression: &PreparedExpression,
         frame: Option<&SBFrame>,
@@ -564,7 +564,7 @@ impl super::DebugSession {
     }
     }
 
-    pub fn handle_set_variable(&mut self, args: SetVariableArguments) -> Result<SetVariableResponseBody, Error> {
+    pub(super) fn handle_set_variable(&mut self, args: SetVariableArguments) -> Result<SetVariableResponseBody, Error> {
         let container_handle = handles::from_i64(args.variables_reference)?;
         let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
         let child = match container {
@@ -594,7 +594,7 @@ impl super::DebugSession {
         }
     }
 
-    pub fn apply_format_spec(&self, sbval: SBValue, format_spec: &FormatSpec) -> Result<SBValue, Error> {
+    pub(super) fn apply_format_spec(&self, sbval: SBValue, format_spec: &FormatSpec) -> Result<SBValue, Error> {
         let mut sbval = sbval;
         if let Some(size) = format_spec.array {
             let var_type = sbval.type_();

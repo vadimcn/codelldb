@@ -7,14 +7,14 @@ use adapter_protocol::*;
 use lldb::*;
 
 impl super::DebugSession {
-    pub fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
+    pub(super) fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
         bail!(blame_user(str_error(format!(
             "Could not parse launch configuration: {}",
             err
         ))))
     }
 
-    pub fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
+    pub(super) fn handle_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
         if let Some(true) = &args.custom {
@@ -217,7 +217,7 @@ impl super::DebugSession {
         Ok(ResponseBody::launch)
     }
 
-    pub fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
+    pub(super) fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
         if args.program.is_none() && args.pid.is_none() && args.target_create_commands.is_none() {
@@ -494,7 +494,7 @@ impl super::DebugSession {
         Ok(())
     }
 
-    pub fn print_console_mode(&self) {
+    pub(super) fn print_console_mode(&self) {
         let message = match self.console_mode {
             ConsoleMode::Commands => "Console is in 'commands' mode, prefix expressions with '?'.",
             ConsoleMode::Split | ConsoleMode::Evaluate => {

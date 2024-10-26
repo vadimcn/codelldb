@@ -9,14 +9,14 @@ use std::fs::File;
 use std::os::unix::{io::AsRawFd, thread::JoinHandleExt};
 
 #[allow(dead_code)]
-pub(crate) struct DebuggerTerminal {
+pub(super) struct DebuggerTerminal {
     terminal: Terminal,
     thread: std::thread::JoinHandle<()>,
     input_fd: libc::c_int,
 }
 
 impl super::DebugSession {
-    pub fn create_debugger_terminal(&self, session_name: &str) {
+    pub(super) fn create_debugger_terminal(&self, session_name: &str) {
         let title = format!("CodeLLDB: {}", session_name);
         let terminal_fut = Terminal::create(
             "integrated",
@@ -66,7 +66,7 @@ impl super::DebugSession {
         tokio::task::spawn_local(fut);
     }
 
-    pub fn destroy_debugger_terminal(&mut self) -> Result<(), Error> {
+    pub(super) fn destroy_debugger_terminal(&mut self) -> Result<(), Error> {
         if let Some(dt) = self.debugger_terminal.take() {
             // We need to interrupt a blocking read() syscall wrapped in EINTR handling loop :(
             #[cfg(unix)]

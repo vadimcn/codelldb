@@ -55,7 +55,10 @@ fn main() -> Result<(), Error> {
             };
 
             lldb_stub::liblldb.load_from(&liblldb_path).unwrap();
-            lldb_stub::base_api.resolve();
+            if let Err(err) = lldb_stub::base_api.resolve_uncached() {
+                log::error!("Unable to resolve liblldb symbols: {}", err);
+                return Err(err);
+            }
         }
 
         codelldb::debug_server(&matches)

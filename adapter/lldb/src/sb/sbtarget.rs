@@ -218,19 +218,20 @@ impl SBTarget {
             })
         })
     }
-    pub fn read_instructions_addr_range(
-        &self,
-        start_addr: &SBAddress,
-        end_addr: &SBAddress,
-        flavor: Option<&str>,
-    ) -> SBInstructionList {
-        with_opt_cstr(flavor, |flavor| {
-            cpp!(unsafe [self as "SBTarget*", start_addr as "SBAddress*", end_addr as "SBAddress*",
-                         flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
-                return self->ReadInstructions(*start_addr, *end_addr, flavor);
-            })
-        })
-    }
+    // Added in v18
+    // pub fn read_instructions_addr_range(
+    //     &self,
+    //     start_addr: &SBAddress,
+    //     end_addr: &SBAddress,
+    //     flavor: Option<&str>,
+    // ) -> SBInstructionList {
+    //     with_opt_cstr(flavor, |flavor| {
+    //         cpp!(unsafe [self as "SBTarget*", start_addr as "SBAddress*", end_addr as "SBAddress*",
+    //                      flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
+    //             return self->ReadInstructions(*start_addr, *end_addr, flavor);
+    //         })
+    //     })
+    // }
     /// Returns the default disassembly flavor for the target.
     pub fn disassembly_flavor(&self) -> Option<String> {
         let strings = self.debugger().get_variable("target.x86-disassembly-flavor");

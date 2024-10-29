@@ -1,5 +1,12 @@
 use super::*;
 
+cpp! {{
+namespace std {
+    // Prevent cpp from auto-deriving Default, which would use the default SBCommandInterpreter constructor
+    // introduced in v18, causing codelldb to be incompatible with earlier versions.
+    template<> struct is_default_constructible<lldb::SBCommandInterpreter> : std::false_type {};
+}
+}}
 cpp_class!(pub unsafe struct SBCommandInterpreter as "SBCommandInterpreter");
 
 unsafe impl Send for SBCommandInterpreter {}

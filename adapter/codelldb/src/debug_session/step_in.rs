@@ -59,14 +59,15 @@ impl super::DebugSession {
                 max_end_addr = cmp::max(max_end_addr, end_eddr);
             }
         }
-        // Scan the address range for `call` instructions and try to determine their targets.
-        let instructions = self.target.read_instructions_addr_range(
-            &frame.pc_address(),
-            &SBAddress::from_load_address(max_end_addr, &self.target),
-            Some("att"),
-        );
+        // Get instructions for address range PC..max_end_addr
+        let instr_count = (max_end_addr - frame.pc()) as u32;
+        let instructions = self.target.read_instructions(&frame.pc_address(), instr_count, Some("att"));
+        let instructions = instructions
+            .iter()
+            .take_while(|instr| instr.address().load_address(&self.target) < max_end_addr);
+        // Find `call` instructions and try to determine their targets.
         let mut target_fns = Vec::new();
-        for instr in instructions.iter() {
+        for instr in instructions {
             match instr.control_flow_kind(&self.target) {
                 InstructionControlFlowKind::Call | InstructionControlFlowKind::FarCall => {
                     if let Ok(func) = self.call_target_function(&instr) {

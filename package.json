@@ -234,6 +234,9 @@
 					"env": {
 						"type": "object"
 					},
+					"cwd": {
+						"type": "string"
+					},
 					"filter": {
 						"type": "object"
 					}
@@ -710,7 +713,7 @@
 										"default": []
 									},
 									"env": {
-										"description": "Additional environment variables passed to cargo.",
+										"description": "Additional environment variables passed to Cargo.",
 										"type": "object",
 										"patternProperties": {
 											".*": {
@@ -719,8 +722,12 @@
 										},
 										"default": {}
 									},
+									"cwd": {
+										"description": "Cargo working directory.",
+										"type": "string"
+									},
 									"problemMatcher": {
-										"description": "Problem matcher(s) to apply to cargo output.",
+										"description": "Problem matcher(s) to apply to Cargo output.",
 										"type": [
 											"string",
 											"array"
@@ -742,6 +749,7 @@
 								"required": [
 									"args"
 								],
+								"additionalProperties": false,
 								"defaultSnippets": [
 									{
 										"label": "Library unit tests",

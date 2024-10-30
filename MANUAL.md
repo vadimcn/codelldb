@@ -754,6 +754,7 @@ to use this feature, replace `program` property in your launch configuration wit
                                                     // "args": ["build", "--bin=foo"] is another possibility
         // The rest are optional
         "env": { "RUSTFLAGS": "-Clinker=ld.mold" }, // Extra environment variables.
+        "cwd": "${workspaceFolder}",                // Cargo working directory.
         "problemMatcher": "$rustc",                 // Problem matcher(s) to apply to cargo output.
         "filter": {                                 // Filter applied to compilation artifacts.
             "name": "mylib",

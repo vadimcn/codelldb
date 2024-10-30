@@ -10,6 +10,7 @@
   Note that, because the session is retained, the **exitCommands** sequence will not run before terminating the old instance
   of the debuggee. To address this, a new **preTerminateCommands** sequence has been added.
   Additionally, **initCommands** will not be re-executed, while **preRunCommands** and **postRunCommands** will be.
+- Added "cwd" attribute to Cargo configuration.
 
 ### Fixed
 - #1126: Highlight the current hit breakpoint

@@ -59,12 +59,13 @@ export class Cargo {
                         let cargoArgs = taskDef.args || [];
                         let pos = cargoArgs.indexOf('--');
                         // Insert either before `--` or at the end.
-                        cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json');
+                        cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, '--message-format=json', '--color=always');
 
                         outputEmitter.fire('Running `cargo ' + cargoArgs.join(' ') + '`...\r\n');
                         artifacts = await this.getCargoArtifacts(
                             taskDef.args,
                             taskDef.env,
+                            taskDef.cwd,
                             message => outputEmitter.fire(message.replace(newline, '\r\n'))
                         );
                         doneEmitter.fire(0);
@@ -136,11 +137,12 @@ export class Cargo {
     async getCargoArtifacts(
         cargoArgs: string[],
         cargoEnv: Environment,
+        cargoCwd: string,
         onMessage: (data: string) => void
     ): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
         try {
-            let cargoCwd = this.getCargoTomlDir();
+            cargoCwd = cargoCwd || this.getCargoTomlDir();
             await this.runCargo(cargoArgs, cargoEnv, cargoCwd,
                 message => {
                     if (message.reason == 'compiler-artifact') {

@@ -92,6 +92,23 @@ function generateSuite(triple: string) {
                 assert.ok(buildConfig.xml.value);
             });
 
+            test('command prompt env', async function () {
+                let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
+                let lldbPath = path.join(buildDir, 'lldb', 'bin', lldb);
+                let consolePath = path.join(buildDir, 'adapter', 'scripts', 'console.py');
+                let args = [
+                    '--no-lldbinit',
+                    '--one-line-before-file', 'command script import ' + consolePath,
+                    '--one-line-before-file', 'pip list',
+                ];
+                let result = cp.spawnSync(lldbPath, args);
+                if (result.status != 0 || result.stderr.toString().indexOf('ERROR:') >= 0) {
+                    console.log(result.stdout.toString())
+                    console.log(result.stderr.toString())
+                    assert.fail('pip check failed');
+                }
+            });
+
             test('run program to the end', async function () {
                 let terminatedAsync = ds.waitForEvent('terminated');
                 await ds.launch({ name: this.test.title, program: debuggee });

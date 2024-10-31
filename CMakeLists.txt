@@ -118,12 +118,12 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURR
 
 # Install node_modules
 execute_process(
-    COMMAND ${NPM} ci # like install, but actually respects package-lock file.
+    COMMAND ${NPM} --loglevel verbose ci # like install, but actually respects package-lock file.
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE Result
 )
 if (NOT ${Result} EQUAL 0)
-    message(FATAL_ERROR "npm intall failed: ${Result}")
+    message(FATAL_ERROR "npm install failed: ${Result}")
 endif()
 
 # Resolve $refs

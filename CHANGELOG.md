@@ -3,6 +3,7 @@
 # 1.11.1
 
 ### New
+- Updated embedded Python to v3.12.
 - Added support for [Step Into Targets](https://code.visualstudio.com/updates/v1_46#_step-into-targets).
   When debugging statements such as `foo(bar(), baz())`, this allows stepping directly into `foo`, bypassing `bar` and `baz`.
 - Added support for the `restart` request: This enables restarting the debuggee without ending the current session,
@@ -11,9 +12,12 @@
   of the debuggee. To address this, a new **preTerminateCommands** sequence has been added.
   Additionally, **initCommands** will not be re-executed, while **preRunCommands** and **postRunCommands** will be.
 - Added "cwd" attribute to Cargo configuration.
+- Add `--color=always` when running Cargo.
 
 ### Fixed
+- #1113: Disassembly does not show until call stack is clicked
 - #1126: Highlight the current hit breakpoint
+- Restored compatibility with liblldb v17
 
 # 1.11.0
 

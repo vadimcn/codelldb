@@ -115,8 +115,7 @@ pub enum RequestArguments {
     _symbols(SymbolsRequest),
     _excludeCaller(ExcludeCallerRequest),
     _setExcludedCallers(SetExcludedCallersRequest),
-    //_pythonMessage(Box<serde_json::value::RawValue>), https://github.com/serde-rs/json/issues/883
-    _pythonMessage(serde_json::value::Value),
+    _pythonMessage(serde_json::Value),
     #[serde(other)]
     unknown,
 }
@@ -188,7 +187,7 @@ pub enum EventBody {
     invalidated(InvalidatedEventBody),
     stopped(StoppedEventBody),
     // Custom
-    _pythonMessage(Box<serde_json::value::RawValue>),
+    _pythonMessage(serde_json::Value),
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

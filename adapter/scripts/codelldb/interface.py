@@ -111,17 +111,22 @@ PyObjectResult = PyResult('PyObjectResult', py_object)
 
 # ============================================================================================
 
-
+# Incoming messages from the DAP client
 on_did_receive_message = Event()
 
 
-def send_message(debugger_id, message):
+def send_message(debugger_id, message_body):
+    '''Send '_pythonMessage' event to the DAP client'''
+    fire_event(debugger_id, dict(type='SendDapEvent', event='_pythonMessage', body=message_body))
+
+
+def fire_event(debugger_id, event_body: object):
     log.error('interface has not been initialized yet')
 
 
 def initialize(init_callback_addr, callback_context, send_message_addr, log_level):
     '''One-time initialization of Rust-Python interface'''
-    global send_message
+    global fire_event
     logging.getLogger().setLevel(log_level)
 
     interrupt = ctypes.pythonapi.PyErr_SetInterrupt
@@ -139,12 +144,12 @@ def initialize(init_callback_addr, callback_context, send_message_addr, log_leve
     init_callback = CFUNCTYPE(None, c_void_p, POINTER(c_void_p), c_size_t)(init_callback_addr)
     init_callback(callback_context, ptr_arr, len(pointers))
 
-    send_message_raw = CFUNCTYPE(None, c_void_p, c_int, c_char_p)(send_message_addr)
+    fire_event_raw = CFUNCTYPE(None, c_void_p, c_int, c_char_p)(send_message_addr)
 
-    def _send_message(debugger_id, message):
-        return send_message_raw(callback_context, debugger_id, str_to_bytes(json.dumps(message)))
+    def _fire_event(debugger_id, event_body):
+        return fire_event_raw(callback_context, debugger_id, str_to_bytes(json.dumps(event_body)))
      # Override the global dummy function
-    send_message = _send_message
+    fire_event = _fire_event
 
 
 session_stdouts = {}

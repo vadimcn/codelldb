@@ -1,4 +1,4 @@
-from .api import evaluate, wrap, unwrap, get_config, create_webview, display_html
+from .api import evaluate, wrap, unwrap, get_config, create_webview, display_html, debugger_message
 from .value import Value
 
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore

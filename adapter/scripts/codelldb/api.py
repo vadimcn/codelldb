@@ -43,15 +43,17 @@ def unwrap(obj: Value) -> lldb.SBValue:
 
 def create_webview(html: Optional[str] = None, title: Optional[str] = None, view_column: Optional[int] = None,
                    preserve_focus: bool = False, enable_find_widget: bool = False,
-                   retain_context_when_hidden: bool = False, enable_scripts: bool = False):
+                   retain_context_when_hidden: bool = False, enable_scripts: bool = False,
+                   preserve_orphaned: bool = False):
     '''Create a [webview panel](https://code.visualstudio.com/api/references/vscode-api#WebviewPanel).
         html:               HTML content to display in the webview.  May be later replaced via Webview.set_html().
         title:              Panel title.
         view_column:        Column in which to show the webview.
         preserve_focus:     Whether to preserve focus in the current editor when revealing the webview.
-        enable_find_widget: Controls if the find widget is enabled in the panel.
-        retain_context_when_hidden: Controls if the webview panel retains its context when it is hidden.
-        enable_scripts:     Controls if scripts are enabled in the webview.
+        enable_find_widget: Controls whether the find widget is enabled in the panel.
+        retain_context_when_hidden: Controls whether the webview panel retains its context when hidden.
+        enable_scripts:     Controls whether scripts are enabled in the webview.
+        preserve_orphaned:  Preserve webview panel after the end of the debug session.
     '''
     debugger_id = lldb.debugger.GetID()
     webview = Webview(debugger_id)
@@ -64,17 +66,24 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
                                 preserveFocus=preserve_focus,
                                 enableFindWidget=enable_find_widget,
                                 retainContextWhenHidden=retain_context_when_hidden,
-                                enableScripts=enable_scripts
+                                enableScripts=enable_scripts,
+                                preserveOrphaned=preserve_orphaned,
                                 )
                            )
     return webview
 
 
-def display_html(html: str, title: Optional[str] = None, position: Optional[int] = None, reveal: bool = False):
+def debugger_message(output: str, category: str = 'console'):
+    interface.fire_event(lldb.debugger.GetID(), dict(type='DebuggerMessage', output=output, category=category))
+
+
+def display_html(html: str, title: Optional[str] = None, position: Optional[int] = None, reveal: bool = False,
+                 preserve_orphaned: bool = True):
     '''Display HTML content in a webview panel.
        display_html is **deprecated**, use create_webview instead.
     '''
-    global html_webview
+    inst_dict = interface.get_instance_dict(lldb.debugger)
+    html_webview = inst_dict.get('html_webview')
     if html_webview is None:
         warnings.warn("display_html is deprecated, use create_webview instead", DeprecationWarning)
 
@@ -83,7 +92,8 @@ def display_html(html: str, title: Optional[str] = None, position: Optional[int]
             title=title,
             view_column=position,
             preserve_focus=not reveal,
-            enable_scripts=True
+            enable_scripts=True,
+            preserve_orphaned=preserve_orphaned,
         )
 
         def on_message(message):
@@ -91,18 +101,15 @@ def display_html(html: str, title: Optional[str] = None, position: Optional[int]
                 lldb.debugger.HandleCommand(message['text'])
 
         def on_disposed(message):
-            global html_webview
-            html_webview = None
+            del globals()['html_webview']
 
         html_webview.on_did_receive_message.add(on_message)
         html_webview.on_did_dispose.add(on_disposed)
+        inst_dict['html_webview'] = html_webview
     else:
         html_webview.set_html(html)
         if reveal:
             html_webview.reveal(view_column=position)
-
-
-html_webview = None
 
 
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore

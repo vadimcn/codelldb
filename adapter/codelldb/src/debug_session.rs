@@ -14,6 +14,7 @@ use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::platform::{get_fs_path_case, make_case_folder, pipe};
+use crate::python::PythonEvent;
 use crate::python::{PythonInterface, PythonSession};
 use crate::shared::Shared;
 use crate::terminal::Terminal;
@@ -119,12 +120,12 @@ impl DebugSession {
 
         let (con_reader, con_writer) = pipe().unwrap();
 
-        let python = if let Some(python_interface) = python_interface {
+        let (python, mut python_events_stream) = if let Some(python_interface) = python_interface {
             let (python, python_events) = python_interface.new_session(&debugger, con_writer.try_clone().unwrap());
-            DebugSession::pipe_python_events(&dap_session, python_events);
-            Some(python)
+            (Some(python), python_events)
         } else {
-            None
+            let (_, receiver) = mpsc::channel(0);
+            (None, receiver)
         };
 
         let target = debugger.dummy_target();
@@ -194,6 +195,14 @@ impl DebugSession {
         local_set.spawn_local(async move {
             loop {
                 tokio::select! {
+                    // Python events
+                    Some(event) = python_events_stream.recv() => {
+                        shared_session.map(|s| s.handle_python_event(event)).await;
+                    }
+                    // LLDB events.
+                    Some(event) = debug_events_stream.recv() => {
+                        shared_session.map(|s| s.handle_debug_event(event)).await;
+                    }
                     // Requests from VSCode
                     request = requests_receiver.recv() => {
                         match request {
@@ -204,10 +213,6 @@ impl DebugSession {
                                 break;
                             }
                         }
-                    }
-                    // LLDB events.
-                    Some(event) = debug_events_stream.recv() => {
-                        shared_session.map( |s| s.handle_debug_event(event)).await;
                     }
                 }
             }
@@ -259,16 +264,6 @@ impl DebugSession {
                         line_buf.get_mut().set_position(0);
                     }
                 }
-            }
-        });
-    }
-
-    // Pipe events from the Python interface to the DAP session.
-    fn pipe_python_events(dap_session: &DAPSession, mut python_events: mpsc::Receiver<EventBody>) {
-        let dap_session = dap_session.clone();
-        tokio::spawn(async move {
-            while let Some(event) = python_events.recv().await {
-                log_errors!(dap_session.send_event(event).await);
             }
         });
     }
@@ -1389,6 +1384,17 @@ impl DebugSession {
             python.handle_message(&body_json);
         }
         Ok(())
+    }
+
+    fn handle_python_event(&mut self, event: PythonEvent) {
+        match event {
+            PythonEvent::SendDapEvent(event) => {
+                log_errors!(self.dap_session.try_send_event(event));
+            }
+            PythonEvent::DebuggerMessage { output, category } => {
+                self.console_message_impl(Some(&category), output);
+            }
+        }
     }
 
     fn handle_adapter_settings(&mut self, args: AdapterSettings) -> Result<(), Error> {

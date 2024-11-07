@@ -3,8 +3,12 @@ import {
 } from "vscode";
 import { Dict } from './novsc/commonTypes';
 
+interface DebuggerPanel extends WebviewPanel {
+    preserveOrphaned: boolean
+}
+
 export class WebviewManager {
-    sessionPanels: Dict<Dict<WebviewPanel>> = {};
+    sessionPanels: Dict<Dict<DebuggerPanel>> = {};
 
     constructor(context: ExtensionContext) {
         let subscriptions = context.subscriptions;
@@ -17,7 +21,8 @@ export class WebviewManager {
             let panels = this.sessionPanels[session.id];
             if (panels) {
                 for (let panel of Object.values(panels)) {
-                    panel.dispose();
+                    if (!panel.preserveOrphaned)
+                        panel.dispose();
                 }
             }
         }
@@ -43,7 +48,7 @@ export class WebviewManager {
 
     createWebview(session: DebugSession, body: any) {
         let view_id = body.id;
-        let panel = window.createWebviewPanel(
+        let panel = <DebuggerPanel>window.createWebviewPanel(
             'codelldb.webview',
             body.title || session.name,
             {
@@ -65,6 +70,7 @@ export class WebviewManager {
         });
         if (body.html)
             panel.webview.html = body.html;
+        panel.preserveOrphaned = body.preserveOrphaned
 
         let panels = this.sessionPanels[session.id];
         if (panels == undefined) {

@@ -27,6 +27,16 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
                                         wShowWindow=subprocess.SW_HIDE)  # type: ignore
         sysroot = subprocess.check_output(command, startupinfo=si, encoding='utf-8').strip()
     etc = path.join(sysroot, 'lib/rustlib/etc')
-    log.info('Loading Rust formatters from {}'.format(etc))
-    debugger.HandleCommand("command script import '{}'".format(path.join(etc, 'lldb_lookup.py')))
-    debugger.HandleCommand("command source -s true '{}'".format(path.join(etc, 'lldb_commands')))
+
+    codelldb.debugger_message('Loading Rust formatters from {}'.format(etc))
+    lldb_lookup = path.join(etc, 'lldb_lookup.py')
+    lldb_commands = path.join(etc, 'lldb_commands')
+    if path.isfile(lldb_lookup):
+        debugger.HandleCommand("command script import '{}'".format(lldb_lookup))
+        debugger.HandleCommand("command source -s true '{}'".format(lldb_commands))
+    else:
+        if '-msvc' in sysroot:
+            codelldb.debugger_message(
+                'Could not find LLDB data formatters in your Rust toolchain.  ' +
+                'Consider installing the x86_64-pc-windows-gnu target by running `rustup target add x86_64-pc-windows-gnu`.',
+                category='stderr')

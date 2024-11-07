@@ -55,11 +55,7 @@ impl Terminal {
                 kind: Some(terminal_kind),
                 title: Some(title),
             };
-
-            tokio::spawn(async move {
-                let response = dap_session.send_request(RequestArguments::runInTerminal(req_args));
-                log_errors!(response.await);
-            });
+            dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
 
             let (stream, _remote_addr) = accept_fut.await?;
             let mut reader = BufReader::new(stream);

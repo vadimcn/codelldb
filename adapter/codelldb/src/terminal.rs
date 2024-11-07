@@ -102,7 +102,7 @@ impl Terminal {
     #[cfg(windows)]
     pub fn detach_console(&self) {
         unsafe {
-            dbg!(winapi::um::wincon::FreeConsole());
+            winapi::um::wincon::FreeConsole();
         }
     }
 }

@@ -124,7 +124,7 @@ impl DebugSession {
             let (python, python_events) = python_interface.new_session(&debugger, con_writer.try_clone().unwrap());
             (Some(python), python_events)
         } else {
-            let (_, receiver) = mpsc::channel(0);
+            let (_, receiver) = mpsc::channel(1);
             (None, receiver)
         };
 

@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.11.2
+
+### Fixed
+- #1177: Debugger panicks if Python cannot be initialized
+
 # 1.11.1
 
 ### New

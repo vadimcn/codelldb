@@ -635,7 +635,8 @@ which is auto-imported into debugger's main script context:
 
 def get_config(name: str, default: Any = None) -> Any:
     '''Retrieve a configuration value from the adapter settings.
-        name:    Dot-separated path of the setting to retrieve.  For example, 'foo.bar', will retrieve the value of `lldb.script.foo.bar`.
+        name:    Dot-separated path of the setting to retrieve.  For example, `get_config('foo.bar')`,
+                 will retrieve the value of `lldb.script.foo.bar` from VSCode configuration.
         default: The default value to return if the configuration value is not found.
     '''
 def evaluate(expr: str, unwrap: bool = False) -> Value | lldb.SBValue:

@@ -251,11 +251,27 @@ dummy_sberror = lldb.SBError()
 
 
 def update_adapter_settings(settings_json, internal_dict):
+    '''Invoked by the host when adapter settings are updated'''
     settings = json.loads(settings_json)
     adapter_settings = internal_dict.setdefault('adapter_settings', {})
     for key, value in settings.items():
         if value is not None:
             adapter_settings[key] = value
+    adapter_settings['scriptConfig'] = expand_flat_keys(adapter_settings.get('scriptConfig', {}))
+
+
+def expand_flat_keys(config: dict) -> dict:
+    '''Expand dot-separated keys into nested dicts,
+       for example, `{"foo.bar": { "baz.quox": 42 } }` becomes `{"foo": {"bar": {"baz": {"quox": 42} } }`
+    '''
+    expanded = {}
+    for key, val in config.items():
+        keys = key.split('.')
+        d = expanded
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = expand_flat_keys(val) if isinstance(val, dict) else val
+    return expanded
 
 
 def to_sbvalue(value, target):

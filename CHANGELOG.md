@@ -2,6 +2,9 @@
 
 # 1.11.2
 
+### New
+- Improved no-debug mode startup time by disabling symbol preloading.
+
 ### Fixed
 - #1177: Debugger panicks if Python cannot be initialized
 

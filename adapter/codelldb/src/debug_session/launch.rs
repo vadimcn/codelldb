@@ -18,6 +18,12 @@ impl super::DebugSession {
         self.common_init_session(&args.common)?;
 
         self.no_debug = args.no_debug.unwrap_or(false);
+        if self.no_debug {
+            // Disable symbol pre-loading to speed up no-debug startup.
+            log_errors!(self.debugger.set_variable("target.preload-symbols", "false"));
+            // Attempts to set a breakpoint on __jit_debug_register_code in each module, thus causing symbol loading.
+            log_errors!(self.debugger.set_variable("plugin.jit-loader.gdb.enable", "off"));
+        }
 
         if let Some(true) = &args.custom {
             self.handle_custom_launch(args)

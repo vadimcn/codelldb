@@ -37,6 +37,6 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     else:
         if '-msvc' in sysroot:
             codelldb.debugger_message(
-                'Could not find LLDB data formatters in your Rust toolchain.  ' +
-                'Consider installing the x86_64-pc-windows-gnu target by running `rustup target add x86_64-pc-windows-gnu`.',
+                'Could not find LLDB data formatters in your Rust toolchain.  '
+                'For more information, please visit https://github.com/vadimcn/codelldb/wiki/Windows',
                 category='stderr')

@@ -2,7 +2,9 @@
 
 # 1.11.2
 
-### New
+### Changed
+- Deprecating "custom" launch configurations, as the same functionality may be achieved with **"request": "launch"**.<br>
+ **"request": "custom"** is still accepted, however it will behave the same as "launch".
 - Improved no-debug mode startup time by disabling symbol preloading.
 
 ### Fixed

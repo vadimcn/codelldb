@@ -191,10 +191,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let dbgconfigConfig = getExtensionConfig(folder, 'dbgconfig');
         launchConfig = util.expandDbgConfig(launchConfig, dbgconfigConfig);
 
-        // Transform "request":"custom" to "request":"launch" + "custom":true
+        // Transform "request":"custom" to "request":"launch"
         if (launchConfig.request == 'custom') {
             launchConfig.request = 'launch';
-            launchConfig.custom = true;
         }
 
         if (typeof launchConfig.args == 'string') {

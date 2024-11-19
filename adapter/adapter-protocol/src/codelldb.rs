@@ -236,7 +236,6 @@ pub struct LaunchRequestArguments {
     pub console: Option<ConsoleKind>,
     pub target_create_commands: Option<Vec<String>>,
     pub process_create_commands: Option<Vec<String>>,
-    pub custom: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -76,7 +76,7 @@ function generateSuite(triple: string) {
         suite('Basic', () => {
 
             test('check python', async function () {
-                await ds.launch({ name: this.test.title, custom: true });
+                await ds.launch({ name: this.test.title, program: debuggee });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
                     context: '_command'

@@ -1027,40 +1027,10 @@
 						}
 					},
 					"custom": {
+						"deprecated": true,
+						"description": "`custom` is deprecated.  Use `launch` instead.",
 						"properties": {
-							"initCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
-							},
-							"cargo": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/cargo"
-							},
-							"targetCreateCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/targetCreateCommands"
-							},
-							"processCreateCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/processCreateCommands"
-							},
-							"exitCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/exitCommands"
-							},
-							"expressions": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/expressions"
-							},
-							"sourceMap": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceMap"
-							},
-							"relativePathBase": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/relativePathBase"
-							},
-							"sourceLanguages": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceLanguages"
-							},
-							"reverseDebugging": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
-							},
-							"breakpointMode": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode"
-							}
+							"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties"
 						}
 					}
 				},
@@ -1102,7 +1072,7 @@
 						"description": "Launch or attach using raw LLDB commands.",
 						"body": {
 							"type": "lldb",
-							"request": "custom",
+							"request": "launch",
 							"name": "${2:Custom launch}",
 							"targetCreateCommands": [
 								"^\"target create \\${workspaceFolder}/${1:<program>}\""

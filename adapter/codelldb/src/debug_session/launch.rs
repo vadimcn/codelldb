@@ -25,36 +25,32 @@ impl super::DebugSession {
             log_errors!(self.debugger.set_variable("plugin.jit-loader.gdb.enable", "off"));
         }
 
-        if let Some(true) = &args.custom {
-            self.handle_custom_launch(args)
+        let target = if let Some(commands) = &args.target_create_commands {
+            self.exec_commands("targetCreateCommands", &commands)?;
+            self.debugger.selected_target()
         } else {
-            let target = if let Some(commands) = &args.target_create_commands {
-                self.exec_commands("targetCreateCommands", &commands)?;
-                self.debugger.selected_target()
-            } else {
-                let program = match &args.program {
-                    Some(program) => program,
-                    None => bail!(blame_user(str_error(
-                        "The \"program\" attribute is required for launch."
-                    ))),
-                };
-                self.create_target_from_program(program)?
+            let program = match &args.program {
+                Some(program) => program,
+                None => bail!(blame_user(str_error(
+                    "The \"program\" attribute is required for launch."
+                ))),
             };
-            self.set_target(target);
-            self.send_event(EventBody::initialized);
+            self.create_target_from_program(program)?
+        };
+        self.set_target(target);
+        self.send_event(EventBody::initialized);
 
-            let mut config_done_recv = self.configuration_done_sender.subscribe();
-            let self_ref = self.self_ref.clone();
-            let fut = async move {
-                // Work around https://github.com/microsoft/vscode/issues/231074 by pausing before sending the
-                // `runInTerminal` message.  This gives VSCode the chance to process `output` messages we sent earlier.
-                tokio::time::sleep(time::Duration::from_millis(100)).await;
-                log_errors!(config_done_recv.recv().await);
-                self_ref.map(|s| s.create_terminal(&args)).await.await;
-                self_ref.map(|s| s.complete_launch(args)).await
-            };
-            Err(AsyncResponse(Box::new(fut)).into())
-        }
+        let mut config_done_recv = self.configuration_done_sender.subscribe();
+        let self_ref = self.self_ref.clone();
+        let fut = async move {
+            // Work around https://github.com/microsoft/vscode/issues/231074 by pausing before sending the
+            // `runInTerminal` message.  This gives VSCode the chance to process `output` messages we sent earlier.
+            tokio::time::sleep(time::Duration::from_millis(100)).await;
+            log_errors!(config_done_recv.recv().await);
+            self_ref.map(|s| s.create_terminal(&args)).await.await;
+            self_ref.map(|s| s.complete_launch(args)).await
+        };
+        Err(AsyncResponse(Box::new(fut)).into())
     }
 
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
@@ -191,38 +187,6 @@ impl super::DebugSession {
         Ok(ResponseBody::launch)
     }
 
-    fn handle_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(commands) = &args.target_create_commands {
-            self.exec_commands("targetCreateCommands", &commands)?;
-        }
-        self.set_target(self.debugger.selected_target());
-        self.send_event(EventBody::initialized);
-
-        let mut config_done_recv = self.configuration_done_sender.subscribe();
-        let self_ref = self.self_ref.clone();
-        let fut = async move {
-            log_errors!(config_done_recv.recv().await);
-            self_ref.map(|s| s.complete_custom_launch(args)).await
-        };
-        Err(AsyncResponse(Box::new(fut)).into())
-    }
-
-    fn complete_custom_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
-        if let Some(commands) = args.process_create_commands.as_ref().or(args.common.pre_run_commands.as_ref()) {
-            self.exec_commands("processCreateCommands", &commands)?;
-        }
-        self.terminate_on_disconnect = true;
-
-        // This is susceptible to race conditions, but probably the best we can do.
-        if self.target.process().state().is_stopped() {
-            self.notify_process_stopped();
-        }
-
-        self.common_post_run(args.common)?;
-
-        Ok(ResponseBody::launch)
-    }
-
     pub(super) fn handle_attach(&mut self, args: AttachRequestArguments) -> Result<ResponseBody, Error> {
         self.common_init_session(&args.common)?;
 
@@ -328,11 +292,7 @@ impl super::DebugSession {
 
         match args.arguments {
             Either::First(args) => {
-                if let Some(true) = args.custom {
-                    self.complete_custom_launch(args)?;
-                } else {
-                    self.complete_launch(args)?;
-                }
+                self.complete_launch(args)?;
             }
             Either::Second(args) => {
                 self.complete_attach(args)?;

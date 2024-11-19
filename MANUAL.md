@@ -6,7 +6,6 @@
         - [Launching a New Process](#launching-a-new-process)
             - [Stdio Redirection](#stdio-redirection)
         - [Attaching to an Existing Process](#attaching-to-a-running-process)
-        - [Custom Launch](#custom-launch)
     - [Debugging Externally Launched Code](#debugging-externally-launched-code)
         - [RPC Server](#rpc-server)
     - [Remote Debugging](#remote-debugging)
@@ -56,7 +55,7 @@ To start a debugging session, you will need to create a [launch configuration](h
 |-------------------------|------|---------|
 |**name**                 |string| *Required.* Launch configuration name, as you want it to appear in the Run and Debug panel.
 |**type**                 |string| *Required.* Set to `lldb`.
-|**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process),<br><li>`custom` to [configure session "manually" using LLDB commands](#custom-launch).
+|**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process).
 |**initCommands**         |[string]| LLDB commands executed upon debugger startup.
 |**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
 |**preRunCommands**       |[string]| LLDB commands executed just before launching of attaching to the debuggee.
@@ -101,10 +100,13 @@ Operations performed for launch:
 - The debuggee process is created:
   - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have created
     a process corresponding to the debug target.
-  - Otherwise the default process creation action is performed (equivalent to the `process launch` command).
+  - Otherwise, the default process creation action is performed (equivalent to the `process launch` command).
 - The `postRunCommands` sequence is executed.
-- ...
-- At the end of the debugging session the `exitCommands` sequence is executed.
+- Debugging until the debuggee exits, or the user requests termination.
+- The `preTerminateCommands` sequence is executed.
+- The debuggee is terminated (if still alive).
+- If restarting the debug session, go to `preRunCommands` step.
+- The `exitCommands` sequence is executed.
 
 ### Stdio Redirection
 The **stdio** property is a list of redirection targets for each of the debuggee's stdio streams:
@@ -145,10 +147,13 @@ Flow during the attach sequence:
 - The debugger attaches to the specified process.
   - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have
     attached debugger to the process corresponding to the debug target.
-  - Otherwise the default attach action is performed (equivalent to the `process attach` command).
+  - Otherwise, the default attach action is performed (equivalent to the `process attach` command).
 - The `postRunCommands` sequence is executed.
-- ...
-- At the end of the debugging session the `exitCommands` sequence is executed.
+- Debugging until the debuggee exits, or the user requests termination.
+- The `preTerminateCommands` sequence is executed.
+- The debuggee is detached from.
+- If restarting the debug session, go to `preRunCommands` step.
+- The `exitCommands` sequence is executed.
 
 Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
 on some systems.  You may need to adjust system configuration to enable it.
@@ -196,21 +201,6 @@ lets you filter the process list to those that match the specified filter.
   ]
 }
 ```
-
-## Custom Launch
-
-The custom launch method allows user to fully specify how the debug session is initiated:
-- The `targetCreateCommands` command sequence is executed. This sequence is expected to have created the debug target (see `target create` command).
-- Breakpoints are created.
-- The `processCreateCommands` command sequence is executed.  This sequence is expected to have created the debuggee process (see `process launch` command).
-- ...
-- At the end of the debugging session the `exitCommands` sequence is executed.
-
-|attribute          |type    |         |
-|-------------------|--------|---------|
-|**targetCreateCommands**  |[string]|Commands that create the debug target.
-|**processCreateCommands** |[string]|Commands that create the debuggee process.
-
 
 ## Debugging Externally Launched Code
 
@@ -341,13 +331,13 @@ This includes not just gdbserver itself, but also execution environments that im
 such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](https://rr-project.org/), and others.
 
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
-- Create a custom launch configuration.
+- Create a launch configuration.
 - Start debugging.
 ```javascript
 {
     "name": "Remote attach",
     "type": "lldb",
-    "request": "custom",
+    "request": "launch",
     "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
     "processCreateCommands": ["gdb-remote <remote_host>:<port>"]
 }
@@ -388,7 +378,7 @@ Launch config:
 {
     "name": "Replay",
     "type": "lldb",
-    "request": "custom",
+    "request": "launch",
     "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
     "processCreateCommands": ["gdb-remote 127.0.0.1:<port>"],
     "reverseDebugging": true
@@ -396,12 +386,12 @@ Launch config:
 ```
 
 ## Inspecting a Core Dump
-Use custom launch with `target create -c <core path>` command:
+Use launch configuration with `target create -c <core path>` command:
 ```javascript
 {
     "name": "Core dump",
     "type": "lldb",
-    "request": "custom",
+    "request": "launch",
     "targetCreateCommands": ["target create -c ${workspaceFolder}/core"],
 }
 ```
@@ -768,8 +758,8 @@ Try to be as specific as possible when specifying the build target, because if t
 binary output, CodeLLDB won't know which one you want it to debug!
 
 Normally, Cargo output will be used to set the `program` property (but only if it isn't defined).
-However, in order to support custom launch and other oddball scenarios, there is also
-a substitution variable, which expands to the same thing: `${cargo:program}`.
+However, in order to support variaous oddball scenarios, there is also a substitution variable,
+which expands to the same value: `${cargo:program}`.
 
 CodeLLDB will also use `Cargo.toml` in the workspace root to generate initial debug
 configurations when there is no existing `launch.json`.

@@ -200,40 +200,45 @@ impl fmt::Debug for SBProcess {
 pub enum ProcessState {
     #[default]
     Invalid = 0,
+    /// Process is object is valid, but not currently loaded.
     Unloaded = 1,
+    /// Process is connected to remote debug services, but not launched or attached to anything yet.
     Connected = 2,
+    /// Process is in the process of attaching.
     Attaching = 3,
+    /// Process is in the process of launching.
     Launching = 4,
+    /// Process or thread is stopped and can be examined.
     Stopped = 5,
+    /// Process or thread is running and can't be examined.
     Running = 6,
+    /// Process or thread is in the process of stepping and can not be examined.
     Stepping = 7,
+    /// Process or thread has crashed and can be examined.
     Crashed = 8,
+    /// Process has been detached and can't be examined.
     Detached = 9,
+    /// Process has exited and can't be examined.
     Exited = 10,
+    /// Process or thread is in a suspended state as far as the debugger is concerned
+    /// while other processes or threads get the chance to run.
     Suspended = 11,
 }
 
 impl ProcessState {
+    /// True if the process object is backed by an actual process.
     pub fn is_alive(&self) -> bool {
         use ProcessState::*;
         match self {
-            Attaching | Launching | Stopped | Running | Stepping | Crashed | Suspended => true,
+            Attaching | Launching | Running | Stepping | Stopped | Suspended | Crashed => true,
             _ => false,
         }
     }
-
+    /// True if the process is currently executing and can't be examined.
     pub fn is_running(&self) -> bool {
         use ProcessState::*;
         match self {
             Attaching | Launching | Running | Stepping => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_stopped(&self) -> bool {
-        use ProcessState::*;
-        match self {
-            Stopped | Crashed | Suspended | Unloaded | Exited => true,
             _ => false,
         }
     }

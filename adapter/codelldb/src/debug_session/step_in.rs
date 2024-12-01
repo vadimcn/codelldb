@@ -175,24 +175,23 @@ impl super::DebugSession {
         } else {
             if let Some(step_target) = step_target {
                 let target_name = step_target.target_fn.name();
-                self.debugger.set_async_mode(false);
-                // SBThread::StepInto(target...) will step only within the range of the LineEntry covering the
-                // current PC (the variant with `end_line` works only if the compiler generated a line number index).
-                // Since the target function might belong to a different LineEntry, we attempt
-                // step-ins until execution moves outside the statement range computed above.
-                // This will happen in two cases: either we successfully step into the target function, or
-                // we step outside the call site statement.
-                loop {
-                    let result = thread.step_into_target(target_name, None, RunMode::OnlyDuringStepping);
-                    if result.is_err() || self.current_cancellation.is_cancelled() {
-                        break;
-                    }
-                    let frame = thread.frame_at_index(0);
-                    if !step_target.stmt_range.contains(&frame.pc()) {
-                        break;
-                    }
-                }
-                self.debugger.set_async_mode(true);
+                self.with_sync_mode(||
+                    // SBThread::StepInto(target...) will step only within the range of the LineEntry covering the
+                    // current PC (the variant with `end_line` works only if the compiler generated a line number index).
+                    // Since the target function might belong to a different LineEntry, we attempt
+                    // step-ins until execution moves outside the statement range computed above.
+                    // This will happen in two cases: either we successfully step into the target function, or
+                    // we step outside the call site statement.
+                    loop {
+                        let result = thread.step_into_target(target_name, None, RunMode::OnlyDuringStepping);
+                        if result.is_err() || self.current_cancellation.is_cancelled() {
+                            break;
+                        }
+                        let frame = thread.frame_at_index(0);
+                        if !step_target.stmt_range.contains(&frame.pc()) {
+                            break;
+                        }
+                    });
                 self.notify_process_stopped();
             } else {
                 thread.step_into(RunMode::OnlyDuringStepping)?;

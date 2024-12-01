@@ -56,6 +56,7 @@ pub struct DebugSession {
     debugger: SBDebugger,
     debugger_terminal: Option<DebuggerTerminal>,
     target: SBTarget,
+    target_is_dummy: bool,
     terminate_on_disconnect: bool,
     no_debug: bool,
 
@@ -141,6 +142,7 @@ impl DebugSession {
 
             debugger: debugger,
             target: target.clone(),
+            target_is_dummy: true,
             debugger_terminal: None,
             terminate_on_disconnect: false,
             no_debug: false,
@@ -335,6 +337,13 @@ impl DebugSession {
         tokio::spawn(filter);
 
         requests_receiver
+    }
+
+    fn with_sync_mode<F: Fn() -> R, R>(&self, func: F) -> R {
+        self.debugger.set_async_mode(false);
+        let result = func();
+        self.debugger.set_async_mode(true);
+        result
     }
 
     fn handle_request(&mut self, seq: u32, request_args: RequestArguments, cancellation: cancellation::Receiver) {
@@ -639,6 +648,7 @@ impl DebugSession {
                 bail!(blame_user(str_error(err_msg)))
             }
         }
+        self.debugger.set_async_mode(true); // In case they've changed it.
         Ok(())
     }
 
@@ -765,7 +775,7 @@ impl DebugSession {
         match self.target.process().stop() {
             Ok(()) => Ok(()),
             Err(err) => {
-                if self.target.process().state().is_stopped() {
+                if !self.target.process().state().is_running() {
                     // Did we lose a 'stopped' event?
                     self.notify_process_stopped();
                     Ok(())
@@ -830,7 +840,7 @@ impl DebugSession {
         let process = self.target.process();
         let thread = process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
         thread.step_out()?;
-        if process.state().is_stopped() {
+        if !process.state().is_running() {
             self.notify_process_stopped();
         }
         Ok(())
@@ -1403,7 +1413,7 @@ impl DebugSession {
         if self.console_mode != old_console_mode {
             self.print_console_mode();
         }
-        if self.target.process().state().is_stopped() {
+        if !self.target.process().state().is_running() {
             self.refresh_client_display(None);
         }
         Ok(())
@@ -1519,25 +1529,17 @@ impl DebugSession {
         let event_type = process_event.as_event().event_type();
         let process = self.target.process();
         if event_type & SBProcess::BroadcastBitStateChanged != 0 {
+            use ProcessState::*;
             match process_event.process_state() {
-                ProcessState::Running | ProcessState::Stepping => self.notify_process_running(),
-                ProcessState::Stopped => {
+                Running | Stepping | Attaching | Launching => self.notify_process_running(),
+                Stopped => {
                     if !process_event.restarted() {
                         self.notify_process_stopped()
                     }
                 }
-                ProcessState::Crashed | ProcessState::Suspended => self.notify_process_stopped(),
-                ProcessState::Exited => {
-                    let exit_code = process.exit_status() as i64;
-                    self.console_message(format!("Process exited with code {}.", exit_code));
-                    self.send_event(EventBody::exited(ExitedEventBody { exit_code }));
-                    self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
-                }
-                ProcessState::Detached => {
-                    self.console_message("Detached from debuggee.");
-                    self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
-                }
-                _ => (),
+                Crashed | Suspended => self.notify_process_stopped(),
+                Exited | Detached => self.notify_process_terminated(),
+                Invalid | Unloaded | Connected => (),
             }
         }
         if event_type & (SBProcess::BroadcastBitSTDOUT | SBProcess::BroadcastBitSTDERR) != 0 {
@@ -1602,6 +1604,7 @@ impl DebugSession {
             StopReason::Exception => ("exception", Some(stopped_thread.stop_description()), None),
             _ => ("unknown", Some(stopped_thread.stop_description()), None),
         };
+        let description = description.filter(|s| !s.is_empty());
 
         if let Some(description) = &description {
             self.console_error(format!("Stop reason: {}", description));
@@ -1616,6 +1619,24 @@ impl DebugSession {
             hit_breakpoint_ids: hit_breakpoint,
             ..Default::default()
         }));
+    }
+
+    fn notify_process_terminated(&mut self) {
+        use ProcessState::*;
+        let process = self.target.process();
+        match process.state() {
+            Exited => {
+                let exit_code = process.exit_status() as i64;
+                self.console_message(format!("Process exited with code {}.", exit_code));
+                self.send_event(EventBody::exited(ExitedEventBody { exit_code }));
+                self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
+            }
+            Detached => {
+                self.console_message("Detached from debuggee.");
+                self.send_event(EventBody::terminated(TerminatedEventBody { restart: None }));
+            }
+            _ => (),
+        }
     }
 
     fn handle_execption_info(&mut self, args: ExceptionInfoArguments) -> Result<ExceptionInfoResponseBody, Error> {

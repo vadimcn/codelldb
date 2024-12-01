@@ -27,7 +27,12 @@ impl super::DebugSession {
 
         let target = if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
-            self.debugger.selected_target()
+            let target = self.debugger.selected_target();
+            if target.is_valid() {
+                Some(target)
+            } else {
+                None
+            }
         } else {
             let program = match &args.program {
                 Some(program) => program,
@@ -35,9 +40,12 @@ impl super::DebugSession {
                     "The \"program\" attribute is required for launch."
                 ))),
             };
-            self.create_target_from_program(program)?
+            Some(self.create_target_from_program(program)?)
         };
-        self.set_target(target);
+        if let Some(target) = target {
+            self.set_target(target);
+        }
+
         self.send_event(EventBody::initialized);
 
         let mut config_done_recv = self.configuration_done_sender.subscribe();
@@ -133,52 +141,61 @@ impl super::DebugSession {
             }
         }
 
-        let do_launch = || -> Result<SBProcess, Error> {
-            if let Some(commands) = &args.process_create_commands {
-                self.exec_commands("processCreateCommands", commands)?;
-                Ok(self.target.process())
-            } else {
-                self.target.launch(&launch_info).map_err(|sberr| Box::new(sberr).into())
-            }
-        };
-
-        #[cfg(not(windows))]
-        let result = do_launch();
-
         // On Windows we can't specify the console to attach to when launching a process.
         // Instead, child inherits the console of the parent process, so we need to attach/detach around the launch.
         #[cfg(windows)]
-        let result = match &self.debuggee_terminal {
-            Some(t) => {
-                t.attach_console();
-                let result = do_launch();
-                t.detach_console();
-                result
+        if let Some(terminal) = &self.debuggee_terminal {
+            terminal.attach_console();
+        }
+
+        let launch_result: Result<SBProcess, Error> = (|| {
+            if let Some(commands) = &args.process_create_commands {
+                let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
+                    self.exec_commands("processCreateCommands", commands)?;
+                    Ok(self.debugger.selected_target())
+                })?;
+                if self.target_is_dummy {
+                    self.set_target(target);
+                }
+                Ok(self.target.process())
+            } else {
+                let launch_result = self.target.launch(&launch_info).map_err(|sberr| Box::new(sberr).into());
+                if let Ok(process) = &launch_result {
+                    self.console_message(format!(
+                        "Process {} launched: '{:?}'",
+                        process.process_id(),
+                        self.target.executable()
+                    ));
+                }
+                launch_result
             }
-            None => do_launch(),
+        })();
+
+        #[cfg(windows)]
+        if let Some(terminal) = &self.debuggee_terminal {
+            terminal.detach_console();
+        }
+
+        if let Err(err) = launch_result {
+            let mut msg = err.to_string();
+            if let Some(work_dir) = launch_info.working_directory() {
+                if self.target.platform().get_file_permissions(work_dir) == 0 {
+                    #[rustfmt::skip]
+                    log_errors!(write!(msg,
+                        "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                        work_dir.display()
+                    ));
+                }
+            }
+            bail!(blame_user(str_error(msg)))
         };
 
-        let process = match result {
-            Ok(process) => process,
-            Err(err) => {
-                let mut msg = err.to_string();
-                if let Some(work_dir) = launch_info.working_directory() {
-                    if self.target.platform().get_file_permissions(work_dir) == 0 {
-                        #[rustfmt::skip]
-                        log_errors!(write!(msg,
-                            "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
-                            work_dir.display()
-                        ));
-                    }
-                }
-                bail!(blame_user(str_error(msg)))
-            }
-        };
-        self.console_message(format!("Launched process {}", process.process_id()));
         self.terminate_on_disconnect = true;
 
-        // LLDB sometimes loses the initial stop event.
-        if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+        if !self.target.process().state().is_alive() {
+            self.notify_process_terminated();
+        } else if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+            // LLDB sometimes loses the initial stop event.
             self.notify_process_stopped();
         }
 
@@ -198,24 +215,27 @@ impl super::DebugSession {
 
         let target = if let Some(commands) = &args.target_create_commands {
             self.exec_commands("targetCreateCommands", &commands)?;
-            self.debugger.selected_target()
+            let target = self.debugger.selected_target();
+            if target.is_valid() {
+                Some(target)
+            } else {
+                None
+            }
         } else {
             // Try to create target from `program`.
-            let target = if let Some(program) = &args.program {
+            if let Some(program) = &args.program {
                 match self.create_target_from_program(program) {
                     Ok(target) => Some(target),
                     Err(_) => None,
                 }
             } else {
                 None
-            };
-            // Fall back to a dummy target.
-            match target {
-                Some(target) => target,
-                None => self.debugger.create_target(Path::new(""), None, None, false)?,
             }
         };
-        self.set_target(target);
+        if let Some(target) = target {
+            self.set_target(target);
+        }
+
         self.send_event(EventBody::initialized);
 
         let mut config_done_recv = self.configuration_done_sender.subscribe();
@@ -233,7 +253,13 @@ impl super::DebugSession {
         }
 
         let process = if let Some(commands) = &args.process_create_commands {
-            self.exec_commands("processCreateCommands", commands)?;
+            let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
+                self.exec_commands("processCreateCommands", commands)?;
+                Ok(self.debugger.selected_target())
+            })?;
+            if self.target_is_dummy {
+                self.set_target(target);
+            }
             self.target.process()
         } else {
             let attach_info = SBAttachInfo::new();
@@ -268,7 +294,9 @@ impl super::DebugSession {
         self.console_message(format!("Attached to process {}", process.process_id()));
         self.terminate_on_disconnect = false;
 
-        if args.common.stop_on_entry.unwrap_or(false) {
+        if !self.target.process().state().is_alive() {
+            self.notify_process_terminated();
+        } else if args.common.stop_on_entry.unwrap_or(false) {
             self.notify_process_stopped();
         } else {
             log_errors!(self.target.process().resume());
@@ -285,9 +313,7 @@ impl super::DebugSession {
         }
 
         self.debug_event_listener.cork();
-        self.debugger.set_async_mode(false);
         self.terminate_debuggee(None)?;
-        self.debugger.set_async_mode(true);
         self.debug_event_listener.uncork();
 
         match args.arguments {
@@ -352,6 +378,7 @@ impl super::DebugSession {
     fn set_target(&mut self, target: SBTarget) {
         self.debugger.listener().stop_listening_for_events(&self.target.broadcaster(), !0);
         self.target = target;
+        self.target_is_dummy = false;
         self.disassembly = disassembly::AddressSpace::new(&self.target);
         self.debugger.listener().start_listening_for_events(&self.target.broadcaster(), !0);
     }

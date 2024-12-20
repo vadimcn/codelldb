@@ -10,6 +10,7 @@ use crate::prelude::*;
 use crate::cancellation;
 use crate::dap_session::DAPSession;
 use crate::disassembly;
+use crate::expressions;
 use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
@@ -1105,9 +1106,7 @@ impl DebugSession {
                                 Some(frame.clone())
                             }
                         }
-                        _ => {
-                            None
-                        }
+                        _ => None,
                     }
                 }
                 None => None,
@@ -1136,13 +1135,14 @@ impl DebugSession {
                 }
             } else {
                 // Otherwise name is an expression
-                let expr = &args.name;
-                let result = self.evaluate_user_supplied_expr(expr, frame)?;
-                let addr = result.load_address();
+                let (pp_expr, _format_spec) =
+                    expressions::prepare_with_format(&args.name, self.default_expr_type).map_err(blame_user)?;
+                let value = self.evaluate_expr_in_frame(&pp_expr, frame.as_ref())?;
+                let addr = value.load_address();
                 if addr != lldb::INVALID_ADDRESS {
-                    let size = args.bytes.unwrap_or(result.byte_size() as i64) as usize;
+                    let size = args.bytes.unwrap_or(value.byte_size() as i64) as usize;
                     let data_id = format!("{}/{}", addr, size);
-                    let desc = result.name().unwrap_or(expr);
+                    let desc = value.name().unwrap_or(&args.name);
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: Some(data_id),
                         access_types: Some(vec![
@@ -1156,7 +1156,7 @@ impl DebugSession {
                 } else {
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: None,
-                        description: "This variable doesn't have an address.".into(),
+                        description: "This value doesn't have an address.".into(),
                         ..Default::default()
                     })
                 }

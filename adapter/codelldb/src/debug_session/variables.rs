@@ -533,20 +533,6 @@ impl super::DebugSession {
         }
     }
 
-    pub fn evaluate_user_supplied_expr(
-      &self,
-      expression: &str,
-      frame: Option<SBFrame>,
-    ) -> Result<SBValue, Error> {
-        // The format spec is ignored and dropped, because the purpose of this
-        // fn is to just return the SBValue to get references for things like
-        // data breakpoints
-        let (pp_expr, _format_spec) =
-            expressions::prepare_with_format(expression, self.default_expr_type).map_err(blame_user)?;
-        self.evaluate_expr_in_frame(&pp_expr, frame.as_ref())
-    }
-
-
     // Evaluates expr in the context of frame (or in global context if frame is None)
     // Returns expressions.Value or SBValue on success, SBError on failure.
     pub(super) fn evaluate_expr_in_frame(

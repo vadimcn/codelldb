@@ -17,6 +17,7 @@ impl Default for Breakpoint {
             source: None,
             instruction_reference: None,
             offset: None,
+            reason: None,
         }
     }
 }
@@ -69,6 +70,8 @@ impl Default for Variable {
             named_variables: None,
             memory_reference: None,
             presentation_hint: None,
+            declaration_location_reference: None,
+            value_location_reference: None,
         }
     }
 }
@@ -95,6 +98,7 @@ impl Default for EvaluateResponseBody {
             variables_reference: 0,
             indexed_variables: None,
             memory_reference: None,
+            value_location_reference: None,
             named_variables: None,
             presentation_hint: None,
         }
@@ -111,6 +115,7 @@ impl Default for OutputEventBody {
             column: None,
             source: None,
             variables_reference: None,
+            location_reference: None,
             group: None,
         }
     }
@@ -185,6 +190,34 @@ impl Default for DisassembledInstruction {
             end_line: None,
             column: None,
             end_column: None,
+            presentation_hint: None,
+        }
+    }
+}
+
+impl Default for StepInTarget {
+    fn default() -> Self {
+        StepInTarget {
+            id: 0,
+            label: String::new(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        }
+    }
+}
+
+impl Default for SetVariableResponseBody {
+    fn default() -> Self {
+        SetVariableResponseBody {
+            value: String::new(),
+            type_: None,
+            variables_reference: None,
+            named_variables: None,
+            indexed_variables: None,
+            memory_reference: None,
+            value_location_reference: None,
         }
     }
 }

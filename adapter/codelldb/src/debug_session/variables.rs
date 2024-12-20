@@ -583,8 +583,7 @@ impl super::DebugSession {
                         value: self.get_var_summary(&child, false),
                         type_: child.type_name().map(|s| s.to_owned()),
                         variables_reference: Some(handles::to_i64(handle)),
-                        named_variables: None,
-                        indexed_variables: None,
+                        ..Default::default()
                     };
                     Ok(response)
                 }

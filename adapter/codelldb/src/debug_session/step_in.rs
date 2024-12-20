@@ -95,6 +95,7 @@ impl super::DebugSession {
             targets.push(StepInTarget {
                 id: target_id,
                 label: display_name,
+                ..Default::default()
             });
         }
 

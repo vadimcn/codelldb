@@ -31,6 +31,7 @@ impl Terminal {
                     env: None,
                     kind: Some(terminal_kind.clone()),
                     title: Some(title.clone()),
+                    args_can_be_interpreted_by_shell: None,
                 };
                 dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
             }
@@ -54,6 +55,7 @@ impl Terminal {
                 env: None,
                 kind: Some(terminal_kind),
                 title: Some(title),
+                args_can_be_interpreted_by_shell: None,
             };
             dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
 

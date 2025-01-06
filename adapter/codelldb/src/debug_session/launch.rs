@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use crate::fsutil::lldb_quoted_string;
 use crate::must_initialize::Initialized;
 
 use super::*;
@@ -556,26 +557,15 @@ impl super::DebugSession {
         self.console_message(message);
     }
 
-    fn init_source_map<S>(&mut self, source_map: impl IntoIterator<Item = (S, Option<S>)>)
-    where
-        S: AsRef<str>,
-    {
-        fn escape(s: &str) -> String {
-            s.replace("\\", "\\\\").replace("\"", "\\\"")
-        }
-
+    fn init_source_map<S: AsRef<str>>(&mut self, source_map: impl IntoIterator<Item = (S, Option<S>)>) {
         let mut args = String::new();
         for (remote, local) in source_map.into_iter() {
-            let remote_escaped = escape(remote.as_ref());
-            let local_escaped = match local {
-                None => String::new(),
-                Some(s) => escape(s.as_ref()),
-            };
-            args.push_str("\"");
+            let remote_escaped = lldb_quoted_string(remote.as_ref());
+            let local_escaped = lldb_quoted_string(local.as_ref().map_or("", AsRef::as_ref));
             args.push_str(&remote_escaped);
-            args.push_str("\" \"");
+            args.push_str(" ");
             args.push_str(&local_escaped);
-            args.push_str("\" ");
+            args.push_str(" ");
         }
 
         if !args.is_empty() {

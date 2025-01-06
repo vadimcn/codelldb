@@ -27,6 +27,21 @@ pub fn is_same_path(path1: &Path, path2: &Path) -> bool {
     }
 }
 
+/// Quote and escape the input string.
+pub fn lldb_quoted_string(input: &str) -> String {
+    let mut result = String::with_capacity(input.len() + 2);
+    result.push('"');
+    for c in input.chars() {
+        match c {
+            '\\' => result.push_str(r#"\\"#),
+            '"' => result.push_str(r#"\""#),
+            _ => result.push(c),
+        }
+    }
+    result.push('"');
+    result
+}
+
 #[test]
 fn test_normalize_path() {
     assert_eq!(normalize_path("/foo/bar"), Path::new("/foo/bar"));
@@ -38,4 +53,10 @@ fn test_normalize_path() {
         normalize_path(r"C:/QQQ/WWW/..\..\FOO/\bar.baz"),
         Path::new(r"c:\FOO/bar.baz")
     );
+}
+
+#[test]
+fn test_lldb_quoting() {
+    let quoted = lldb_quoted_string(&r#"foo " 'bar \ baz"#);
+    assert_eq!(quoted, r#""foo \" 'bar \\ baz""#)
 }

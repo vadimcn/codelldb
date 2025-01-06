@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use crate::fsutil::lldb_quoted_string;
 use crate::must_initialize::{Initialized, MustInitialize};
 use adapter_protocol::{AdapterSettings, EventBody};
 use lldb::*;
@@ -91,8 +92,8 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
     let interpreter = debugger.command_interpreter();
     let mut command_result = SBCommandReturnObject::new();
 
-    let init_script = adapter_dir.join("scripts/codelldb");
-    let command = format!("command script import '{}'", init_script.to_str().unwrap());
+    let script = adapter_dir.join("scripts/codelldb");
+    let command = format!("command script import {}", lldb_quoted_string(script.to_str().unwrap()));
     interpreter.handle_command(&command, &mut command_result, false);
     if !command_result.succeeded() {
         bail!(format!("{:?}", command_result));
@@ -168,7 +169,7 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
 
     // Import legacy alias for the codelldb module
     let script = adapter_dir.join("scripts/debugger.py");
-    let command = format!("command script import '{}'", script.to_str().unwrap());
+    let command = format!("command script import {}", lldb_quoted_string(script.to_str().unwrap()));
     interpreter.handle_command(&command, &mut command_result, false);
 
     Ok(interface)

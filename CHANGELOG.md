@@ -2,13 +2,21 @@
 
 # 1.11.2
 
+### New
+- @puremourning has [enhanced data breakpoints](https://github.com/vadimcn/codelldb/pull/1161).
+  It is now possible to set data breakpoints of arbitrary sizes, as well as use them in more contexts than before.
+
 ### Changed
-- Deprecating "custom" launch configurations, as the same functionality may be achieved with **"request": "launch"**.<br>
+- Deprecating "custom" launch configurations, as the same functionality may be achieved with **"request": "launch"** + **"targetCreateCommands"** and **"processCreateCommands"**<br>
  **"request": "custom"** is still accepted, however it will behave the same as "launch".
-- Improved no-debug mode startup time by disabling symbol preloading.
+- Improved "no-debug" mode startup time by disabling symbol preloading.
 
 ### Fixed
+- #1064: Target creation should not be required before gdb-remote
 - #1177: Debugger panicks if Python cannot be initialized
+- #1205: Missing string escaping
+- #1209: display_html throws an exception
+- #1212: Can't debug ... with an External terminal
 
 # 1.11.1
 

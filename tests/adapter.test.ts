@@ -76,7 +76,7 @@ function generateSuite(triple: string) {
         suite('Basic', () => {
 
             test('check python', async function () {
-                await ds.launch({ name: this.test.title, program: debuggee });
+                await ds.launch({ name: this.test.title, program: debuggee, stopOnEntry: true });
                 let result = await ds.evaluateRequest({
                     expression: 'script import lldb; print(lldb.debugger.GetVersionString())',
                     context: '_command'
@@ -91,6 +91,23 @@ function generateSuite(triple: string) {
                 let buildConfig = JSON.parse(result2.body.result);
                 assert.ok(buildConfig.xml.value);
             });
+
+            test('exec context', async function () {
+                let stoppedEvent = await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
+                let result = await ds.evaluateRequest({
+                    expression: 'script import codelldb; codelldb.get_config("foo")',
+                    context: '_command'
+                });
+                assert.ok(result.success);
+
+                let response = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 10 });
+                let result2 = await ds.evaluateRequest({
+                    frameId: response.body.stackFrames[0].id,
+                    expression: '/py (str(${1234}), codelldb.get_config("foo"))',
+                    context: 'watch',
+                });
+                assert.ok(result2.success);
+            })
 
             test('command prompt env', async function () {
                 let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';

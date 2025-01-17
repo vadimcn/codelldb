@@ -23,29 +23,29 @@ except Exception:
 # 8 bytes
 
 
-class SBError(ctypes.Structure):
+class RustSBError(ctypes.Structure):
     _fields_ = [('_opaque', c_int64)]
     swig_type = lldb.SBError
 
 # 16 bytes
 
 
-class SBDebugger(ctypes.Structure):
+class RustSBDebugger(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBDebugger
 
 
-class SBExecutionContext(ctypes.Structure):
+class RustSBExecutionContext(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBExecutionContext
 
 
-class SBValue(ctypes.Structure):
+class RustSBValue(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBValue
 
 
-class SBModule(ctypes.Structure):
+class RustSBModule(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBModule
 
@@ -102,10 +102,10 @@ def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
 
 
 def PyResult(name, T):  # type: (str, type) -> type
-    return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', SBError))
+    return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', RustSBError))
 
 
-ValueResult = PyResult('ValueResult', SBValue)
+ValueResult = PyResult('ValueResult', RustSBValue)
 BoolResult = PyResult('BoolResult', c_bool)
 PyObjectResult = PyResult('PyObjectResult', py_object)
 
@@ -186,48 +186,48 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
     except Exception as err:
         error = lldb.SBError()
         error.SetErrorString(traceback.format_exc())
-        error = from_swig_wrapper(error, SBError)
+        error = from_swig_wrapper(error, RustSBError)
         result[0] = PyObjectResult.Err(error)
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, SBExecutionContext, c_int)
+@CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, RustSBExecutionContext, c_int)
 def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
     '''Evaluate code in the context specified by SBExecutionContext, and return a SBValue result'''
     try:
-        exec_context = into_swig_wrapper(exec_context, SBExecutionContext)
+        exec_context = into_swig_wrapper(exec_context, RustSBExecutionContext)
         value = evaluate_in_context(pycode, exec_context, eval_context)
-        value = to_sbvalue(value, exec_context.target)
-        result[0] = ValueResult.Ok(from_swig_wrapper(value, SBValue))
+        value = to_sbvalue(value, exec_context.GetTarget())
+        result[0] = ValueResult.Ok(from_swig_wrapper(value, RustSBValue))
     except Exception as err:
         error = lldb.SBError()
         error.SetErrorString(traceback.format_exc())
-        error = from_swig_wrapper(error, SBError)
+        error = from_swig_wrapper(error, RustSBError)
         result[0] = ValueResult.Err(error)
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, SBExecutionContext, c_int)
+@CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, RustSBExecutionContext, c_int)
 def evaluate_as_bool(result, pycode, exec_context, eval_context):
     '''Evaluate code in the context specified by SBExecutionContext, and return a boolean result'''
     try:
-        exec_context = into_swig_wrapper(exec_context, SBExecutionContext)
+        exec_context = into_swig_wrapper(exec_context, RustSBExecutionContext)
         value = bool(evaluate_in_context(pycode, exec_context, eval_context))
         result[0] = BoolResult.Ok(value)
     except Exception as err:
         error = lldb.SBError()
         error.SetErrorString(traceback.format_exc())
-        error = from_swig_wrapper(error, SBError)
+        error = from_swig_wrapper(error, RustSBError)
         result[0] = BoolResult.Err(error)
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, SBExecutionContext)
+@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, RustSBExecutionContext)
 def handle_message(body_ptr, body_len, context):
     '''Handle a message intended for Python code'''
     try:
         body_json = ctypes.string_at(body_ptr, body_len)
-        context = into_swig_wrapper(context, SBExecutionContext)
+        context = into_swig_wrapper(context, RustSBExecutionContext)
         body = json.loads(body_json)
         on_did_receive_message.emit(body)
     except Exception as err:
@@ -319,7 +319,12 @@ def bytes_to_str(b):
     return b.decode('utf8') if b != None else None
 
 
+current_exec_context: lldb.SBExecutionContext | None = None
+
+
 def evaluate_in_context(code, exec_context, eval_context):
+    global current_exec_context
+    current_exec_context = exec_context
     debugger = exec_context.GetTarget().GetDebugger()
     prev_stdout = sys.stdout
     sess_stdout = session_stdouts.get(debugger.GetID())
@@ -339,11 +344,11 @@ def evaluate_in_context(code, exec_context, eval_context):
             lldb.debugger = debugger
             if eval_context == 1:  # EvalContext::PythonExpression
                 frame = exec_context.GetFrame()
-                eval_globals = get_instance_dict(lldb.debugger)
+                eval_globals = get_instance_dict(debugger)
                 eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
                 return eval(code, eval_globals)
             else:  # EvalContext::Statement
-                eval_globals = get_instance_dict(lldb.debugger)
+                eval_globals = get_instance_dict(debugger)
                 return eval(code, eval_globals)
     finally:
         sys.stdout = prev_stdout
@@ -352,6 +357,25 @@ def evaluate_in_context(code, exec_context, eval_context):
         lldb.thread = None
         lldb.target = None
         lldb.debugger = None
+        current_exec_context = None
+
+
+def current_debugger() -> lldb.SBDebugger:
+    global current_exec_context
+    if lldb.debugger:
+        return lldb.debugger
+    if current_exec_context:
+        return current_exec_context.GetTarget().GetDebugger()
+    raise Exception('No current execution context')
+
+
+def current_frame() -> lldb.SBFrame:
+    global current_exec_context
+    if lldb.frame:
+        return lldb.frame
+    if current_exec_context:
+        return current_exec_context.GetFrame()
+    raise Exception('No current execution context')
 
 
 def nat_eval(sbframe, expr):
@@ -374,5 +398,5 @@ def nat_eval(sbframe, expr):
     return Value(val)
 
 
-def get_instance_dict(debugger):
+def get_instance_dict(debugger: lldb.SBDebugger) -> dict:
     return getattr(__main__, debugger.GetInstanceName() + '_dict')

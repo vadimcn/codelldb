@@ -1,4 +1,4 @@
-import lldb
+from lldb import SBValue
 import warnings
 import __main__
 from typing import Any, Optional, Union
@@ -14,7 +14,7 @@ def get_config(name: str, default: Any = None) -> Any:
                  will retrieve the value of `lldb.script.foo.bar` from VSCode configuration.
         default: The default value to return if the configuration value is not found.
     '''
-    internal_dict = interface.get_instance_dict(lldb.debugger)
+    internal_dict = interface.get_instance_dict(interface.current_debugger())
     settings = internal_dict['adapter_settings'].get('scriptConfig')
     for segment in name.split('.'):
         if settings is None:
@@ -23,21 +23,22 @@ def get_config(name: str, default: Any = None) -> Any:
     return settings
 
 
-def evaluate(expr: str, unwrap: bool = False) -> Union[Value,  lldb.SBValue]:
+def evaluate(expr: str, unwrap: bool = False) -> Union[Value,  SBValue]:
     '''Performs dynamic evaluation of native expressions returning instances of Value or SBValue.
         expression: The expression to evaluate.
         unwrap: Whether to unwrap the result and return it as lldb.SBValue
     '''
-    value = interface.nat_eval(lldb.frame, expr)
+    frame = interface.current_frame()
+    value = interface.nat_eval(frame, expr)
     return Value.unwrap(value) if unwrap else value
 
 
-def wrap(obj: lldb.SBValue) -> Value:
+def wrap(obj: SBValue) -> Value:
     '''Extracts an lldb.SBValue from Value'''
     return obj if type(obj) is Value else Value(obj)
 
 
-def unwrap(obj: Value) -> lldb.SBValue:
+def unwrap(obj: Value) -> SBValue:
     '''Wraps lldb.SBValue in a Value object'''
     return Value.unwrap(obj)
 
@@ -56,7 +57,7 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
         enable_scripts:     Controls whether scripts are enabled in the webview.
         preserve_orphaned:  Preserve webview panel after the end of the debug session.
     '''
-    debugger_id = lldb.debugger.GetID()
+    debugger_id = interface.current_debugger().GetID()
     webview = Webview(debugger_id)
     interface.send_message(debugger_id,
                            dict(message='webviewCreate',
@@ -75,7 +76,8 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
 
 
 def debugger_message(output: str, category: str = 'console'):
-    interface.fire_event(lldb.debugger.GetID(), dict(type='DebuggerMessage', output=output, category=category))
+    debugger_id = interface.current_debugger().GetID()
+    interface.fire_event(debugger_id, dict(type='DebuggerMessage', output=output, category=category))
 
 
 def display_html(html: str, title: Optional[str] = None, position: Optional[int] = None, reveal: bool = False,
@@ -83,7 +85,7 @@ def display_html(html: str, title: Optional[str] = None, position: Optional[int]
     '''Display HTML content in a webview panel.
        display_html is **deprecated**, use create_webview instead.
     '''
-    inst_dict = interface.get_instance_dict(lldb.debugger)
+    inst_dict = interface.get_instance_dict(interface.current_debugger())
     html_webview = inst_dict.get('html_webview')
     if html_webview is None:
         warnings.warn("display_html is deprecated, use create_webview instead", DeprecationWarning)
@@ -99,7 +101,7 @@ def display_html(html: str, title: Optional[str] = None, position: Optional[int]
 
         def on_message(message):
             if message['command'] == 'execute':
-                lldb.debugger.HandleCommand(message['text'])
+                interface.current_debugger().HandleCommand(message['text'])
 
         def on_disposed(message):
             del globals()['html_webview']

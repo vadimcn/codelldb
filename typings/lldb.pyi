@@ -1,16 +1,19 @@
 
 from typing import Any
 
-frame: Any
-thread: Any
-process: Any
-target: Any
-debugger: Any
+frame: SBFrame | None
+thread: SBThread | None
+process: SBProcess | None
+target: SBTarget | None
+debugger: SBDebugger | None
+
 
 def command(command_name=None, doc=None): ...
 
+
 class SBType:
     ...
+
 
 class SBValue:
     def IsValid(self) -> bool: ...
@@ -21,47 +24,66 @@ class SBValue:
     def SetPreferSyntheticValue(self, on: bool): ...
     def SetFormat(self, fmt: int): ...
 
+
 class SBError:
     def Success(self) -> bool: ...
     def GetCString(self) -> str: ...
     def SetErrorString(self, s: str): ...
+
 
 class SBData:
     def SetData(self, err: SBError, buffer: Any, order: int, size: int): ...
     @staticmethod
     def CreateDataFromCString(order: int, size: int, value: Any): ...
 
+
 class SBTypeSynthetic:
     @staticmethod
     def CreateWithClassName(cls_name: str): ...
+
 
 class SBTypeSummary:
     @staticmethod
     def CreateWithFunctionName(fn_name: str): ...
 
+
 class SBTypeNameSpecifier:
     def __init__(self, name: str, is_regex: bool): ...
 
+
 class SBExecutionContext:
-    target: SBTarget
-    ...
+    def GetTarget(self) -> SBTarget: ...
+    def GetFrame(self) -> SBFrame: ...
+
 
 class SBModule:
     ...
 
+
 class SBFrame:
     ...
+
 
 class SBThread:
     ...
 
+
+class SBProcess:
+    ...
+
+
 class SBTarget:
     def GetAddressByteSize(self) -> int: ...
+    def GetDebugger(self) -> SBDebugger: ...
+
 
 class SBDebugger:
     @staticmethod
     def SetInternalVariable(name: str, value: str, instance_name: str) -> SBError: ...
     def GetInstanceName(self) -> str: ...
+    def GetID(self) -> int: ...
+    def HandleCommand(self, command: str): ...
+
 
 eTypeOptionCascade: int
 

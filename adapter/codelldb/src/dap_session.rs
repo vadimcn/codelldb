@@ -20,14 +20,21 @@ impl<T> DAPChannel for T where
 {
 }
 
+/// DAPSession implements communication between DAP message handlers and the DAP client (e.g. VSCode)
+/// through a communication channel.
 #[derive(Clone)]
 pub struct DAPSession {
+    // Used to communicate outgoing messages to the dispatcher.
+    out_sender: Arc<mpsc::Sender<(ProtocolMessageType, Option<oneshot::Sender<ResponseResult>>)>>,
+    // Used to create new subscriptions for requests and events.
     requests_sender: Weak<broadcast::Sender<(u32, RequestArguments)>>,
     events_sender: Weak<broadcast::Sender<EventBody>>,
-    out_sender: mpsc::Sender<(ProtocolMessageType, Option<oneshot::Sender<ResponseResult>>)>,
 }
 
 impl DAPSession {
+    /// Returns a new DAPSession object and a future representing the main dispatcher loop that
+    /// routes messages between the DAP channel and the subscribers.
+    /// The future will resolve when the DAP client closes the connection from its end.
     pub fn new(channel: Box<dyn DAPChannel>) -> (DAPSession, impl Future<Output = ()> + Send) {
         let mut channel: Pin<Box<dyn DAPChannel>> = channel.into();
         let requests_sender = Arc::new(broadcast::channel::<(u32, RequestArguments)>(100).0);
@@ -39,10 +46,10 @@ impl DAPSession {
         let client = DAPSession {
             requests_sender: Arc::downgrade(&requests_sender),
             events_sender: Arc::downgrade(&events_sender),
-            out_sender: out_sender,
+            out_sender: Arc::new(out_sender),
         };
 
-        let worker = async move {
+        let dispatcher = async move {
             loop {
                 tokio::select! {
                     maybe_result = channel.next() => {
@@ -108,7 +115,7 @@ impl DAPSession {
                                 break;
                             },
                             None => {
-                                debug!("Client has disconnected");
+                                debug!("The client has disconnected");
                                 break
                             }
                         }
@@ -128,51 +135,64 @@ impl DAPSession {
             }
         };
 
-        (client, worker)
+        (client, dispatcher)
     }
 
+    /// Subscribe to DAP requests.
     pub fn subscribe_requests(&self) -> Result<broadcast::Receiver<(u32, RequestArguments)>, Error> {
         match self.requests_sender.upgrade() {
             Some(r) => Ok(r.subscribe()),
-            None => Err("Sender is gone".into()),
+            None => Err("DAP session is gone".into()),
         }
     }
 
+    /// Subscribe to DAP events.
     #[allow(unused)]
     pub fn subscribe_events(&self) -> Result<broadcast::Receiver<EventBody>, Error> {
         match self.events_sender.upgrade() {
             Some(r) => Ok(r.subscribe()),
-            None => Err("Sender is gone".into()),
+            None => Err("DAP session is gone".into()),
         }
     }
 
-    pub async fn send_request(&self, request_args: RequestArguments) -> Result<ResponseBody, Error> {
-        let (sender, receiver) = oneshot::channel();
+    /// Send a reverse request to the DAP client.
+    pub fn send_request(
+        &self,
+        request_args: RequestArguments,
+    ) -> impl Future<Output = Result<ResponseBody, Error >> {
+        let (resp_sender, resp_receiver) = oneshot::channel();
         let request = ProtocolMessageType::Request(request_args);
-        self.out_sender.send((request, Some(sender))).await?;
-        let result = receiver.await?;
-        match result {
-            ResponseResult::Success { body } => Ok(body),
-            ResponseResult::Error { message, .. } => Err(message.into()),
+        let out_sender = self.out_sender.clone();
+        async move {
+            out_sender.send((request, Some(resp_sender))).await?;
+            let result = resp_receiver.await?;
+            match result {
+                ResponseResult::Success { body } => Ok(body),
+                ResponseResult::Error { message, .. } => Err(message.into()),
+            }
         }
     }
 
+    /// Send a response to the DAP client.
     #[allow(unused)]
     pub async fn send_response(&self, response: Response) -> Result<(), Error> {
         self.out_sender.send((ProtocolMessageType::Response(response), None)).await?;
         Ok(())
     }
 
+    /// Send a response to the DAP client synchronously.
     pub fn try_send_response(&self, response: Response) -> Result<(), Error> {
         self.out_sender.try_send((ProtocolMessageType::Response(response), None))?;
         Ok(())
     }
 
+    /// Sends an event to the DAP client.
     pub async fn send_event(&self, event_body: EventBody) -> Result<(), Error> {
         self.out_sender.send((ProtocolMessageType::Event(event_body), None)).await?;
         Ok(())
     }
 
+    /// Send an event to the DAP client synchronously.
     pub fn try_send_event(&self, event_body: EventBody) -> Result<(), Error> {
         self.out_sender.try_send((ProtocolMessageType::Event(event_body), None))?;
         Ok(())

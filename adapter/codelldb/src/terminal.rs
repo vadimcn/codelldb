@@ -57,7 +57,8 @@ impl Terminal {
                 title: Some(title),
                 args_can_be_interpreted_by_shell: None,
             };
-            dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
+            let run_in_term = dap_session.send_request(RequestArguments::runInTerminal(req_args));
+            tokio::task::spawn_local(run_in_term);
 
             let (stream, _remote_addr) = accept_fut.await?;
             let mut reader = BufReader::new(stream);

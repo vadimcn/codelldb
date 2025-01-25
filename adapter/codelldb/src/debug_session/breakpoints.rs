@@ -638,10 +638,10 @@ impl DebugSession {
         };
 
         let shared_session = self.self_ref.clone();
+        let rt = tokio::runtime::Handle::current();
         bp_info.breakpoint.set_callback(move |process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-            tokio::runtime::Handle::current()
-                .block_on(shared_session.map(|s| s.on_breakpoint_hit(process, thread, location, &py_condition)))
+            rt.block_on(shared_session.map(|s| s.on_breakpoint_hit(process, thread, location, &py_condition)))
         });
     }
 

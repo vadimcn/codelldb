@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use lldb::{SBEvent, SBListener};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use tokio::sync::mpsc::{self, error::TrySendError};
 
 pub struct DebugEventListener {
@@ -26,31 +27,31 @@ impl DebugEventListener {
     }
 
     /// Start polling the SBListener and send events through a channel.
-    /// Returns a receiver for the events.  Polling will stop when it is dropped.
+    /// Returns a receiver for debugger events.  Polling stops when the receiver is dropped.
     pub fn start_polling(
         self: &Arc<Self>,
         event_listener: &SBListener,
         channel_capacity: usize,
     ) -> mpsc::Receiver<SBEvent> {
-        let mut event_listener = event_listener.clone();
+        let event_listener = event_listener.clone();
         let (sender, receiver) = mpsc::channel(channel_capacity);
 
         let self_ref = self.clone();
-        tokio::task::spawn(async move {
-            let mut received;
+        thread::spawn(move || {
             let mut event = SBEvent::new();
             loop {
-                (received, event_listener, event) = tokio::task::spawn_blocking(move || {
-                    let received = event_listener.wait_for_event(1, &mut event);
-                    (received, event_listener, event)
-                }).await.unwrap();
+                let received = event_listener.wait_for_event(1, &mut event);
+
+                if sender.is_closed() {
+                    break;
+                }
 
                 let mut state = self_ref.state.lock().unwrap();
                 if received && !state.was_corked {
                     match sender.try_send(event) {
                         Ok(_) => {}
                         Err(err) => match err {
-                            TrySendError::Full(_) => error!("Event listener: Could not send event: {:?}", err),
+                            TrySendError::Full(_) => error!("Could not send event: {:?}", err),
                             TrySendError::Closed(_) => break,
                         },
                     }
@@ -58,7 +59,7 @@ impl DebugEventListener {
                 }
                 state.was_corked = state.corked;
             }
-            debug!("Event listener: Shutting down.");
+            debug!("Shutting down.");
         });
 
         receiver

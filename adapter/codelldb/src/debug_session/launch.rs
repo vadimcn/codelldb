@@ -196,9 +196,17 @@ impl super::DebugSession {
         let process_state = self.target.process().state();
         if !process_state.is_alive() {
             self.notify_process_terminated();
-        } else if !process_state.is_running() {
-            // LLDB sometimes loses the initial stop event.
-            self.notify_process_stopped();
+        } else if args.process_create_commands.is_none() {
+            // API launch
+            if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+                // LLDB sometimes loses the initial stop event.
+                self.notify_process_stopped();
+            }
+        } else {
+            // process_create_commands launch
+            if !process_state.is_running() {
+                self.notify_process_stopped();
+            }
         }
 
         self.common_post_run(args.common)?;

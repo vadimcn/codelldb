@@ -193,9 +193,10 @@ impl super::DebugSession {
 
         self.terminate_on_disconnect = true;
 
-        if !self.target.process().state().is_alive() {
+        let process_state = self.target.process().state();
+        if !process_state.is_alive() {
             self.notify_process_terminated();
-        } else if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+        } else if !process_state.is_running() {
             // LLDB sometimes loses the initial stop event.
             self.notify_process_stopped();
         }

@@ -151,12 +151,9 @@ impl super::DebugSession {
 
         let launch_result: Result<SBProcess, Error> = (|| {
             if let Some(commands) = &args.process_create_commands {
-                let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
-                    self.exec_commands("processCreateCommands", commands)?;
-                    Ok(self.debugger.selected_target())
-                })?;
+                self.exec_commands("processCreateCommands", commands)?;
                 if self.target_is_dummy {
-                    self.set_target(target);
+                    self.set_target(self.debugger.selected_target());
                 }
                 Ok(self.target.process())
             } else {
@@ -193,12 +190,7 @@ impl super::DebugSession {
 
         self.terminate_on_disconnect = true;
 
-        if !self.target.process().state().is_alive() {
-            self.notify_process_terminated();
-        } else if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
-            // LLDB sometimes loses the initial stop event.
-            self.notify_process_stopped();
-        }
+        debug!("Process state: {:?}", self.target.process().state());
 
         self.common_post_run(args.common)?;
 
@@ -254,12 +246,9 @@ impl super::DebugSession {
         }
 
         let process = if let Some(commands) = &args.process_create_commands {
-            let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
-                self.exec_commands("processCreateCommands", commands)?;
-                Ok(self.debugger.selected_target())
-            })?;
+            self.exec_commands("processCreateCommands", commands)?;
             if self.target_is_dummy {
-                self.set_target(target);
+                self.set_target(self.debugger.selected_target());
             }
             self.target.process()
         } else {

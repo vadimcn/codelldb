@@ -32,6 +32,7 @@
 		"vscode": "^1.61.0"
 	},
 	"dependencies": {
+		"minimist-string": "^1.0.2",
 		"string-argv": "^0.3.2",
 		"yaml": "^1.10.0",
 		"yauzl": "^3.1.3"

@@ -24,6 +24,7 @@ import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
 import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
 import { AdapterSettingManager as AdapterSettingsManager } from './adapterSettings';
+var parseSentence = require("minimist-string");
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -198,6 +199,16 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         if (typeof launchConfig.args == 'string') {
             launchConfig.args = stringArgv(launchConfig.args);
+        }
+        else {
+            const toArgv = ([key, value]: [string, string | boolean | string[]]): string[] =>
+                key === "_"
+                    ? value as string[]
+                    : [`--${key}${value === true ? "" : `=${value}`}`];
+
+            // Interpret every argument as
+            launchConfig.args = Object.entries(parseSentence(launchConfig.args.join(" ")))
+                .flatMap(toArgv);
         }
 
         launchConfig.relativePathBase = launchConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;

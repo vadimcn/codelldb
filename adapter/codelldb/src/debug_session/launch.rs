@@ -178,17 +178,17 @@ impl super::DebugSession {
         }
 
         if let Err(err) = launch_result {
-            let mut msg = err.to_string();
+            let mut err = blame_user(err);
             if let Some(work_dir) = launch_info.working_directory() {
                 if self.target.platform().get_file_permissions(work_dir) == 0 {
-                    #[rustfmt::skip]
-                    log_errors!(write!(msg,
-                        "\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                    err.inner = str_error(format!(
+                        "{}\n\nPossible cause: the working directory \"{}\" is missing or inaccessible.",
+                        err.inner,
                         work_dir.display()
                     ));
                 }
             }
-            bail!(blame_user(str_error(msg)))
+            bail!(err);
         };
 
         self.terminate_on_disconnect = true;

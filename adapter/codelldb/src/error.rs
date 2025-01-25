@@ -38,7 +38,7 @@ impl From<Error> for BlamedError {
 
 impl fmt::Display for BlamedError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "blame({:?}) {}", self.blame, self.inner)
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -49,17 +49,11 @@ impl std::error::Error for BlamedError {
 }
 
 pub fn blame_user(err: Error) -> BlamedError {
-    BlamedError {
-        blame: Blame::User,
-        inner: err,
-    }
+    BlamedError::from(err).assign_blame(Blame::User)
 }
 
 pub fn blame_nobody(err: Error) -> BlamedError {
-    BlamedError {
-        blame: Blame::Nobody,
-        inner: err,
-    }
+    BlamedError::from(err).assign_blame(Blame::Nobody)
 }
 
 pub fn str_error(err_msg: impl ToString) -> Error {

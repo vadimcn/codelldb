@@ -151,10 +151,12 @@ impl super::DebugSession {
 
         let launch_result: Result<SBProcess, Error> = (|| {
             if let Some(commands) = &args.process_create_commands {
-                let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
-                    self.exec_commands("processCreateCommands", commands)?;
-                    Ok(self.debugger.selected_target())
-                })?;
+                // let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
+                //     self.exec_commands("processCreateCommands", commands)?;
+                //     Ok(self.debugger.selected_target())
+                // })?;
+                self.exec_commands("processCreateCommands", commands)?;
+                let target = self.debugger.selected_target();
                 if self.target_is_dummy {
                     self.set_target(target);
                 }
@@ -194,20 +196,24 @@ impl super::DebugSession {
         self.terminate_on_disconnect = true;
 
         let process_state = self.target.process().state();
-        if !process_state.is_alive() {
-            self.notify_process_terminated();
-        } else if args.process_create_commands.is_none() {
-            // API launch
-            if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
-                // LLDB sometimes loses the initial stop event.
-                self.notify_process_stopped();
-            }
-        } else {
-            // process_create_commands launch
-            if !process_state.is_running() {
-                self.notify_process_stopped();
-            }
-        }
+        debug!("{:?}", process_state);
+
+        // if !process_state.is_alive() {
+        //     self.notify_process_terminated();
+        // }
+
+        // else if args.process_create_commands.is_none() {
+        //     // API launch
+        //     if launch_info.launch_flags().intersects(LaunchFlag::StopAtEntry) {
+        //         // LLDB sometimes loses the initial stop event.
+        //         self.notify_process_stopped();
+        //     }
+        // } else {
+        //     // process_create_commands launch
+        //     // if !process_state.is_running() {
+        //     //     self.notify_process_stopped();
+        //     // }
+        // }
 
         self.common_post_run(args.common)?;
 
@@ -263,10 +269,12 @@ impl super::DebugSession {
         }
 
         let process = if let Some(commands) = &args.process_create_commands {
-            let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
-                self.exec_commands("processCreateCommands", commands)?;
-                Ok(self.debugger.selected_target())
-            })?;
+            // let target = self.with_sync_mode(|| -> Result<SBTarget, Error> {
+            //     self.exec_commands("processCreateCommands", commands)?;
+            //     Ok(self.debugger.selected_target())
+            // })?;
+            self.exec_commands("processCreateCommands", commands)?;
+            let target = self.debugger.selected_target();
             if self.target_is_dummy {
                 self.set_target(target);
             }

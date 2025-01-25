@@ -524,6 +524,16 @@ impl super::DebugSession {
             log_errors!(python.init_lang_support());
         }
 
+        if let Some(settings) = &args_common.adapter_settings {
+            if let Some(ConsoleMode::Split) = settings.console_mode {
+                let name = args_common.name.as_deref().unwrap_or("Debug");
+                self.create_debugger_terminal(name);
+            } else {
+                // Witoout a terminal, confirmations will just hang the session.
+                self.debugger.set_variable("auto-confirm", "true")?;
+            }
+        }
+
         Ok(())
     }
 
@@ -533,16 +543,6 @@ impl super::DebugSession {
         }
         self.pre_terminate_commands = args_common.pre_terminate_commands;
         self.exit_commands = args_common.exit_commands;
-
-        if let Some(settings) = args_common.adapter_settings {
-            if let Some(ConsoleMode::Split) = settings.console_mode {
-                let name = args_common.name.as_deref().unwrap_or("Debug");
-                self.create_debugger_terminal(name);
-            } else {
-                // Witoout a terminal, confirmations will just hang the session.
-                self.debugger.set_variable("auto-confirm", "true")?;
-            }
-        }
 
         Ok(())
     }

@@ -20,6 +20,8 @@ else()
     file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/lib)
     file(CREATE_LINK ${LLDB_PACKAGE}/bin ${CMAKE_CURRENT_BINARY_DIR}/bin SYMBOLIC)
     file(CREATE_LINK ${LLDB_PACKAGE}/lib ${CMAKE_CURRENT_BINARY_DIR}/lib SYMBOLIC)
+    file(CREATE_LINK ${LLDB_PACKAGE}/../lldb/include ${CMAKE_CURRENT_BINARY_DIR}/include SYMBOLIC)
+    file(CREATE_LINK ${CMAKE_CURRENT_BINARY_DIR}/include/API/SBLanguages.h ${CMAKE_CURRENT_BINARY_DIR}/include/lldb/API/SBLanguages.h SYMBOLIC)
 
     # Don't check dependencies in symlinked LLDB, as it contains many files that won't be included in the package.
 endif()

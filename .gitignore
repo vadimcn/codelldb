@@ -2,3 +2,4 @@
 /build*/
 /target/
 *.pyc
+node_modules/**

@@ -248,6 +248,13 @@ std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
 std::thread::sleep_ms(1000); // Wait for debugger to attach
 ```
 
+(Note: You may need to update your `Cargo.toml` to build the build script with `debug`.)
+
+```
+[profile.dev.build-override]
+debug = true
+```
+
 ### Debugging Rust unit tests
 - Create `.cargo` directory in your project folder containing these two files:
     - `config` [(see also)](https://doc.rust-lang.org/cargo/reference/config.html)

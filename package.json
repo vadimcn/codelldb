@@ -951,10 +951,15 @@
 								]
 							}
 						},
-						"oneOf": [
+						"anyOf": [
 							{
 								"required": [
 									"program"
+								]
+							},
+							{
+								"required": [
+									"targetCreateCommands"
 								]
 							},
 							{

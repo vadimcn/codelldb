@@ -1174,17 +1174,10 @@ impl DebugSession {
             let mut parts = wp.data_id.split('/');
             let addr = parts.next().ok_or("")?.parse::<u64>()?;
             let size = parts.next().ok_or("")?.parse::<usize>()?;
-            let (read, write) = match wp.access_type {
-                None => (false, true),
-                Some(DataBreakpointAccessType::Read) => (true, false),
-                Some(DataBreakpointAccessType::Write) => (false, true),
-                Some(DataBreakpointAccessType::ReadWrite) => (true, true),
-            };
-            let when = match (read, write) {
-                (true, false) => "read",
-                (false, true) => "write",
-                (true, true) => "read and write",
-                _ => unreachable!(),
+            let (read, write, when) = match wp.access_type {
+                Some(DataBreakpointAccessType::Read) => (true, false, "read"),
+                Some(DataBreakpointAccessType::Write) | None => (false, true, "write"),
+                Some(DataBreakpointAccessType::ReadWrite) => (true, true, "read and write"),
             };
             let res = match self.target.watch_address(addr, size, read, write) {
                 Ok(wp) => Breakpoint {

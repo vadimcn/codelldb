@@ -175,6 +175,11 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     ): Promise<DebugConfiguration> {
         output.clear();
 
+        let config = getExtensionConfig(folder);
+        let verboseLogging = config.get<boolean>('verboseLogging');
+        output.appendLine(`Verbose logging: ${verboseLogging ? 'on' : 'off'}  (Use "lldb.verboseLogging" setting to change)`);
+        output.appendLine(`Platform: ${process.platform} ${process.arch}`);
+
         output.appendLine(`Initial debug configuration: ${inspect(launchConfig)}`);
 
         if (launchConfig.type === undefined) {
@@ -332,11 +337,10 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let verboseLogging = config.get<boolean>('verboseLogging');
         let [liblldb] = await this.getAdapterDylibs(config);
 
-        if (verboseLogging) {
-            output.appendLine(`liblldb: ${liblldb}`);
-            output.appendLine(`environment: ${inspect(adapterEnv)}`);
-            output.appendLine(`settings: ${inspect(adapterSettings)}`);
-        }
+        output.appendLine('Launching adapter');
+        output.appendLine(`liblldb: ${liblldb}`);
+        output.appendLine(`environment: ${inspect(adapterEnv)}`);
+        output.appendLine(`settings: ${inspect(adapterSettings)}`);
 
         let adapterProcess = await adapter.start(liblldb, {
             extensionRoot: this.context.extensionPath,
@@ -405,9 +409,9 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         }
 
         if (succeeded) {
-            window.showInformationMessage('LLDB self-test completed successfuly.');
+            window.showInformationMessage('LLDB self-test completed successfuly.', { modal: true });
         } else {
-            window.showErrorMessage('LLDB self-test has failed.  Please check log output.');
+            window.showErrorMessage('LLDB self-test has failed.  Please check log output.', { modal: true });
             output.show();
         }
     }

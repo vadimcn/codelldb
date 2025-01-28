@@ -11,7 +11,8 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     lldb.SBDebugger.SetInternalVariable('target.process.thread.step-avoid-regexp',
                                         '^<?(std|core|alloc)::', debugger.GetInstanceName())
 
-    debugger.HandleCommand("type format add --category Rust --format dec 'char' 'unsigned char'")
+    debugger.HandleCommand("type format add --category Rust --format d 'char' 'signed char'")
+    debugger.HandleCommand("type format add --category Rust --format u 'unsigned char'")
 
     sysroot = codelldb.get_config('lang.rust.sysroot')
     if sysroot is None:

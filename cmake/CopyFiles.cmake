@@ -13,7 +13,6 @@
 function(add_copy_file List Input Output)
     add_custom_command(
         OUTPUT ${Output}
-        PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${Input} ${Output}
         DEPENDS "${Input}"
         COMMENT "Copying ${Input} to ${Output}"

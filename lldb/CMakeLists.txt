@@ -2,7 +2,7 @@ add_custom_target(lldb ALL DEPENDS ${LLDB_PACKAGE})
 if (NOT IS_DIRECTORY ${LLDB_PACKAGE})
     file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/bin) # Remove symlinks, if any
     file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/lib)
-    add_custom_command(TARGET lldb
+    add_custom_command(TARGET lldb POST_BUILD
         COMMAND unzip -o -u ${LLDB_PACKAGE} -d ${CMAKE_CURRENT_BINARY_DIR}
     )
     set(LLDB_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/include" PARENT_SCOPE)

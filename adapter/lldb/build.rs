@@ -8,7 +8,10 @@ fn main() {
     rerun_if_changed_in(Path::new("src"));
 
     let mut build_config = cpp_build::Config::new();
-    build_config.include(env::var("LLDB_INCLUDE").unwrap());
+
+    for dir in env::var("LLDB_INCLUDE").unwrap().split(';') {
+        build_config.include(dir);
+    }
 
     if no_link_args {
         build_config.cpp_set_stdlib(None);

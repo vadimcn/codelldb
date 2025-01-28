@@ -95,12 +95,6 @@ else()
     set(CargoBuildType debug)
 endif()
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    configure_file(cargo_config.windows.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
-else()
-    configure_file(cargo_config.unix.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
-endif()
-
 # Adapter
 
 add_subdirectory(adapter)
@@ -108,6 +102,12 @@ add_subdirectory(lldb)
 add_subdirectory(lang_support)
 
 add_dependencies(adapter lldb lang_support)
+
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+    configure_file(cargo_config.windows.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
+else()
+    configure_file(cargo_config.unix.toml ${CMAKE_BINARY_DIR}/.cargo/config.toml)
+endif()
 
 # Extension package content
 

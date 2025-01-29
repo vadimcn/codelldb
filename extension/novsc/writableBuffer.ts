@@ -1,6 +1,7 @@
-import * as stream from 'stream';
+import { Writable } from 'stream';
+import { Buffer } from 'buffer';
 
-export class WritableBuffer extends stream.Writable {
+export class WritableBuffer extends Writable {
     private buffer: Buffer;
     private size: number;
     private increment: number;

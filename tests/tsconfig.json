@@ -10,13 +10,15 @@
 		"preserveConstEnums": true,
 		"sourceMap": true,
 		"baseUrl": ".",
+		"typeRoots": [
+			"../build/node_modules/@types",
+		],
 		"paths": {
 			"extension/*": [
 				"../extension/*"
 			],
 			"*": [
 				"../build/node_modules/*",
-				"../build/node_modules/@types/*",
 			]
 		}
 	}

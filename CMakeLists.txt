@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.11.3") # Base version
+set(VERSION "1.11.4") # Base version
 
 include(cmake/CopyFiles.cmake)
 
@@ -242,7 +242,7 @@ set(VsceOptions
 add_custom_target(vsix_bootstrap
     DEPENDS extension ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-bootstrap ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-bootstrap.vsix
+    COMMAND echo Y | ${NPM} run vsce -- package ${VsceOptions} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-bootstrap.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -250,7 +250,7 @@ add_custom_target(vsix_bootstrap
 add_custom_target(vsix_full
     DEPENDS extension lldb adapter ${PackageFiles}
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${CMAKE_CURRENT_BINARY_DIR}/.vscodeignore
-    COMMAND ${NPM} run vsce -- package ${VsceOptions} --target ${PLATFORM_ID} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
+    COMMAND echo Y | ${NPM} run vsce -- package ${VsceOptions} --target ${PLATFORM_ID} -o ${CMAKE_CURRENT_BINARY_DIR}/codelldb-full.vsix
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )

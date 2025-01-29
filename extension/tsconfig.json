@@ -10,10 +10,12 @@
 		"preserveConstEnums": true,
 		"sourceMap": true,
 		"baseUrl": ".",
+		"typeRoots": [
+			"../build/node_modules/@types",
+		],
 		"paths": {
 			"*": [
 				"../build/node_modules/*",
-				"../build/node_modules/@types/*",
 			]
 		}
 	}

@@ -1,9 +1,7 @@
-import { ExtensionContext, window, OutputChannel, Uri, extensions, env, ProgressLocation } from 'vscode';
-import * as zip from 'yauzl';
+import { ExtensionContext, window, OutputChannel, Uri, extensions, env, ProgressLocation, commands } from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { Writable } from 'stream';
 import * as async from './novsc/async';
 import { isRosetta } from './novsc/adapter';
 
@@ -66,7 +64,7 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
                     message: 'installing',
                     increment: 100 - lastPercentage,
                 });
-                await installVsix(context, downloadTarget);
+                await commands.executeCommand('workbench.extensions.command.installFromVSIX', [Uri.file(downloadTarget)]);
                 await async.fs.unlink(downloadTarget);
             }
         );
@@ -139,72 +137,6 @@ async function download(srcUrl: Uri, destPath: string,
                 }
             });
         }
-    }
-}
-
-async function installVsix(context: ExtensionContext, vsixPath: string) {
-    let destDir = context.extensionPath;
-    await extractZip(vsixPath, async (entry) => {
-        if (!entry.fileName.startsWith('extension/'))
-            return null; // Skip metadata files.
-        if (entry.fileName.endsWith('/platform.ok'))
-            return null; // Skip success indicator, we'll create it at the end.
-
-        let destPath = path.join(destDir, entry.fileName.substr(10));
-        await ensureDirectory(path.dirname(destPath));
-        let stream = fs.createWriteStream(destPath);
-        stream.on('finish', () => {
-            let attrs = (entry.externalFileAttributes >> 16) & 0o7777;
-            fs.chmod(destPath, attrs, (err) => { });
-        });
-        return stream;
-    });
-    await async.fs.writeFile(path.join(destDir, 'platform.ok'), '');
-}
-
-function extractZip(zipPath: string, callback: (entry: zip.Entry) => Promise<Writable> | null): Promise<void> {
-    return new Promise((resolve, reject) =>
-        zip.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-            if (err) {
-                reject(err);
-            } else {
-                zipfile.readEntry();
-                zipfile.on('entry', (entry: zip.Entry) => {
-                    callback(entry).then(outstream => {
-                        if (outstream != null) {
-                            zipfile.openReadStream(entry, (err, zipstream) => {
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    outstream.on('error', reject);
-                                    zipstream.on('error', reject);
-                                    zipstream.on('end', () => zipfile.readEntry());
-                                    zipstream.pipe(outstream);
-                                }
-                            });
-                        } else {
-                            zipfile.readEntry();
-                        }
-                    });
-                });
-                zipfile.on('end', () => {
-                    zipfile.close();
-                    resolve();
-                });
-                zipfile.on('error', reject);
-            }
-        })
-    );
-}
-
-async function ensureDirectory(dir: string) {
-    let exists = await new Promise(resolve => fs.exists(dir, exists => resolve(exists)));
-    if (!exists) {
-        await ensureDirectory(path.dirname(dir));
-        await new Promise<void>((resolve, reject) => fs.mkdir(dir, err => {
-            if (err) reject(err);
-            else resolve();
-        }));
     }
 }
 

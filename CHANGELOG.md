@@ -1,5 +1,12 @@
 # Release Notes
 
+# 1.11.3
+
+### Fixed
+- #1217: Crash on remote debugging qemu after upgrading to 1.11.2
+- #1221: Unable to resolve liblldb symbols
+- #1225: Fix i8/u8 variable formatting
+
 # 1.11.2
 
 ### New

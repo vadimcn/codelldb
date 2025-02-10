@@ -65,6 +65,11 @@ impl SBValue {
             unsafe { Some(get_str(ptr)) }
         }
     }
+    pub fn declaration(&self) -> SBDeclaration {
+        cpp!(unsafe [self as "SBValue*"] -> SBDeclaration as "SBDeclaration" {
+            return self->GetDeclaration();
+        })
+    }
     pub fn address(&self) -> Option<SBAddress> {
         cpp!(unsafe [self as "SBValue*"] -> SBAddress as "SBAddress" {
             return self->GetAddress();

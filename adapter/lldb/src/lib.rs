@@ -131,6 +131,7 @@ mod sb {
     pub mod sbcompileunit;
     pub mod sbdata;
     pub mod sbdebugger;
+    pub mod sbdeclaration;
     pub mod sberror;
     pub mod sbevent;
     pub mod sbexecutioncontext;
@@ -175,6 +176,7 @@ pub use sb::sbcommandreturnobject::*;
 pub use sb::sbcompileunit::*;
 pub use sb::sbdata::*;
 pub use sb::sbdebugger::*;
+pub use sb::sbdeclaration::*;
 pub use sb::sberror::*;
 pub use sb::sbevent::*;
 pub use sb::sbexecutioncontext::*;

@@ -52,11 +52,11 @@ pub struct PythonInterface {
 }
 
 struct PythonCalls {
-    session_init: unsafe extern "C" fn(session_id: c_int, console_fd: usize) -> bool,
-    session_deinit: unsafe extern "C" fn(session_id: c_int) -> bool,
+    session_init: unsafe extern "C" fn(debugger: SBDebugger, console_fd: usize) -> bool,
+    session_deinit: unsafe extern "C" fn(debugger: SBDebugger) -> bool,
     interrupt: unsafe extern "C" fn(),
     drop_pyobject: unsafe extern "C" fn(obj: *mut c_void),
-    handle_message: unsafe extern "C" fn(json: *const c_char, json_len: usize, debugger: SBDebugger) -> bool,
+    handle_message: unsafe extern "C" fn(json: *const c_char, json_len: usize) -> bool,
     compile_code: unsafe extern "C" fn(
         result: *mut PyResult<*mut c_void>,
         expr: *const c_char,
@@ -193,7 +193,7 @@ impl PythonInterface {
         if !result.succeeded() {
             error!("{:?}", result.error());
         }
-        unsafe { (self.py.session_init)(debugger.id() as c_int, get_raw_fd(console_stream)) };
+        unsafe { (self.py.session_init)(debugger.clone(), get_raw_fd(console_stream)) };
         let mut senders = self.session_event_senders.lock().unwrap();
         senders.insert(debugger.id(), sender);
         (session, receiver)
@@ -225,7 +225,7 @@ pub enum EvalContext {
 
 impl Drop for PythonSession {
     fn drop(&mut self) {
-        unsafe { (self.interface.py.session_deinit)(self.debugger.id() as c_int) };
+        unsafe { (self.interface.py.session_deinit)(self.debugger.clone()) };
         let mut senders = self.interface.session_event_senders.lock().unwrap();
         senders.remove(&self.debugger.id());
     }
@@ -235,7 +235,7 @@ impl PythonSession {
     pub fn handle_message(&self, json: &str) -> bool {
         let json_ptr = json.as_ptr() as *const c_char;
         let json_len = json.len();
-        unsafe { (self.interface.py.handle_message)(json_ptr, json_len, self.debugger.clone()) }
+        unsafe { (self.interface.py.handle_message)(json_ptr, json_len) }
     }
 
     // Compiles Python source, returns a code object.

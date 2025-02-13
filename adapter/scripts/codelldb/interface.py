@@ -10,6 +10,8 @@ from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove, cast,
                     c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
 from .value import Value
 from .event import Event
+from .debug_info import DebugInfoCommand
+
 
 log = logging.getLogger('codelldb')
 
@@ -155,20 +157,23 @@ def initialize(init_callback_addr, callback_context, send_message_addr, log_leve
 session_stdouts = {}
 
 
-@CFUNCTYPE(c_bool, c_int, c_size_t)
-def session_init(session_id, console_fd):
+@CFUNCTYPE(c_bool, RustSBDebugger, c_size_t)
+def session_init(debugger, console_fd):
     '''Called once to initialize a new debug session'''
+    debugger = into_swig_wrapper(debugger, RustSBDebugger)
     if sys.platform.startswith('win32'):
         import msvcrt
         console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
-    session_stdouts[session_id] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
+    session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
+    DebugInfoCommand.register(debugger)
     return True
 
 
-@CFUNCTYPE(c_bool, c_int)
-def session_deinit(session_id):
+@CFUNCTYPE(c_bool, RustSBDebugger)
+def session_deinit(debugger):
     '''Called once to deinitialize a debug session'''
-    del session_stdouts[session_id]
+    debugger = into_swig_wrapper(debugger, RustSBDebugger)
+    del session_stdouts[debugger.GetID()]
     return True
 
 
@@ -222,12 +227,11 @@ def evaluate_as_bool(result, pycode, exec_context, eval_context):
     return True
 
 
-@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t, RustSBExecutionContext)
-def handle_message(body_ptr, body_len, context):
+@CFUNCTYPE(c_bool, POINTER(c_char), c_size_t)
+def handle_message(body_ptr, body_len):
     '''Handle a message intended for Python code'''
     try:
         body_json = ctypes.string_at(body_ptr, body_len)
-        context = into_swig_wrapper(context, RustSBExecutionContext)
         body = json.loads(body_json)
         on_did_receive_message.emit(body)
     except Exception as err:

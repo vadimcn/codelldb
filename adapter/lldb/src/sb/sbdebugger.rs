@@ -72,18 +72,19 @@ impl SBDebugger {
     }
     pub fn create_target(
         &self,
-        executable: &Path,
+        executable: Option<&Path>,
         target_triple: Option<&str>,
         platform_name: Option<&str>,
         add_dependent_modules: bool,
     ) -> Result<SBTarget, SBError> {
-        with_cstr(executable, |executable| {
+        with_opt_cstr(executable, |executable| {
             with_opt_cstr(target_triple, |target_triple| {
                 with_opt_cstr(platform_name, |platform_name| {
                     let mut error = SBError::new();
-                    let target = cpp!(unsafe [self as "SBDebugger*", executable as "const char*", target_triple as "const char*",
-                                          platform_name as "const char*", add_dependent_modules as "bool", mut error as "SBError"
-                                         ] -> SBTarget as "SBTarget" {
+                    let target = cpp!(unsafe [self as "SBDebugger*", executable as "const char*",
+                                              target_triple as "const char*", platform_name as "const char*",
+                                              add_dependent_modules as "bool", mut error as "SBError"
+                                             ] -> SBTarget as "SBTarget" {
                         return self->CreateTarget(executable, target_triple, platform_name, add_dependent_modules, error);
                     });
                     if error.is_success() {

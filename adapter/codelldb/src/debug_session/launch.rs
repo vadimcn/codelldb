@@ -30,9 +30,9 @@ impl super::DebugSession {
             self.exec_commands("targetCreateCommands", &commands)?;
             let target = self.debugger.selected_target();
             if target.is_valid() {
-                Some(target)
+                target
             } else {
-                None
+                self.debugger.create_target(None, None, None, false)?
             }
         } else {
             let program = match &args.program {
@@ -41,11 +41,9 @@ impl super::DebugSession {
                     "The \"program\" attribute is required for launch."
                 ))),
             };
-            Some(self.create_target_from_program(program)?)
+            self.create_target_from_program(program)?
         };
-        if let Some(target) = target {
-            self.set_target(target);
-        }
+        self.set_target(target);
 
         self.send_event(EventBody::initialized);
 
@@ -149,23 +147,14 @@ impl super::DebugSession {
             terminal.attach_console();
         }
 
-        let launch_result: Result<SBProcess, Error> = (|| {
-            if let Some(commands) = &args.process_create_commands {
+        let launch_result: Result<SBProcess, Error> = (|| match &args.process_create_commands {
+            None => self.target.launch(&launch_info).map_err(|sberr| Box::new(sberr).into()),
+            Some(commands) => {
                 self.exec_commands("processCreateCommands", commands)?;
-                if self.target_is_dummy {
+                if self.debugger.selected_target() != self.target {
                     self.set_target(self.debugger.selected_target());
                 }
                 Ok(self.target.process())
-            } else {
-                let launch_result = self.target.launch(&launch_info).map_err(|sberr| Box::new(sberr).into());
-                if let Ok(process) = &launch_result {
-                    self.console_message(format!(
-                        "Process {} launched: '{:?}'",
-                        process.process_id(),
-                        self.target.executable()
-                    ));
-                }
-                launch_result
             }
         })();
 
@@ -188,12 +177,17 @@ impl super::DebugSession {
             bail!(err);
         };
 
+        let process = self.target.process();
+        debug!("Process state: {:?}", process.state());
+
+        self.console_message(format!(
+            "Launched process {} from '{:?}'",
+            process.process_id(),
+            self.target.executable(),
+        ));
+
         self.terminate_on_disconnect = true;
-
-        debug!("Process state: {:?}", self.target.process().state());
-
         self.common_post_run(args.common)?;
-
         Ok(ResponseBody::launch)
     }
 
@@ -206,28 +200,32 @@ impl super::DebugSession {
             )));
         }
 
-        let target = if let Some(commands) = &args.target_create_commands {
-            self.exec_commands("targetCreateCommands", &commands)?;
-            let target = self.debugger.selected_target();
-            if target.is_valid() {
-                Some(target)
-            } else {
-                None
-            }
-        } else {
-            // Try to create target from `program`.
-            if let Some(program) = &args.program {
-                match self.create_target_from_program(program) {
-                    Ok(target) => Some(target),
-                    Err(_) => None,
+        let target = match &args.target_create_commands {
+            None => {
+                if let Some(program) = &args.program {
+                    // Try to create target from `program`.
+                    if let Ok(target) = self.create_target_from_program(program) {
+                        target
+                    } else {
+                        // Assume they are doing attach-by-name
+                        self.debugger.create_target(None, None, None, false)?
+                    }
+                } else {
+                    // Ok if attach-by-pid
+                    self.debugger.create_target(None, None, None, false)?
                 }
-            } else {
-                None
+            }
+            Some(commands) => {
+                self.exec_commands("targetCreateCommands", &commands)?;
+                let target = self.debugger.selected_target();
+                if target.is_valid() {
+                    target
+                } else {
+                    self.debugger.create_target(None, None, None, false)?
+                }
             }
         };
-        if let Some(target) = target {
-            self.set_target(target);
-        }
+        self.set_target(target);
 
         self.send_event(EventBody::initialized);
 
@@ -245,42 +243,46 @@ impl super::DebugSession {
             self.exec_commands("preRunCommands", commands)?;
         }
 
-        let process = if let Some(commands) = &args.process_create_commands {
-            self.exec_commands("processCreateCommands", commands)?;
-            if self.target_is_dummy {
-                self.set_target(self.debugger.selected_target());
-            }
-            self.target.process()
-        } else {
-            let attach_info = SBAttachInfo::new();
-            if let Some(pid) = &args.pid {
-                let pid = match pid {
-                    Pid::Number(n) => *n as ProcessID,
-                    Pid::String(s) => match s.parse() {
-                        Ok(n) => n,
-                        Err(_) => bail!(blame_user(str_error("Process id must be a positive integer."))),
-                    },
-                };
-                attach_info.set_process_id(pid);
-            } else {
-                let executable = self.target.executable();
-                if executable.is_valid() {
-                    attach_info.set_executable(&executable.path());
-                } else if let Some(program) = &args.program {
-                    attach_info.set_executable(Path::new(program));
+        let process = match &args.process_create_commands {
+            None => {
+                let attach_info = SBAttachInfo::new();
+                if let Some(pid) = &args.pid {
+                    let pid = match pid {
+                        Pid::Number(n) => *n as ProcessID,
+                        Pid::String(s) => match s.parse() {
+                            Ok(n) => n,
+                            Err(_) => bail!(blame_user(str_error("Process id must be a positive integer."))),
+                        },
+                    };
+                    attach_info.set_process_id(pid);
                 } else {
-                    bail!("unreachable");
+                    let executable = self.target.executable();
+                    if executable.is_valid() {
+                        attach_info.set_executable(&executable.path());
+                    } else if let Some(program) = &args.program {
+                        attach_info.set_executable(Path::new(program));
+                    } else {
+                        bail!("unreachable");
+                    }
+                }
+
+                attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
+                attach_info.set_ignore_existing(false);
+
+                match self.target.attach(&attach_info) {
+                    Ok(process) => process,
+                    Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),
                 }
             }
-
-            attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
-            attach_info.set_ignore_existing(false);
-
-            match self.target.attach(&attach_info) {
-                Ok(process) => process,
-                Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),
+            Some(commands) => {
+                self.exec_commands("processCreateCommands", commands)?;
+                if self.debugger.selected_target() != self.target {
+                    self.set_target(self.debugger.selected_target());
+                }
+                self.target.process()
             }
         };
+
         self.console_message(format!("Attached to process {}", process.process_id()));
         self.terminate_on_disconnect = false;
 
@@ -350,13 +352,13 @@ impl super::DebugSession {
     }
 
     fn create_target_from_program(&self, program: &str) -> Result<SBTarget, Error> {
-        match self.debugger.create_target(Path::new(program), None, None, false) {
+        match self.debugger.create_target(Some(Path::new(program)), None, None, false) {
             Ok(target) => Ok(target),
             Err(err) => {
                 // TODO: use selected platform instead of cfg!(windows)
                 if cfg!(windows) && !program.ends_with(".exe") {
                     let program = format!("{}.exe", program);
-                    self.debugger.create_target(Path::new(&program), None, None, false)
+                    self.debugger.create_target(Some(Path::new(&program)), None, None, false)
                 } else {
                     Err(err)
                 }
@@ -368,7 +370,6 @@ impl super::DebugSession {
     fn set_target(&mut self, target: SBTarget) {
         self.debugger.listener().stop_listening_for_events(&self.target.broadcaster(), !0);
         self.target = target;
-        self.target_is_dummy = false;
         self.disassembly = disassembly::AddressSpace::new(&self.target);
         self.debugger.listener().start_listening_for_events(&self.target.broadcaster(), !0);
     }

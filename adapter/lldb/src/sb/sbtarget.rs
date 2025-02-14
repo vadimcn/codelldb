@@ -342,6 +342,14 @@ impl IsValid for SBTarget {
     }
 }
 
+impl PartialEq for SBTarget {
+    fn eq(&self, other: &Self) -> bool {
+        cpp!(unsafe [self as "SBTarget*", other as "SBTarget*"] -> bool as "bool" {
+            return *self == *other;
+        })
+    }
+}
+
 impl fmt::Debug for SBTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let full = f.alternate();

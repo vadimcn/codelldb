@@ -57,7 +57,6 @@ pub struct DebugSession {
     debugger: SBDebugger,
     debugger_terminal: Option<DebuggerTerminal>,
     target: SBTarget,
-    target_is_dummy: bool,
     terminate_on_disconnect: bool,
     no_debug: bool,
 
@@ -143,7 +142,6 @@ impl DebugSession {
 
             debugger: debugger,
             target: target.clone(),
-            target_is_dummy: true,
             debugger_terminal: None,
             terminate_on_disconnect: false,
             no_debug: false,

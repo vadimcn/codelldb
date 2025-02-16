@@ -276,6 +276,11 @@ impl super::DebugSession {
             attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
             attach_info.set_ignore_existing(false);
 
+            // If no target was created by now, create an empty target.
+            if self.target_is_dummy {
+                self.set_target(self.debugger.create_target(Path::new(""), None, None, false)?);
+            }
+
             match self.target.attach(&attach_info) {
                 Ok(process) => process,
                 Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),

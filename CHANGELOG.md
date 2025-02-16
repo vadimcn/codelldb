@@ -1,5 +1,14 @@
 # Release Notes
 
+# 1.11.4
+
+### Fixed
+- #1044: VS Code doesn't clear the extension folder after upgrading or uninstalling
+- #1228: SourceMaps stopped working for bazel-built processes on version 1.11.2 and 1.11.3
+
+### Changed
+- Updated bundled LLDB to v19.1.0
+
 # 1.11.3
 
 ### Fixed

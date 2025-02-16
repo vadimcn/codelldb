@@ -708,7 +708,7 @@ for use in CodeLLDB, you will need to use the **LLDB: Command Prompt** command i
 
 CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging Swift programs,
 one might want to use a custom LLDB instance that has Swift extensions built in.   In order to use an alternate backend,
-you will need to provide location of the corresponding LLDB dynamic library (which must be v10.0 or later) via
+you will need to provide location of the corresponding LLDB dynamic library (which must be v13.0 or later) via
 **lldb.library** configuration setting.
 
 Where to find the LLDB dynamic library:

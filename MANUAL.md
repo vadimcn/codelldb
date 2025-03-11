@@ -399,6 +399,7 @@ Use launch configuration with `target create -c <core path>` command:
     "name": "Core dump",
     "type": "lldb",
     "request": "launch",
+    "processCreateCommands": [],
     "targetCreateCommands": ["target create -c ${workspaceFolder}/core"],
 }
 ```

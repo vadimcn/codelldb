@@ -104,6 +104,11 @@
 			},
 			{
 				"category": "LLDB",
+				"title": "Generate Launch Configurations from Custom Cargo.toml",
+				"command": "lldb.getCargoLaunchConfigsFromCustomFolder"
+			},
+			{
+				"category": "LLDB",
 				"title": "Display Options...",
 				"command": "lldb.changeDisplaySettings"
 			},

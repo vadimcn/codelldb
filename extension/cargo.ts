@@ -1,5 +1,6 @@
 import {
-    tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken
+    tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken,
+    Uri, workspace,
 } from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -29,16 +30,18 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
-    folder: WorkspaceFolder;
+    workspaceFolder: WorkspaceFolder;
+    cargoFolder: Uri;
     cancellation?: CancellationToken
 
-    public constructor(folder: WorkspaceFolder, cancellation?: CancellationToken) {
-        this.folder = folder;
+    public constructor(workspaceFolder: WorkspaceFolder, cargoFolder: Uri, cancellation?: CancellationToken) {
+        this.workspaceFolder = workspaceFolder;
+        this.cargoFolder = cargoFolder;
         this.cancellation = cancellation;
     }
 
     getCargoTomlDir(): string {
-        return this.folder?.uri?.fsPath;
+        return this.cargoFolder.fsPath;
     }
 
     public async getProgramFromCargoConfig(
@@ -84,7 +87,7 @@ export class Cargo {
 
         let problemMatchers = cargoConfig.problemMatcher || '$rustc';
         cargoConfig.type = 'codelldb.cargo';
-        let task = new Task(cargoConfig, this.folder, 'cargo', 'CodeLLDB', execution, problemMatchers);
+        let task = new Task(cargoConfig, this.workspaceFolder, 'cargo', 'CodeLLDB', execution, problemMatchers);
         task.presentationOptions.clear = true;
         let taskExecution = await tasks.executeTask(task);
 
@@ -199,6 +202,8 @@ export class Cargo {
         if (!metadata)
             throw new Error('Cargo has produced no metadata');
 
+        let cwd = this.workspaceFolder.uri == this.cargoFolder ?
+            "${workspaceFolder}" : `\${workspaceFolder}/${workspace.asRelativePath(cargoTomlFolder, false)}`;
         let configs: DebugConfiguration[] = [];
         for (let pkg of metadata.packages) {
             function addConfig(name: string, cargo_args: string[], filter: any) {
@@ -208,10 +213,11 @@ export class Cargo {
                     name: name,
                     cargo: {
                         args: cargo_args.concat(`--package=${pkg.name}`),
-                        filter: filter
+                        filter: filter,
+                        cwd: cwd,
                     },
                     args: [],
-                    cwd: '${workspaceFolder}'
+                    cwd: cwd,
                 });
             };
 
@@ -269,7 +275,7 @@ export class Cargo {
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void,
     ): Promise<number> {
-        let config = getExtensionConfig(this.folder);
+        let config = getExtensionConfig(this.workspaceFolder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
 
         return new Promise<number>((resolve, reject) => {

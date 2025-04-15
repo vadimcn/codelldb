@@ -1,5 +1,5 @@
 
-from typing import Any
+from typing import Any, Optional
 
 frame: SBFrame | None
 thread: SBThread | None
@@ -79,10 +79,17 @@ class SBTarget:
 
 class SBDebugger:
     @staticmethod
+    def Create() -> SBDebugger: ...
+    @staticmethod
+    def Destroy(debugger: SBDebugger): ...
+    @staticmethod
     def SetInternalVariable(name: str, value: str, instance_name: str) -> SBError: ...
     def GetInstanceName(self) -> str: ...
     def GetID(self) -> int: ...
     def HandleCommand(self, command: str): ...
+
+    def CreateTarget(self, filename: str, target_triple: Optional[str], platform_name: Optional[str],
+                     add_dependent_modules: bool, error: SBError) -> SBTarget: ...
 
 
 eTypeOptionCascade: int

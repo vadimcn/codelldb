@@ -1,5 +1,6 @@
 import lldb
 import operator
+from typing import Any
 
 
 class Value(object):
@@ -258,7 +259,7 @@ class ValueIter(object):
     next = __next__  # PY2 compatibility.
 
 
-def get_value(v):
+def get_value(v) -> Any:
     '''Convert a Value to an int, a float or a string'''
     if type(v) is Value:
         sbvalue = Value.unwrap(v)

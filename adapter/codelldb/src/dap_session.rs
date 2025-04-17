@@ -39,7 +39,7 @@ impl DAPSession {
         let mut channel: Pin<Box<dyn DAPChannel>> = channel.into();
         let requests_sender = Arc::new(broadcast::channel::<(u32, RequestArguments)>(100).0);
         let events_sender = Arc::new(broadcast::channel::<EventBody>(100).0);
-        let (out_sender, mut out_receiver) = mpsc::channel(100);
+        let (out_sender, mut out_receiver) = mpsc::channel(1000);
         let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseResult>> = HashMap::new();
         let mut message_seq = 0;
 

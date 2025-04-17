@@ -298,7 +298,7 @@ debug configurations must also contain `token` with a matching value.<br>
 - Configuration in settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
 - Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345`
 
-## Remote debugging
+## Remote Debugging
 
 For general information on remote debugging please see [LLDB Remote Debugging Guide](http://lldb.llvm.org/remote.html).
 
@@ -358,6 +358,21 @@ of the debuggee modules; you may need to specify this manually:
 target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>`
 ```
 
+## Debugging as a Different User
+
+While CodeLLDB does not natively support launching the debuggee as a different user, this can be easily achieved via remote debugging:
+
+- Start `lldb-server` under the target user account, for example `sudo lldb-server platform --server --listen 127.0.0.1:12345` for root.<br>
+  (A copy of lldb-server is provided in this extension's installation directory under `lldb/bin`.
+  Use the "Extensions: Open Extensions Folder" command to find where extensions are located, and look for "vadimcn.vscode-lldb".)
+- Add the following to your launch configuration:
+```javascript
+    "initCommands": [
+        "platform select remote-linux", // Replace with "remote-macosx" or "remote-windows" as appropriate
+        "platform connect connect://127.0.0.1:12345"
+    ]
+```
+
 ## Reverse Debugging
 
 Also known as [Time travel debugging](https://en.wikipedia.org/wiki/Time_travel_debugging).  Provided you use a debugging backend that supports
@@ -399,8 +414,8 @@ Use launch configuration with `target create -c <core path>` command:
     "name": "Core dump",
     "type": "lldb",
     "request": "launch",
-    "processCreateCommands": [],
     "targetCreateCommands": ["target create -c ${workspaceFolder}/core"],
+    "processCreateCommands": []
 }
 ```
 

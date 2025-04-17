@@ -1,7 +1,13 @@
 {
     "executionEnvironments": [
         {
-            "root": "adapter"
+            "root": ".",
+            "extraPaths": [
+                "adapter/scripts",
+                "adapter/lang_support",
+                "build/lldb/lib/lldb-python",
+            ],
+            "pythonVersion": "3.6"
         }
     ]
 }

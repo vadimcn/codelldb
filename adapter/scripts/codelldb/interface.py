@@ -1,6 +1,7 @@
 import __main__
 import sys
 import os
+from typing import Optional
 import lldb
 import logging
 import traceback
@@ -323,7 +324,7 @@ def bytes_to_str(b):
     return b.decode('utf8') if b != None else None
 
 
-current_exec_context: lldb.SBExecutionContext | None = None
+current_exec_context: Optional[lldb.SBExecutionContext] = None
 
 
 def evaluate_in_context(code, exec_context, eval_context):

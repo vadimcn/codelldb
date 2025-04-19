@@ -12,7 +12,8 @@ import { expandVariablesInObject, mergedEnvironment } from './novsc/expand';
 import { ErrorWithCause, formatError } from './novsc/error';
 
 export interface CargoConfig {
-    type: string,
+    type: string;
+    command: string;
     args?: string[];
     env?: Dict<string>;
     problemMatcher?: string | string[];
@@ -82,8 +83,8 @@ export class Cargo {
             return pty;
         });
 
-        let problemMatchers = cargoConfig.problemMatcher || '$rustc';
-        cargoConfig.type = 'codelldb.cargo';
+        let problemMatchers = cargoConfig.problemMatcher;
+        cargoConfig.command = 'dummy';
         let task = new Task(cargoConfig, this.folder, 'cargo', 'CodeLLDB', execution, problemMatchers);
         task.presentationOptions.clear = true;
         let taskExecution = await tasks.executeTask(task);

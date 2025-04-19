@@ -61,9 +61,7 @@
 	"activationEvents": [
 		"onDebug",
 		"onUri",
-		"onStartupFinished",
-		"onCommand:lldb.attach",
-		"onCommand:lldb.commandPrompt"
+		"onStartupFinished"
 	],
 	"contributes": {
 		"commands": [
@@ -222,26 +220,6 @@
 				}
 			]
 		},
-		"taskDefinitions": [
-			{
-				"type": "codelldb.cargo",
-				"properties": {
-					"args": {
-						"type": "array"
-					},
-					"env": {
-						"type": "object"
-					},
-					"cwd": {
-						"type": "string"
-					},
-					"filter": {
-						"type": "object"
-					}
-				},
-				"when": "false"
-			}
-		],
 		"configuration": [
 			{
 				"title": "General",

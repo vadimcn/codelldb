@@ -77,9 +77,14 @@ impl super::DebugSession {
             }
         }
         if let Some(ref env_file) = args.env_file {
-            for item in dotenvy::from_filename_iter(env_file)? {
-                let (k, v) = item?;
-                launch_env.insert(fold_case(&k), v);
+            match std::fs::File::open(env_file) {
+                Ok(file) => {
+                    for item in dotenvy::from_read_iter(file) {
+                        let (k, v) = item?;
+                        launch_env.insert(fold_case(&k), v);
+                    }
+                }
+                Err(err) => self.console_error(format!("Could not read {env_file}: {err}")),
             }
         }
         if let Some(ref env) = args.env {

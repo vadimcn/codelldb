@@ -428,6 +428,16 @@ impl super::DebugSession {
             Some(Either::First(ref stdio)) => vec![Some(stdio.clone())], // A single string
             Some(Either::Second(ref stdio)) => stdio.clone(),            // List of strings
         };
+
+        // replace empty strings with None
+        for entry in stdio.iter_mut() {
+            if let Some(path) = entry {
+                if path.is_empty() {
+                    *entry = None;
+                }
+            }
+        }
+
         // Pad to at least 3 entries
         while stdio.len() < 3 {
             stdio.push(None)

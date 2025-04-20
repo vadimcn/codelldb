@@ -2,7 +2,8 @@ import {
     workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation
+    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, RelativePattern, QuickPickItem,
+    ThemeIcon,
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -63,7 +64,8 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
-        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
+        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigsFromRoot()));
+        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigsFromCustomFolder', () => this.getCargoLaunchConfigsFromCustomFolder()));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', (config) => pickProcess(context, false, config)));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', (config) => pickProcess(context, true, config)));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
@@ -143,7 +145,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
         try {
-            let cargo = new Cargo(workspaceFolder, cancellation);
+            let cargo = new Cargo(workspaceFolder, workspaceFolder.uri, cancellation);
             let debugConfigs = await cargo.getLaunchConfigs();
             if (debugConfigs.length > 0) {
                 let response = await window.showInformationMessage(
@@ -209,7 +211,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         // Deal with Cargo
         if (launchConfig.cargo != undefined) {
-            let cargo = new Cargo(folder, cancellation);
+            let cargo = new Cargo(folder, launchConfig.relativePathBase, cancellation);
             let program = await cargo.getProgramFromCargoConfig(launchConfig.cargo);
             delete launchConfig.cargo;
 
@@ -304,12 +306,48 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('breakpointMode');
     }
 
-    async getCargoLaunchConfigs() {
+    async getCargoLaunchConfigsFromRoot() {
+        this.getCargoLaunchConfigs(true);
+    }
+
+    async getCargoLaunchConfigsFromCustomFolder() {
+        this.getCargoLaunchConfigs(false);
+    }
+
+    async getCargoLaunchConfigs(useRootFolder: boolean) {
         try {
-            let folder = (workspace.workspaceFolders.length == 1) ?
+            let workspaceFolder = (workspace.workspaceFolders.length == 1) ?
                 workspace.workspaceFolders[0] :
                 await window.showWorkspaceFolderPick();
-            let cargo = new Cargo(folder);
+            let cargoFolder = workspaceFolder.uri;
+            if (!useRootFolder) {
+                let cargoFiles = await workspace.findFiles(new RelativePattern(workspaceFolder.uri, '**/Cargo.toml'));
+
+                class CargoFileItem implements QuickPickItem {
+                    get label() { return workspace.asRelativePath(this.uri, false); }
+                    get iconPath() { return ThemeIcon.File; }
+
+                    constructor(public readonly uri: Uri) { }
+                }
+
+
+                const quickPick = window.createQuickPick();
+                quickPick.placeholder = 'Select Cargo.toml';
+                quickPick.canSelectMany = false;
+                quickPick.items = cargoFiles.map((uri) => new CargoFileItem(uri));
+                quickPick.show();
+
+                const cargoFileItem = await new Promise<CargoFileItem | undefined>((resolve) => {
+                    quickPick.onDidAccept(() => resolve(quickPick.activeItems[0] as CargoFileItem));
+                    quickPick.onDidHide(() => resolve(undefined));
+                });
+
+                if (cargoFileItem) {
+                    cargoFolder = Uri.joinPath(cargoFileItem.uri, "..");
+                }
+            }
+
+            let cargo = new Cargo(workspaceFolder, cargoFolder);
             let configurations = await cargo.getLaunchConfigs();
             let debugConfigs = {
                 version: '0.2.0',
@@ -345,7 +383,7 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         let adapterProcess = await adapter.start(liblldb, {
             extensionRoot: this.context.extensionPath,
             extraEnv: adapterEnv,
-            workDir: workspace.rootPath,
+            workDir: folder?.uri.fsPath || workspace.rootPath,
             port: connectPort,
             connect: true,
             authToken: authToken,

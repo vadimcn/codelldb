@@ -9,6 +9,7 @@
     - [Debugging Externally Launched Code](#debugging-externally-launched-code)
         - [RPC Server](#rpc-server)
     - [Remote Debugging](#remote-debugging)
+        - [Root Debugging](#root-debugging)
     - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Inspecting a Core Dump](#inspecting-a-core-dump)
     - [Source Path Remapping](#source-path-remapping)
@@ -357,6 +358,30 @@ of the debuggee modules; you may need to specify this manually:
 ```
 target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>`
 ```
+
+### Root Debugging
+
+Debugging as root on a local machine is possible only with a remote platform. On MacOS/Linux you should be able to prepend the standard platform command with `sudo`/`doas`/`rootdo`. The builtin terminal will prompt you for the credentials.
+
+On Windows it is not possible to run an application as the administrator from a non-administrator environment, so the platform has to be launched in a privileged terminal outside of VSCode.
+
+In `.vscode/tasks.json` add the following task:
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run LLDB Platform",
+            "type": "shell",
+            "command": "sudo lldb-server platform --server --listen '*:<port>'"
+        }
+    ]
+}
+```
+
+From there proceed normally, as described above in the [Remote Debugging](#remote-debugging) section.
+
+Note: the platform may not be started as a preLaunchTask, since it will block the execution awaiting for a connection that is only initiated when the preLaunchTasks finish.
 
 ## Reverse Debugging
 

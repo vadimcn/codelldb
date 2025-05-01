@@ -26,7 +26,7 @@ and Zig.
 
 ## Host
 - Linux with glibc 2.18+ for x86_64, aarch64 or armhf.
-- MacOS X 10.10+ for x86_64 and 11.0+ for arm64.
+- MacOS 10.12+ for x86_64 and 11.0+ for arm64.
 - Windows 10 and 11 for x86_64. [See Windows notes in wiki!](https://github.com/vadimcn/codelldb/wiki/Windows)
 
 ## Target

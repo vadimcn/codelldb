@@ -141,7 +141,7 @@ jobs:
   strategy:
     matrix:
       x86_64:
-        DeploymentTarget: '10.10'
+        DeploymentTarget: '10.12'
         PlatformId: 'darwin-x64'
         Triple: 'x86_64-apple-darwin'
         RustTarget: 'x86_64-apple-darwin'
@@ -199,7 +199,7 @@ jobs:
             -DTEST_TIMEOUT=30000\
             -DLLDB_PACKAGE=$(Agent.BuildDirectory)/D/lldb--$(Triple)/lldb--$(Triple).zip\
             -DCMAKE_TOOLCHAIN_FILE=$(Build.SourcesDirectory)/cmake/toolchain-$(Triple).cmake\
-            -DPLATFORM_ID=$(PlatformId)\
+            -DPLATFORM_ID=$(PlaformId)\
             ..
       cat CMakeCache.txt
     displayName: 'Configure'

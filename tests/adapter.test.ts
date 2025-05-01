@@ -768,7 +768,7 @@ function generateSuite(triple: string) {
                 })
                 if (!triple.endsWith('pc-windows-msvc')) {
                     await ds.compareVariables(localVars, {
-                        char_: v => v.value.includes("'A'"),
+                        char_: v => v.value.includes("0041"),
                         i8_: -8,
                         u8_: 8,
                         //unit: '()',

@@ -34,7 +34,9 @@ impl super::DebugSession {
         let Some(cu) = frame.compile_uint() else {
             bail!("No compile unit for frame.");
         };
-        // This is a typical case we aim to handle:
+        let _token = lldb_stub::v16.resolve()?;
+
+        // This is the typical case we aim to handle:
         // ```
         //    AAA(BBB(),  <-- execution stopped on this line; the user wants to step into AAA, bypassing BBB and CCC
         //        CCC())

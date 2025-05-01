@@ -34,13 +34,6 @@ fn main() {
         "rust_cpp_generated.lib"
     });
     println!("cargo:GENERATED={}", generated_lib.display());
-
-    // These should go last
-    if !no_link_args {
-        build_utils::set_dylib_search_path();
-        println!("cargo:rustc-link-lib=dylib={}", env::var("LLDB_LINK_LIB").unwrap());
-        println!("cargo:rustc-link-search={}", env::var("LLDB_LINK_SEARCH").unwrap());
-    }
 }
 
 fn rerun_if_changed_in(dir: &Path) {

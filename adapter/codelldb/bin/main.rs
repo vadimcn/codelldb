@@ -1,4 +1,5 @@
 use clap::{App, Arg, SubCommand};
+use log::info;
 
 type Error = Box<dyn std::error::Error>;
 
@@ -23,43 +24,47 @@ fn main() -> Result<(), Error> {
     if let Some(matches) = matches.subcommand_matches("terminal-agent") {
         terminal_agent::terminal_agent(&matches)
     } else {
-        #[cfg(feature = "weaklink")]
-        {
-            use std::path::PathBuf;
+        use std::path::PathBuf;
 
-            #[cfg(unix)]
-            pub const DYLIB_SUBDIR: &str = "lib";
-            #[cfg(windows)]
-            pub const DYLIB_SUBDIR: &str = "bin";
+        #[cfg(unix)]
+        pub const DYLIB_SUBDIR: &str = "lib";
+        #[cfg(windows)]
+        pub const DYLIB_SUBDIR: &str = "bin";
 
-            #[cfg(target_os = "linux")]
-            pub const DYLIB_EXTENSION: &str = "so";
-            #[cfg(target_os = "macos")]
-            pub const DYLIB_EXTENSION: &str = "dylib";
-            #[cfg(target_os = "windows")]
-            pub const DYLIB_EXTENSION: &str = "dll";
+        #[cfg(target_os = "linux")]
+        pub const DYLIB_EXTENSION: &str = "so";
+        #[cfg(target_os = "macos")]
+        pub const DYLIB_EXTENSION: &str = "dylib";
+        #[cfg(target_os = "windows")]
+        pub const DYLIB_EXTENSION: &str = "dll";
 
-            // Load liblldb
-            let mut codelldb_dir = std::env::current_exe()?;
-            codelldb_dir.pop();
-            let liblldb_path = match matches.value_of("liblldb") {
-                Some(path) => PathBuf::from(path),
-                None => {
-                    let mut liblldb_path = codelldb_dir.clone();
-                    liblldb_path.pop();
-                    liblldb_path.push("lldb");
-                    liblldb_path.push(DYLIB_SUBDIR);
-                    liblldb_path.push(format!("liblldb.{}", DYLIB_EXTENSION));
-                    liblldb_path
-                }
-            };
+        // Load liblldb
+        let mut codelldb_dir = std::env::current_exe()?;
+        codelldb_dir.pop();
+        let liblldb_path = match matches.value_of("liblldb") {
+            Some(path) => PathBuf::from(path),
+            None => {
+                let mut liblldb_path = codelldb_dir.clone();
+                liblldb_path.pop();
+                liblldb_path.push("lldb");
+                liblldb_path.push(DYLIB_SUBDIR);
+                liblldb_path.push(format!("liblldb.{}", DYLIB_EXTENSION));
+                liblldb_path
+            }
+        };
 
-            lldb_stub::liblldb.load_from(&liblldb_path).unwrap();
-            if let Err(err) = lldb_stub::base_api.resolve_uncached() {
-                log::error!("Unable to resolve liblldb symbols: {}", err);
+        lldb_stub::liblldb.load_from(&liblldb_path).unwrap();
+        match lldb_stub::base.resolve() {
+            Ok(token) => token.mark_permanent(),
+            Err(err) => {
+                log::error!("Unable to resolve liblldb symbol: {}", err);
                 return Err(err);
             }
         }
+        info!(
+            "Loaded {liblldb_path:?}, version=\"{}\"",
+            lldb::SBDebugger::version_string()
+        );
 
         codelldb::debug_server(&matches)
     }

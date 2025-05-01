@@ -12,6 +12,12 @@ impl SBDebugger {
     pub const BroadcastSymbolChange: u32 = (1 << 3);
     pub const BroadcastBitProgressCategory: u32 = (1 << 4);
 
+    pub fn version_string() -> &'static str {
+        let ptr = cpp!(unsafe [] ->  *const c_char as "const char*" {
+            return SBDebugger::GetVersionString();
+        });
+        unsafe { get_str(ptr) }
+    }
     pub fn initialize() {
         cpp!(unsafe [] {
             SBDebugger::Initialize();

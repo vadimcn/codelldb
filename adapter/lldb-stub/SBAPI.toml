@@ -1,0 +1,4 @@
+[v16]
+SBInstruction = [
+  "GetControlFlowKind(lldb::SBTarget target)",
+]

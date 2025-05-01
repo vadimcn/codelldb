@@ -202,3 +202,12 @@ fn finalize_reproducer() {
         }
     }
 }
+
+// Initialization for test binaries
+#[cfg(test)]
+#[ctor::ctor]
+fn test_init() {
+    lldb_stub::liblldb.load_from(Path::new(env!("LLDB_DYLIB"))).unwrap();
+    lldb_stub::base.resolve().unwrap().mark_permanent();
+    lldb_stub::v16.resolve().unwrap().mark_permanent();
+}

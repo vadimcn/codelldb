@@ -52,7 +52,7 @@ externalproject_add(cargo_build
     CONFIGURE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}"
-    BUILD_COMMAND cargo rustc --package=codelldb --bin=codelldb ${CargoFlags} --features=weaklink -- ${RustcFlags}
+    BUILD_COMMAND cargo rustc --package=codelldb --bin=codelldb ${CargoFlags} --features=no_link_args -- ${RustcFlags}
     BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe}
     BUILD_ALWAYS ON
     USES_TERMINAL_BUILD ON

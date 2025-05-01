@@ -81,14 +81,3 @@ impl fmt::Debug for SBFileSpec {
         })
     }
 }
-
-#[test]
-fn test_matches() {
-    SBDebugger::initialize();
-
-    let file = SBFileSpec::from("foo/bar/baz.txt");
-    assert!(file.matches(&file));
-
-    let pattern = SBFileSpec::from("baz.txt");
-    assert!(file.matches(&pattern));
-}

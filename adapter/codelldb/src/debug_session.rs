@@ -612,7 +612,7 @@ impl DebugSession {
             supports_read_memory_request: Some(true),
             supports_restart_request: Some(true),
             supports_set_variable: Some(true),
-            supports_step_in_targets_request: Some(true),
+            supports_step_in_targets_request: Some(lldb_stub::v16.resolve().is_ok()),
             supports_stepping_granularity: Some(true),
             supports_write_memory_request: Some(true),
             ..Default::default()

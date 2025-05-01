@@ -12,7 +12,6 @@ libc = "0.2.59"
 num_enum = "0.5.7"
 
 [build-dependencies]
-build-utils = {path = "../build-utils"}
 cpp_build = "0.5"
 regex = "1.9"
 

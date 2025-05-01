@@ -7,7 +7,7 @@ version = "1.0.0"
 [dependencies]
 adapter_protocol = {package = "adapter-protocol", path = "../adapter-protocol"}
 lldb = {path = "../lldb"}
-lldb-stub = {path = "../lldb-stub", optional = true}
+lldb-stub = {path = "../lldb-stub"}
 
 backtrace = "0.3.37"
 base64 = "0.12.3"
@@ -31,9 +31,6 @@ superslice = "1.0.0"
 tokio = {version = "1.0.0", features = ["full"]}
 tokio-util = {version = "0.6.0", features = ["codec"]}
 
-[build-dependencies]
-build-utils = {path = "../build-utils"}
-
 [target.'cfg(unix)'.dependencies]
 termios = "0.3.1"
 
@@ -41,8 +38,11 @@ termios = "0.3.1"
 winapi = {version = "0.3.8", features = ["std", "wincon", "namedpipeapi"]}
 winreg = "0.6.2"
 
+[dev-dependencies]
+ctor = "0.4.2"
+
 [features]
-weaklink = ["lldb-stub", "lldb/no_link_args"] # Use weak linkage for liblldb
+no_link_args = ["lldb/no_link_args"] # Use weak linkage for liblldb
 
 [lib]
 path = "src/lib.rs"

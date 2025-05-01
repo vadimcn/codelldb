@@ -8,4 +8,6 @@ lldb = {path = "../lldb"}
 weaklink = {git = "https://github.com/vadimcn/weaklink.git"}
 
 [build-dependencies]
+toml = "0.8.21"
+cc = "1.2.20"
 weaklink_build = {git = "https://github.com/vadimcn/weaklink.git"}

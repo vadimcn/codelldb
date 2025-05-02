@@ -182,8 +182,11 @@ impl DebugSession {
         debug_session.update_adapter_settings(&settings);
 
         let mut requests_receiver = DebugSession::cancellation_filter(&debug_session.dap_session.clone());
+        // The debug event listener is used to receive events from the debugger.
+        // For very large code bases, the number of events can be quite large so the channel size has been set to 2^17
+        // to avoid dropping events.
         let mut debug_events_stream =
-            debug_session.debug_event_listener.start_polling(&debug_session.debugger.listener(), 1000);
+            debug_session.debug_event_listener.start_polling(&debug_session.debugger.listener(), 131072);
 
         let con_writer = debug_session.console_pipe.try_clone().unwrap();
         log_errors!(debug_session.debugger.set_output_file(SBFile::from(con_writer, false)));

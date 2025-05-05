@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBType as "SBType");
 
-unsafe impl Send for SBType {}
+
 
 impl SBType {
     pub fn byte_size(&self) -> u64 {

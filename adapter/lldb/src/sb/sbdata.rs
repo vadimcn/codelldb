@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 cpp_class!(unsafe struct _SBData as "SBData");
 
-unsafe impl Send for _SBData {}
+
 
 // SBData doesn't always own the data it points to.
 #[repr(transparent)]

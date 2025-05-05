@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 cpp_class!(pub unsafe struct SBFileSpec as "SBFileSpec");
 
-unsafe impl Send for SBFileSpec {}
+
 
 impl SBFileSpec {
     pub fn filename(&self) -> &Path {

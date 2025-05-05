@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBModule as "SBModule");
 
-unsafe impl Send for SBModule {}
+
 
 impl SBModule {
     pub fn uuid_string(&self) -> Option<&str> {

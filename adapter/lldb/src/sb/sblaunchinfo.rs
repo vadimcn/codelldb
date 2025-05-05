@@ -3,7 +3,7 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBLaunchInfo as "SBLaunchInfo");
 
-unsafe impl Send for SBLaunchInfo {}
+
 
 impl SBLaunchInfo {
     pub fn new() -> SBLaunchInfo {

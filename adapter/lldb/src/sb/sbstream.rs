@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStream as "SBStream");
 
-unsafe impl Send for SBStream {}
+
 
 impl SBStream {
     pub fn new() -> SBStream {

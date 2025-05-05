@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBWatchpoint as "SBWatchpoint");
 
-unsafe impl Send for SBWatchpoint {}
+
 
 impl SBWatchpoint {
     pub fn id(&self) -> WatchpointID {

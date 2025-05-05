@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBEvent as "SBEvent");
 
-unsafe impl Send for SBEvent {}
+
 
 impl SBEvent {
     pub fn new() -> SBEvent {

@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBLineEntry as "SBLineEntry");
 
-unsafe impl Send for SBLineEntry {}
+
 
 impl SBLineEntry {
     pub fn line(&self) -> u32 {

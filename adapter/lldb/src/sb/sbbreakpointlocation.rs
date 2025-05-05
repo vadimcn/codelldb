@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBBreakpointLocation as "SBBreakpointLocation");
 
-unsafe impl Send for SBBreakpointLocation {}
+
 
 impl SBBreakpointLocation {
     pub fn id(&self) -> BreakpointID {

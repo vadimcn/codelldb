@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBFunction as "SBFunction");
 
-unsafe impl Send for SBFunction {}
+
 
 impl SBFunction {
     pub fn name(&self) -> &str {

@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBThread as "SBThread");
 
-unsafe impl Send for SBThread {}
+
 
 impl SBThread {
     pub const BroadcastBitStackChanged: u32 = (1 << 0);

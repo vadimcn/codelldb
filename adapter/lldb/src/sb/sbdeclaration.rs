@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBDeclaration as "SBDeclaration");
 
-unsafe impl Send for SBDeclaration {}
+
 
 impl SBDeclaration {
     pub fn filespec(&self) -> SBFileSpec {

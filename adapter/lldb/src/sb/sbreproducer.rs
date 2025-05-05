@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 cpp_class!(pub unsafe struct SBReproducer as "SBReproducer");
 
-unsafe impl Send for SBReproducer {}
+
 
 impl SBReproducer {
     pub fn capture(path: Option<&Path>) -> Result<(), String> {

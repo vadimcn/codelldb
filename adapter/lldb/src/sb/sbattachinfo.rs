@@ -3,7 +3,7 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBAttachInfo as "SBAttachInfo");
 
-unsafe impl Send for SBAttachInfo {}
+
 
 impl SBAttachInfo {
     pub fn new() -> SBAttachInfo {

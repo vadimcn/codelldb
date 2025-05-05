@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBValueList as "SBValueList");
 
-unsafe impl Send for SBValueList {}
+
 
 impl SBValueList {
     pub fn len(&self) -> usize {

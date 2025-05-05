@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBModuleSpec as "SBModuleSpec");
 
-unsafe impl Send for SBModuleSpec {}
+
 
 impl SBModuleSpec {
     pub fn new() -> SBModuleSpec {

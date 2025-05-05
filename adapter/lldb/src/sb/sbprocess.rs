@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBProcess as "SBProcess");
 
-unsafe impl Send for SBProcess {}
+
 
 impl SBProcess {
     pub const BroadcastBitStateChanged: u32 = (1 << 0);

@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStructuredData as "SBStructuredData");
 
-unsafe impl Send for SBStructuredData {}
+
 
 impl SBStructuredData {
     pub fn data_type(&self) -> StructuredDataType {

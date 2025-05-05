@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSection as "SBSection");
 
-unsafe impl Send for SBSection {}
+
 
 impl SBSection {
     pub fn section_type(&self) -> SectionType {

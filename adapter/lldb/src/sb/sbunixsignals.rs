@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBUnixSignals as "SBUnixSignals");
 
-unsafe impl Send for SBUnixSignals {}
+
 
 impl SBUnixSignals {
     pub fn clear(&mut self) {

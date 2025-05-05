@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSymbol as "SBSymbol");
 
-unsafe impl Send for SBSymbol {}
+
 
 impl SBSymbol {
     pub fn name(&self) -> &str {

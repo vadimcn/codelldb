@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBAddress as "SBAddress");
 
-unsafe impl Send for SBAddress {}
+
 
 impl SBAddress {
     pub fn from_load_address(addr: u64, target: &SBTarget) -> Self {

@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBBroadcaster as "SBBroadcaster");
 
-unsafe impl Send for SBBroadcaster {}
+
 
 impl SBBroadcaster {
     pub fn name(&self) -> &str {

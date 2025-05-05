@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBMemoryRegionInfo as "SBMemoryRegionInfo");
 
-unsafe impl Send for SBMemoryRegionInfo {}
+
 
 impl SBMemoryRegionInfo {
     pub fn new() -> SBMemoryRegionInfo {

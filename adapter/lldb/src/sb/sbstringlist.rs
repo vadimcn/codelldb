@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStringList as "SBStringList");
 
-unsafe impl Send for SBStringList {}
+
 
 impl SBStringList {
     pub fn new() -> SBStringList {

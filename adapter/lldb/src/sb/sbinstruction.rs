@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBInstruction as "SBInstruction");
 
-unsafe impl Send for SBInstruction {}
+
 
 impl SBInstruction {
     pub fn address(&self) -> SBAddress {

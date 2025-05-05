@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSymbolContext as "SBSymbolContext");
 
-unsafe impl Send for SBSymbolContext {}
+
 
 impl SBSymbolContext {
     pub fn module(&self) -> SBModule {

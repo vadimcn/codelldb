@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBFile as "SBFile");
 
-unsafe impl Send for SBFile {}
+
 
 impl SBFile {
     pub fn new() -> SBFile {

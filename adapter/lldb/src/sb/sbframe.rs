@@ -2,7 +2,7 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBFrame as "SBFrame");
 
-unsafe impl Send for SBFrame {}
+
 
 impl SBFrame {
     pub fn function_name(&self) -> Option<&str> {

@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBCommandReturnObject as "SBCommandReturnObject");
 
-unsafe impl Send for SBCommandReturnObject {}
-
 impl SBCommandReturnObject {
     pub fn new() -> SBCommandReturnObject {
         cpp!(unsafe [] -> SBCommandReturnObject as "SBCommandReturnObject" {

@@ -37,9 +37,12 @@ impl DAPSession {
     /// The future will resolve when the DAP client closes the connection from its end.
     pub fn new(channel: Box<dyn DAPChannel>) -> (DAPSession, impl Future<Output = ()> + Send) {
         let mut channel: Pin<Box<dyn DAPChannel>> = channel.into();
-        let requests_sender = Arc::new(broadcast::channel::<(u32, RequestArguments)>(100).0);
-        let events_sender = Arc::new(broadcast::channel::<EventBody>(100).0);
-        let (out_sender, mut out_receiver) = mpsc::channel(100);
+        // For very large code bases, the number of events can be quite large so the channel size has been set to 10,000
+        // to avoid blocking the sender when the receiver is not ready.
+        let capacity = 10_000;
+        let requests_sender = Arc::new(broadcast::channel::<(u32, RequestArguments)>(capacity).0);
+        let events_sender = Arc::new(broadcast::channel::<EventBody>(capacity).0);
+        let (out_sender, mut out_receiver) = mpsc::channel(capacity);
         let mut pending_requests: HashMap<u32, oneshot::Sender<ResponseResult>> = HashMap::new();
         let mut message_seq = 0;
 
@@ -156,10 +159,7 @@ impl DAPSession {
     }
 
     /// Send a reverse request to the DAP client.
-    pub fn send_request(
-        &self,
-        request_args: RequestArguments,
-    ) -> impl Future<Output = Result<ResponseBody, Error >> {
+    pub fn send_request(&self, request_args: RequestArguments) -> impl Future<Output = Result<ResponseBody, Error>> {
         let (resp_sender, resp_receiver) = oneshot::channel();
         let request = ProtocolMessageType::Request(request_args);
         let out_sender = self.out_sender.clone();

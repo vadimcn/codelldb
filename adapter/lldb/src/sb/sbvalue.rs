@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBValue as "SBValue");
 
-unsafe impl Send for SBValue {}
-
 impl SBValue {
     pub fn id(&self) -> UserID {
         cpp!(unsafe [self as "SBValue*"] -> UserID as "user_id_t" {

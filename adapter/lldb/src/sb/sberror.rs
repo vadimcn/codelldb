@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBError as "SBError");
 
-unsafe impl Send for SBError {}
-
 impl SBError {
     pub fn new() -> SBError {
         cpp!(unsafe [] -> SBError as "SBError" { return SBError(); })

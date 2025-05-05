@@ -113,6 +113,14 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
         session_id: c_int,
         event: *const c_char,
     ) {
+        if interface.is_null() {
+            error!("Received event for null interface");
+            return;
+        }
+        if event.is_null() {
+            error!("Received null event");
+            return;
+        }
         match serde_json::from_slice::<PythonEvent>(CStr::from_ptr(event).to_bytes()) {
             Ok(event) => (*interface).dispatch_python_event(session_id as u64, event),
             Err(err) => error!("{}", err),
@@ -124,7 +132,11 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
         pointers: *const *const c_void,
         pointers_len: usize,
     ) {
-        if pointers_len != 8 {
+        if interface_ptr.is_null() {
+            error!("Received init_callback for null interface");
+            return;
+        }
+        if pointers.is_null() || pointers_len != 8 {
             error!("Invalid number of pointers passed to init_callback: {}", pointers_len);
             return;
         }

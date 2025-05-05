@@ -61,6 +61,8 @@ def into_swig_wrapper(cobject, ty, owned=True):
     # Create an empty wrapper, which will be in an "invalid" state ([2] is null, [3] does not exist).
     swig_object = ty.swig_type()
     addr = int(swig_object.this)
+    if addr == 0:
+        raise ValueError('Invalid memory address for SWIG object')
     memmove(addr, byref(cobject), sizeof(ty))  # Replace [2] with a valid pointer.
     swig_object.this.own(owned)
     return swig_object
@@ -72,6 +74,8 @@ def from_swig_wrapper(swig_object, ty):
     # We'll be moving this value out, make sure swig_object's destructor does not try to deallocate it.
     swig_object.this.disown()
     addr = int(swig_object.this)
+    if addr == 0:
+        raise ValueError('Invalid memory address for SWIG object')
     cobject = ty()
     memmove(byref(cobject), addr, sizeof(ty))
     return cobject
@@ -179,7 +183,12 @@ def session_deinit(debugger):
 
 @CFUNCTYPE(c_bool, POINTER(PyObjectResult), POINTER(c_char), c_size_t, POINTER(c_char), c_size_t)
 def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
+    if not result:
+        raise ValueError('Null pointer passed to compile_code')
+
     try:
+        if not expr_ptr or not filename_ptr:
+            raise ValueError('Null pointer passed to compile_code')
         expr = ctypes.string_at(expr_ptr, expr_len)
         filename = ctypes.string_at(filename_ptr, filename_len)
         try:
@@ -187,6 +196,7 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
         except SyntaxError:
             pycode = compile(expr, filename, 'exec')
         incref(pycode)
+
         result[0] = PyObjectResult.Ok(pycode)
     except Exception as err:
         error = lldb.SBError()
@@ -199,6 +209,9 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
 @CFUNCTYPE(c_bool, POINTER(ValueResult), py_object, RustSBExecutionContext, c_int)
 def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
     '''Evaluate code in the context specified by SBExecutionContext, and return a SBValue result'''
+    if not result:
+        raise ValueError('Null pointer passed to evaluate_as_sbvalue')
+
     try:
         exec_context = into_swig_wrapper(exec_context, RustSBExecutionContext)
         value = evaluate_in_context(pycode, exec_context, eval_context)
@@ -215,6 +228,9 @@ def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
 @CFUNCTYPE(c_bool, POINTER(BoolResult), py_object, RustSBExecutionContext, c_int)
 def evaluate_as_bool(result, pycode, exec_context, eval_context):
     '''Evaluate code in the context specified by SBExecutionContext, and return a boolean result'''
+    if not result:
+        raise ValueError('Null pointer passed to evaluate_as_bool')
+
     try:
         exec_context = into_swig_wrapper(exec_context, RustSBExecutionContext)
         value = bool(evaluate_in_context(pycode, exec_context, eval_context))
@@ -231,6 +247,8 @@ def evaluate_as_bool(result, pycode, exec_context, eval_context):
 def handle_message(body_ptr, body_len):
     '''Handle a message intended for Python code'''
     try:
+        if not body_ptr:
+            raise ValueError('Null pointer passed to handle_message')
         body_json = ctypes.string_at(body_ptr, body_len)
         body = json.loads(body_json)
         on_did_receive_message.emit(body)
@@ -239,10 +257,9 @@ def handle_message(body_ptr, body_len):
     return True
 
 
-@CFUNCTYPE(c_bool, py_object)
+@CFUNCTYPE(None, py_object)
 def drop_pyobject(obj):
     decref(obj)
-    return True
 
 
 incref = ctypes.pythonapi.Py_IncRef

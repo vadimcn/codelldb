@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBListener as "SBListener");
 
-unsafe impl Send for SBListener {}
-
 impl SBListener {
     pub fn new() -> SBListener {
         cpp!(unsafe [] -> SBListener as "SBListener" {

@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSymbolContext as "SBSymbolContext");
 
-
-
 impl SBSymbolContext {
     pub fn module(&self) -> SBModule {
         cpp!(unsafe [self as "SBSymbolContext*"] -> SBModule as "SBModule" {

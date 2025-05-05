@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBType as "SBType");
 
-
-
 impl SBType {
     pub fn byte_size(&self) -> u64 {
         cpp!(unsafe [self as "SBType*"] -> u64 as "uint64_t" {

@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 cpp_class!(pub unsafe struct SBFileSpec as "SBFileSpec");
 
-
-
 impl SBFileSpec {
     pub fn filename(&self) -> &Path {
         unsafe { get_str(self.filename_ptr()).as_ref() }

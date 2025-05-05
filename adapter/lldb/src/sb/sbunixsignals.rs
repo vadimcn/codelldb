@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBUnixSignals as "SBUnixSignals");
 
-
-
 impl SBUnixSignals {
     pub fn clear(&mut self) {
         cpp!(unsafe [self as "SBUnixSignals*"] {

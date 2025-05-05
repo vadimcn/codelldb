@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSymbol as "SBSymbol");
 
-
-
 impl SBSymbol {
     pub fn name(&self) -> &str {
         let ptr = cpp!(unsafe [self as "SBSymbol*"] -> *const c_char as "const char*" {

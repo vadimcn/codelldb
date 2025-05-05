@@ -3,8 +3,6 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBDebugger as "SBDebugger");
 
-
-
 impl SBDebugger {
     pub const BroadcastBitProgress: u32 = (1 << 0);
     pub const BroadcastBitWarning: u32 = (1 << 1);

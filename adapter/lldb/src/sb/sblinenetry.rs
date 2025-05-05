@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBLineEntry as "SBLineEntry");
 
-
-
 impl SBLineEntry {
     pub fn line(&self) -> u32 {
         cpp!(unsafe [self as "SBLineEntry*"] -> u32 as "uint32_t" {

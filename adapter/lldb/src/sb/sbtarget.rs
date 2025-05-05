@@ -3,8 +3,6 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBTarget as "SBTarget");
 
-
-
 impl SBTarget {
     pub const BroadcastBitBreakpointChanged: u32 = (1 << 0);
     pub const BroadcastBitModulesLoaded: u32 = (1 << 1);

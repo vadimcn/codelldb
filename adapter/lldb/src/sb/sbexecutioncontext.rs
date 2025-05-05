@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBExecutionContext as "SBExecutionContext");
 
-
-
 impl SBExecutionContext {
     pub fn new() -> SBExecutionContext {
         cpp!(unsafe [] -> SBExecutionContext as "SBExecutionContext" {

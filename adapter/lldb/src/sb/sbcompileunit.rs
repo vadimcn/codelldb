@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBCompileUnit as "SBCompileUnit");
 
-
-
 impl SBCompileUnit {
     pub fn file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBCompileUnit*"] -> SBFileSpec as "SBFileSpec" {

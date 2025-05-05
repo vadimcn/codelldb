@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSection as "SBSection");
 
-
-
 impl SBSection {
     pub fn section_type(&self) -> SectionType {
         cpp!(unsafe [self as "SBSection*"] -> u32 as "uint32_t" {

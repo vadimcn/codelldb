@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBFile as "SBFile");
 
-
-
 impl SBFile {
     pub fn new() -> SBFile {
         cpp!(unsafe [] -> SBFile as "SBFile" { return SBFile(); })

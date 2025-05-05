@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 cpp_class!(pub unsafe struct SBReproducer as "SBReproducer");
 
-
-
 impl SBReproducer {
     pub fn capture(path: Option<&Path>) -> Result<(), String> {
         let error = with_opt_cstr(path, |path| {

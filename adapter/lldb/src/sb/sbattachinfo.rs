@@ -3,8 +3,6 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBAttachInfo as "SBAttachInfo");
 
-
-
 impl SBAttachInfo {
     pub fn new() -> SBAttachInfo {
         cpp!(unsafe [] -> SBAttachInfo as "SBAttachInfo" {

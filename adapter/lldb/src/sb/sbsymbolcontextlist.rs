@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBSymbolContextList as "SBSymbolContextList");
 
-
-
 impl SBSymbolContextList {
     pub fn new() -> SBSymbolContextList {
         cpp!(unsafe [] -> SBSymbolContextList as "SBSymbolContextList" { return SBSymbolContextList(); })

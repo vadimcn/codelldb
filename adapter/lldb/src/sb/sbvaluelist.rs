@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBValueList as "SBValueList");
 
-
-
 impl SBValueList {
     pub fn len(&self) -> usize {
         cpp!(unsafe [self as "SBValueList*"] -> usize as "size_t" {

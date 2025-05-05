@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStringList as "SBStringList");
 
-
-
 impl SBStringList {
     pub fn new() -> SBStringList {
         cpp!(unsafe [] -> SBStringList as "SBStringList" { return SBStringList(); })

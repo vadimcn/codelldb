@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBModule as "SBModule");
 
-
-
 impl SBModule {
     pub fn uuid_string(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBModule*"] -> *const c_char as "const char*" {

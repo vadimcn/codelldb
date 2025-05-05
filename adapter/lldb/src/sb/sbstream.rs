@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStream as "SBStream");
 
-
-
 impl SBStream {
     pub fn new() -> SBStream {
         cpp!(unsafe [] -> SBStream as "SBStream" {

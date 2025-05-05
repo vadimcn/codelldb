@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBInstruction as "SBInstruction");
 
-
-
 impl SBInstruction {
     pub fn address(&self) -> SBAddress {
         cpp!(unsafe [self as "SBInstruction*"] -> SBAddress as "SBAddress" {

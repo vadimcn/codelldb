@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBFrame as "SBFrame");
 
-
-
 impl SBFrame {
     pub fn function_name(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBFrame*"] -> *const c_char as "const char*" {

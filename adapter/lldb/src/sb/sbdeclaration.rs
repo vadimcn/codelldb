@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBDeclaration as "SBDeclaration");
 
-
-
 impl SBDeclaration {
     pub fn filespec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBDeclaration*"] -> SBFileSpec as "SBFileSpec" {

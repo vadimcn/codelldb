@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBModuleSpec as "SBModuleSpec");
 
-
-
 impl SBModuleSpec {
     pub fn new() -> SBModuleSpec {
         cpp!(unsafe [] -> SBModuleSpec as "SBModuleSpec" { return SBModuleSpec(); })

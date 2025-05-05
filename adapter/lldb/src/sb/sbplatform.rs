@@ -3,8 +3,6 @@ use std::path::Path;
 
 cpp_class!(pub unsafe struct SBPlatform as "SBPlatform");
 
-
-
 impl SBPlatform {
     pub fn clear(&self) {
         cpp!(unsafe [self as "SBPlatform*"] {
@@ -87,8 +85,6 @@ impl IsValid for SBPlatform {
 
 cpp_class!(pub unsafe struct SBPlatformConnectOptions as "SBPlatformConnectOptions");
 
-
-
 impl SBPlatformConnectOptions {
     pub fn new(url: &str) -> Self {
         with_cstr(url, |url| {
@@ -146,8 +142,6 @@ impl SBPlatformConnectOptions {
 }
 
 cpp_class!(pub unsafe struct SBPlatformShellCommand as "SBPlatformShellCommand");
-
-
 
 impl SBPlatformShellCommand {
     pub fn new(command: &str) -> Self {

@@ -3,8 +3,6 @@ use std::marker::PhantomData;
 
 cpp_class!(unsafe struct _SBData as "SBData");
 
-
-
 // SBData doesn't always own the data it points to.
 #[repr(transparent)]
 pub struct SBData<'a> {

@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBWatchpoint as "SBWatchpoint");
 
-
-
 impl SBWatchpoint {
     pub fn id(&self) -> WatchpointID {
         cpp!(unsafe [self as "SBWatchpoint*"] -> WatchpointID as "watch_id_t" {

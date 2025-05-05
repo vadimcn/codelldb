@@ -9,8 +9,6 @@ namespace std {
 }}
 cpp_class!(pub unsafe struct SBCommandInterpreter as "SBCommandInterpreter");
 
-
-
 impl SBCommandInterpreter {
     pub const BroadcastBitThreadShouldExit: u32 = (1 << 0);
     pub const BroadcastBitResetPrompt: u32 = (1 << 1);

@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBMemoryRegionInfo as "SBMemoryRegionInfo");
 
-
-
 impl SBMemoryRegionInfo {
     pub fn new() -> SBMemoryRegionInfo {
         cpp!(unsafe [] -> SBMemoryRegionInfo as "SBMemoryRegionInfo" {

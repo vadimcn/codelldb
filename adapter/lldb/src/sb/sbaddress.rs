@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBAddress as "SBAddress");
 
-
-
 impl SBAddress {
     pub fn from_load_address(addr: u64, target: &SBTarget) -> Self {
         cpp!(unsafe [addr as "addr_t", target as "SBTarget*"] -> SBAddress as "SBAddress" {

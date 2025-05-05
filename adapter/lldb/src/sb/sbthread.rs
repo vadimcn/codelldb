@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBThread as "SBThread");
 
-
-
 impl SBThread {
     pub const BroadcastBitStackChanged: u32 = (1 << 0);
     pub const BroadcastBitThreadSuspended: u32 = (1 << 1);

@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBStructuredData as "SBStructuredData");
 
-
-
 impl SBStructuredData {
     pub fn data_type(&self) -> StructuredDataType {
         cpp!(unsafe [self as "SBStructuredData*"] -> i32 as "int32_t" {

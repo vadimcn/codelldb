@@ -2,8 +2,6 @@ use super::*;
 
 cpp_class!(pub unsafe struct SBEvent as "SBEvent");
 
-
-
 impl SBEvent {
     pub fn new() -> SBEvent {
         cpp!(unsafe [] -> SBEvent as "SBEvent" {

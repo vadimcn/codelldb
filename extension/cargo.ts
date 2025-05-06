@@ -30,16 +30,12 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
-    folder: WorkspaceFolder;
-    cancellation?: CancellationToken
+    workspaceFolder: WorkspaceFolder;
+    cancellation?: CancellationToken;
 
-    public constructor(folder: WorkspaceFolder, cancellation?: CancellationToken) {
-        this.folder = folder;
+    public constructor(workspaceFolder: WorkspaceFolder, cancellation?: CancellationToken) {
+        this.workspaceFolder = workspaceFolder;
         this.cancellation = cancellation;
-    }
-
-    getCargoTomlDir(): string {
-        return this.folder?.uri?.fsPath;
     }
 
     public async getProgramFromCargoConfig(
@@ -85,7 +81,7 @@ export class Cargo {
 
         let problemMatchers = cargoConfig.problemMatcher;
         cargoConfig.command = 'dummy';
-        let task = new Task(cargoConfig, this.folder, 'cargo', 'CodeLLDB', execution, problemMatchers);
+        let task = new Task(cargoConfig, this.workspaceFolder, 'cargo', 'CodeLLDB', execution, problemMatchers);
         task.presentationOptions.clear = true;
         let taskExecution = await tasks.executeTask(task);
 
@@ -143,7 +139,6 @@ export class Cargo {
     ): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
         try {
-            cargoCwd = cargoCwd || this.getCargoTomlDir();
             await this.runCargo(cargoArgs, cargoEnv, cargoCwd,
                 message => {
                     if (message.reason == 'compiler-artifact') {
@@ -182,28 +177,27 @@ export class Cargo {
         return artifacts;
     }
 
-    public async getLaunchConfigs(): Promise<DebugConfiguration[]> {
-
-        let cargoTomlFolder = this.getCargoTomlDir();
-        if (!await async.fs.exists(path.join(cargoTomlFolder, 'Cargo.toml')))
-            return [];
+    public async getLaunchConfigs(directory?: string): Promise<DebugConfiguration[]> {
 
         let metadata: any = null;
 
-        await this.runCargo(
+        let exitCode = await this.runCargo(
             ['metadata', '--no-deps', '--format-version=1'],
             new Environment(),
-            cargoTomlFolder,
+            directory,
             m => { metadata = m },
             stderr => { output.append(stderr); },
         );
+        if (exitCode != 0)
+            return []; // Most likely did not find Cargo.toml
+
         if (!metadata)
             throw new Error('Cargo has produced no metadata');
 
         let configs: DebugConfiguration[] = [];
         for (let pkg of metadata.packages) {
             function addConfig(name: string, cargo_args: string[], filter: any) {
-                configs.push({
+                let config: DebugConfiguration = {
                     type: 'lldb',
                     request: 'launch',
                     name: name,
@@ -213,7 +207,10 @@ export class Cargo {
                     },
                     args: [],
                     cwd: '${workspaceFolder}'
-                });
+                };
+                if (directory)
+                    config.cargo.cwd = directory;
+                configs.push(config);
             };
 
             for (let target of pkg.targets) {
@@ -266,17 +263,18 @@ export class Cargo {
     async runCargo(
         args: string[],
         env: Environment,
-        cwd: string,
+        cwd: string | null,
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void,
     ): Promise<number> {
-        let config = getExtensionConfig(this.folder);
+        let config = getExtensionConfig(this.workspaceFolder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
+        let cargoCwd = cwd || this.workspaceFolder.uri.fsPath;
 
         return new Promise<number>((resolve, reject) => {
             let cargo = cp.spawn(cargoCmd, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                cwd: cwd,
+                cwd: cargoCwd,
                 env: mergedEnvironment(env),
             });
 
@@ -301,10 +299,7 @@ export class Cargo {
             });
 
             cargo.on('close', (exitCode) => {
-                if (exitCode == 0)
-                    resolve(0);
-                else
-                    reject(new Error(`exit code: ${exitCode}.`));
+                resolve(exitCode);
             });
 
             if (this.cancellation) {

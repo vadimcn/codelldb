@@ -2,7 +2,8 @@ import {
     workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation
+    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
+    QuickPickItem
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -45,7 +46,7 @@ export function deactivate() {
     extension.onDeactivate();
 }
 
-class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFactory {
+class Extension implements DebugAdapterDescriptorFactory {
     context: ExtensionContext;
     settingsManager: AdapterSettingsManager;
     webviewManager: webview.WebviewManager;
@@ -59,7 +60,18 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
 
         let subscriptions = context.subscriptions;
 
-        subscriptions.push(debug.registerDebugConfigurationProvider('lldb', this));
+        // Register twice, as we'd like to provide configurations for both trigger types.
+        subscriptions.push(debug.registerDebugConfigurationProvider('lldb', {
+            provideDebugConfigurations: (folder, token) =>
+                this.provideDebugConfigurations(DebugConfigurationProviderTriggerKind.Initial, folder, token)
+        }, DebugConfigurationProviderTriggerKind.Initial));
+
+        subscriptions.push(debug.registerDebugConfigurationProvider('lldb', {
+            provideDebugConfigurations: (folder, token) =>
+                this.provideDebugConfigurations(DebugConfigurationProviderTriggerKind.Dynamic, folder, token),
+            resolveDebugConfiguration: (folder, config, token) => this.resolveDebugConfiguration(folder, config, token)
+        }, DebugConfigurationProviderTriggerKind.Dynamic));
+
         subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
@@ -139,32 +151,15 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
     }
 
     async provideDebugConfigurations(
+        _kind: DebugConfigurationProviderTriggerKind,
         workspaceFolder: WorkspaceFolder | undefined,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
-        try {
-            let cargo = new Cargo(workspaceFolder, cancellation);
-            let debugConfigs = await cargo.getLaunchConfigs();
-            if (debugConfigs.length > 0) {
-                let response = await window.showInformationMessage(
-                    'Cargo.toml has been detected in this workspace.\r\n' +
-                    'Would you like to generate launch configurations for its targets?', { modal: true }, 'Yes', 'No');
-                if (response == 'Yes') {
-                    return debugConfigs;
-                }
-            }
-        } catch (err) {
-            output.appendLine(err.toString());
-        }
-
-        return [{
-            type: 'lldb',
-            request: 'launch',
-            name: 'Debug',
-            program: '${workspaceFolder}/<executable file>',
-            args: [],
-            cwd: '${workspaceFolder}'
-        }];
+        if (workspaceFolder == undefined)
+            return []
+        let cargo = new Cargo(workspaceFolder, cancellation);
+        let debugConfigs = await cargo.getLaunchConfigs();
+        return debugConfigs;
     }
 
     // Invoked by VSCode to initiate a new debugging session.
@@ -183,8 +178,12 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         output.appendLine(`Initial debug configuration: ${inspect(launchConfig)}`);
 
         if (launchConfig.type === undefined) {
-            await window.showErrorMessage('Cannot start debugging because no launch configuration has been provided.', { modal: true });
-            return null;
+            let config = await this.getLaunchLessConfig(folder, cancellation);
+            if (!config) {
+                await window.showErrorMessage('No debug configuration was provided.', { modal: true });
+                return null;
+            }
+            launchConfig = config;
         }
 
         if (!await this.checkPrerequisites(folder))
@@ -302,6 +301,21 @@ class Extension implements DebugConfigurationProvider, DebugAdapterDescriptorFac
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
         mergeConfig('breakpointMode');
+    }
+
+    async getLaunchLessConfig(workspaceFolder: WorkspaceFolder, cancellation: CancellationToken) {
+        let directory = null;
+        if (window.activeTextEditor?.document.languageId == 'rust' ||
+            window.activeTextEditor?.document.fileName == 'Cargo.toml') {
+            directory = path.dirname(window.activeTextEditor?.document.uri.fsPath);
+        }
+        let cargo = new Cargo(workspaceFolder, cancellation);
+        let configs = await cargo.getLaunchConfigs(directory);
+        if (configs.length == 0)
+            return undefined;
+        let items = configs.map(cfg => ({ label: cfg.name, config: cfg }));
+        let selection = await window.showQuickPick(items, { title: 'Choose debugging target' }, cancellation);
+        return selection?.config;
     }
 
     async getCargoLaunchConfigs() {

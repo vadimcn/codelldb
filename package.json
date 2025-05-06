@@ -648,7 +648,7 @@
 		"debuggers": [
 			{
 				"type": "lldb",
-				"label": "LLDB",
+				"label": "CodeLLDB",
 				"languages": [
 					"ada",
 					"arm",
@@ -1065,7 +1065,7 @@
 						}
 					},
 					{
-						"label": "CodeLLDB: Debug a Cargo Target",
+						"label": "CodeLLDB: Debug Cargo Target",
 						"description": "Debug an executable target in a Cargo package.",
 						"body": {
 							"type": "lldb",

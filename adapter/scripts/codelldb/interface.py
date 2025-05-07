@@ -11,8 +11,7 @@ from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove, cast,
                     c_bool, c_char, c_char_p, c_int, c_int64, c_double, c_size_t, c_void_p)
 from .value import Value
 from .event import Event
-from .debug_info import DebugInfoCommand
-from .nofail import NoFailCommand
+from . import commands
 
 
 log = logging.getLogger('codelldb')
@@ -158,8 +157,7 @@ def session_init(debugger, console_fd):
             import msvcrt
             console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
         session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
-        DebugInfoCommand.register(debugger)
-        NoFailCommand.register(debugger)
+        commands.register(debugger)
     except Exception as err:
         log.exception('session_init failed')
     return True

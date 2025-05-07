@@ -13,10 +13,6 @@ class DebugInfoCommand:
         show.add_argument('module', nargs="?", default=None, help='Module name')
         show.add_argument('--file', help='Module file path')
 
-    @staticmethod
-    def register(debugger):
-        debugger.HandleCommand('command script add -c codelldb.debug_info.DebugInfoCommand debug_info')
-
     def __call__(self, debugger, command, exe_ctx, result):
         try:
             args = self.parser.parse_args(shlex.split(command))

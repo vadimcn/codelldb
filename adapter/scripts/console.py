@@ -1,5 +1,5 @@
 import sys
-from codelldb.debug_info import DebugInfoCommand  # pyright: ignore
+from codelldb import commands
 
 
 def pip(debugger, command, result, internal_dict):
@@ -15,7 +15,7 @@ def pip(debugger, command, result, internal_dict):
 
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
     debugger.HandleCommand('command script add -f console.pip pip')
-    debugger.HandleCommand('command script add -c console.DebugInfoCommand debug_info')
+    commands.register(debugger)
     print()
     print('Extra commands available:')
     print('    pip        - Manage Python packages.')

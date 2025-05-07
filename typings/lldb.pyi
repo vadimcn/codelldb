@@ -1,5 +1,5 @@
 
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 frame: SBFrame | None
 thread: SBThread | None
@@ -73,6 +73,7 @@ class SBProcess:
 
 
 class SBTarget:
+    modules: List[SBModule]
     def GetAddressByteSize(self) -> int: ...
     def GetDebugger(self) -> SBDebugger: ...
 

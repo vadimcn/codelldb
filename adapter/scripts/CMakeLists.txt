@@ -11,6 +11,7 @@ add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}/codelldb
     ${CMAKE_CURRENT_SOURCE_DIR}/codelldb/value.py
     ${CMAKE_CURRENT_SOURCE_DIR}/codelldb/webview.py
     ${CMAKE_CURRENT_SOURCE_DIR}/codelldb/debug_info.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/codelldb/nofail.py
 )
 
 add_custom_target(codelldb_scripts

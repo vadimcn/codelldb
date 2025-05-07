@@ -483,8 +483,8 @@ CodeLLDB adds in-debugger commands that may be executed in the DEBUG CONSOLE pan
 |                 |                                                         |
 |-----------------|---------------------------------------------------------|
 |**debug_info**   |Provides tools for investigation of debugging information.  See `debug_info -h` for options.
+|**nofail**       | `nofail <other command>` prevents errors in the execution of the specified command from aborting the current command sequence.  For example, `"postRunCommands": ["nofail process interrupt", "break set ..."]` will execute the second command even if the first one fails (e.g., because the process is already stopped).
 
-For more details about each command please use `help <command>`.
 
 ## Debug Console
 

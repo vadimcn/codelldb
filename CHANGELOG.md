@@ -2,6 +2,12 @@
 
 # 1.11.5
 
+
+### New
+- Added the `nofail` command, which can be used in command sequences to suppress errors and prevent the sequence from being aborted.<br>
+  For example, `"postRunCommands": ["nofail process interrupt", "break set ..."]` will execute the second command even if the first one fails
+  (e.g., because the process is already stopped).
+
 ### Fixed
 - #1262: Exits with an error if file specified by envFile in launch configuration doesn't exist.
 - #1267: Could not initialize Python interpreter - some features will be unavailable.

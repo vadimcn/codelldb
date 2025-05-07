@@ -10,8 +10,6 @@ export class UriLaunchServer implements UriHandler {
     async handleUri(uri: Uri) {
         try {
             output.appendLine(`Handling uri: ${uri}`);
-            let query = decodeURIComponent(uri.query);
-            output.appendLine(`Decoded query:\n${query}`);
 
             if (uri.path == '/launch') {
                 let params = querystring.parse(uri.query, ',') as Dict<string>;
@@ -30,14 +28,13 @@ export class UriLaunchServer implements UriHandler {
                 }
 
             } else if (uri.path == '/launch/command') {
-                let frags = query.split('&');
+                let frags = uri.query.split('&');
                 let cmdLine = frags.pop();
 
                 let env: Dict<string> = {}
                 for (let frag of frags) {
-                    let pos = frag.indexOf('=');
-                    if (pos > 0)
-                        env[frag.substr(0, pos)] = frag.substr(pos + 1);
+                    let parts = frag.split('=', 2);
+                    env[parts[0]] = parts[1];
                 }
 
                 let args = stringArgv(cmdLine);
@@ -59,7 +56,7 @@ export class UriLaunchServer implements UriHandler {
                     request: 'launch',
                     name: '',
                 };
-                Object.assign(debugConfig, YAML.parse(query));
+                Object.assign(debugConfig, YAML.parse(uri.query));
                 debugConfig.name = debugConfig.name || debugConfig.program;
                 await debug.startDebugging(undefined, debugConfig);
 

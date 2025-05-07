@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 #[repr(C, i32)]
 #[allow(dead_code)]
 enum PyResult<T> {
-    Invalid,
+    Invalid, // Make dropping a zero-initialized instance safe-ish.
     Ok(T),
     Err(SBError),
 }
@@ -378,8 +378,8 @@ fn pypath() {
 #[test]
 fn evaluate() {
     use lldb::*;
-    let adapter_dir = std::env::var("ADAPTER_SOURCE_DIR").unwrap();
-    let interface = initialize(&DEBUGGER, Path::new(&adapter_dir)).unwrap();
+    let adapter_dir = Path::new(env!("ADAPTER_SOURCE_DIR"));
+    let interface = initialize(&DEBUGGER, adapter_dir).unwrap();
     let (session, _events) = interface.new_session(
         &DEBUGGER,
         std::fs::File::create(if cfg!(unix) { "/dev/null" } else { "NUL" }).unwrap(),

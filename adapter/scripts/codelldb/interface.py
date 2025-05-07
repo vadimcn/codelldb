@@ -24,15 +24,11 @@ except Exception:
 # ============================================================================================
 
 # 8 bytes
-
-
 class RustSBError(ctypes.Structure):
     _fields_ = [('_opaque', c_int64)]
     swig_type = lldb.SBError
 
 # 16 bytes
-
-
 class RustSBDebugger(ctypes.Structure):
     _fields_ = [('_opaque', c_int64 * 2)]
     swig_type = lldb.SBDebugger
@@ -55,9 +51,7 @@ class RustSBModule(ctypes.Structure):
 # Convert one of the above raw SB objects (https://lldb.llvm.org/design/sbapi.html) into a SWIG wrapper.
 # We rely on the fact that SB objects consist of a single shared_ptr, which can be moved around freely.
 # There are 3 memory regions in play:
-#  [1:SWIG wrapper PyObject] -> [2:Memory allocated for SB object (which is just a pointer)] -> [3:The actual LLDB-internal object]
-
-
+#  [1:SWIG wrapper PyObject] -> [2:Memory allocated for the SB object (which is just a pointer)] -> [3:The actual LLDB-internal object]
 def into_swig_wrapper(cobject, ty, owned=True):
     # Create an empty wrapper, which will be in an "invalid" state ([2] is null, [3] does not exist).
     swig_object = ty.swig_type()
@@ -67,8 +61,6 @@ def into_swig_wrapper(cobject, ty, owned=True):
     return swig_object
 
 # The reverse of into_swig_wrapper.
-
-
 def from_swig_wrapper(swig_object, ty):
     # We'll be moving this value out, make sure swig_object's destructor does not try to deallocate it.
     swig_object.this.disown()
@@ -78,8 +70,6 @@ def from_swig_wrapper(swig_object, ty):
     return cobject
 
 # Generates a FFI type compatible with Rust #[repr(C, i32)] enum
-
-
 def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
     class V(ctypes.Union):
         _fields_ = variants
@@ -93,6 +83,7 @@ def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
             name = variants[self.discr][0]
             return '{0}({1})'.format(name, getattr(self.var, name))
 
+    # Create variant constructors so the enum can be built using EnumType.VariantN(value)
     for discr, (name, ty) in enumerate(variants):
         def constructor(value, discr=discr, name=name):
             e = Enum(discr)
@@ -103,7 +94,7 @@ def RustEnum(enum_name, *variants):  # type: (str, Tuple[str,type]) -> type
     Enum.__name__ = enum_name
     return Enum
 
-
+# Generates enum types matching the Rust definition of PyResult<T>
 def PyResult(name, T):  # type: (str, type) -> type
     return RustEnum(name, ('Invalid', c_char), ('Ok', T), ('Err', RustSBError))
 
@@ -132,7 +123,6 @@ def initialize(init_callback_addr, callback_context, send_message_addr, log_leve
     global fire_event
     logging.getLogger().setLevel(log_level)
 
-    interrupt = ctypes.pythonapi.PyErr_SetInterrupt
     pointers = [
         session_init,
         session_deinit,
@@ -161,20 +151,26 @@ session_stdouts = {}
 @CFUNCTYPE(c_bool, RustSBDebugger, c_size_t)
 def session_init(debugger, console_fd):
     '''Called once to initialize a new debug session'''
-    debugger = into_swig_wrapper(debugger, RustSBDebugger)
-    if sys.platform.startswith('win32'):
-        import msvcrt
-        console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
-    session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
-    DebugInfoCommand.register(debugger)
+    try:
+        debugger = into_swig_wrapper(debugger, RustSBDebugger)
+        if sys.platform.startswith('win32'):
+            import msvcrt
+            console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
+        session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
+        DebugInfoCommand.register(debugger)
+    except Exception as err:
+        log.exception('session_init failed')
     return True
 
 
 @CFUNCTYPE(c_bool, RustSBDebugger)
 def session_deinit(debugger):
     '''Called once to deinitialize a debug session'''
-    debugger = into_swig_wrapper(debugger, RustSBDebugger)
-    del session_stdouts[debugger.GetID()]
+    try:
+        debugger = into_swig_wrapper(debugger, RustSBDebugger)
+        del session_stdouts[debugger.GetID()]
+    except Exception as err:
+        log.exception('session_deinit failed')
     return True
 
 
@@ -240,10 +236,9 @@ def handle_message(body_ptr, body_len):
     return True
 
 
-@CFUNCTYPE(c_bool, py_object)
+@CFUNCTYPE(None, py_object)
 def drop_pyobject(obj):
     decref(obj)
-    return True
 
 
 incref = ctypes.pythonapi.Py_IncRef
@@ -251,6 +246,8 @@ incref.argtypes = [ctypes.py_object]
 
 decref = ctypes.pythonapi.Py_DecRef
 decref.argtypes = [ctypes.py_object]
+
+interrupt = ctypes.pythonapi.PyErr_SetInterrupt
 
 dummy_sberror = lldb.SBError()
 

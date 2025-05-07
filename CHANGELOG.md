@@ -1,5 +1,15 @@
 # Release Notes
 
+# 1.11.5
+
+### Fixed
+- #1262: Exits with an error if file specified by envFile in launch configuration doesn't exist.
+- #1267: Could not initialize Python interpreter - some features will be unavailable.
+
+### Changed
+- Updated bundled LLDB to v20.1.0
+- The minimal required MacOS version for x86_64 is now 10.12
+
 # 1.11.4
 
 ### Fixed

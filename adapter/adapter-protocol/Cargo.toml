@@ -2,7 +2,7 @@
 authors = ["Vadim Chugunov <vadimcn@gmail.com>"]
 edition = "2018"
 name = "adapter-protocol"
-version = "0.1.0"
+version = "1.0.0"
 
 [dependencies]
 schemafy = "0.5.2"

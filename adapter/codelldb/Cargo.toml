@@ -36,7 +36,6 @@ termios = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.8", features = ["std", "wincon", "namedpipeapi"]}
-winreg = "0.6.2"
 
 [dev-dependencies]
 ctor = "0.4.2"

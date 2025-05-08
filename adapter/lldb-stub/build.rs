@@ -20,8 +20,8 @@ type Error = Box<dyn std::error::Error>;
 fn main() -> Result<(), Error> {
     let out_dir = env::var("OUT_DIR")?;
 
-    let provider = env::var("LLDB_DYLIB")?;
-    let consumer = env::var("DEP_LLDB_GENERATED")?;
+    let provider = env::var("LLDB_DYLIB").expect("LLDB_DYLIB");
+    let consumer = env::var("DEP_LLDB_GENERATED").expect("DEP_LLDB_GENERATED");
 
     let exports = dylib_exports(Path::new(&provider))?;
     let imports = archive_imports(Path::new(&consumer))?;

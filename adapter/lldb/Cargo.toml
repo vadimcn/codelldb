@@ -15,5 +15,9 @@ num_enum = "0.5.7"
 cpp_build = "0.5"
 regex = "1.9"
 
+[dev-dependencies]
+ctor = "0.4.2"
+lldb-stub = {path = "../lldb-stub"}
+
 [features]
 no_link_args = [] # Do not emit any linker arguments

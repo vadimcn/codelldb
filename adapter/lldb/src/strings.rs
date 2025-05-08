@@ -1,6 +1,8 @@
-use super::*;
-
 use std::ffi::OsStr;
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+use std::ptr;
+use std::str;
 
 /// Call `f` with a NUL-terminated copy of `s`.
 pub(crate) fn with_cstr<S, F, R>(s: S, f: F) -> R
@@ -100,6 +102,7 @@ pub(crate) unsafe fn get_str<'a>(ptr: *const c_char) -> &'a str {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::slice;
 
     #[test]
     fn test_with_cstr() {

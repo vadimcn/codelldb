@@ -26,14 +26,7 @@ fn main() -> Result<(), Error> {
     let exports = dylib_exports(Path::new(&provider))?;
     let imports = archive_imports(Path::new(&consumer))?;
 
-    let imports_str = HashSet::<String>::from_iter(imports.iter().map(|i| {
-        // Windows prefixes dll imports with __imp_
-        match i.name.strip_prefix("__imp_") {
-            Some(name) => name,
-            None => &i.name,
-        }
-        .to_string()
-    }));
+    let imports_str = HashSet::<String>::from_iter(imports.iter().map(|i| i.name.clone()));
     let exports_str = HashSet::<String>::from_iter(exports.iter().map(|e| e.name.clone()));
     let mut common_syms = exports_str.intersection(&imports_str).collect::<HashSet<_>>();
 
@@ -86,6 +79,7 @@ fn get_api_groups(manifest: &str) -> Result<HashMap<String, Vec<Import>>, Error>
     for (version, section) in table.as_table().unwrap() {
         let cpp_path = out_dir.join(format!("probe_{version}.cpp"));
         let mut cpp = fs::File::create(&cpp_path)?;
+        writeln!(cpp, "#define LLDB_API")?; // On Windows we want the "static" symbols
         writeln!(cpp, "#include <lldb/API/LLDB.h>")?;
         writeln!(cpp, "using namespace lldb;")?;
 

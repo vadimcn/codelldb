@@ -55,8 +55,9 @@ void vars()
 
     int a = 10;
     int b = 20;
-    for (int i = 0; i < 10; i++)
+    for (int j = 0; j < 10; j++)
     {
+        int i = j;
         int a = 30;
         int b = 40;
         float pi = 3.14159265f;

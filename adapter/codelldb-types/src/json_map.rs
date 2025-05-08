@@ -9,7 +9,7 @@ use serde::ser::{Serialize, SerializeMap, Serializer};
 
 // Preserves the order of entries when deserializing from JSON.
 #[derive(Clone, Debug)]
-pub struct JsonMap<V>(Vec<(String, V)>);
+pub struct JsonMap<V>(pub Vec<(String, V)>);
 
 impl<V> JsonMap<V> {
     pub fn iter(&self) -> impl Iterator<Item = &(String, V)> {

@@ -4,14 +4,14 @@ use crate::dap_session::DAPSession;
 use adapter_protocol::*;
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 use tokio::net::{TcpListener, TcpStream};
 
 pub struct Terminal {
     #[allow(unused)]
     connection: TcpStream,
-    data: String,
+    terminal_id: Either<Option<String>, u64>,
 }
 
 impl Terminal {
@@ -29,16 +29,13 @@ impl Terminal {
 
             let accept_fut = listener.accept();
 
-            // Run codelldb in a terminal agent mode, which sends back the tty device name (Unix)
-            // or its own process id (Windows), then waits till the socket gets closed from our end.
-            let executable = std::env::current_exe()?.to_str().unwrap().into();
-            let args = vec![
-                executable,
-                "terminal-agent".into(),
-                format!("--connect={}", addr.port()),
-            ];
+            let current_exe = std::env::current_exe()?;
+            let mut launcher = current_exe.with_file_name("codelldb-launch");
+            if let Some(ext) = current_exe.extension() {
+                launcher.set_extension(ext);
+            }
             let req_args = RunInTerminalRequestArguments {
-                args: args,
+                args: vec![launcher.to_string_lossy().to_string(), format!("--connect={addr}")],
                 cwd: String::new(),
                 env: HashMap::new(),
                 kind: Some(terminal_kind),
@@ -50,12 +47,14 @@ impl Terminal {
 
             let (stream, _remote_addr) = accept_fut.await?;
             let mut reader = BufReader::new(stream);
-            let mut data = String::new();
-            reader.read_line(&mut data).await?;
+            let mut buf = Vec::new();
+            reader.read_to_end(&mut buf).await?;
+
+            let launch_env: LaunchEnvironment = serde_json::from_slice(&buf)?;
 
             Ok(Terminal {
                 connection: reader.into_inner(),
-                data: data.trim().to_owned(),
+                terminal_id: launch_env.terminal_id,
             })
         };
 
@@ -65,28 +64,36 @@ impl Terminal {
         }
     }
 
-    pub fn input_devname(&self) -> &str {
+    pub fn input_devname(&self) -> Option<&str> {
         if cfg!(windows) {
-            "CONIN$"
+            Some("CONIN$")
+        } else if let Either::First(ref tty_name) = self.terminal_id {
+            tty_name.as_deref()
         } else {
-            &self.data
+            None
         }
     }
 
-    pub fn output_devname(&self) -> &str {
+    pub fn output_devname(&self) -> Option<&str> {
         if cfg!(windows) {
-            "CONOUT$"
+            Some("CONOUT$")
+        } else if let Either::First(ref tty_name) = self.terminal_id {
+            tty_name.as_deref()
         } else {
-            &self.data
+            None
         }
     }
 
     #[cfg(windows)]
-    pub fn attach_console(&self) {
-        unsafe {
-            let pid = self.data.parse::<u32>().unwrap();
-            winapi::um::wincon::FreeConsole();
-            winapi::um::wincon::AttachConsole(pid);
+    pub fn attach_console(&self) -> bool {
+        use winapi::shared::minwindef::DWORD;
+        if let Either::Second(pid) = self.terminal_id {
+            unsafe {
+                winapi::um::wincon::FreeConsole();
+                winapi::um::wincon::AttachConsole(pid as DWORD) != 0
+            }
+        } else {
+            false
         }
     }
 

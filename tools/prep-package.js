@@ -11,7 +11,7 @@ let output = process.argv[3];
     await refPerser.dereference(pkg);
     // VSCode doesn't like allOff in these schemas
     let ca = pkg.contributes.debuggers[0].configurationAttributes;
-    ca.launch = mergeAllOf(ca.launch);
-    ca.attach = mergeAllOf(ca.attach);
+    ca.launch = mergeAllOf(ca.launch, { ignoreAdditionalProperties: true });
+    ca.attach = mergeAllOf(ca.attach, { ignoreAdditionalProperties: true });
     fs.writeFileSync(output, JSON.stringify(pkg, null, 2));
 })();

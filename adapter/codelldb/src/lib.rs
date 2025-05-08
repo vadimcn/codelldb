@@ -1,10 +1,11 @@
 use crate::prelude::*;
-use adapter_protocol::AdapterSettings;
-use clap::ArgMatches;
-use dap_session::DAPChannel;
-use lldb::*;
 use std::sync::Arc;
 use std::{env, net};
+
+use adapter_protocol::AdapterSettings;
+use clap::Parser;
+use dap_session::DAPChannel;
+use lldb::*;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Duration;
@@ -33,11 +34,27 @@ mod shared;
 mod stdio_stream;
 mod terminal;
 
-pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
+#[derive(Parser, Debug)]
+pub struct Cli {
+    #[arg(long)]
+    pub liblldb: Option<String>,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub connect: Option<u16>,
+    #[arg(long = "auth-token")]
+    pub auth_token: Option<String>,
+    #[arg(long = "multi-session")]
+    pub multi_session: bool,
+    #[arg(long)]
+    pub settings: Option<String>,
+}
+
+pub fn debug_server(cli: &Cli) -> Result<(), Error> {
     hook_crashes();
 
-    let adapter_settings: AdapterSettings = match matches.value_of("settings") {
-        Some(s) => match serde_json::from_str(s) {
+    let adapter_settings: AdapterSettings = match &cli.settings {
+        Some(s) => match serde_json::from_str(&s) {
             Ok(settings) => settings,
             Err(err) => {
                 error!("{}", err);
@@ -67,15 +84,13 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         }
     };
 
-    let (use_stdio, port, connect) = if let Some(port) = matches.value_of("connect") {
-        (false, port.parse()?, true)
-    } else if let Some(port) = matches.value_of("port") {
-        (false, port.parse()?, false)
+    let (use_stdio, port, connect) = if let Some(port) = cli.connect {
+        (false, port, true)
+    } else if let Some(port) = cli.port {
+        (false, port, false)
     } else {
         (true, 0, false)
     };
-    let multi_session = matches.is_present("multi-session");
-    let auth_token = matches.value_of("auth-token");
 
     let rt = tokio::runtime::Builder::new_multi_thread() //
         .worker_threads(2)
@@ -96,7 +111,7 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
                 debug!("Connecting to {}", addr);
                 let mut tcp_stream = TcpStream::connect(addr).await?;
                 tcp_stream.set_nodelay(true).unwrap();
-                if let Some(auth_token) = auth_token {
+                if let Some(auth_token) = &cli.auth_token {
                     let auth_header = format!("Auth-Token: {}\r\n", auth_token);
                     tcp_stream.write_all(&auth_header.as_bytes()).await?;
                 }
@@ -110,7 +125,7 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
                     tcp_stream.set_nodelay(true).unwrap();
                     let framed_stream = dap_codec::DAPCodec::new().framed(tcp_stream);
                     run_debug_session(Box::new(framed_stream), &adapter_settings, &python_interface).await;
-                    multi_session
+                    cli.multi_session
                 } {}
             }
         }

@@ -1,4 +1,3 @@
-import { Dict, Environment } from "./commonTypes";
 
 // Returning null means "keep the original text".
 type Expander = (type: string | null, key: string) => string | null;
@@ -51,18 +50,4 @@ export function mergeValues(value1: any, value2: any, reverseSeq: boolean = fals
     } else {
         return Object.assign({}, value2, value1);
     }
-}
-
-// Expand ${env:...} placeholders in extraEnv and merge it with the current process' environment.
-export function mergedEnvironment(extraEnv: Dict<string>): Environment {
-    let env = new Environment();
-    env = Object.assign(env, process.env);
-    for (let key in extraEnv) {
-        env[key] = expandVariables(extraEnv[key], (type, key) => {
-            if (type == 'env')
-                return process.env[key];
-            throw new Error('Unknown variable type ' + type);
-        });
-    }
-    return env;
 }

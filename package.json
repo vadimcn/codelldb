@@ -493,7 +493,9 @@
 							"object",
 							"null"
 						],
-						"default": null,
+						"defaultSnippets": [
+							{ "label": "Port 12345", "body": { "host": "127.0.0.1", "port": 12345, "token": "secret" } }
+						],
 						"scope": "window",
 						"order": 2
 					},
@@ -673,52 +675,45 @@
 								"properties": {
 									"cargo": {
 										"description": "Cargo invocation parameters.",
-										"type": "object",
-										"properties": {
-											"args": {
-												"description": "Cargo command line arguments.",
+										"anyOf": [
+											{
 												"type": "array",
-												"default": [ ]
+												"items": { "type": "string" },
+												"description": "List of cargo arguments."
 											},
-											"env": {
-												"description": "Additional environment variables passed to Cargo.",
-												"type": "object",
-												"additionalProperties": { "type": "string" },
-												"default": { }
-											},
-											"cwd": {
-												"description": "Cargo working directory.",
-												"type": "string"
-											},
-											"problemMatcher": {
-												"description": "Problem matcher(s) to apply to Cargo output.",
-												"type": [ "string", "array" ]
-											},
-											"filter": {
-												"description": "Filter applied to compilation artifacts.",
+											{
 												"type": "object",
 												"properties": {
-													"name": { "type": "string" },
-													"kind": { "type": "string" }
-												}
-											}
-										},
-										"required": [ "args" ],
-										"additionalProperties": false,
-										"defaultSnippets": [
-											{
-												"label": "Library unit tests",
-												"body": {
-													"args": [ "test", "--no-run", "--lib" ],
-													"filter": { "kind": "lib" }
-												}
-											},
-											{
-												"label": "Executable",
-												"body": {
-													"args": [ "build", "--bin=${1:<name>}" ],
-													"filter": { "kind": "bin" }
-												}
+													"args": {
+														"description": "List of cargo arguments.",
+														"type": "array",
+														"default": [ ]
+													},
+													"env": {
+														"description": "Additional environment variables passed to Cargo.",
+														"type": "object",
+														"additionalProperties": { "type": "string" },
+														"default": { }
+													},
+													"cwd": {
+														"description": "Cargo working directory.",
+														"type": "string"
+													},
+													"problemMatcher": {
+														"description": "Problem matcher(s) to apply to Cargo output.",
+														"type": [ "string", "array" ]
+													},
+													"filter": {
+														"description": "Filter applied to compilation artifacts.",
+														"type": "object",
+														"properties": {
+															"name": { "type": "string" },
+															"kind": { "type": "string" }
+														}
+													}
+												},
+												"required": [ "args" ],
+												"additionalProperties": false
 											}
 										]
 									}

@@ -7,7 +7,9 @@
             - [Stdio Redirection](#stdio-redirection)
         - [Attaching to an Existing Process](#attaching-to-a-running-process)
     - [Debugging Externally Launched Code](#debugging-externally-launched-code)
+        - [VSCode URL](#vscode-url)
         - [RPC Server](#rpc-server)
+        - [codelldb-launch](#codelldb-launch)
     - [Remote Debugging](#remote-debugging)
     - [Reverse Debugging](#reverse-debugging) (experimental)
     - [Inspecting a Core Dump](#inspecting-a-core-dump)
@@ -204,8 +206,8 @@ lets you filter the process list to those that match the specified filter.
 
 ## Debugging Externally Launched Code
 
-Debugging sessions may also be started from outside of VSCode by invoking a specially formatted URI:
-
+### VSCode URL
+Debugging sessions may be started from outside of VSCode by invoking a specially formatted URL:
 - **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
   the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.
@@ -222,69 +224,20 @@ Debugging sessions may also be started from outside of VSCode by invoking a spec
   - Line-oriented YAML (`%0A` encodes the 'newline' character):<br>
    `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?program: /path/filename%0Aargs:%0A- arg1%0A- arg 2%0A- arg3"`<br>
 
+All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), for example all literal `%` characters must be escaped as `%25`.
 
-Notes:
-- All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), therefore all '%' characters must be escaped as '%25'.   A more rigorous launcher script would have done that :)<br>
-- VSCode URIs may also be invoked using OS-specific tools:
+VSCode URIs may also be invoked using OS-specific tools:
   - Linux: `xdg-open <uri>`
   - MacOS: `open <uri>`
   - Windows: `start <uri>`
 
-Examples:
+### RPC Server
 
-### Attaching debugger to the current process (C)
-```C
-char command[256];
-snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{'request':'attach','pid':%d}\"", getpid());
-system(command);
-sleep(1); // Wait for debugger to attach
-```
-
-### Attaching debugger to the current process (Rust)
-Ever wanted to debug a build script?
-```Rust
-let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
-std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
-std::thread::sleep_ms(1000); // Wait for debugger to attach
-```
-
-(Note: You may need to update your `Cargo.toml` to build the build script with `debug`.)
-
-```
-[profile.dev.build-override]
-debug = true
-```
-
-### Debugging Rust unit tests
-- Create `.cargo` directory in your project folder containing these two files:
-    - `config` [(see also)](https://doc.rust-lang.org/cargo/reference/config.html)
-        ```TOML
-        [target.<current-target-triple>]
-        runner = ".cargo/codelldb.sh"
-        ```
-    - `codelldb.sh`
-        ```sh
-        #!/bin/bash
-        code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
-        ```
-- `chmod +x .cargo/codelldb.sh`
-- Execute tests as normal.
-
-### Bazel
-- Create `codelldb.sh`:
-    ```sh
-    #!/bin/bash
-    code --open-url "vscode://vadimcn.vscode-lldb/launch/command?LD_LIBRARY_PATH=$LD_LIBRARY_PATH&$*"
-    ```
-- `chmod +x codelldb.sh`
-- `bazel run --run_under=codelldb.sh //<package>:<target>`
-
-## RPC Server
-Unfortunately, starting debug sessons via the "open-url" interface has two problems:
+The URL method has some drawbacks:
 - It launches debug session in the last active VSCode window.
 - It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
 
-For these reasons, CodeLLDB offers an alternate method of performing external launches: by adding `lldb.rpcServer` setting to a workspace
+Therefore, CodeLLDB offers an alternate method of performing external launches - by adding `lldb.rpcServer` setting to a workspace
 of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket:
 - The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) object of the Node.js network server object.
 - As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
@@ -292,11 +245,75 @@ debug configurations must also contain `token` with a matching value.<br>
 - After writing configuration data, the client must half-close its end of the connection.
 - Upon completion, CodeLLDB will respond with `{ "success": true/false, "message": <optional error message> }`
 
+### codelldb-launch
+`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.
+It may be found in `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/adapter/codelldb-launch`.
+
+Usage: `codelldb-launch [--connect=<address>] [--config=<launch configuration>] [--] [debuggee --arg1 -arg2 ...]`
+- `--connect` specifies the address of the RPC server to connect to.
+  This address may also be provided via the `CODELLDB_LAUNCH_CONNECT` environment variable.
+- `--config` specifies the launch configuration as a YAML or JSON string.
+  This address may also be provided via the `CODELLDB_LAUNCH_CONFIG` environment variable.
+- `debuggee ...` specifies the path and arguments of the program to debug.
+  (You may also provide the launch configuration via `--config` to customize other parameters of the debug session)<br>
+  The presence of this parameter alters the behavior of `codelldb-launch` as follows:
+  - The debug session uses the environment and terminal where `codelldb-launch` is invoked.
+  - `codelldb-launch` will wait for the debug session to terminate before continuing.
 
 
-### Example:
-- Configuration in settings.json: `"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }`
-- Launch: `echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345`
+### URL Examples:
+
+##### Attach debugger to the current process (C)
+```C
+char command[256];
+snprintf(command, sizeof(command), "code --open-url \"vscode://vadimcn.vscode-lldb/launch/config?{'request':'attach','pid':%d}\"", getpid());
+system(command);
+sleep(1); // Wait for debugger to attach
+```
+
+#### Attach debugger to the current process (Rust)
+Ever wanted to debug a build script?
+```Rust
+let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
+std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
+std::thread::sleep_ms(1000); // Wait for debugger to attach
+```
+
+Note: You may need to update your `Cargo.toml` to build the build script with `debug`:
+```
+[profile.dev.build-override]
+debug = true
+```
+
+### RPC Examples:
+These examples assume that you've enabled the RPC server by editing `settings.json`:
+```javascript
+"lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }
+```
+#### Start debugging using netcat
+```sh
+ echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
+ ```
+
+#### Start debugging using codelldb-launch
+```sh
+codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bin/ls
+```
+
+#### Debug Rust unit tests
+See also the [Cargo Support](#cargo-support) section!
+```sh
+export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
+export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
+cargo test --config=target.'cfg(not(any()))'.runner=codelldb-launch
+```
+
+#### Bazel
+```sh
+export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
+export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
+bazel run --run_under=codelldb-launch //<package>:<target>
+```
 
 ## Remote Debugging
 
@@ -753,7 +770,7 @@ toolchain of your workspace root will be used, however this can be overridden vi
 
 To enable this feature, add `"sourceLanguages": ["rust"]` into your launch configuration.
 
-## Cargo support
+## Cargo Support
 
 Debugging tests and benchmarks in Cargo-based Rust projects can be tricky, since the names of the output binaries generated by Cargo are not deterministic.
 To address this, CodeLLDB can query Cargo for a list of its compilation outputs. To use this feature, replace the program property in your launch configuration with cargo:

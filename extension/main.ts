@@ -1,10 +1,8 @@
 import {
     workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
-    DebugConfigurationProvider, DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
-    QuickPickItem
-} from 'vscode';
+    DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
+    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind} from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
@@ -15,16 +13,18 @@ import * as webview from './webview';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
+import * as net from 'net';
 import { Cargo, expandCargo } from './cargo';
 import { pickProcess } from './pickProcess';
-import { AdapterSettings } from 'codelldb';
+import { AdapterSettings, LaunchEnvironment } from 'codelldb';
 import { ModuleTreeDataProvider as ModulesView } from './modulesView';
 import { ExcludedCallersView } from './excludedCallersView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
-import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
+import { UriLaunchServer, RpcServer, RpcLaunchServer, waitEndOfDebugSession } from './externalLaunch';
 import { AdapterSettingManager as AdapterSettingsManager } from './adapterSettings';
+import YAML from 'yaml';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -170,7 +170,7 @@ class Extension implements DebugAdapterDescriptorFactory {
     // Invoked by VSCode to initiate a new debugging session.
     async resolveDebugConfiguration(
         folder: WorkspaceFolder | undefined,
-        launchConfig: DebugConfiguration,
+        debugConfig: DebugConfiguration,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration> {
         output.clear();
@@ -180,60 +180,116 @@ class Extension implements DebugAdapterDescriptorFactory {
         output.appendLine(`Verbose logging: ${verboseLogging ? 'on' : 'off'}  (Use "lldb.verboseLogging" setting to change)`);
         output.appendLine(`Platform: ${process.platform} ${process.arch}`);
 
-        output.appendLine(`Initial debug configuration: ${inspect(launchConfig)}`);
+        output.appendLine(`Initial debug configuration: ${inspect(debugConfig)}`);
 
-        if (launchConfig.type === undefined) {
+        if (debugConfig.type === undefined) {
             let config = await this.getLaunchLessConfig(folder, cancellation);
             if (!config) {
                 await window.showErrorMessage('No debug configuration was provided.', { modal: true });
                 return null;
             }
-            launchConfig = config;
+            debugConfig = config;
         }
 
         if (!await this.checkPrerequisites(folder))
             return undefined;
 
         let launchDefaults = getExtensionConfig(folder, 'launch');
-        this.mergeWorkspaceSettings(launchConfig, launchDefaults);
+        this.mergeWorkspaceSettings(debugConfig, launchDefaults);
 
         let dbgconfigConfig = getExtensionConfig(folder, 'dbgconfig');
-        launchConfig = util.expandDbgConfig(launchConfig, dbgconfigConfig);
+        debugConfig = util.expandDbgConfig(debugConfig, dbgconfigConfig);
 
         // Transform "request":"custom" to "request":"launch"
-        if (launchConfig.request == 'custom') {
-            launchConfig.request = 'launch';
+        if (debugConfig.request == 'custom') {
+            debugConfig.request = 'launch';
         }
 
-        if (typeof launchConfig.args == 'string') {
-            launchConfig.args = stringArgv(launchConfig.args);
+        if (typeof debugConfig.args == 'string') {
+            debugConfig.args = stringArgv(debugConfig.args);
         }
 
 
-        // Deal with Cargo
-        if (launchConfig.cargo != undefined) {
+        if (debugConfig.cargo) {
+            await this.handleCargoConfig(folder, debugConfig, cancellation);
+            delete debugConfig.cargo;
+        }
+
+        debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
+        debugConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
+
+        output.appendLine(`Resolved debug configuration: ${inspect(debugConfig)}`);
+        return debugConfig;
+    }
+
+    async handleCargoConfig(
+        folder: WorkspaceFolder | undefined,
+        debugConfig: DebugConfiguration,
+        cancellation?: CancellationToken) {
+
+        let cargoConfig = debugConfig.cargo;
+        // Handle "cargo": [...] form
+        if (cargoConfig instanceof Array) {
+            cargoConfig = { args: cargoConfig }
+        }
+
+        // Case 1: `cargo run ...` is executed, and we inject our launcher as the Cargo "runner".
+        // The launcher sends us the debuggee path, arguments, and environment via RPC.
+        let rpcResolve: (value: LaunchEnvironment) => void;
+        let rpcPromise = new Promise<LaunchEnvironment>(resolve => rpcResolve = resolve);
+        let respondToLauncher: (success: boolean) => void = null;
+        let rpcServer = new RpcServer(request => {
+            let launchEnv: LaunchEnvironment = YAML.parse(request);
+            // RPC response is delayed until the end of the debug session to keep the launcher active.
+            let asyncResponse = new Promise<string>(resolve => {
+                respondToLauncher = (success: boolean) => resolve(`{ "success": ${success} }`);
+            });
+            rpcResolve(launchEnv);
+            return asyncResponse;
+        });
+        let address = await rpcServer.listen({ host: '127.0.0.1', port: 0 }) as net.AddressInfo;
+
+        try {
+            let launcher = {
+                executable: path.join(this.context.extensionPath, 'adapter', 'codelldb-launch'),
+                env: { CODELLDB_LAUNCH_CONNECT: `${address.address}:${address.port}` },
+            };
+
+            // Case 2: mainly for backward compatibility with launch configs using `cargo build ...`.
+            // Runs `cargo build ...` and parses its output to get the debuggee path.
+            // Also triggered by `cargo run ...`, however (1) resolves its promise first.
             let cargo = new Cargo(folder, cancellation);
-            let program = await cargo.getProgramFromCargoConfig(launchConfig.cargo);
-            delete launchConfig.cargo;
+            let artifactsPromise = cargo.getProgramFromCargoConfig(cargoConfig, launcher);
 
-            // Expand ${cargo:program}.
-            launchConfig = expandCargo(launchConfig, { program: program });
-
-            if (launchConfig.program == undefined) {
-                launchConfig.program = program;
+            let result = await Promise.race([rpcPromise, artifactsPromise]);
+            if (typeof result == 'object') { // RPC
+                let launchEnv = result as LaunchEnvironment;
+                // Use args passed in by Cargo, appending any user-provided args launchConfig
+                debugConfig.program = launchEnv.cmd[0];
+                debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args || []);
+                debugConfig.cwd = launchEnv.cwd;
+                // Use Cargo environment, with overrides from launchConfig
+                debugConfig.env = Object.assign({}, debugConfig.env, launchEnv.env);
+                debugConfig = expandCargo(debugConfig, { program: launchEnv.cmd[0] });
+            } else { // artifacts
+                // Expand ${cargo:program}.
+                debugConfig = expandCargo(debugConfig, { program: result });
+                if (debugConfig.program == undefined) {
+                    debugConfig.program = result;
+                }
             }
 
-            // Add 'rust' to sourceLanguages, since this project obviously (ha!) involves Rust.
-            if (!launchConfig.sourceLanguages)
-                launchConfig.sourceLanguages = [];
-            launchConfig.sourceLanguages.push('rust');
+            // If launch was initiated via RPC (case 1), we need to dismiss the launcher after the end of the session.
+            if (respondToLauncher) {
+                waitEndOfDebugSession(debugConfig).then(success => respondToLauncher(success));
+            }
+        } finally {
+            rpcServer.close();
         }
 
-        launchConfig.relativePathBase = launchConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
-        launchConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
-
-        output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);
-        return launchConfig;
+        // Add 'rust' to sourceLanguages, since this project obviously involves Rust.
+        debugConfig.sourceLanguages = debugConfig.sourceLanguages || [];
+        debugConfig.sourceLanguages.push('rust');
     }
 
     async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {

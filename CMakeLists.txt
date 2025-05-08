@@ -137,7 +137,7 @@ add_custom_target(package_json
     COMMAND cargo run --package codelldb-types -- ${CMAKE_BINARY_DIR}/codelldb.schema.json
     COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js
             ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
-    COMMAND ${NPM} run json2ts -- ${CMAKE_BINARY_DIR}/codelldb.schema.json ${CMAKE_BINARY_DIR}/node_modules/codelldb/index.d.ts
+    COMMAND ${NPM} run json2ts -- ${CMAKE_BINARY_DIR}/codelldb.schema.json ${CMAKE_BINARY_DIR}/generated/codelldb.ts
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     BYPRODUCTS ${CMAKE_BINARY_DIR}/codelldb.schema.json
                ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json
@@ -165,8 +165,9 @@ file(GLOB_RECURSE ExtensionFiles ${CMAKE_CURRENT_SOURCE_DIR}/extension/*.ts ${CM
 add_custom_command(
     OUTPUT extension.js
     DEPENDS ${ExtensionFiles}
-    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=extension.js
-        ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
+    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --resolve-modules=${CMAKE_BINARY_DIR}/generated
+                                  --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=extension.js
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
@@ -178,9 +179,10 @@ file(GLOB_RECURSE TestFiles ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.ts ${CMAKE_CURRE
 add_custom_command(
     OUTPUT tests.js
     DEPENDS ${TestFiles} ${ExtensionFiles}
-    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=tests.js
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
+    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --resolve-modules=${CMAKE_BINARY_DIR}/generated
+                                  --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=tests.js
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )

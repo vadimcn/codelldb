@@ -2,11 +2,18 @@
 
 mod json_map;
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, path::PathBuf};
 
 pub use crate::json_map::JsonMap;
 use schemars::JsonSchema;
 use serde_derive::*;
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
+#[serde(untagged)]
+pub enum Either<T1, T2> {
+    First(T1),
+    Second(T2),
+}
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -44,13 +51,6 @@ pub enum ShowDisassembly {
     Never,
     /// Always show, even if source is available.
     Auto,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
-#[serde(untagged)]
-pub enum Pid {
-    Number(u32),
-    String(String),
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
@@ -195,6 +195,7 @@ pub struct CommonLaunchFields {
     /// Specifies how source breakpoints should be set
     pub breakpoint_mode: Option<BreakpointMode>,
     #[serde(rename = "_adapterSettings")]
+    #[schemars(skip)]
     pub adapter_settings: Option<AdapterSettings>,
 }
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
@@ -214,7 +215,7 @@ pub struct LaunchRequestArguments {
     pub env: Option<JsonMap<String>>,
     /// File to read the environment variables from
     pub env_file: Option<String>,
-    /// Destination for stdio streams: null = send to debugger console or a terminal, "<path>" = attach to a file/tty/fifo
+    /// Destination for stdio streams: null = send to the debugger console or the terminal, "<path>" = attach to a file/tty/fifo
     pub stdio: Option<Either<String, Vec<Option<String>>>>,
     /// Automatically stop debuggee after launch
     pub stop_on_entry: Option<bool>,
@@ -237,7 +238,7 @@ pub struct AttachRequestArguments {
     /// Path to the program to attach to
     pub program: Option<String>,
     /// Process id to attach to
-    pub pid: Option<Pid>,
+    pub pid: Option<Either<u64, String>>,
     /// Wait for the process to launch (MacOS only
     pub wait_for: Option<bool>,
     /// Automatically stop debuggee after attach
@@ -248,9 +249,21 @@ pub struct AttachRequestArguments {
     pub process_create_commands: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
-#[serde(untagged)]
-pub enum Either<T1, T2> {
-    First(T1),
-    Second(T2),
+/// Launch environment provided by codelldb-launch
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[schemars(deny_unknown_fields)]
+pub struct LaunchEnvironment {
+    /// Command line to launch the debuggee.
+    pub cmd: Vec<String>,
+    /// Working directory.
+    pub cwd: PathBuf,
+    /// Environment variables present when codelldb-launch was invoked.
+    pub env: JsonMap<String>,
+    /// Information identifying the terminal where codelldb-launch was invoked:
+    /// - on Linux/MacOS, this is the tty device name;
+    /// - on Windows, this is the process ID of some process attached to that terminal.
+    pub terminal_id: Either<Option<String>, u64>,
+    /// Debug configuration
+    pub config: Option<String>,
 }

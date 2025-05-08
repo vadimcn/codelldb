@@ -15,6 +15,7 @@
 		],
 		"paths": {
 			"*": [
+				"../build/generated/*",
 				"../build/node_modules/*",
 			]
 		}

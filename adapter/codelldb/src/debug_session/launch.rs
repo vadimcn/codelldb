@@ -62,14 +62,17 @@ impl super::DebugSession {
 
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         let mut launch_info = self.target.launch_info();
-        let platform = self.debugger.selected_platform();
-
-        let mut fold_key = make_env_key_folder(platform.triple().contains("windows"));
 
         let inherit_env = match self.debugger.get_variable("target.inherit-env").string_at_index(0) {
             Some("true") => true,
             _ => false,
         };
+
+        // On Windows, environment variable names are not case-sensitive, however, SBEnvironment does not account
+        // for this.  It also does not preserve insertion order, so if two keys differ only in case, the resulting
+        // value is unpredictable.  We work around this by folding the case of the keys ourselves.
+        let platform = self.debugger.selected_platform();
+        let mut fold_key = make_env_key_folder(platform.triple().contains("windows"));
 
         // Init with platform environment if `inherit-env` is set.
         let launch_env = if inherit_env { platform.environment() } else { SBEnvironment::new() };
@@ -250,8 +253,8 @@ impl super::DebugSession {
                 let attach_info = SBAttachInfo::new();
                 if let Some(pid) = &args.pid {
                     let pid = match pid {
-                        Pid::Number(n) => *n as ProcessID,
-                        Pid::String(s) => match s.parse() {
+                        Either::First(n) => *n as ProcessID,
+                        Either::Second(s) => match s.parse() {
                             Ok(n) => n,
                             Err(_) => bail!(blame_user(str_error("Process id must be a positive integer."))),
                         },
@@ -453,16 +456,18 @@ impl super::DebugSession {
                 // Use file name specified in the launch config if available,
                 // otherwise use the appropriate terminal device name.
                 let name = match (name, fd) {
-                    (Some(name), _) => name,
+                    (Some(name), _) => Some(&name[..]),
                     (None, 0) => terminal.input_devname(),
                     (None, _) => terminal.output_devname(),
                 };
-                let _ = match fd {
-                    0 => launch_info.add_open_file_action(fd as i32, Path::new(name), true, false),
-                    1 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
-                    2 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
-                    _ => launch_info.add_open_file_action(fd as i32, Path::new(name), true, true),
-                };
+                if let Some(name) = name {
+                    let _ = match fd {
+                        0 => launch_info.add_open_file_action(fd as i32, Path::new(name), true, false),
+                        1 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
+                        2 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
+                        _ => launch_info.add_open_file_action(fd as i32, Path::new(name), true, true),
+                    };
+                }
             }
         }
 

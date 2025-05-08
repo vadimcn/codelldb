@@ -1,7 +1,6 @@
 import * as assert from 'assert';
 import * as ver from 'extension/novsc/ver';
 import { expandVariables, mergeValues } from 'extension/novsc/expand';
-import { Environment } from 'extension/novsc/commonTypes';
 import YAML from 'yaml';
 
 suite('Versions', () => {
@@ -45,31 +44,6 @@ suite('Util', () => {
         assert.deepEqual(mergeValues(
             { a: 1, b: 2, }, { b: 20, c: 40 }),
             { a: 1, b: 2, c: 40 });
-    });
-
-    test('Environment', async () => {
-        let env = new Environment(true);
-        env['Foo'] = '111';
-        env['FOO'] = '222';
-        assert.equal(env['Foo'], '222');
-        assert.equal(env['FOO'], '222');
-        assert.equal(env['fOO'], '222');
-        env['foo'] = '333';
-        assert.equal(env['Foo'], '333');
-        assert.equal(env['FOO'], '333');
-        assert.equal(env['fOO'], '333');
-
-        env['Bar'] = '123';
-        for (let key in env) {
-            assert.ok(key == 'Foo' || key == 'Bar');
-        }
-
-        delete env['Bar'];
-        for (let key in env) {
-            assert.ok(key != 'Bar');
-        }
-
-        delete env['Qoox'];
     });
 })
 

@@ -1,10 +1,12 @@
-import { workspace, debug, window, DebugConfiguration, EventEmitter, Uri, UriHandler, } from "vscode";
+import { LaunchEnvironment } from 'codelldb';
+import * as crypto from 'crypto';
+import * as net from 'net';
 import * as querystring from 'querystring';
 import stringArgv from 'string-argv';
+import { debug, DebugConfiguration, EventEmitter, tasks, Uri, UriHandler, window, workspace } from "vscode";
 import YAML from 'yaml';
-import { Dict } from "./novsc/commonTypes";
 import { output } from "./main";
-import * as net from 'net';
+import { Dict } from "./novsc/commonTypes";
 
 export class UriLaunchServer implements UriHandler {
     async handleUri(uri: Uri) {
@@ -69,14 +71,14 @@ export class UriLaunchServer implements UriHandler {
     }
 }
 
-export class RpcLaunchServer {
+export class RpcServer {
     inner: net.Server;
-    token: string;
+    processRequest: (request: string) => string | Promise<string>;
     errorEmitter = new EventEmitter<Error>();
     readonly onError = this.errorEmitter.event;
 
-    constructor(options: { token?: string }) {
-        this.token = options.token;
+    constructor(processRequest: (request: string) => string | Promise<string>) {
+        this.processRequest = processRequest;
         this.inner = net.createServer({ allowHalfOpen: true });
         this.inner.on('error', err => this.errorEmitter.fire(err));
         this.inner.on('connection', socket => {
@@ -93,27 +95,6 @@ export class RpcLaunchServer {
         });
     }
 
-    async processRequest(request: string) {
-        let debugConfig: DebugConfiguration = {
-            type: 'lldb',
-            request: 'launch',
-            name: '',
-        };
-        Object.assign(debugConfig, YAML.parse(request));
-        debugConfig.name = debugConfig.name || debugConfig.program;
-        if (this.token) {
-            if (debugConfig.token != this.token)
-                return '';
-            delete debugConfig.token;
-        }
-        try {
-            let success = await debug.startDebugging(undefined, debugConfig);
-            return JSON.stringify({ success: success });
-        } catch (err) {
-            return JSON.stringify({ success: false, message: err.toString() });
-        }
-    };
-
     public async listen(options: net.ListenOptions) {
         return new Promise<net.AddressInfo | string>(resolve =>
             this.inner.listen(options, () => resolve(this.inner.address()))
@@ -123,4 +104,97 @@ export class RpcLaunchServer {
     public close() {
         this.inner.close();
     }
+}
+
+export class RpcLaunchServer extends RpcServer {
+    token: string;
+
+    constructor(options: { token?: string }) {
+        super(request => this.onRequest(request))
+        this.token = options.token;
+    }
+
+    async onRequest(rawRequest: string): Promise<string> {
+        let request = YAML.parse(rawRequest);
+
+        let debugConfig: DebugConfiguration = {
+            type: 'lldb',
+            request: 'launch',
+            name: '',
+            env: {}
+        };
+
+        if (request.type == 'LaunchEnvironment') {
+            let launchEnv = request as LaunchEnvironment;
+            let launchConfig = YAML.parse(launchEnv.config);
+            debugConfig.program = launchEnv.cmd.slice(0, 1);
+            debugConfig.args = launchEnv.cmd.slice(1);
+            Object.assign(debugConfig, launchConfig);
+            debugConfig.env = Object.assign(debugConfig.env, launchEnv.env, launchConfig.env);
+        } else {
+            Object.assign(debugConfig, request);
+        }
+
+        debugConfig.name = debugConfig.name || debugConfig.program;
+        if (this.token) {
+            if (debugConfig.token != this.token)
+                return '';
+            delete debugConfig.token;
+        }
+        try {
+            let success = await debug.startDebugging(undefined, debugConfig);
+            if (request.type == 'LaunchEnvironment' && request?.cmd?.length > 0) {
+                // Wait for the end of the debug session
+                return waitEndOfDebugSession(debugConfig).then(success => JSON.stringify({ success: success }));
+            } else {
+                return JSON.stringify({ success: success });
+            }
+        } catch (err) {
+            return JSON.stringify({ success: false, message: err.toString() });
+        }
+    };
+}
+
+
+export function waitEndOfDebugSession(debugConfig: DebugConfiguration, timeout: number = 5000): Promise<boolean> {
+    let resolvePromise: (value: boolean) => void;
+    let promise = new Promise<boolean>(resolve => resolvePromise = resolve);
+
+    let sessionId = crypto.randomBytes(16).toString('base64');
+    debugConfig._codelldbSessionId = sessionId;
+
+    let failedLaunchCleanup: NodeJS.Timeout;
+    let startSub = debug.onDidStartDebugSession(session => {
+        if (session.configuration._codelldbSessionId == sessionId) {
+            startSub.dispose();
+            clearTimeout(failedLaunchCleanup); // Disarm the cleanup timer.
+            let endSub = debug.onDidTerminateDebugSession(session => {
+                if (session.configuration._codelldbSessionId == sessionId) {
+                    endSub.dispose();
+                    resolvePromise(true);
+                }
+            })
+        }
+    });
+
+    function armTimer() {
+        failedLaunchCleanup = setTimeout(() => {
+            startSub.dispose();
+            resolvePromise(false)
+        }, timeout);
+    }
+
+    let preLaunchTask = debugConfig.preLaunchTask as string;
+    if (preLaunchTask) {
+        let taskSub = tasks.onDidEndTask(e => {
+            if (e.execution.task.name == preLaunchTask) {
+                taskSub.dispose();
+                armTimer();
+            }
+        });
+    } else {
+        armTimer();
+    }
+
+    return promise;
 }

@@ -33,10 +33,9 @@ impl super::DebugSession {
                         #[cfg(windows)]
                         terminal.attach_console();
 
-                        let stdin = File::open(terminal.input_devname()).unwrap();
-                        let stdout = File::create(terminal.output_devname()).unwrap();
-                        let stderr = File::create(terminal.output_devname()).unwrap();
-
+                        let stdin = File::open(terminal.input_devname().unwrap()).unwrap();
+                        let stdout = File::create(terminal.output_devname().unwrap()).unwrap();
+                        let stderr = File::create(terminal.output_devname().unwrap()).unwrap();
                         #[cfg(unix)]
                         let stdin_fd = stdin.as_raw_fd();
                         #[cfg(windows)]
@@ -45,6 +44,7 @@ impl super::DebugSession {
                         log_errors!(s.debugger.set_input_file(SBFile::from(stdin, false)));
                         log_errors!(s.debugger.set_output_file(SBFile::from(stdout, true)));
                         log_errors!(s.debugger.set_error_file(SBFile::from(stderr, true)));
+
                         let debugger = s.debugger.clone();
                         let thread = std::thread::Builder::new()
                             .name("command-interpreter".into())
@@ -53,6 +53,7 @@ impl super::DebugSession {
                                 debug!("Exiting interpreter thread");
                             })
                             .unwrap();
+
                         s.debugger_terminal = Some(DebuggerTerminal {
                             terminal: terminal,
                             thread: thread,

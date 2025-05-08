@@ -26,10 +26,11 @@ if (CMAKE_VERBOSE_MAKEFILE)
 endif()
 
 add_custom_target(adapter
-    DEPENDS codelldb_exe codelldb_scripts ${DIAFiles}
+    DEPENDS codelldb_exe launcher_exe codelldb_scripts ${DIAFiles}
 )
 
 set(CodelldbExe codelldb${ExeSuffix})
+set(LauncherExe codelldb-launch${ExeSuffix})
 set(CargoOutDir ${CMAKE_BINARY_DIR}/target/${LLVM_TRIPLE}/${CargoBuildType})
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -52,8 +53,9 @@ externalproject_add(cargo_build
     CONFIGURE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}"
-    BUILD_COMMAND cargo rustc --package=codelldb --bin=codelldb ${CargoFlags} --features=no_link_args -- ${RustcFlags}
-    BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe}
+    BUILD_COMMAND cargo rustc --package=codelldb --bin=codelldb ${CargoFlags} --features=no_link_args -- ${RustcFlags} &&
+                  cargo build --package=codelldb-launch ${CargoFlags}
+    BUILD_BYPRODUCTS ${CargoOutDir}/${CodelldbExe} ${CargoOutDir}/${LauncherExe}
     BUILD_ALWAYS ON
     USES_TERMINAL_BUILD ON
     INSTALL_COMMAND ""
@@ -64,6 +66,12 @@ add_dependencies(cargo_build lldb)
 # Exe
 add_custom_target(codelldb_exe
     COMMAND ${UpdateFile} ${CargoOutDir}/${CodelldbExe} ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS cargo_build
+    USES_TERMINAL
+)
+
+add_custom_target(launcher_exe
+    COMMAND ${UpdateFile} ${CargoOutDir}/${LauncherExe} ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS cargo_build
     USES_TERMINAL
 )

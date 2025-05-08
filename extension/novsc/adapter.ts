@@ -2,8 +2,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as async from './async';
 import * as os from 'os';
-import { Dict, Environment } from './commonTypes';
-import { mergedEnvironment } from './expand';
+import { Dict  } from './commonTypes';
 import { AdapterSettings } from 'codelldb';
 
 export interface AdapterStartOptions {
@@ -119,8 +118,8 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
     return null;
 }
 
-export function getAdapterEnv(extraEnv: Dict<string>): Environment {
-    let env = mergedEnvironment(extraEnv);
+export function getAdapterEnv(extraEnv: Dict<string>): Dict<string> {
+    let env = Object.assign({}, process.env, extraEnv);
     // Scrub backlisted environment entries, unless they were added explicitly via extraEnv.
     for (let name of ['PYTHONHOME', 'PYTHONPATH', 'CODELLDB_STARTUP']) {
         if (extraEnv[name] === undefined)

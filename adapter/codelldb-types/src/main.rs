@@ -6,15 +6,16 @@ use schemars::{schema_for, JsonSchema};
 
 #[derive(JsonSchema)]
 pub enum TypeLibrary {
-    AdapterSettings(AdapterSettings),
-    ExcludeCallerRequest(ExcludeCallerRequest),
-    ExcludeCallerResponse(ExcludeCallerResponse),
-    SetExcludedCallersRequest(SetExcludedCallersRequest),
-    SymbolsRequest(SymbolsRequest),
-    SymbolsResponse(SymbolsResponse),
-    CommonLaunchFields(CommonLaunchFields),
-    LaunchRequestArguments(LaunchRequestArguments),
-    AttachRequestArguments(AttachRequestArguments),
+    _AdapterSettings(AdapterSettings),
+    _ExcludeCallerRequest(ExcludeCallerRequest),
+    _ExcludeCallerResponse(ExcludeCallerResponse),
+    _SetExcludedCallersRequest(SetExcludedCallersRequest),
+    _SymbolsRequest(SymbolsRequest),
+    _SymbolsResponse(SymbolsResponse),
+    _CommonLaunchFields(CommonLaunchFields),
+    _LaunchRequestArguments(LaunchRequestArguments),
+    _AttachRequestArguments(AttachRequestArguments),
+    _LaunchEnvironment(LaunchEnvironment),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -14,7 +14,7 @@ use crate::expressions;
 use crate::fsutil::normalize_path;
 use crate::handles::{self, HandleTree};
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
-use crate::platform::{get_fs_path_case, make_case_folder, pipe};
+use crate::platform::{get_fs_path_case, pipe};
 use crate::python::PythonEvent;
 use crate::python::{PythonInterface, PythonSession};
 use crate::shared::Shared;

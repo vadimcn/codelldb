@@ -75,6 +75,11 @@ impl SBPlatform {
         })
         .into_result()
     }
+    pub fn environment(&self) -> SBEnvironment {
+        cpp!(unsafe [self as "SBPlatform*"] -> SBEnvironment as "SBEnvironment" {
+            return self->GetEnvironment();
+        })
+    }
 }
 
 impl IsValid for SBPlatform {

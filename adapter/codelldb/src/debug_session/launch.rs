@@ -62,26 +62,23 @@ impl super::DebugSession {
 
     fn complete_launch(&mut self, args: LaunchRequestArguments) -> Result<ResponseBody, Error> {
         let mut launch_info = self.target.launch_info();
+        let platform = self.debugger.selected_platform();
 
-        let mut launch_env: HashMap<String, String> = HashMap::new();
-        let mut fold_case = make_case_folder();
+        let mut fold_key = make_env_key_folder(platform.triple().contains("windows"));
 
         let inherit_env = match self.debugger.get_variable("target.inherit-env").string_at_index(0) {
             Some("true") => true,
             _ => false,
         };
-        // Init with host environment if `inherit-env` is set.
-        if inherit_env {
-            for (k, v) in env::vars() {
-                launch_env.insert(fold_case(&k), v);
-            }
-        }
+
+        // Init with platform environment if `inherit-env` is set.
+        let launch_env = if inherit_env { platform.environment() } else { SBEnvironment::new() };
         if let Some(ref env_file) = args.env_file {
             match std::fs::File::open(env_file) {
                 Ok(file) => {
                     for item in dotenvy::from_read_iter(file) {
                         let (k, v) = item?;
-                        launch_env.insert(fold_case(&k), v);
+                        launch_env.set(fold_key(&k), v, true);
                     }
                 }
                 Err(err) => self.console_error(format!("Could not read {env_file}: {err}")),
@@ -89,11 +86,11 @@ impl super::DebugSession {
         }
         if let Some(ref env) = args.env {
             for (k, v) in env.iter() {
-                launch_env.insert(fold_case(k), v.into());
+                launch_env.set(fold_key(k), v, true);
             }
         }
-        let launch_env = launch_env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>();
-        launch_info.set_environment_entries(launch_env.iter().map(|s| s.as_ref()), false);
+        debug!("launch env: {:?}", launch_env);
+        launch_info.set_environment(&launch_env, false);
 
         if let Some(ref args) = args.args {
             launch_info.set_arguments(args.iter().map(|a| a.as_ref()), false);
@@ -448,10 +445,10 @@ impl super::DebugSession {
                     (None, _) => terminal.output_devname(),
                 };
                 let _ = match fd {
-                    0 => launch_info.add_open_file_action(fd as i32, name, true, false),
-                    1 => launch_info.add_open_file_action(fd as i32, name, false, true),
-                    2 => launch_info.add_open_file_action(fd as i32, name, false, true),
-                    _ => launch_info.add_open_file_action(fd as i32, name, true, true),
+                    0 => launch_info.add_open_file_action(fd as i32, Path::new(name), true, false),
+                    1 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
+                    2 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
+                    _ => launch_info.add_open_file_action(fd as i32, Path::new(name), true, true),
                 };
             }
         }
@@ -570,4 +567,36 @@ impl super::DebugSession {
             }
         }
     }
+}
+
+// Create a functor that performs folding of environment variable keys differing only by case
+fn make_env_key_folder(ignore_case: bool) -> impl FnMut(&str) -> String {
+    use std::collections::hash_map::Entry;
+    use std::collections::HashMap;
+
+    let mut case_map: HashMap<String, String> = HashMap::new();
+    move |k: &str| {
+        if ignore_case {
+            let uk = k.to_uppercase();
+            match case_map.entry(uk) {
+                Entry::Occupied(e) => e.get().into(),
+                Entry::Vacant(e) => {
+                    e.insert(k.into());
+                    k.into()
+                }
+            }
+        } else {
+            k.into()
+        }
+    }
+}
+
+#[test]
+fn env_key_transform() {
+    let mut folder = make_env_key_folder(true);
+    assert_eq!(folder("Path"), "Path");
+    assert_eq!(folder("PATH"), "Path");
+
+    assert_eq!(folder("Foo"), "Foo");
+    assert_eq!(folder("foo"), "Foo");
 }

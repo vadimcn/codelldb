@@ -49,33 +49,18 @@ impl SBLaunchInfo {
     pub fn arguments<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
         SBIterator::new(self.num_arguments(), move |index| self.argument_at_index(index))
     }
-    pub fn set_environment_entries<'a>(&mut self, env: impl IntoIterator<Item = &'a str>, append: bool) {
-        let cstrs: Vec<CString> = env.into_iter().map(|a| CString::new(a).unwrap()).collect();
-        let mut ptrs: Vec<*const c_char> = cstrs.iter().map(|cs| cs.as_ptr()).collect();
-        ptrs.push(ptr::null());
-        let envp = ptrs.as_ptr();
-        cpp!(unsafe [self as "SBLaunchInfo*", envp as "const char**", append as "bool"] {
-            self->SetEnvironmentEntries(envp, append);
-        });
-    }
-    pub fn num_environment_entries(&self) -> u32 {
-        cpp!(unsafe [self as "SBLaunchInfo*"] -> u32 as "uint32_t" {
-            return self->GetNumEnvironmentEntries();
+    pub fn environment(&self) -> SBEnvironment {
+        cpp!(unsafe [self as "SBLaunchInfo*"] -> SBEnvironment as "SBEnvironment" {
+            return self->GetEnvironment();
         })
     }
-    pub fn environment_entry_at_index(&self, index: u32) -> &str {
-        let ptr = cpp!(unsafe [self as "SBLaunchInfo*", index as "uint32_t"] -> *const c_char as "const char*" {
-            return self->GetEnvironmentEntryAtIndex(index);
+    pub fn set_environment(&self, env: &SBEnvironment, append: bool) {
+        cpp!(unsafe [self as "SBLaunchInfo*", env as "const SBEnvironment*", append as "bool"] {
+            self->SetEnvironment(*env, append);
         });
-        unsafe { get_str(ptr) }
-    }
-    pub fn environment_entries<'a>(&'a self) -> impl Iterator<Item = &'a str> + 'a {
-        SBIterator::new(self.num_environment_entries(), move |index| {
-            self.environment_entry_at_index(index)
-        })
     }
     pub fn set_working_directory(&mut self, cwd: &Path) {
-        with_cstr(cwd.to_str().unwrap(), |cwd| {
+        with_cstr(cwd.as_os_str(), |cwd| {
             cpp!(unsafe [self as "SBLaunchInfo*", cwd as "const char*"] {
                 self->SetWorkingDirectory(cwd);
             });
@@ -91,8 +76,8 @@ impl SBLaunchInfo {
             unsafe { Some(Path::new(CStr::from_ptr(ptr).to_str().unwrap())) }
         }
     }
-    pub fn add_open_file_action(&self, fd: i32, path: &str, read: bool, write: bool) -> bool {
-        with_cstr(path, |path| {
+    pub fn add_open_file_action(&self, fd: i32, path: &Path, read: bool, write: bool) -> bool {
+        with_cstr(path.as_os_str(), |path| {
             cpp!(unsafe [self as "SBLaunchInfo*", fd as "int32_t", path as "const char*",
                          read as "bool", write as "bool"] -> bool as "bool" {
                 return self->AddOpenFileAction(fd, path, read, write);

@@ -72,39 +72,6 @@ pub fn get_fs_path_case(path: &Path) -> Result<PathBuf, std::io::Error> {
     Ok(path.into())
 }
 
-#[cfg(all(unix, not(test)))]
-pub fn make_case_folder() -> impl FnMut(&str) -> String {
-    |k| k.into()
-}
-
-#[cfg(any(windows, test))]
-pub fn make_case_folder() -> impl FnMut(&str) -> String {
-    use std::collections::hash_map::Entry;
-    use std::collections::HashMap;
-
-    let mut case_map: HashMap<String, String> = HashMap::new();
-    move |k| {
-        let uk = k.to_uppercase();
-        match case_map.entry(uk) {
-            Entry::Occupied(e) => e.get().into(),
-            Entry::Vacant(e) => {
-                e.insert(k.into());
-                k.into()
-            }
-        }
-    }
-}
-
-#[test]
-fn case_folder() {
-    let mut folder = make_case_folder();
-    assert_eq!(folder("Path"), "Path");
-    assert_eq!(folder("PATH"), "Path");
-
-    assert_eq!(folder("Foo"), "Foo");
-    assert_eq!(folder("foo"), "Foo");
-}
-
 // #[cfg(unix)]
 // pub fn waitpid(pid: u32) -> Result<(), io::Error> {
 //     use std::ptr;

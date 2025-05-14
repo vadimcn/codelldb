@@ -344,7 +344,7 @@ such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](http
 {
     "name": "Remote attach",
     "type": "lldb",
-    "request": "launch",
+    "request": "attach",
     "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
     "processCreateCommands": ["gdb-remote <remote_host>:<port>"]
 }
@@ -400,7 +400,7 @@ Launch config:
 {
     "name": "Replay",
     "type": "lldb",
-    "request": "launch",
+    "request": "attach",
     "targetCreateCommands": ["target create ${workspaceFolder}/build/debuggee"],
     "processCreateCommands": ["gdb-remote 127.0.0.1:<port>"],
     "reverseDebugging": true
@@ -413,7 +413,7 @@ Use launch configuration with `target create -c <core path>` command:
 {
     "name": "Core dump",
     "type": "lldb",
-    "request": "launch",
+    "request": "attach",
     "targetCreateCommands": ["target create -c ${workspaceFolder}/core"],
     "processCreateCommands": []
 }

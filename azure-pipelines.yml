@@ -25,7 +25,7 @@ variables:
 jobs:
 - job: Linux
   pool:
-    vmImage: 'ubuntu-20.04'
+    vmImage: 'ubuntu-latest'
 
   strategy:
     matrix:

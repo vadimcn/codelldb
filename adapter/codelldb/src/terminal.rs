@@ -99,6 +99,9 @@ impl Terminal {
             let pid = self.data.parse::<u32>().unwrap();
             winapi::um::wincon::FreeConsole();
             winapi::um::wincon::AttachConsole(pid);
+            // change console code page (text-encoding) to UTF8.
+            winapi::um::wincon::SetConsoleCP(65001);
+            winapi::um::wincon::SetConsoleOutputCP(65001);
         }
     }
 

@@ -236,11 +236,12 @@ pub enum ProcessState {
 }
 
 impl ProcessState {
-    /// True if the process object is backed by an actual process.
+    /// True if the process is still valid.
     pub fn is_alive(&self) -> bool {
         use ProcessState::*;
         match self {
-            Attaching | Launching | Running | Stepping | Stopped | Suspended | Crashed => true,
+            // Mirrors lldb_private::Process::IsAlive()
+            Connected | Attaching | Launching | Stopped | Running | Stepping | Crashed | Suspended => true,
             _ => false,
         }
     }
@@ -248,6 +249,7 @@ impl ProcessState {
     pub fn is_running(&self) -> bool {
         use ProcessState::*;
         match self {
+            // Mirrors lldb_private::StateIsRunningState()
             Attaching | Launching | Running | Stepping => true,
             _ => false,
         }

@@ -41,6 +41,16 @@ impl SBProcess {
         })
         .into()
     }
+    pub fn stop_id(&self, include_expression_stops: bool) -> u32 {
+        cpp!(unsafe [self as "SBProcess*", include_expression_stops as "bool"] -> u32 as "uint32_t" {
+            return self->GetStopID(include_expression_stops);
+        })
+    }
+    pub fn stop_event_for_stop_id(&self, stop_id: u32) -> SBEvent {
+        cpp!(unsafe [self as "SBProcess*", stop_id as "uint32_t"] -> SBEvent as "SBEvent" {
+            return self->GetStopEventForStopID(stop_id);
+        })
+    }
     pub fn exit_status(&self) -> i32 {
         cpp!(unsafe [self as "SBProcess*"] -> i32 as "int32_t" {
             return self->GetExitStatus();

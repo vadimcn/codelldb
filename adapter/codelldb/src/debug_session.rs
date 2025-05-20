@@ -685,14 +685,7 @@ impl DebugSession {
     }
 
     fn handle_stack_trace(&mut self, args: StackTraceArguments) -> Result<StackTraceResponseBody, Error> {
-        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
-            Some(thread) => thread,
-            None => {
-                error!("Received invalid thread id in stack trace request.");
-                bail!("Invalid thread id.");
-            }
-        };
-
+        let thread = self.thread_by_id(args.thread_id)?;
         let start_frame = args.start_frame.unwrap_or(0);
         let levels = args.levels.unwrap_or(std::i64::MAX);
 
@@ -811,13 +804,7 @@ impl DebugSession {
     }
 
     fn handle_next(&mut self, args: NextArguments) -> Result<(), Error> {
-        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
-            Some(thread) => thread,
-            None => {
-                error!("Received invalid thread id in step request.");
-                bail!(blame_nobody(str_error("Invalid thread id.")));
-            }
-        };
+        let thread = self.thread_by_id(args.thread_id)?;
 
         self.before_resume();
 
@@ -840,12 +827,8 @@ impl DebugSession {
 
     fn handle_step_out(&mut self, args: StepOutArguments) -> Result<(), Error> {
         self.before_resume();
-        let process = self.target.process();
-        let thread = process.thread_by_id(args.thread_id as ThreadID).ok_or("thread_id")?;
+        let thread = self.thread_by_id(args.thread_id)?;
         thread.step_out()?;
-        if !process.state().is_running() {
-            self.notify_process_stopped();
-        }
         Ok(())
     }
 
@@ -995,38 +978,35 @@ impl DebugSession {
         match &self.last_goto_request {
             None => bail!("Unexpected goto message."),
             Some(ref goto_args) => {
-                let thread_id = args.thread_id as u64;
-                match self.target.process().thread_by_id(thread_id) {
-                    None => bail!("Invalid thread id"),
-                    Some(thread) => match goto_args.source.source_reference {
-                        // Disassembly
-                        Some(source_ref) => {
-                            let handle = handles::from_i64(source_ref)?;
-                            let dasm = self.disassembly.find_by_handle(handle).ok_or("source_ref")?;
-                            let addr = dasm.address_by_line_num(goto_args.line as u32);
-                            let frame = thread.frame_at_index(0).check().ok_or("frame 0")?;
-                            if frame.set_pc(addr) {
-                                self.refresh_client_display(Some(thread_id));
+                let thread = self.thread_by_id(args.thread_id)?;
+                match goto_args.source.source_reference {
+                    // Disassembly
+                    Some(source_ref) => {
+                        let handle = handles::from_i64(source_ref)?;
+                        let dasm = self.disassembly.find_by_handle(handle).ok_or("source_ref")?;
+                        let addr = dasm.address_by_line_num(goto_args.line as u32);
+                        let frame = thread.frame_at_index(0).check().ok_or("frame 0")?;
+                        if frame.set_pc(addr) {
+                            self.refresh_client_display(Some(args.thread_id as ThreadID));
+                            Ok(())
+                        } else {
+                            bail!(blame_user(str_error("Failed to set the instruction pointer.")));
+                        }
+                    }
+                    // Normal source file
+                    None => {
+                        let filespec = SBFileSpec::from(goto_args.source.path.as_ref().ok_or("source.path")?);
+                        match thread.jump_to_line(&filespec, goto_args.line as u32) {
+                            Ok(()) => {
+                                self.last_goto_request = None;
+                                self.refresh_client_display(Some(args.thread_id as ThreadID));
                                 Ok(())
-                            } else {
-                                bail!(blame_user(str_error("Failed to set the instruction pointer.")));
+                            }
+                            Err(err) => {
+                                bail!(blame_user(err.into()))
                             }
                         }
-                        // Normal source file
-                        None => {
-                            let filespec = SBFileSpec::from(goto_args.source.path.as_ref().ok_or("source.path")?);
-                            match thread.jump_to_line(&filespec, goto_args.line as u32) {
-                                Ok(()) => {
-                                    self.last_goto_request = None;
-                                    self.refresh_client_display(Some(thread_id));
-                                    Ok(())
-                                }
-                                Err(err) => {
-                                    bail!(blame_user(err.into()))
-                                }
-                            }
-                        }
-                    },
+                    }
                 }
             }
         }
@@ -1684,13 +1664,7 @@ impl DebugSession {
     }
 
     fn handle_execption_info(&mut self, args: ExceptionInfoArguments) -> Result<ExceptionInfoResponseBody, Error> {
-        let thread = match self.target.process().thread_by_id(args.thread_id as ThreadID) {
-            Some(thread) => thread,
-            None => {
-                error!("Received invalid thread id in exceptionInfo request.");
-                bail!("Invalid thread id.");
-            }
-        };
+        let thread = self.thread_by_id(args.thread_id)?;
         let einfo = ExceptionInfoResponseBody {
             exception_id: format!("{:?}", thread.stop_reason()),
             description: Some(thread.stop_description()),
@@ -1821,6 +1795,20 @@ impl DebugSession {
                     SBExecutionContext::from_thread(&thread)
                 } else {
                     SBExecutionContext::from_target(&target)
+                }
+            }
+        }
+    }
+
+    fn thread_by_id(&self, thread_id: i64) -> Result<SBThread, Error> {
+        let process = self.target.process();
+        match process.thread_by_id(thread_id as ThreadID) {
+            Some(thread) => Ok(thread),
+            None => {
+                if process.state().is_running() {
+                    bail!(blame_nobody(str_error("Not available while the process is running.")))
+                } else {
+                    bail!(str_error("Invalid thread_id."));
                 }
             }
         }

@@ -156,7 +156,9 @@ impl super::DebugSession {
                 if self.debugger.selected_target() != self.target {
                     self.set_target(self.debugger.selected_target());
                 }
-                Ok(self.target.process())
+                let process = self.target.process();
+                self.check_process_create_commands(&process)?;
+                Ok(process)
             }
         })();
 
@@ -179,17 +181,15 @@ impl super::DebugSession {
             bail!(err);
         };
 
-        let process = self.target.process();
-        debug!("Process state: {:?}", process.state());
-
         self.console_message(format!(
             "Launched process {} from '{:?}'",
-            process.process_id(),
+            self.target.process().process_id(),
             self.target.executable(),
         ));
 
         self.terminate_on_disconnect = true;
         self.common_post_run(args.common)?;
+
         Ok(ResponseBody::launch)
     }
 
@@ -271,34 +271,52 @@ impl super::DebugSession {
                 attach_info.set_wait_for_launch(args.wait_for.unwrap_or(false), false);
                 attach_info.set_ignore_existing(false);
 
-                match self.target.attach(&attach_info) {
+                let process = match self.target.attach(&attach_info) {
                     Ok(process) => process,
                     Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),
+                };
+
+                if args.common.stop_on_entry.unwrap_or(false) {
+                    self.notify_process_stopped(); // LLDB won't generate event for the initial stop
+                } else {
+                    log_errors!(process.resume());
                 }
+                process
             }
             Some(commands) => {
                 self.exec_commands("processCreateCommands", commands)?;
                 if self.debugger.selected_target() != self.target {
                     self.set_target(self.debugger.selected_target());
                 }
+                let process = self.target.process();
+                self.check_process_create_commands(&process)?;
                 self.target.process()
             }
         };
 
         self.console_message(format!("Attached to process {}", process.process_id()));
+
         self.terminate_on_disconnect = false;
-
-        if !self.target.process().state().is_alive() {
-            self.notify_process_terminated();
-        } else if args.common.stop_on_entry.unwrap_or(false) {
-            self.notify_process_stopped();
-        } else {
-            log_errors!(self.target.process().resume());
-        }
-
         self.common_post_run(args.common)?;
 
         Ok(ResponseBody::attach)
+    }
+
+    // Check state of the process created via processCreateCommands
+    fn check_process_create_commands(&mut self, process: &SBProcess) -> Result<(), Error> {
+        let state = process.state();
+        if !state.is_alive() {
+            self.notify_process_terminated();
+            bail!(blame_user(str_error("Process is not valid.")));
+        } else if !state.is_running() {
+            let event = process.stop_event_for_stop_id(process.stop_id(false));
+            if let Some(process_event) = event.as_process_event() {
+                if !process_event.restarted() {
+                    self.notify_process_stopped();
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn handle_restart(&mut self, args: RestartRequestArguments) -> Result<(), Error> {
@@ -531,7 +549,7 @@ impl super::DebugSession {
 
     fn common_post_run(&mut self, args_common: CommonLaunchFields) -> Result<(), Error> {
         if let Some(commands) = args_common.post_run_commands {
-            self.exec_commands("postRunCommands", &commands)?;
+            log_errors!(self.exec_commands("postRunCommands", &commands));
         }
         self.pre_terminate_commands = args_common.pre_terminate_commands;
         self.exit_commands = args_common.exit_commands;

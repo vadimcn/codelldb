@@ -633,23 +633,26 @@ impl DebugSession {
     fn exec_commands(&self, script_name: &str, commands: &[String]) -> Result<(), Error> {
         self.console_message(format!("Executing script: {}", script_name));
         let interpreter = self.debugger.command_interpreter();
-        let mut result = SBCommandReturnObject::new();
-        for command in commands {
-            result.clear();
-            let ok = interpreter.handle_command(&command, &mut result, false);
-            debug!("{} -> {:?}, {:?}", command, ok, result);
-            let output = result.output().to_string_lossy().into_owned();
-            if !output.is_empty() {
-                self.console_message(output);
+        let mut cmd_result = SBCommandReturnObject::new();
+        let result = (|| {
+            for command in commands {
+                cmd_result.clear();
+                let ok = interpreter.handle_command(&command, &mut cmd_result, false);
+                debug!("{} -> {:?}, {:?}", command, ok, cmd_result);
+                let output = cmd_result.output().to_string_lossy().into_owned();
+                if !output.is_empty() {
+                    self.console_message(output);
+                }
+                if !cmd_result.succeeded() {
+                    let err_msg = cmd_result.error().to_string_lossy();
+                    self.console_error(&err_msg);
+                    bail!(blame_user(str_error(err_msg)))
+                }
             }
-            if !result.succeeded() {
-                let err_msg = result.error().to_string_lossy();
-                self.console_error(&err_msg);
-                bail!(blame_user(str_error(err_msg)))
-            }
-        }
-        self.debugger.set_async_mode(true); // In case they've changed it.
-        Ok(())
+            Ok(())
+        })();
+        self.debugger.set_async_mode(true); // In case they changed it.
+        result
     }
 
     fn handle_configuration_done(&mut self) -> Result<(), Error> {

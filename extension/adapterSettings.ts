@@ -75,7 +75,6 @@ export class AdapterSettingManager {
             scriptConfig: config.get('script'),
             evaluateForHovers: config.get('evaluateForHovers'),
             commandCompletions: config.get('commandCompletions'),
-            reproducer: config.get('reproducer'),
         };
         return settings;
     }

@@ -279,7 +279,6 @@ pub struct AdapterSettings {
     pub script_config: Option<serde_json::Value>,
     pub evaluate_for_hovers: Option<bool>,
     pub command_completions: Option<bool>,
-    pub reproducer: Option<Either<bool, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

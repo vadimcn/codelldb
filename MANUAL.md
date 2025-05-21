@@ -861,4 +861,3 @@ These settings specify the default values for launch configuration setting of th
 |**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
 |**lldb.commandCompletions** |Enable command completions in DEBUG CONSOLE.
 |**lldb.useNativePDBReader** |Use the native reader for the PDB debug info format: LLDB includes two readers for the Microsoft PDB format: one based on the Microsoft DIA SDK and another implemented natively in LLDB. Currently, the DIA-based reader is the default because it is more complete. However, the native reader is faster and may be preferred for large binaries.
-|**lldb.reproducer**    |(deprecated) Enable capture of an LLDB reproducer.

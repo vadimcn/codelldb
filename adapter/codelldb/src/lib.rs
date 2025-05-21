@@ -1,10 +1,8 @@
 use crate::prelude::*;
-use adapter_protocol::{AdapterSettings, Either};
+use adapter_protocol::AdapterSettings;
 use clap::ArgMatches;
 use dap_session::DAPChannel;
 use lldb::*;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{env, net};
 use tokio::io::AsyncWriteExt;
@@ -48,12 +46,6 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
         },
         None => Default::default(),
     };
-
-    match adapter_settings.reproducer {
-        Some(Either::First(true)) => initialize_reproducer(None),
-        Some(Either::Second(ref path)) => initialize_reproducer(Some(Path::new(&path))),
-        _ => {}
-    }
 
     SBDebugger::initialize();
 
@@ -128,7 +120,6 @@ pub fn debug_server(matches: &ArgMatches) -> Result<(), Error> {
 
     rt.shutdown_timeout(Duration::from_millis(10));
 
-    finalize_reproducer();
     debug!("Exiting");
     #[cfg(not(windows))]
     SBDebugger::terminate();
@@ -166,7 +157,6 @@ fn hook_crashes() {
         let bt = backtrace::Backtrace::new();
         eprintln!("Received signal: {}", sig_name);
         eprintln!("{:?}", bt);
-        finalize_reproducer();
         std::process::exit(255);
     }
 
@@ -182,31 +172,11 @@ fn hook_crashes() {
 #[cfg(windows)]
 fn hook_crashes() {}
 
-static CREATING_REPRODUCER: AtomicBool = AtomicBool::new(false);
-
-fn initialize_reproducer(path: Option<&Path>) {
-    match SBReproducer::capture(path) {
-        Ok(()) => CREATING_REPRODUCER.store(true, Ordering::Release),
-        Err(err) => error!("initialize_reproducer: {}", err),
-    }
-}
-
-fn finalize_reproducer() {
-    if CREATING_REPRODUCER.load(Ordering::Acquire) {
-        if let Some(path) = SBReproducer::path() {
-            if SBReproducer::generate() {
-                info!("Reproducer saved to {:?}", path);
-            } else {
-                error!("finalize_reproducer: failed");
-            }
-        }
-    }
-}
-
 // Initialization for test binaries
 #[cfg(test)]
 #[ctor::ctor]
 fn test_init() {
+    use std::path::Path;
     lldb_stub::liblldb.load_from(Path::new(env!("LLDB_DYLIB"))).unwrap();
     lldb_stub::base.resolve().unwrap().mark_permanent();
     lldb_stub::v16.resolve().unwrap().mark_permanent();

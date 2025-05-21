@@ -519,16 +519,6 @@
 						"scope": "resource",
 						"order": 10
 					},
-					"lldb.reproducer": {
-						"markdownDescription": "Enable capture of a [reproducer](https://lldb.llvm.org/design/reproducers.html).\nMay also contain a path of the directory to save the reproducer in.",
-						"type": [
-							"boolean",
-							"string"
-						],
-						"default": false,
-						"scope": "resource",
-						"order": 10
-					},
 					"lldb.evaluateForHovers": {
 						"description": "Enable value preview when cursor is hovering over a variable.",
 						"type": "boolean",

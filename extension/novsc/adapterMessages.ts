@@ -11,7 +11,6 @@ export class AdapterSettings {
     scriptConfig?: object;
     evaluateForHovers?: boolean;
     commandCompletions?: boolean;
-    reproducer?: boolean | string;
 };
 
 export class Symbol {

@@ -101,9 +101,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.9.0"
+version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
+checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "byteorder"
@@ -119,9 +119,9 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 
 [[package]]
 name = "cc"
-version = "1.2.21"
+version = "1.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8691782945451c1c383942c4874dbe63814f61cb57ef773cda2972682b7bb3c0"
+checksum = "5f4ac86a9e5bc1e2b3449ab9d7d3a6a405e3d1bb28d7b9be8614f55846ae3766"
 dependencies = [
  "shlex",
 ]
@@ -795,7 +795,7 @@ version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "928fca9cf2aa042393a8325b9ead81d2f0df4cb12e1e24cef072922ccd99c5af"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
 ]
 
 [[package]]
@@ -1198,13 +1198,13 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
 name = "weaklink"
-version = "0.1.0"
-source = "git+https://github.com/vadimcn/weaklink.git#d22bca14bb8824a6b5f1bbdf901ae2b6d85cf527"
+version = "0.2.1"
+source = "git+https://github.com/vadimcn/weaklink.git#9c3f776978132041f1af95b41e27661f107de9cd"
 
 [[package]]
 name = "weaklink_build"
-version = "0.1.0"
-source = "git+https://github.com/vadimcn/weaklink.git#d22bca14bb8824a6b5f1bbdf901ae2b6d85cf527"
+version = "0.2.1"
+source = "git+https://github.com/vadimcn/weaklink.git#9c3f776978132041f1af95b41e27661f107de9cd"
 dependencies = [
  "goblin",
  "rand",

@@ -73,7 +73,6 @@ export class AdapterSettingManager {
             consoleMode: config.get('consoleMode'),
             sourceLanguages: null,
             scriptConfig: config.get('script'),
-            terminalPromptClear: config.get('terminalPromptClear'),
             evaluateForHovers: config.get('evaluateForHovers'),
             commandCompletions: config.get('commandCompletions'),
             reproducer: config.get('reproducer'),

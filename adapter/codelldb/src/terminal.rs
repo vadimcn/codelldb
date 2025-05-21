@@ -17,25 +17,12 @@ impl Terminal {
     pub async fn create(
         terminal_kind: impl Into<String>,
         title: impl Into<String>,
-        clear_sequence: Option<Vec<String>>,
         dap_session: DAPSession,
     ) -> Result<Terminal, Error> {
         let terminal_kind = terminal_kind.into();
         let title = title.into();
 
         let terminal_fut = async move {
-            if let Some(clear_sequence) = clear_sequence {
-                let req_args = RunInTerminalRequestArguments {
-                    args: clear_sequence,
-                    cwd: String::new(),
-                    env: None,
-                    kind: Some(terminal_kind.clone()),
-                    title: Some(title.clone()),
-                    args_can_be_interpreted_by_shell: None,
-                };
-                dap_session.send_request(RequestArguments::runInTerminal(req_args)).await?;
-            }
-
             let listener = TcpListener::bind("127.0.0.1:0").await?;
             let addr = listener.local_addr()?;
 
@@ -71,7 +58,7 @@ impl Terminal {
             })
         };
 
-        match tokio::time::timeout(Duration::from_secs(300), terminal_fut).await {
+        match tokio::time::timeout(Duration::from_secs(5), terminal_fut).await {
             Ok(res) => res,
             Err(_) => bail!("Terminal agent did not respond within the allotted time."),
         }

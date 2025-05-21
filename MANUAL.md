@@ -858,7 +858,6 @@ These settings specify the default values for launch configuration setting of th
 |**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
 |**lldb.cargo**         |Name of the command to invoke as Cargo.
-|**lldb.terminalPromptClear**|A sequence of strings sent to the terminal in order to clear its command prompt.  Defaults to `["\n"]`.  To disable prompt clearing, set to `null`.
 |**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
 |**lldb.commandCompletions** |Enable command completions in DEBUG CONSOLE.
 |**lldb.useNativePDBReader** |Use the native reader for the PDB debug info format: LLDB includes two readers for the Microsoft PDB format: one based on the Microsoft DIA SDK and another implemented natively in LLDB. Currently, the DIA-based reader is the default because it is more complete. However, the native reader is faster and may be preferred for large binaries.

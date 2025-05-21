@@ -18,6 +18,7 @@
 ### Changed
 - Updated bundled LLDB to v20.1.0
 - The minimal required MacOS version for x86_64 is now 10.12
+- Removed the "lldb.terminalPromptClear" setting, since the VSCode teminal bug, it was intended as a workapound for, appears to have been fixed.
 
 # 1.11.4
 

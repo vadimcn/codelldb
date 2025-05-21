@@ -423,7 +423,6 @@ impl super::DebugSession {
         let fut = Terminal::create(
             terminal_kind,
             title,
-            self.terminal_prompt_clear.clone(),
             self.dap_session.clone(),
         );
         let self_ref = self.self_ref.clone();

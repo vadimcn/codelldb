@@ -84,7 +84,6 @@ pub struct DebugSession {
     command_completions: bool,
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
-    terminal_prompt_clear: Option<Vec<String>>,
     breakpoint_mode: BreakpointMode,
     summary_timeout: time::Duration,
     max_summary_length: usize,
@@ -170,7 +169,6 @@ impl DebugSession {
             command_completions: true,
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
-            terminal_prompt_clear: None,
             breakpoint_mode: BreakpointMode::Path,
             summary_timeout: time::Duration::from_millis(10),
             max_summary_length: 32,
@@ -1470,9 +1468,6 @@ impl DebugSession {
         }
         if let Some(timeout) = settings.summary_timeout {
             self.summary_timeout = time::Duration::from_millis((timeout * 1000.0) as u64);
-        }
-        if let Some(ref terminal_prompt_clear) = settings.terminal_prompt_clear {
-            self.terminal_prompt_clear = Some(terminal_prompt_clear.clone());
         }
         if let Some(console_mode) = settings.console_mode {
             self.console_mode = console_mode;

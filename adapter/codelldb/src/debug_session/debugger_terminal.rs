@@ -21,7 +21,6 @@ impl super::DebugSession {
         let terminal_fut = Terminal::create(
             "integrated",
             title,
-            self.terminal_prompt_clear.clone(),
             self.dap_session.clone(),
         );
         let self_ref = self.self_ref.clone();

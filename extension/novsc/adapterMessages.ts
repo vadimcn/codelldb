@@ -9,7 +9,6 @@ export class AdapterSettings {
     consoleMode?: 'commands' | 'evaluate';
     sourceLanguages?: string[];
     scriptConfig?: object;
-    terminalPromptClear?: string[];
     evaluateForHovers?: boolean;
     commandCompletions?: boolean;
     reproducer?: boolean | string;

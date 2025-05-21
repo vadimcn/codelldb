@@ -529,16 +529,6 @@
 						"scope": "resource",
 						"order": 10
 					},
-					"lldb.terminalPromptClear": {
-						"description": "A sequence of strings sent to the terminal in order to clear its command prompt.",
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"default": null,
-						"scope": "resource",
-						"order": 10
-					},
 					"lldb.evaluateForHovers": {
 						"description": "Enable value preview when cursor is hovering over a variable.",
 						"type": "boolean",

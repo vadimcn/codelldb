@@ -347,8 +347,10 @@ class Extension implements DebugAdapterDescriptorFactory {
         authToken: string
     ): Promise<ChildProcess> {
         let config = getExtensionConfig(folder);
-        let adapterEnv = config.get('adapterEnv', {});
+        let adapterEnv = config.get<any>('adapterEnv', {});
         let verboseLogging = config.get<boolean>('verboseLogging');
+        if (config.get<boolean>('useNativePDBReader'))
+            adapterEnv['LLDB_USE_NATIVE_PDB_READER'] = 'true';
         let [liblldb] = await this.getAdapterDylibs(config);
 
         output.appendLine('Launching adapter');

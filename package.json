@@ -553,6 +553,12 @@
 						"scope": "resource",
 						"order": 10
 					},
+					"lldb.useNativePDBReader": {
+						"description": "Use the native reader for the PDB debug info format (Windows only)",
+						"type": "boolean",
+						"scope": "resource",
+						"order": 10
+					},
 					"lldb.suppressUpdateNotifications": {
 						"description": "Don't show extension update notifications.",
 						"type": "boolean",

@@ -3,12 +3,10 @@ use serde_derive::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 
 use crate::handles::Handle;
-use adapter_protocol::{DisassembledInstruction, Source};
 use lldb::*;
 use superslice::Ext;
 
@@ -16,14 +14,14 @@ struct Ranges {
     pub by_handle: HashMap<Handle, Rc<DisassembledRange>>,
     pub by_address: Vec<Rc<DisassembledRange>>,
 }
-pub struct AddressSpace {
+pub struct DisassembledRanges {
     target: SBTarget,
     ranges: RefCell<Ranges>,
 }
 
-impl AddressSpace {
-    pub fn new(target: &SBTarget) -> AddressSpace {
-        AddressSpace {
+impl DisassembledRanges {
+    pub fn new(target: &SBTarget) -> DisassembledRanges {
+        DisassembledRanges {
             target: target.clone(),
             ranges: RefCell::new(Ranges {
                 by_handle: HashMap::new(),
@@ -235,94 +233,6 @@ impl DisassembledRange {
 
         text
     }
-}
-
-pub fn disassemble_byte_range(start: Address, count: usize, process: &SBProcess) -> Result<Vec<SBInstruction>, Error> {
-    let target = process.target();
-    let mut buffer = Vec::new();
-    buffer.resize(count, 0);
-    process.read_memory(start, &mut buffer)?;
-
-    let mut dis_instructions = Vec::new();
-    let mut idx = 0;
-    while idx < buffer.len() {
-        let base_addr = SBAddress::from_load_address(start, &target);
-        let instructions = target.get_instructions(&base_addr, &buffer[idx..]);
-        if instructions.len() == 0 {
-            // We were unable to disassemble _anything_ from the requested address. It's _probably_ an invalid address.
-            // Bail at this point. The caller must attempt to validate the result as best it can. (in practice, caller
-            // looks for a specific instruction at a specific address and adjusts the output based on that).
-            return Ok(dis_instructions);
-        } else {
-            for instr in instructions.iter() {
-                idx += instr.byte_size();
-                dis_instructions.push(instr);
-            }
-        }
-    }
-    Ok(dis_instructions)
-}
-
-pub fn sbinstr_to_disinstr<F>(
-    instr: &SBInstruction,
-    target: &SBTarget,
-    resolve_symbols: bool,
-    map_filespec_to_local: F,
-) -> DisassembledInstruction
-where
-    F: FnOnce(&SBFileSpec) -> Option<Rc<PathBuf>>,
-{
-    let mnemonic = instr.mnemonic(target);
-    let operands = instr.operands(target);
-    let comment = instr.comment(target);
-    let comment_sep = if comment.is_empty() { "" } else { "  ; " };
-    let address = instr.address();
-    let instruction_str = format!("{:<6} {}{}{}", mnemonic, operands, comment_sep, comment);
-    let mut dis_instr = DisassembledInstruction {
-        address: format!("0x{:X}", address.load_address(target)),
-        instruction: instruction_str,
-        ..Default::default()
-    };
-    let mut instr_bytes = Vec::new();
-    instr_bytes.resize(instr.byte_size(), 0);
-    if instr.data(target).read_raw_data(0, &mut instr_bytes).is_ok() {
-        let mut bytes_str = String::with_capacity(instr_bytes.len() * 3);
-        for b in instr_bytes.iter() {
-            let _ = write!(bytes_str, "{:02X} ", b);
-        }
-        dis_instr.instruction_bytes = Some(bytes_str);
-    }
-
-    if let Some(line_entry) = address.line_entry() {
-        dis_instr.location = Some(Source {
-            name: Some(line_entry.file_spec().filename().display().to_string()),
-            path: match map_filespec_to_local(&line_entry.file_spec()) {
-                Some(local_path) => Some(local_path.display().to_string()),
-                _ => None,
-            },
-            ..Default::default()
-        });
-        dis_instr.line = Some(line_entry.line() as i64);
-        dis_instr.column = Some(line_entry.column() as i64);
-    }
-
-    if resolve_symbols {
-        if let Some(symbol) = instr.address().symbol() {
-            dis_instr.symbol = Some(symbol.name().into());
-        }
-    }
-    dis_instr
-}
-
-pub fn max_instruction_bytes(target: &SBTarget) -> u64 {
-    // NOTE: The max bytes for an intel instruction is 15 bytes
-    //        (technically, there's no limit, but anything over 15 = GPF)
-    //        arm instructions are 4 bytes (thumb 2 or 4 bytes).
-    let arch = target.triple().split("-").next().unwrap();
-    if arch == "arm" || arch == "aarch64" {
-        return 4;
-    }
-    return 16;
 }
 
 #[test]

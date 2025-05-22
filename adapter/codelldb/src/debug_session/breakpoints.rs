@@ -75,7 +75,7 @@ impl DebugSession {
             .source
             .source_reference
             .map(|source_ref| handles::from_i64(source_ref).unwrap())
-            .and_then(|source_ref| self.disassembly.find_by_handle(source_ref));
+            .and_then(|source_ref| self.disasm_ranges.find_by_handle(source_ref));
 
         let breakpoints = match (dasm, args.source.adapter_data, args.source.path.as_ref()) {
             (Some(dasm), _, _) => self.set_dasm_breakpoints(dasm, requested_bps),
@@ -542,7 +542,7 @@ impl DebugSession {
                 BreakpointKind::Disassembly => {
                     let address = bp_info.breakpoint.location_at_index(0).address();
                     let laddress = address.load_address(&self.target);
-                    if let Ok(dasm) = self.disassembly.from_address(laddress) {
+                    if let Ok(dasm) = self.disasm_ranges.from_address(laddress) {
                         let adapter_data = Some(serde_json::to_value(dasm.adapter_data()).unwrap());
                         Breakpoint {
                             id: Some(bp_info.id as i64),

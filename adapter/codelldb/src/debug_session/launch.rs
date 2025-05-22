@@ -390,7 +390,7 @@ impl super::DebugSession {
     fn set_target(&mut self, target: SBTarget) {
         self.debugger.listener().stop_listening_for_events(&self.target.broadcaster(), !0);
         self.target = target;
-        self.disassembly = disassembly::AddressSpace::new(&self.target);
+        self.disasm_ranges = disassembly::DisassembledRanges::new(&self.target);
         self.debugger.listener().start_listening_for_events(&self.target.broadcaster(), !0);
     }
 

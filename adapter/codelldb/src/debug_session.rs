@@ -88,6 +88,7 @@ pub struct DebugSession {
     breakpoint_mode: BreakpointMode,
     summary_timeout: time::Duration,
     max_summary_length: usize,
+    max_instr_bytes: usize,
 }
 
 // AsyncResponse is used to "smuggle" futures out of request handlers
@@ -173,6 +174,7 @@ impl DebugSession {
             breakpoint_mode: BreakpointMode::Path,
             summary_timeout: time::Duration::from_millis(10),
             max_summary_length: 32,
+            max_instr_bytes: 9,
         };
 
         let con_reader = tokio::fs::File::from_std(con_reader);
@@ -870,7 +872,7 @@ impl DebugSession {
         let handle = handles::from_i64(args.source_reference)?;
         let dasm = self.disasm_ranges.find_by_handle(handle).unwrap();
         Ok(SourceResponseBody {
-            content: dasm.get_source_text(),
+            content: dasm.get_source_text(self.max_instr_bytes),
             mime_type: Some("text/x-lldb.disassembly".to_owned()),
         })
     }

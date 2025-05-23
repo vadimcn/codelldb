@@ -174,7 +174,7 @@ impl DisassembledRange {
             .collect()
     }
 
-    pub fn get_source_text(&self) -> String {
+    pub fn get_source_text(&self, max_instr_bytes: usize) -> String {
         let mut text = String::new();
 
         #[allow(unused_must_use)]
@@ -200,7 +200,6 @@ impl DisassembledRange {
             writeln!(text, "");
         }
 
-        const MAX_INSTR_BYTES: usize = 8;
         let mut instr_data = vec![];
         let mut dump = String::new();
         for instr in self.instructions.iter() {
@@ -209,8 +208,8 @@ impl DisassembledRange {
             instr.data(&self.target).read_raw_data(0, &mut instr_data).unwrap();
             dump.clear();
             for (i, b) in instr_data.iter().enumerate() {
-                if i >= MAX_INSTR_BYTES {
-                    let _ = write!(dump, ">");
+                if i >= max_instr_bytes {
+                    dump.push('>');
                     break;
                 }
                 let _ = write!(dump, "{:02X} ", b);
@@ -222,7 +221,7 @@ impl DisassembledRange {
             #[rustfmt::skip]
             let _ = writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}", //.
                 load_addr, dump, mnemonic, operands, comment_sep, comment,
-                dumpwidth=MAX_INSTR_BYTES * 3 + 2
+                dumpwidth=max_instr_bytes * 3 + 2
             );
         }
 

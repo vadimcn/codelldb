@@ -32,6 +32,14 @@ impl SBLineEntry {
     }
 }
 
+impl PartialEq for SBLineEntry {
+    fn eq(&self, other: &Self) -> bool {
+        cpp!(unsafe [self as "SBLineEntry*", other as "SBLineEntry*"] -> bool as "bool" {
+            return *self == *other;
+        })
+    }
+}
+
 impl IsValid for SBLineEntry {
     fn is_valid(&self) -> bool {
         cpp!(unsafe [self as "SBLineEntry*"] -> bool as "bool" {

@@ -218,21 +218,17 @@ impl SBTarget {
             })
         })
     }
-    // Added in v18
-    // pub fn read_instructions_addr_range(
-    //     &self,
-    //     start_addr: &SBAddress,
-    //     end_addr: &SBAddress,
-    //     flavor: Option<&str>,
-    // ) -> SBInstructionList {
-    //     with_opt_cstr(flavor, |flavor| {
-    //         cpp!(unsafe [self as "SBTarget*", start_addr as "SBAddress*", end_addr as "SBAddress*",
-    //                      flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
-    //             return self->ReadInstructions(*start_addr, *end_addr, flavor);
-    //         })
-    //     })
-    // }
-    /// Returns the default disassembly flavor for the target.
+    pub fn get_instructions(&self, base_addr: &SBAddress, buffer: &[u8], flavor: Option<&str>) -> SBInstructionList {
+        let ptr = buffer.as_ptr();
+        let count = buffer.len();
+        with_opt_cstr(flavor, |flavor| {
+            cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*",
+                         ptr as "void*", count as "size_t",
+                         flavor as "const char*"] -> SBInstructionList as "SBInstructionList" {
+                return self->GetInstructionsWithFlavor(*base_addr, flavor, ptr, count);
+            })
+        })
+    }
     pub fn disassembly_flavor(&self) -> Option<String> {
         let strings = self.debugger().get_variable("target.x86-disassembly-flavor");
         if let Some(flavor) = strings.string_at_index(0) {
@@ -254,18 +250,6 @@ impl SBTarget {
         } else {
             Err(error)
         }
-    }
-    pub fn get_instructions(&self, base_addr: &SBAddress, buffer: &[u8]) -> SBInstructionList {
-        let ptr = buffer.as_ptr();
-        let count = buffer.len();
-        cpp!(unsafe [self as "SBTarget*", base_addr as "SBAddress*",
-                     ptr as "void*", count as "size_t"] -> SBInstructionList as "SBInstructionList" {
-            SBDebugger debugger = self->GetDebugger();
-            SBStringList value = SBDebugger::GetInternalVariableValue("target.x86-disassembly-flavor",
-                                                                      debugger.GetInstanceName());
-            const char* flavor = value.GetSize() > 0 ? value.GetStringAtIndex(0) : nullptr;
-            return self->GetInstructionsWithFlavor(*base_addr, flavor, ptr, count);
-        })
     }
     pub fn evaluate_expression(&self, expr: &str) -> SBValue {
         with_cstr(expr, |expr| {

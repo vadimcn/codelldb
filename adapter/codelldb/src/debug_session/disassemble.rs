@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::prelude::*;
 
 use super::*;
@@ -6,14 +8,6 @@ use lldb::*;
 
 impl super::DebugSession {
     pub(super) fn handle_disassemble(&mut self, args: DisassembleArguments) -> Result<DisassembleResponseBody, Error> {
-        fn invalid_instruction() -> DisassembledInstruction {
-            DisassembledInstruction {
-                address: "0".into(),
-                instruction: "<invalid>".into(),
-                ..Default::default()
-            }
-        }
-
         let base_addr = parse_int::parse::<u64>(&args.memory_reference)?;
         let base_addr = match args.offset {
             Some(offset) => base_addr.wrapping_add(offset as u64),
@@ -23,171 +17,218 @@ impl super::DebugSession {
         if args.instruction_count < 0 {
             bail!("Invalid instruction_count");
         }
-        let instruction_count = args.instruction_count as usize;
-        let resolve_symbols = args.resolve_symbols.unwrap_or(true);
+        // We want to disassemble enough bytes so that:
+        // 1. The instruction at base_addr is within the range, allowing us to check instruction stream alignment.
+        // 2. The resulting list of instructions covers the requested range.
+        let num_before = -instruction_offset.min(0) as u64;
+        let num_after = (args.instruction_count + instruction_offset).max(0) as u64;
+        let bytes_per_instruction = self.max_instruction_bytes();
+        let start_addr = base_addr.saturating_sub(num_before * bytes_per_instruction);
+        let end_addr = base_addr.saturating_add(num_after * bytes_per_instruction);
 
-        let flavor = self.target.disassembly_flavor();
-        let mut result = if instruction_offset >= 0 {
-            // Disassemble forward from the base address
-            let start_addr = SBAddress::from_load_address(base_addr, &self.target);
-            let instructions = self.target.read_instructions(
-                &start_addr,
-                (instruction_offset + args.instruction_count) as u32,
-                flavor.as_deref(),
-            );
-            let mut dis_instructions = Vec::new();
-            for instr in instructions.iter().skip(instruction_offset as usize) {
-                dis_instructions.push(sbinstr_to_disinstr(&instr, &self.target, resolve_symbols, |fs| {
-                    self.map_filespec_to_local(fs)
-                }));
+        let (mut start_addr, mut buffer) = self.read_memory(start_addr, end_addr - start_addr);
+        let mut instructions = Vec::new();
+        let mut base_index = None;
+        for i in 0..bytes_per_instruction.min(buffer.len() as u64) {
+            instructions = self.disassemble_bytes(start_addr + i, &buffer[i as usize..]);
+            base_index = instructions.iter().position(|(ref arange, _)| arange.start == base_addr);
+            if base_index.is_some() {
+                // Adjust to reflect the actual range we've disassembled.
+                start_addr += i;
+                buffer.drain(..i as usize);
+                break;
             }
-            dis_instructions
-        } else {
-            // Disassemble backward from the base address
-            let bytes_per_instruction = max_instruction_bytes(&self.target);
-            let offset_bytes = -instruction_offset * bytes_per_instruction as i64;
-            let start_addr = base_addr.wrapping_sub(offset_bytes as u64);
-            let mut disassemble_bytes = instruction_count * bytes_per_instruction as usize;
-
-            let mut dis_instructions = Vec::new();
-
-            let expected_index = -instruction_offset as usize;
-
-            // We make sure to extend disassemble_bytes to ensure that base_addr is always included
-            if start_addr + (disassemble_bytes as u64) < base_addr {
-                disassemble_bytes = (base_addr - start_addr + bytes_per_instruction) as usize;
-            }
-
-            for shuffle_count in 0..bytes_per_instruction {
-                let instructions =
-                    disassemble_byte_range(start_addr - shuffle_count, disassemble_bytes, &self.target.process())?;
-                // Find the entry for the requested instruction. If it exists (i.e. there is a valid instruction
-                // with the requested base address, then we're done and just need to splice the result array
-                // to match the required output. Otherwise, move back a byte and try again.
-                if let Some(index) =
-                    instructions.iter().position(|i| i.address().load_address(&self.target) == base_addr)
-                {
-                    // Found it. Convert to the DAP instruction representation.
-                    for instr in &instructions {
-                        dis_instructions.push(sbinstr_to_disinstr(instr, &self.target, resolve_symbols, |fs| {
-                            self.map_filespec_to_local(fs)
-                        }));
-                    }
-
-                    // We need to make sure that the entry for the requested address, is precicely at
-                    // the index expected, i.e. -instruction_offset
-                    if index < expected_index {
-                        // Pad the start with expected_index - index dummy instructions
-                        dis_instructions.splice(
-                            0..0,
-                            std::iter::repeat_with(invalid_instruction).take(expected_index - index),
-                        );
-                    } else if index > expected_index {
-                        let new_first = index - expected_index;
-                        dis_instructions = dis_instructions.split_off(new_first);
-                    }
-
-                    // Confirm that we have the requested instruction at the correct location.
-                    // We have to parse the address, but it's only in an assertion/debug build.
-                    assert!(
-                        dis_instructions.len() > expected_index
-                            && parse_int::parse::<u64>(&dis_instructions[expected_index].address).unwrap() == base_addr
-                    );
-                    break;
-                }
-            }
-            dis_instructions
+        }
+        let Some(base_index) = base_index else {
+            bail!(format!("Failed to disassemble memory at 0x{base_addr:X}."))
         };
+        let end_addr = start_addr + buffer.len() as u64;
 
-        // Ensure we have _exactly_ instruction_count elements
-        result.resize_with(instruction_count, invalid_instruction);
-        result.truncate(instruction_count);
+        // Determine the range of decoded instructions to return.
+        // We may end up with out-of-range indices, in which case we'll pad with "invalid memory" instructions.
+        let mut start_idx = base_index as i64 + instruction_offset;
+        let end_idx = start_idx + args.instruction_count;
+        let mut dis_instructions = Vec::new();
+        if start_idx < 0 {
+            for i in start_idx..0 {
+                let addr = start_addr.wrapping_add(i as u64);
+                dis_instructions.push(invalid_memory(addr));
+            }
+            start_idx = 0;
+        }
+        let resolve_symbols = args.resolve_symbols.unwrap_or(true);
+        let mut last_line_entry = None;
+        for (arange, instr) in &instructions[start_idx as usize..end_idx as usize] {
+            let dis_instsr = match instr {
+                Ok(sbinstr) => {
+                    let mnemonic = sbinstr.mnemonic(&self.target);
+                    let operands = sbinstr.operands(&self.target);
+                    let comment = sbinstr.comment(&self.target);
+                    let comment_sep = if comment.is_empty() { "" } else { "  ; " };
+                    let instruction_str = format!("{:<6} {}{}{}", mnemonic, operands, comment_sep, comment);
 
-        Ok(DisassembleResponseBody { instructions: result })
+                    let instr_bytes = &buffer[(arange.start - start_addr) as usize..(arange.end - start_addr) as usize];
+                    let mut bytes_str = String::with_capacity(instr_bytes.len() * 3);
+                    for (i, b) in instr_bytes.iter().enumerate() {
+                        if i >= self.max_instr_bytes {
+                            bytes_str.push('>');
+                            break;
+                        }
+                        let _ = write!(bytes_str, "{:02X} ", b);
+                    }
+                    let bytes_str = format!("{bytes_str:<width$}", width = self.max_instr_bytes * 3 + 2);
+
+                    let mut dis_instr = DisassembledInstruction {
+                        address: format!("0x{:X}", arange.start),
+                        instruction_bytes: Some(bytes_str),
+                        instruction: instruction_str,
+                        ..Default::default()
+                    };
+
+                    let address = sbinstr.address();
+                    let line_entry = address.line_entry();
+                    if let Some(ref line_entry) = line_entry {
+                        dis_instr.line = Some(line_entry.line() as i64);
+                        dis_instr.column = Some(line_entry.column() as i64);
+                        // Don't emit location unless different from the last one.
+                        if last_line_entry.map_or(false, |lle| &lle != line_entry) {
+                            dis_instr.location = Some(Source {
+                                name: Some(line_entry.file_spec().filename().display().to_string()),
+                                path: match self.map_filespec_to_local(&line_entry.file_spec()) {
+                                    Some(local_path) => Some(local_path.display().to_string()),
+                                    _ => None,
+                                },
+                                ..Default::default()
+                            });
+                        }
+                    }
+                    last_line_entry = line_entry;
+
+                    if resolve_symbols {
+                        if let Some(symbol) = address.symbol() {
+                            dis_instr.symbol = Some(symbol.name().into());
+                        }
+                    }
+                    dis_instr
+                }
+                Err(byte) => {
+                    last_line_entry = None;
+                    DisassembledInstruction {
+                        address: format!("0x{:X}", arange.start),
+                        instruction_bytes: Some(format!("{:02X}", byte)),
+                        instruction: format!(".byte  {:02X}", byte),
+                        presentation_hint: Some("invalid".into()),
+                        ..Default::default()
+                    }
+                }
+            };
+            dis_instructions.push(dis_instsr);
+        }
+        let instr_count = instructions.len() as i64;
+        if end_idx > instr_count {
+            for i in 0..end_idx - instr_count {
+                let addr = end_addr.wrapping_add(i as u64);
+                dis_instructions.push(invalid_memory(addr));
+            }
+        }
+
+        Ok(DisassembleResponseBody {
+            instructions: dis_instructions,
+        })
     }
-}
 
-fn disassemble_byte_range(start: Address, count: usize, process: &SBProcess) -> Result<Vec<SBInstruction>, Error> {
-    let target = process.target();
-    let mut buffer = Vec::new();
-    buffer.resize(count, 0);
-    process.read_memory(start, &mut buffer)?;
+    fn max_instruction_bytes(&self) -> u64 {
+        let arch = self.target.triple().split("-").next().unwrap();
+        if arch.starts_with("arm") || arch.starts_with("aarch64") || arch.starts_with("riscv") {
+            return 4;
+        }
+        return 16;
+    }
 
-    let mut dis_instructions = Vec::new();
-    let mut idx = 0;
-    while idx < buffer.len() {
-        let base_addr = SBAddress::from_load_address(start, &target);
-        let instructions = target.get_instructions(&base_addr, &buffer[idx..]);
-        if instructions.len() == 0 {
-            // We were unable to disassemble _anything_ from the requested address. It's _probably_ an invalid address.
-            // Bail at this point. The caller must attempt to validate the result as best it can. (in practice, caller
-            // looks for a specific instruction at a specific address and adjusts the output based on that).
-            return Ok(dis_instructions);
-        } else {
-            for instr in instructions.iter() {
-                idx += instr.byte_size();
-                dis_instructions.push(instr);
+    // Read a memory range while handling unreadable regions.
+    // If unreadable regions are encountered, the returned range will be a subset of the requested one.
+    fn read_memory(&self, start_address: Address, count: u64) -> (Address, Vec<u8>) {
+        let process = self.target.process();
+        let mut buffer = Vec::new();
+        buffer.resize(count as usize, 0);
+        if let Ok(read) = process.read_memory(start_address, &mut buffer) {
+            buffer.truncate(read);
+            return (start_address, buffer);
+        }
+        // Binary search for the boundary between unreadable and readable areas
+        let first_readable = partition_point(start_address..start_address + count, |addr| {
+            let mut b = [0u8; 1];
+            process.read_memory(addr, &mut b).is_err()
+        });
+        buffer.resize((start_address + count as u64 - first_readable) as usize, 0);
+        match process.read_memory(first_readable, &mut buffer) {
+            Ok(read) => {
+                buffer.truncate(read);
+                (first_readable, buffer)
+            }
+            Err(err) => {
+                error!("Could not read memory: {err}");
+                buffer.clear();
+                (first_readable, buffer)
             }
         }
     }
-    Ok(dis_instructions)
+
+    fn disassemble_bytes(&self, base_addr: Address, buffer: &[u8]) -> Vec<(Range<Address>, Result<SBInstruction, u8>)> {
+        let flavor = self.target.disassembly_flavor();
+        let mut base_addr = base_addr;
+        let mut buffer = buffer;
+        let mut dis_instructions = Vec::new();
+        while buffer.len() > 0 {
+            let sbaddr = SBAddress::from_load_address(base_addr, &self.target);
+            let instructions = self.target.get_instructions(&sbaddr, buffer, flavor.as_deref());
+            if instructions.len() > 0 {
+                for instr in instructions.iter() {
+                    let byte_size = instr.byte_size();
+                    dis_instructions.push((base_addr..base_addr + byte_size as u64, Ok(instr)));
+                    base_addr += byte_size as u64;
+                    buffer = &buffer[byte_size..];
+                }
+            } else {
+                // Cannot decode - skip one byte and try again
+                dis_instructions.push((base_addr..base_addr + 1, Err(buffer[0])));
+                buffer = &buffer[1..];
+                base_addr += 1;
+            }
+        }
+        dis_instructions
+    }
 }
 
-fn sbinstr_to_disinstr<F>(
-    instr: &SBInstruction,
-    target: &SBTarget,
-    resolve_symbols: bool,
-    map_filespec_to_local: F,
-) -> DisassembledInstruction
-where
-    F: FnOnce(&SBFileSpec) -> Option<Rc<PathBuf>>,
-{
-    let mnemonic = instr.mnemonic(target);
-    let operands = instr.operands(target);
-    let comment = instr.comment(target);
-    let comment_sep = if comment.is_empty() { "" } else { "  ; " };
-    let address = instr.address();
-    let instruction_str = format!("{:<6} {}{}{}", mnemonic, operands, comment_sep, comment);
-    let mut dis_instr = DisassembledInstruction {
-        address: format!("0x{:X}", address.load_address(target)),
-        instruction: instruction_str,
+fn invalid_memory(addr: Address) -> DisassembledInstruction {
+    DisassembledInstruction {
+        address: format!("0x{:X}", addr),
+        instruction_bytes: Some("??".into()),
+        presentation_hint: Some("invalid".into()),
         ..Default::default()
-    };
-    let mut instr_bytes = Vec::new();
-    instr_bytes.resize(instr.byte_size(), 0);
-    if instr.data(target).read_raw_data(0, &mut instr_bytes).is_ok() {
-        let mut bytes_str = String::with_capacity(instr_bytes.len() * 3);
-        for b in instr_bytes.iter() {
-            let _ = write!(bytes_str, "{:02X} ", b);
-        }
-        dis_instr.instruction_bytes = Some(bytes_str);
     }
-
-    if let Some(line_entry) = address.line_entry() {
-        dis_instr.location = Some(Source {
-            name: Some(line_entry.file_spec().filename().display().to_string()),
-            path: match map_filespec_to_local(&line_entry.file_spec()) {
-                Some(local_path) => Some(local_path.display().to_string()),
-                _ => None,
-            },
-            ..Default::default()
-        });
-        dis_instr.line = Some(line_entry.line() as i64);
-        dis_instr.column = Some(line_entry.column() as i64);
-    }
-
-    if resolve_symbols {
-        if let Some(symbol) = instr.address().symbol() {
-            dis_instr.symbol = Some(symbol.name().into());
-        }
-    }
-    dis_instr
 }
 
-fn max_instruction_bytes(target: &SBTarget) -> u64 {
-    let arch = target.triple().split("-").next().unwrap();
-    if arch.starts_with("arm") || arch.starts_with("aarch64") || arch.starts_with("riscv") {
-        return 4;
+/// Return the first value in the range for which the predicate retruns false.
+fn partition_point<P>(range: Range<Address>, pred: P) -> Address
+where
+    P: Fn(Address) -> bool,
+{
+    let mut low = range.start;
+    let mut high = range.end;
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if pred(mid) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
     }
-    return 16;
+    low
+}
+
+#[test]
+fn test_partition_point() {
+    let p = partition_point(10..100, |i| i < 42);
+    assert_eq!(p, 42);
 }

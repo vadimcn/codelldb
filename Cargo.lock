@@ -173,7 +173,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "superslice",
  "termios",
  "tokio",
  "tokio-util",
@@ -1016,12 +1015,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
-name = "superslice"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab16ced94dbd8a46c82fd81e3ed9a8727dac2977ea869d217bcc4ea1f122e81f"
-
-[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1199,16 +1192,15 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 [[package]]
 name = "weaklink"
 version = "0.2.1"
-source = "git+https://github.com/vadimcn/weaklink.git#9c3f776978132041f1af95b41e27661f107de9cd"
+source = "git+https://github.com/vadimcn/weaklink.git#e11a77c73534b18c354ee98765dd20354ec45258"
 
 [[package]]
 name = "weaklink_build"
 version = "0.2.1"
-source = "git+https://github.com/vadimcn/weaklink.git#9c3f776978132041f1af95b41e27661f107de9cd"
+source = "git+https://github.com/vadimcn/weaklink.git#e11a77c73534b18c354ee98765dd20354ec45258"
 dependencies = [
  "goblin",
  "rand",
- "superslice",
  "weaklink",
 ]
 

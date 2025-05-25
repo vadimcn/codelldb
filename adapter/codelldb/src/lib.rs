@@ -181,3 +181,14 @@ fn test_init() {
     lldb_stub::base.resolve().unwrap().mark_permanent();
     lldb_stub::v16.resolve().unwrap().mark_permanent();
 }
+
+#[cfg(test)]
+lazy_static::lazy_static! {
+    static ref TEST_DEBUGGER: SBDebugger = {
+        use lldb::*;
+        std::env::remove_var("PYTHONHOME");
+        std::env::remove_var("PYTHONPATH");
+        SBDebugger::initialize();
+        SBDebugger::create(false)
+    };
+}

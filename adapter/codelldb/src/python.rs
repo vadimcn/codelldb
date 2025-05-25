@@ -354,21 +354,11 @@ fn test_sizeof() {
     assert_eq!(mem::size_of::<PyObject>(), 16);
 }
 
-#[cfg(test)]
-lazy_static::lazy_static! {
-    static ref DEBUGGER: SBDebugger = {
-        use lldb::*;
-        std::env::remove_var("PYTHONHOME");
-        std::env::remove_var("PYTHONPATH");
-        SBDebugger::initialize();
-        SBDebugger::create(false)
-    };
-}
-
 #[test]
 fn pypath() {
     use lldb::*;
-    let interp = DEBUGGER.command_interpreter();
+    use crate::TEST_DEBUGGER;
+    let interp = TEST_DEBUGGER.command_interpreter();
     let mut result = SBCommandReturnObject::new();
     let status = interp.handle_command("script import sys; print(sys.path)", &mut result, false);
     println!("result = {:?}", result.output());
@@ -378,13 +368,14 @@ fn pypath() {
 #[test]
 fn evaluate() {
     use lldb::*;
+    use crate::TEST_DEBUGGER;
     let adapter_dir = Path::new(env!("ADAPTER_SOURCE_DIR"));
-    let interface = initialize(&DEBUGGER, adapter_dir).unwrap();
+    let interface = initialize(&TEST_DEBUGGER, adapter_dir).unwrap();
     let (session, _events) = interface.new_session(
-        &DEBUGGER,
+        &TEST_DEBUGGER,
         std::fs::File::create(if cfg!(unix) { "/dev/null" } else { "NUL" }).unwrap(),
     );
-    let context = SBExecutionContext::from_target(&DEBUGGER.dummy_target());
+    let context = SBExecutionContext::from_target(&TEST_DEBUGGER.dummy_target());
     let pycode = session.compile_code("2+2", "<string>").unwrap();
     let result = session.evaluate(&pycode, &context, EvalContext::PythonExpression);
     println!("result = {:?}", result);

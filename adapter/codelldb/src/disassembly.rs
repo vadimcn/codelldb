@@ -3,12 +3,12 @@ use serde_derive::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::ops::Range;
 use std::rc::Rc;
 use std::str;
 
 use crate::handles::Handle;
 use lldb::*;
-use superslice::Ext;
 
 struct Ranges {
     pub by_handle: HashMap<Handle, Rc<DisassembledRange>>,
@@ -36,17 +36,14 @@ impl DisassembledRanges {
 
     fn find_by_address(&self, load_addr: Address) -> Option<Rc<DisassembledRange>> {
         let ranges = self.ranges.borrow_mut();
-        let idx = ranges.by_address.upper_bound_by_key(&load_addr, |dasm| dasm.start_load_addr);
-        if idx == 0 {
-            None
-        } else {
+        let idx = ranges.by_address.partition_point(|dasm| dasm.load_range.start <= load_addr);
+        if idx > 0 {
             let dasm = &ranges.by_address[idx - 1];
-            if dasm.start_load_addr <= load_addr && load_addr < dasm.end_load_addr {
-                Some(dasm.clone())
-            } else {
-                None
+            if dasm.load_range.contains(&load_addr) {
+                return Some(dasm.clone());
             }
         }
+        None
     }
 
     pub fn from_address(&self, load_addr: Address) -> Result<Rc<DisassembledRange>, Error> {
@@ -108,14 +105,13 @@ impl DisassembledRanges {
             handle: handle,
             target: self.target.clone(),
             start_addr: start_addr,
-            start_load_addr: start_load_addr,
-            end_load_addr: end_load_addr,
+            load_range: start_load_addr..end_load_addr,
             source_name: source_name,
             instructions: instructions,
             instruction_addresses: instruction_addrs,
         });
         ranges.by_handle.insert(handle, dasm.clone());
-        let idx = ranges.by_address.lower_bound_by_key(&dasm.start_load_addr, |dasm| dasm.start_load_addr);
+        let idx = ranges.by_address.partition_point(|dasm| dasm.load_range.start < start_load_addr);
         ranges.by_address.insert(idx, dasm.clone());
         dasm
     }
@@ -134,8 +130,7 @@ pub struct DisassembledRange {
     handle: Handle,
     target: SBTarget,
     start_addr: SBAddress,
-    start_load_addr: Address,
-    end_load_addr: Address,
+    load_range: Range<Address>,
     source_name: String,
     instructions: SBInstructionList,
     instruction_addresses: Vec<Address>,
@@ -151,7 +146,7 @@ impl DisassembledRange {
     }
 
     pub fn line_num_by_address(&self, load_addr: Address) -> u32 {
-        self.instruction_addresses.lower_bound(&load_addr) as u32 + 3
+        self.instruction_addresses.partition_point(|addr| *addr < load_addr) as u32 + 3
     }
 
     pub fn address_by_line_num(&self, line: u32) -> Address {
@@ -161,8 +156,8 @@ impl DisassembledRange {
     pub fn adapter_data(&self) -> AdapterData {
         let line_offsets = self.instruction_addresses.windows(2).map(|w| (w[1] - w[0]) as u32).collect();
         AdapterData {
-            start: self.start_load_addr,
-            end: self.end_load_addr,
+            start: self.load_range.start,
+            end: self.load_range.end,
             line_offsets: line_offsets,
         }
     }
@@ -233,6 +228,35 @@ impl DisassembledRange {
 
         text
     }
+}
+
+#[test]
+fn test_range_lookup() {
+    use crate::TEST_DEBUGGER;
+    use std::rc::Rc;
+    let target = TEST_DEBUGGER.dummy_target();
+    let ranges = DisassembledRanges::new(&target);
+
+    assert!(ranges.find_by_address(1234).is_none());
+
+    let add = |start, end| {
+        let start = SBAddress::from_load_address(start, &target);
+        let end = SBAddress::from_load_address(end, &target);
+        ranges.add(start.clone(), end, target.get_instructions(&start, &[], None))
+    };
+
+    let dasm1 = add(1000, 2000);
+    let dasm3 = add(4000, 5000);
+    let dasm2 = add(3000, 4000);
+
+    assert!(Rc::ptr_eq(&ranges.find_by_address(1000).unwrap(), &dasm1));
+    assert!(Rc::ptr_eq(&ranges.find_by_address(1234).unwrap(), &dasm1));
+    assert!(Rc::ptr_eq(&ranges.find_by_address(1999).unwrap(), &dasm1));
+    assert!(ranges.find_by_address(2000).is_none());
+    assert!(Rc::ptr_eq(&ranges.find_by_address(3000).unwrap(), &dasm2));
+    assert!(Rc::ptr_eq(&ranges.find_by_address(3999).unwrap(), &dasm2));
+    assert!(Rc::ptr_eq(&ranges.find_by_address(4000).unwrap(), &dasm3));
+    assert!(ranges.find_by_address(5000).is_none());
 }
 
 #[test]

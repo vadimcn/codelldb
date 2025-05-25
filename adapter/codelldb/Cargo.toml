@@ -27,7 +27,6 @@ regex-lite = "0.1.6"
 serde = "1.0.94"
 serde_derive = "1.0.94"
 serde_json = {version = "1.0.40", features = ["raw_value"]}
-superslice = "1.0.0"
 tokio = {version = "1.0.0", features = ["full"]}
 tokio-util = {version = "0.6.0", features = ["codec"]}
 

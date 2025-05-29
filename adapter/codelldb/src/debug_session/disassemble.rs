@@ -117,7 +117,7 @@ impl super::DebugSession {
                         address: format!("0x{:X}", arange.start),
                         instruction_bytes: Some(format!("{:02X}", byte)),
                         instruction: format!(".byte  {:02X}", byte),
-                        presentation_hint: Some("invalid".into()),
+                        presentation_hint: Some(DisassembledInstructionPresentationHint::Invalid),
                         ..Default::default()
                     }
                 }
@@ -204,7 +204,7 @@ fn invalid_memory(addr: Address) -> DisassembledInstruction {
     DisassembledInstruction {
         address: format!("0x{:X}", addr),
         instruction_bytes: Some("??".into()),
-        presentation_hint: Some("invalid".into()),
+        presentation_hint: Some(DisassembledInstructionPresentationHint::Invalid),
         ..Default::default()
     }
 }

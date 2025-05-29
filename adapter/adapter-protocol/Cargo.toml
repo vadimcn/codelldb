@@ -5,7 +5,7 @@ name = "adapter-protocol"
 version = "1.0.0"
 
 [dependencies]
-schemafy = "0.5.2"
+typify = "0.4.2"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"

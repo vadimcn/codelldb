@@ -642,7 +642,7 @@ where
 
 fn presentation_hint(attributes: &[&str]) -> VariablePresentationHint {
     VariablePresentationHint {
-        attributes: Some(attributes.iter().map(|a| (*a).into()).collect()),
+        attributes: attributes.iter().map(|a| (*a).into()).collect(),
         ..Default::default()
     }
 }

@@ -1,8 +1,6 @@
 #![allow(non_camel_case_types)]
 
-use serde::{Deserialize, Serialize};
-
-schemafy::schemafy!("src/debugAdapterProtocol.json");
+typify::import_types!(schema = "src/debugAdapterProtocol.json",);
 
 impl Default for Breakpoint {
     fn default() -> Self {
@@ -85,7 +83,7 @@ impl Default for StoppedEventBody {
             description: None,
             preserve_focus_hint: None,
             text: None,
-            hit_breakpoint_ids: None,
+            hit_breakpoint_ids: Vec::new(),
         }
     }
 }
@@ -141,7 +139,7 @@ impl Default for Module {
     fn default() -> Self {
         Module {
             name: String::new(),
-            id: serde_json::Value::Null,
+            id: ModuleId::String(String::new()),
             path: None,
             address_range: None,
             date_time_stamp: None,
@@ -158,7 +156,7 @@ impl Default for DataBreakpointInfoResponseBody {
     fn default() -> Self {
         DataBreakpointInfoResponseBody {
             data_id: None,
-            access_types: None,
+            access_types: Vec::new(),
             can_persist: None,
             description: String::new(),
         }

@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use crate::terminal::Terminal;
 
+use adapter_protocol::*;
 use lldb::*;
 use std::fs::File;
 
@@ -19,7 +20,7 @@ impl super::DebugSession {
     pub(super) fn create_debugger_terminal(&self, session_name: &str) {
         let title = format!("CodeLLDB: {}", session_name);
         let terminal_fut = Terminal::create(
-            "integrated",
+            RunInTerminalRequestArgumentsKind::Integrated,
             title,
             self.dap_session.clone(),
         );

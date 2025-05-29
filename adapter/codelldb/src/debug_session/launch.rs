@@ -415,16 +415,12 @@ impl super::DebugSession {
         };
         let terminal_kind = match terminal_kind {
             TerminalKind::Console => return future::ready(()).left_future(),
-            TerminalKind::External => "external",
-            TerminalKind::Integrated => "integrated",
+            TerminalKind::External => RunInTerminalRequestArgumentsKind::External,
+            TerminalKind::Integrated => RunInTerminalRequestArgumentsKind::Integrated,
         };
 
         let title = args.common.name.as_deref().unwrap_or("Debug").to_string();
-        let fut = Terminal::create(
-            terminal_kind,
-            title,
-            self.dap_session.clone(),
-        );
+        let fut = Terminal::create(terminal_kind, title, self.dap_session.clone());
         let self_ref = self.self_ref.clone();
         async move {
             let result = fut.await;

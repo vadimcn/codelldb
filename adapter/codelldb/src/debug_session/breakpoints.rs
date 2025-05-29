@@ -66,7 +66,6 @@ impl DebugSession {
         &mut self,
         args: SetBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
-        let requested_bps = args.breakpoints.as_ref().ok_or("breakpoints")?;
         // Decide whether this is a real source file or a disassembled range:
         // if it has a `source_reference` attribute, it's a disassembled range - we never generate references for real sources;
         // if it has an `adapter_data` attribute, it's a disassembled range from a previous debug session;
@@ -78,12 +77,12 @@ impl DebugSession {
             .and_then(|source_ref| self.disasm_ranges.find_by_handle(source_ref));
 
         let breakpoints = match (dasm, args.source.adapter_data, args.source.path.as_ref()) {
-            (Some(dasm), _, _) => self.set_dasm_breakpoints(dasm, requested_bps),
+            (Some(dasm), _, _) => self.set_dasm_breakpoints(dasm, &args.breakpoints),
             (None, Some(adapter_data), _) => self.set_new_dasm_breakpoints(
                 &serde_json::from_value::<disassembly::AdapterData>(adapter_data)?,
-                requested_bps,
+                &args.breakpoints,
             ),
-            (None, None, Some(path)) => self.set_source_breakpoints(Path::new(path), requested_bps),
+            (None, None, Some(path)) => self.set_source_breakpoints(Path::new(path), &args.breakpoints),
             _ => bail!("Unexpected"),
         }?;
         Ok(SetBreakpointsResponseBody { breakpoints })
@@ -382,19 +381,17 @@ impl DebugSession {
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
         }
-        if let Some(filter_options) = &args.filter_options {
-            for filter in filter_options {
-                if let Some(bp) = self.set_exception_breakpoint(&filter.filter_id) {
-                    let bp_info = self.make_bp_info(
-                        bp,
-                        BreakpointKind::Exception(filter.filter_id.clone()),
-                        filter.condition.as_deref(),
-                        None,
-                        None,
-                    );
-                    self.init_bp_actions(&bp_info);
-                    breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
-                }
+        for filter in &args.filter_options {
+            if let Some(bp) = self.set_exception_breakpoint(&filter.filter_id) {
+                let bp_info = self.make_bp_info(
+                    bp,
+                    BreakpointKind::Exception(filter.filter_id.clone()),
+                    filter.condition.as_deref(),
+                    None,
+                    None,
+                );
+                self.init_bp_actions(&bp_info);
+                breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
         }
         Ok(())

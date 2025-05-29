@@ -590,7 +590,7 @@ impl DebugSession {
 
     fn make_capabilities(&self) -> Capabilities {
         Capabilities {
-            exception_breakpoint_filters: Some(self.get_exception_filters_for(&self.source_languages)),
+            exception_breakpoint_filters: self.get_exception_filters_for(&self.source_languages),
             support_terminate_debuggee: Some(true),
             supports_cancel_request: Some(true),
             supports_clipboard_context: Some(true),
@@ -712,7 +712,7 @@ impl DebugSession {
 
             let module = frame.module();
             if module.is_valid() {
-                stack_frame.module_id = Some(serde_json::Value::String(self.module_id(&module)))
+                stack_frame.module_id = Some(StackFrameModuleId::String(self.module_id(&module)))
             }
 
             if !self.in_disassembly(&frame) {
@@ -742,7 +742,7 @@ impl DebugSession {
                 // Mark disassembly frames as "subtle" to reduce visual clutter,
                 // unless we are in "Always Show Disassembly" mode, or this is the first frame.
                 if i > 0 && self.show_disassembly != ShowDisassembly::Always {
-                    stack_frame.presentation_hint = Some("subtle".to_owned());
+                    stack_frame.presentation_hint = Some(StackFramePresentationHint::Subtle);
                 }
             }
             stack_frames.push(stack_frame);
@@ -1052,11 +1052,11 @@ impl DebugSession {
                     let desc = child.name().unwrap_or("");
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: Some(data_id),
-                        access_types: Some(vec![
+                        access_types: vec![
                             DataBreakpointAccessType::Read,
                             DataBreakpointAccessType::Write,
                             DataBreakpointAccessType::ReadWrite,
-                        ]),
+                        ],
                         description: format!("{} bytes at {:X} ({})", size, addr, desc),
                         ..Default::default()
                     })
@@ -1106,11 +1106,11 @@ impl DebugSession {
                 } else {
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: Some(format!("{}/{}", addr, size)),
-                        access_types: Some(vec![
+                        access_types: vec![
                             DataBreakpointAccessType::Read,
                             DataBreakpointAccessType::Write,
                             DataBreakpointAccessType::ReadWrite,
-                        ]),
+                        ],
                         description: format!("{} bytes at {:X}", size, addr),
                         ..Default::default()
                     })
@@ -1127,11 +1127,11 @@ impl DebugSession {
                     let desc = value.name().unwrap_or(&args.name);
                     Ok(DataBreakpointInfoResponseBody {
                         data_id: Some(data_id),
-                        access_types: Some(vec![
+                        access_types: vec![
                             DataBreakpointAccessType::Read,
                             DataBreakpointAccessType::Write,
                             DataBreakpointAccessType::ReadWrite,
-                        ]),
+                        ],
                         description: format!("{} bytes at {:X} ({})", size, addr, desc),
                         ..Default::default()
                     })
@@ -1331,8 +1331,7 @@ impl DebugSession {
     }
 
     fn update_adapter_settings_and_caps(&mut self, settings: &AdapterSettings) {
-        let new_caps = self.update_adapter_settings(&settings);
-        if new_caps != Default::default() {
+        if let Some(new_caps) = self.update_adapter_settings(&settings) {
             self.send_event(EventBody::capabilities(CapabilitiesEventBody {
                 capabilities: new_caps,
             }));
@@ -1340,7 +1339,7 @@ impl DebugSession {
     }
 
     // Returns capabilities that changed, if any.
-    fn update_adapter_settings(&mut self, settings: &AdapterSettings) -> Capabilities {
+    fn update_adapter_settings(&mut self, settings: &AdapterSettings) -> Option<Capabilities> {
         self.global_format = match settings.display_format {
             None => self.global_format,
             Some(DisplayFormat::Auto) => Format::Default,
@@ -1362,28 +1361,36 @@ impl DebugSession {
             self.console_mode = console_mode;
         }
         let mut caps = Capabilities::default();
+        let mut modified_caps = false;
         if let Some(evaluate_for_hovers) = settings.evaluate_for_hovers {
             if self.evaluate_for_hovers != evaluate_for_hovers {
                 self.evaluate_for_hovers = evaluate_for_hovers;
                 caps.supports_evaluate_for_hovers = Some(evaluate_for_hovers);
+                modified_caps = true;
             }
         }
         if let Some(command_completions) = settings.command_completions {
             if self.command_completions != command_completions {
                 self.command_completions = command_completions;
                 caps.supports_completions_request = Some(command_completions);
+                modified_caps = true;
             }
         }
         if let Some(ref source_languages) = settings.source_languages {
             if self.source_languages.iter().ne(source_languages) {
                 self.source_languages = source_languages.to_owned();
-                caps.exception_breakpoint_filters = Some(self.get_exception_filters_for(&self.source_languages));
+                caps.exception_breakpoint_filters = self.get_exception_filters_for(&self.source_languages);
+                modified_caps = true;
             }
         }
         if let Some(python) = &self.python {
             log_errors!(python.update_adapter_settings(settings));
         }
-        caps
+        if modified_caps {
+            Some(caps)
+        } else {
+            None
+        }
     }
 
     // Send a fake stop event to force VSCode to refresh its UI state.
@@ -1500,17 +1507,17 @@ impl DebugSession {
         let (stop_reason, description, hit_breakpoint) = match stopped_thread.stop_reason() {
             StopReason::Breakpoint => {
                 let bp_id = stopped_thread.stop_reason_data_at_index(0);
-                ("breakpoint", None, Some(vec![bp_id as i64]))
+                ("breakpoint", None, vec![bp_id as i64])
             },
             StopReason::Watchpoint => {
                 let wp_id = stopped_thread.stop_reason_data_at_index(0) as WatchpointID;
-                ("data breakpoint", None, Some(vec![DebugSession::wpid_to_bpid(wp_id)]))
+                ("data breakpoint", None, vec![DebugSession::wpid_to_bpid(wp_id)])
             },
             StopReason::Trace | //.
-            StopReason::PlanComplete => ("step", None, None),
-            StopReason::Signal => ("exception", Some(stopped_thread.stop_description()), None),
-            StopReason::Exception => ("exception", Some(stopped_thread.stop_description()), None),
-            _ => ("unknown", Some(stopped_thread.stop_description()), None),
+            StopReason::PlanComplete => ("step", None, Vec::new()),
+            StopReason::Signal => ("exception", Some(stopped_thread.stop_description()),  Vec::new()),
+            StopReason::Exception => ("exception", Some(stopped_thread.stop_description()),  Vec::new()),
+            _ => ("unknown", Some(stopped_thread.stop_description()),  Vec::new()),
         };
         let description = description.filter(|s| !s.is_empty());
 
@@ -1563,23 +1570,23 @@ impl DebugSession {
         if event_type & SBTarget::BroadcastBitModulesLoaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
-                    reason: "new".to_owned(),
+                    reason: ModuleEventBodyReason::New,
                     module: self.make_module_detail(&module),
                 }));
             }
         } else if event_type & SBTarget::BroadcastBitSymbolsLoaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
-                    reason: "changed".to_owned(),
+                    reason: ModuleEventBodyReason::Changed,
                     module: self.make_module_detail(&module),
                 }));
             }
         } else if event_type & SBTarget::BroadcastBitModulesUnloaded != 0 {
             for module in event.modules() {
                 self.send_event(EventBody::module(ModuleEventBody {
-                    reason: "removed".to_owned(),
+                    reason: ModuleEventBodyReason::Removed,
                     module: Module {
-                        id: serde_json::Value::String(self.module_id(&module)),
+                        id: ModuleId::String(self.module_id(&module)),
                         ..Default::default()
                     },
                 }));
@@ -1599,7 +1606,7 @@ impl DebugSession {
 
     fn make_module_detail(&self, module: &SBModule) -> Module {
         let mut msg = Module {
-            id: serde_json::Value::String(self.module_id(&module)),
+            id: ModuleId::String(self.module_id(&module)),
             name: module.file_spec().filename().display().to_string(),
             path: Some(module.file_spec().path().display().to_string()),
             ..Default::default()

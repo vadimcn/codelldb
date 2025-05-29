@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use crate::dap_session::DAPSession;
 use adapter_protocol::*;
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
@@ -15,7 +16,7 @@ pub struct Terminal {
 
 impl Terminal {
     pub async fn create(
-        terminal_kind: impl Into<String>,
+        terminal_kind: RunInTerminalRequestArgumentsKind,
         title: impl Into<String>,
         dap_session: DAPSession,
     ) -> Result<Terminal, Error> {
@@ -39,7 +40,7 @@ impl Terminal {
             let req_args = RunInTerminalRequestArguments {
                 args: args,
                 cwd: String::new(),
-                env: None,
+                env: HashMap::new(),
                 kind: Some(terminal_kind),
                 title: Some(title),
                 args_can_be_interpreted_by_shell: None,

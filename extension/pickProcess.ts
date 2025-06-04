@@ -5,7 +5,7 @@ import * as cp from 'child_process';
 import * as adapter from './novsc/adapter';
 import * as async from './novsc/async';
 import { getExtensionConfig } from './main';
-import { pid } from 'process';
+import * as readline from 'readline';
 
 type PickProcessOptions = { initCommands: string[], filter: string };
 
@@ -113,24 +113,24 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean, opti
     let config = getExtensionConfig(folder?.uri);
     let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
 
-    let initArgs = '';
+    let args = ['--batch', '--no-lldbinit'];
     if (options && Array.isArray(options.initCommands)) {
         for (let command of options.initCommands) {
-            initArgs += ` --one-line "${command}"`;
+            args.push('--one-line', command);
         }
     }
+    args.push('--one-line', 'platform process list --show-args' + (allUsers ? ' --all-users' : ''));
 
-    let processListCommand = 'platform process list --show-args';
-    if (allUsers)
-        processListCommand += ' --all-users';
-
-    let command = `${lldbPath} --batch --no-lldbinit ${initArgs} --one-line "${processListCommand}"`;
-
-    let stdout = await new Promise<string>((resolve, reject) => {
-        cp.exec(command, { env: env }, (error, stdout) => {
-            if (error) reject(error);
-            else resolve(stdout)
-        })
+    let lines = await new Promise<string[]>((resolve, reject) => {
+        let child = cp.spawn(lldbPath, args, {
+            env: env,
+            stdio: ['ignore', 'pipe', 'ignore']
+        });
+        child.on('error', err => reject(err));
+        let lines = new Array();
+        let rl = readline.createInterface({ input: child.stdout });
+        rl.on('line', line => lines.push(line));
+        rl.on('close', () => resolve(lines));
     });
 
     // A typical output will look like this:
@@ -140,7 +140,6 @@ async function getProcessList(context: ExtensionContext, allUsers: boolean, opti
     // ====== ====== ========== ============================== ============================
     // 9756   1      user       x86_64-pc-linux-gnu            /lib/systemd/systemd --user
     // ...
-    let lines = stdout.split('\n');
     for (let i = 0; i < lines.length; ++i) {
         if (lines[i].indexOf('ARGUMENTS') > 0) {
             let colOffsets = {

@@ -49,9 +49,12 @@
 		"webpack": "^5.37.1",
 		"webpack-cli": "^4.7.0",
 		"ts-loader": "^8.0.0",
-		"json-pointer": "^0.6.2"
+		"json-schema-to-typescript": "^15.0.4",
+		"json-schema-merge-allof": "^0.8.1",
+		"@apidevtools/json-schema-ref-parser": "^13.0.1"
 	},
 	"scripts": {
+		"json2ts": "json2ts",
 		"vsce": "vsce",
 		"mocha": "mocha",
 		"tsc": "tsc",
@@ -306,14 +309,14 @@
 								]
 							}
 						},
-						"default": {},
+						"default": { },
 						"scope": "resource",
 						"order": 100
 					},
 					"lldb.script": {
 						"description": "Settings for scripts running within the debugger context. These may be accessed via `debugger.get_config()`. The schema is free-form, except that the `lang` subtree is reserved for built-in language support helpers.",
 						"type": "object",
-						"default": {},
+						"default": { },
 						"scope": "resource",
 						"order": 100
 					}
@@ -379,7 +382,7 @@
 						"order": 10
 					},
 					"lldb.launch.envFile": {
-						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/envFile",
+						"type": "string",
 						"order": 10
 					},
 					"lldb.launch.cwd": {
@@ -438,7 +441,7 @@
 						"order": 10
 					},
 					"lldb.launch.breakpointMode": {
-						"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode",
+						"$ref": "codelldb.schema.json#/$defs/BreakpointMode",
 						"scope": "resource",
 						"order": 10
 					},
@@ -515,7 +518,7 @@
 								"type": "string"
 							}
 						},
-						"default": {},
+						"default": { },
 						"scope": "resource",
 						"order": 10
 					},
@@ -664,345 +667,72 @@
 				},
 				"configurationAttributes": {
 					"launch": {
-						"properties": {
-							"program": {
-								"description": "Path to the program to debug.",
-								"type": "string"
-							},
-							"cargo": {
-								"description": "Cargo invocation parameters.",
-								"type": "object",
+						"allOf": [
+							{ "$ref": "codelldb.schema.json#/$defs/LaunchRequestArguments" },
+							{
 								"properties": {
-									"args": {
-										"description": "Cargo command line arguments.",
-										"type": "array",
-										"default": []
-									},
-									"env": {
-										"description": "Additional environment variables passed to Cargo.",
-										"type": "object",
-										"patternProperties": {
-											".*": {
-												"type": "string"
-											}
-										},
-										"default": {}
-									},
-									"cwd": {
-										"description": "Cargo working directory.",
-										"type": "string"
-									},
-									"problemMatcher": {
-										"description": "Problem matcher(s) to apply to Cargo output.",
-										"type": [
-											"string",
-											"array"
-										]
-									},
-									"filter": {
-										"description": "Filter applied to compilation artifacts.",
+									"cargo": {
+										"description": "Cargo invocation parameters.",
 										"type": "object",
 										"properties": {
-											"name": {
+											"args": {
+												"description": "Cargo command line arguments.",
+												"type": "array",
+												"default": [ ]
+											},
+											"env": {
+												"description": "Additional environment variables passed to Cargo.",
+												"type": "object",
+												"additionalProperties": { "type": "string" },
+												"default": { }
+											},
+											"cwd": {
+												"description": "Cargo working directory.",
 												"type": "string"
 											},
-											"kind": {
-												"type": "string"
-											}
-										}
-									}
-								},
-								"required": [
-									"args"
-								],
-								"additionalProperties": false,
-								"defaultSnippets": [
-									{
-										"label": "Library unit tests",
-										"body": {
-											"args": [
-												"test",
-												"--no-run",
-												"--lib"
-											],
+											"problemMatcher": {
+												"description": "Problem matcher(s) to apply to Cargo output.",
+												"type": [ "string", "array" ]
+											},
 											"filter": {
-												"kind": "lib"
+												"description": "Filter applied to compilation artifacts.",
+												"type": "object",
+												"properties": {
+													"name": { "type": "string" },
+													"kind": { "type": "string" }
+												}
 											}
-										}
-									},
-									{
-										"label": "Executable",
-										"body": {
-											"args": [
-												"build",
-												"--bin=${1:<name>}"
-											],
-											"filter": {
-												"kind": "bin"
+										},
+										"required": [ "args" ],
+										"additionalProperties": false,
+										"defaultSnippets": [
+											{
+												"label": "Library unit tests",
+												"body": {
+													"args": [ "test", "--no-run", "--lib" ],
+													"filter": { "kind": "lib" }
+												}
+											},
+											{
+												"label": "Executable",
+												"body": {
+													"args": [ "build", "--bin=${1:<name>}" ],
+													"filter": { "kind": "bin" }
+												}
 											}
-										}
-									}
-								]
-							},
-							"args": {
-								"description": "Program arguments.",
-								"type": [
-									"array",
-									"string"
-								]
-							},
-							"cwd": {
-								"description": "Program working directory.",
-								"type": "string"
-							},
-							"env": {
-								"description": "Additional environment variables.",
-								"type": "object",
-								"patternProperties": {
-									".*": {
-										"type": "string"
-									}
-								}
-							},
-							"envFile": {
-								"description": "File to read the environment variables from.",
-								"type": "string"
-							},
-							"stdio": {
-								"description": "Destination for stdio streams: null = send to debugger console or a terminal, \"<path>\" = attach to a file/tty/fifo.",
-								"type": [
-									"null",
-									"string",
-									"array",
-									"object"
-								],
-								"default": null
-							},
-							"terminal": {
-								"description": "Terminal type to use.",
-								"type": "string",
-								"enum": [
-									"integrated",
-									"external",
-									"console"
-								],
-								"enumDescriptions": [
-									"Use integrated terminal in VSCode.",
-									"Use external terminal window.",
-									"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
-								],
-								"default": "integrated"
-							},
-							"console": {
-								"description": "Terminal type to use. (This setting is a compatibility alias of 'terminal'.)",
-								"type": "string",
-								"enum": [
-									"integratedTerminal",
-									"externalTerminal",
-									"internalConsole"
-								],
-								"enumDescriptions": [
-									"Use integrated terminal in VSCode.",
-									"Use external terminal window.",
-									"Use VScode Debug Console for stdout and stderr. Stdin will be unavailable."
-								]
-							},
-							"stopOnEntry": {
-								"description": "Automatically stop debuggee after launch.",
-								"type": "boolean",
-								"default": false
-							},
-							"initCommands": {
-								"description": "Initialization commands executed upon debugger startup.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"targetCreateCommands": {
-								"description": "Commands that create the debug target.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"preRunCommands": {
-								"description": "Commands executed just before the program is launched.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"processCreateCommands": {
-								"description": "Commands that create the debuggee process.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"postRunCommands": {
-								"description": "Commands executed just after the program has been launched.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"preTerminateCommands": {
-								"description": "Commands executed just before the debuggee is terminated or disconnected from.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"exitCommands": {
-								"description": "Commands executed at the end of debugging session.",
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"default": []
-							},
-							"expressions": {
-								"description": "The default evaluator type used for expressions.",
-								"type": "string",
-								"enum": [
-									"simple",
-									"python",
-									"native"
-								]
-							},
-							"sourceMap": {
-								"description": "Source path remapping between the build machine and the local machine.  Each item is a pair of remote and local path prefixes.",
-								"type": "object",
-								"patternProperties": {
-									".*": {
-										"type": [
-											"string",
-											"null"
 										]
 									}
-								},
-								"default": {}
-							},
-							"relativePathBase": {
-								"description": "Base directory used for resolution of relative source paths.  Defaults to \"${workspaceFolder}\".",
-								"type": "string"
-							},
-							"sourceLanguages": {
-								"description": "A list of source languages to enable language-specific features for.",
-								"type": "array",
-								"default": []
-							},
-							"reverseDebugging": {
-								"description": "Enable reverse debugging (Requires reverse execution support in the debug server, see User's Manual for details).",
-								"type": "boolean",
-								"default": false
-							},
-							"breakpointMode": {
-								"description": "Specifies how source breakpoints should be set.",
-								"type": "string",
-								"enum": [
-									"path",
-									"file"
-								],
-								"enumDescriptions": [
-									"Resolve locations using full source file path.",
-									"Resolve locations using file name only."
-								]
+								}
 							}
-						},
+						],
 						"anyOf": [
-							{
-								"required": [
-									"program"
-								]
-							},
-							{
-								"required": [
-									"targetCreateCommands"
-								]
-							},
-							{
-								"required": [
-									"cargo"
-								]
-							}
+							{ "required": [ "program" ] },
+							{ "required": [ "targetCreateCommands" ] },
+							{ "required": [ "cargo" ] }
 						]
 					},
 					"attach": {
-						"properties": {
-							"program": {
-								"description": "Path to the program to attach to.",
-								"type": "string"
-							},
-							"pid": {
-								"description": "Process id to attach to.",
-								"type": [
-									"integer",
-									"string"
-								],
-								"default": "${command:pickMyProcess}"
-							},
-							"stopOnEntry": {
-								"description": "Automatically stop debuggee after attach.",
-								"type": "boolean",
-								"default": false
-							},
-							"waitFor": {
-								"description": "Wait for the process to launch (MacOS only).",
-								"type": "boolean",
-								"default": false
-							},
-							"initCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/initCommands"
-							},
-							"targetCreateCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/targetCreateCommands"
-							},
-							"preRunCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/preRunCommands"
-							},
-							"processCreateCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/processCreateCommands"
-							},
-							"postRunCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/postRunCommands"
-							},
-							"exitCommands": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/exitCommands"
-							},
-							"expressions": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/expressions"
-							},
-							"sourceMap": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceMap"
-							},
-							"relativePathBase": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/relativePathBase"
-							},
-							"sourceLanguages": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/sourceLanguages"
-							},
-							"reverseDebugging": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/reverseDebugging"
-							},
-							"breakpointMode": {
-								"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties/breakpointMode"
-							}
-						}
-					},
-					"custom": {
-						"deprecated": true,
-						"description": "`custom` is deprecated.  Use `launch` instead.",
-						"properties": {
-							"$ref": "#/contributes/debuggers/0/configurationAttributes/launch/properties"
-						}
+						"$ref": "codelldb.schema.json#/$defs/AttachRequestArguments"
 					}
 				},
 				"configurationSnippets": [
@@ -1014,7 +744,7 @@
 							"request": "launch",
 							"name": "${2:Launch}",
 							"program": "^\"\\${workspaceFolder}/${1:<program>}\"",
-							"args": [],
+							"args": [ ],
 							"cwd": "^\"\\${workspaceFolder}\""
 						}
 					},
@@ -1067,7 +797,7 @@
 									"${1:--lib}"
 								]
 							},
-							"args": []
+							"args": [ ]
 						}
 					},
 					{
@@ -1084,7 +814,7 @@
 									"${1:--lib}"
 								]
 							},
-							"args": []
+							"args": [ ]
 						}
 					}
 				]

@@ -98,7 +98,7 @@ impl super::DebugSession {
         if let Some(ref cwd) = args.cwd {
             launch_info.set_working_directory(Path::new(&cwd));
         }
-        if let Some(true) = args.common.stop_on_entry {
+        if args.stop_on_entry.unwrap_or(false) {
             launch_info.set_launch_flags(launch_info.launch_flags() | LaunchFlag::StopAtEntry);
         }
         self.configure_stdio(&args, &mut launch_info)?;
@@ -276,7 +276,7 @@ impl super::DebugSession {
                     Err(err) => bail!(blame_user(str_error(format!("Could not attach: {}", err)))),
                 };
 
-                if args.common.stop_on_entry.unwrap_or(false) {
+                if args.stop_on_entry.unwrap_or(false) {
                     self.notify_process_stopped(); // LLDB won't generate event for the initial stop
                 } else {
                     log_errors!(process.resume());

@@ -664,7 +664,7 @@ function generateSuite(triple: string) {
                     threadId: stoppedEvent.body.threadId,
                     frameIndex: 1
                 });
-                assert.ok(excludeResponse.body.symbol.includes('caller'));
+                assert.ok(excludeResponse.body.exclusion.symbol.includes('caller'));
 
                 let stoppedEvent2 = await ds.continueAndWaitForStop();
                 let stackTrace = await ds.stackTraceRequest({

@@ -818,13 +818,21 @@ impl DebugSession {
                 if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
                     bp_info.exclusions.push(symbol.clone());
 
-                    let breakpoint_id = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
+                    let (site_id, label) = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
                         let filter = DebugSession::get_exception_filters().iter().find(|f| f.filter == *exc_name);
-                        Either::Second((exc_name.clone(), filter.unwrap().label.clone()))
+                        (Either::Second(exc_name.clone()), filter.unwrap().label.clone())
                     } else {
-                        Either::First(bp_id as i64)
+                        let label = if let Some(le) = bp_info.breakpoint.location_at_index(0).address().line_entry() {
+                            format!("{}:{}", le.file_spec().filename().display().to_string(), le.line())
+                        } else {
+                            String::new()
+                        };
+                        (Either::First(bp_id as i64), label)
                     };
-                    return Ok(ExcludeCallerResponse { breakpoint_id, symbol });
+                    return Ok(ExcludeCallerResponse {
+                        exclusion: ExcludedCaller { site_id, symbol },
+                        label,
+                    });
                 }
             }
             bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
@@ -849,7 +857,7 @@ impl DebugSession {
             bp_info.exclusions.clear();
         }
         for exclusion in args.exclusions {
-            match exclusion.breakpoint_id {
+            match exclusion.site_id {
                 Either::First(bp_id) => {
                     let bp_id = bp_id as BreakpointID;
                     if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {

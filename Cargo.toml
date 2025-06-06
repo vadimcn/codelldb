@@ -1,9 +1,10 @@
 [workspace]
 members = [
-  "adapter/codelldb",
   "adapter/adapter-protocol",
-  "adapter/lldb",
+  "adapter/codelldb-types",
+  "adapter/codelldb",
   "adapter/lldb-stub",
+  "adapter/lldb",
   "debuggee/rust",
 ]
 resolver = "1"

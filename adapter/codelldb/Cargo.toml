@@ -5,7 +5,8 @@ name = "codelldb"
 version = "1.0.0"
 
 [dependencies]
-adapter_protocol = {package = "adapter-protocol", path = "../adapter-protocol"}
+adapter-protocol = {path = "../adapter-protocol"}
+codelldb-types = {path = "../codelldb-types"}
 lldb = {path = "../lldb"}
 lldb-stub = {path = "../lldb-stub"}
 

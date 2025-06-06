@@ -3,7 +3,7 @@ import {
     DebugSession, Breakpoint, TreeItemCollapsibleState, SourceBreakpoint, BreakpointsChangeEvent
 } from 'vscode';
 import { MapEx } from './novsc/commonTypes';
-import { ExcludeCallerRequest, ExcludeCallerResponse, SetExcludedCallersRequest } from './novsc/adapterMessages';
+import { ExcludeCallerRequest, ExcludeCallerResponse, SetExcludedCallersRequest, ExcludedCaller } from 'codelldb';
 import { DebugProtocol } from '@vscode/debugprotocol';
 import { ThemeIcon } from 'vscode';
 
@@ -56,21 +56,20 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
                 // If the adapter responds with a number, it's a breakpoint id, which we need to convert to a stable
                 // debug.Breakpoint id.  A string means the last breakpoint was an exception breakpoint.
                 let exclusions: Exclusion[] = null;
-                if (typeof resp.breakpointId == 'number') {
+                if (typeof resp.exclusion.siteId == 'number') {
                     for (let bp of debug.breakpoints) {
                         let dbp = await session.getDebugProtocolBreakpoint(bp) as DebugProtocol.Breakpoint;
-                        if (dbp && dbp.id == resp.breakpointId) {
+                        if (dbp && dbp.id == resp.exclusion.siteId) {
                             exclusions = this.breakpointExclusions.setdefault(bp.id, []);
                             break;
                         }
                     }
                 } else {
-                    let [excName, label] = resp.breakpointId;
                     // First element of the exceptionExclusions value tuple is the display label of the exception.
-                    exclusions = this.exceptionExclusions.setdefault(excName, [label, []])[1];
+                    exclusions = this.exceptionExclusions.setdefault(resp.exclusion.siteId, [resp.label, []])[1];
                 }
-                if (exclusions && !exclusions.find(e => e.symbol == resp.symbol)) {
-                    exclusions.push({ symbol: resp.symbol });
+                if (exclusions && !exclusions.find(e => e.symbol == resp.exclusion.symbol)) {
+                    exclusions.push({ symbol: resp.exclusion.symbol });
                     this.onDidChangeTreeDataEmitter.fire(null);
                 }
             } catch (e) {
@@ -113,7 +112,7 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
 
     // Send the list of relevant exclusions to the debug session.
     async sendExcludedCallers(session: DebugSession) {
-        let adapterExclusions = [];
+        let adapterExclusions: ExcludedCaller[] = [];
 
         for (let bp of debug.breakpoints) {
             let exclusions = this.breakpointExclusions.get(bp.id);
@@ -122,7 +121,7 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
                 if (dbp) {
                     for (let exclusion of exclusions) {
                         adapterExclusions.push({
-                            breakpointId: dbp.id,
+                            siteId: dbp.id,
                             symbol: exclusion.symbol
                         });
                     }
@@ -133,7 +132,7 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
         for (let excName of this.exceptionExclusions.keys()) {
             for (let exclusion of this.exceptionExclusions.get(excName)[1]) {
                 adapterExclusions.push({
-                    breakpointId: excName,
+                    siteId: excName,
                     symbol: exclusion.symbol
                 });
             }

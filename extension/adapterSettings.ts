@@ -1,5 +1,5 @@
 import { workspace, window, commands, debug, ExtensionContext, ConfigurationScope, StatusBarItem, StatusBarAlignment, QuickPickItem } from "vscode";
-import { AdapterSettings } from './novsc/adapterMessages';
+import { AdapterSettings } from 'codelldb';
 import { getExtensionConfig } from "./main";
 
 export class AdapterSettingManager {

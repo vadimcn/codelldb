@@ -17,7 +17,7 @@ import * as adapter from './novsc/adapter';
 import * as install from './install';
 import { Cargo, expandCargo } from './cargo';
 import { pickProcess } from './pickProcess';
-import { AdapterSettings } from './novsc/adapterMessages';
+import { AdapterSettings } from 'codelldb';
 import { ModuleTreeDataProvider as ModulesView } from './modulesView';
 import { ExcludedCallersView } from './excludedCallersView';
 import { mergeValues } from './novsc/expand';
@@ -204,7 +204,6 @@ class Extension implements DebugAdapterDescriptorFactory {
             launchConfig.args = stringArgv(launchConfig.args);
         }
 
-        launchConfig.relativePathBase = launchConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
 
         // Deal with Cargo
         if (launchConfig.cargo != undefined) {
@@ -225,6 +224,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             launchConfig.sourceLanguages.push('rust');
         }
 
+        launchConfig.relativePathBase = launchConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
         launchConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
 
         output.appendLine(`Resolved debug configuration: ${inspect(launchConfig)}`);

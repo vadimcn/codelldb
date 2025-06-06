@@ -1,5 +1,5 @@
 import { window, debug, DebugSession, QuickPickItem, Range, TextEditorRevealType } from 'vscode';
-import { Symbol, SymbolsRequest, SymbolsResponse } from './novsc/adapterMessages';
+import { Symbol, SymbolsRequest, SymbolsResponse } from 'codelldb';
 
 let MAX_SYMBOLS = 1000;
 

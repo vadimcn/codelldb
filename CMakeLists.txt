@@ -126,14 +126,23 @@ if (NOT ${Result} EQUAL 0)
     message(FATAL_ERROR "npm install failed: ${Result}")
 endif()
 
-# Resolve $refs
-execute_process(
-    COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
+# We still need to resolve schema $ref's in it, but we'll do this during the build.
+file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json)
 
-# Copy it back, so we can commit the lock file.
+# Copy package-lock.json back to source, so we can commit it.
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
+add_custom_target(package_json
+    COMMAND cargo run --package codelldb-types -- ${CMAKE_BINARY_DIR}/codelldb.schema.json
+    COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js
+            ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
+    COMMAND ${NPM} run json2ts -- ${CMAKE_BINARY_DIR}/codelldb.schema.json ${CMAKE_BINARY_DIR}/node_modules/codelldb/index.d.ts
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/codelldb.schema.json
+               ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json
+               ${CMAKE_CURRENT_BINARY_DIR}/package.json
+)
 
 add_custom_target(update_lockfiles
     COMMAND ${UpdateFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
@@ -162,7 +171,7 @@ add_custom_command(
     USES_TERMINAL
 )
 add_custom_target(extension
-    DEPENDS extension.js
+    DEPENDS package_json extension.js
 )
 
 file(GLOB_RECURSE TestFiles ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.json)
@@ -176,7 +185,7 @@ add_custom_command(
     USES_TERMINAL
 )
 add_custom_target(adapter_tests
-    DEPENDS tests.js
+    DEPENDS package_json tests.js
 )
 
 # Extension package resources

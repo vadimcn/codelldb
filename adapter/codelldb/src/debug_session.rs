@@ -1266,12 +1266,12 @@ impl DebugSession {
                             let location = if let Some(le) = symbol.start_address().line_entry() {
                                 let fs = le.file_spec();
                                 if let Some(local_path) = self.map_filespec_to_local(&fs) {
-                                    let source = Source {
-                                        name: Some(local_path.file_name().unwrap().to_string_lossy().into_owned()),
-                                        path: Some(local_path.to_string_lossy().into_owned()),
-                                        ..Default::default()
-                                    };
-                                    Some((source, le.line()))
+                                    Some((
+                                        codelldb_types::Source {
+                                            path: local_path.to_string_lossy().into_owned(),
+                                        },
+                                        le.line(),
+                                    ))
                                 } else {
                                     None
                                 }

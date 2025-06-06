@@ -4,7 +4,7 @@ import * as async from './async';
 import * as os from 'os';
 import { Dict, Environment } from './commonTypes';
 import { mergedEnvironment } from './expand';
-import { AdapterSettings } from './adapterMessages';
+import { AdapterSettings } from 'codelldb';
 
 export interface AdapterStartOptions {
     extensionRoot: string;

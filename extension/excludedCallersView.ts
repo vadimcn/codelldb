@@ -2,7 +2,7 @@ import {
     debug, window, commands, TreeDataProvider, TreeItem, ProviderResult, EventEmitter, ExtensionContext,
     DebugSession, Breakpoint, TreeItemCollapsibleState, SourceBreakpoint, BreakpointsChangeEvent
 } from 'vscode';
-import { MapEx } from './novsc/commonTypes';
+import { DisposableSubscriber, MapEx } from './novsc/commonTypes';
 import { ExcludeCallerRequest, ExcludeCallerResponse, SetExcludedCallersRequest, ExcludedCaller } from 'codelldb';
 import { DebugProtocol } from '@vscode/debugprotocol';
 import { ThemeIcon } from 'vscode';
@@ -14,7 +14,7 @@ interface Exclusion {
 
 type Element = Breakpoint | string | Exclusion; // strings represent exceptions
 
-export class ExcludedCallersView implements TreeDataProvider<Element> {
+export class ExcludedCallersView extends DisposableSubscriber implements TreeDataProvider<Element> {
 
     context: ExtensionContext;
     breakpointExclusions = new MapEx<string, Exclusion[]>; // Exclusions indexed by breakpoint id
@@ -24,12 +24,13 @@ export class ExcludedCallersView implements TreeDataProvider<Element> {
     readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
     constructor(context: ExtensionContext) {
+        super();
         this.context = context;
-        context.subscriptions.push(commands.registerCommand('lldb.excludedCallers.add', (s, f) => this.excludeCaller(f)));
-        context.subscriptions.push(commands.registerCommand('lldb.excludedCallers.remove', item => this.removeExclusion(item)));
-        context.subscriptions.push(commands.registerCommand('lldb.excludedCallers.removeAll', _ => this.removeExclusion(null)));
-        context.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
-        context.subscriptions.push(debug.onDidChangeBreakpoints(e => this.breakpointsChanged(e)));
+        this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.add', (s, f) => this.excludeCaller(f)));
+        this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.remove', item => this.removeExclusion(item)));
+        this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.removeAll', _ => this.removeExclusion(null)));
+        this.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
+        this.subscriptions.push(debug.onDidChangeBreakpoints(e => this.breakpointsChanged(e)));
     }
 
     breakpointsChanged(event: BreakpointsChangeEvent) {

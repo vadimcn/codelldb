@@ -1,16 +1,17 @@
 import { workspace, window, commands, debug, ExtensionContext, ConfigurationScope, StatusBarItem, StatusBarAlignment, QuickPickItem } from "vscode";
 import { AdapterSettings } from 'codelldb';
 import { getExtensionConfig } from "./main";
+import { DisposableSubscriber } from "./novsc/commonTypes";
 
-export class AdapterSettingManager {
+export class AdapterSettingManager extends DisposableSubscriber {
     status: StatusBarItem;
 
-    constructor(context: ExtensionContext) {
-        let subscriptions = context.subscriptions;
+    constructor() {
+        super();
 
-        subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
+        this.subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
 
-        subscriptions.push(workspace.onDidChangeConfiguration(event => {
+        this.subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.displayFormat') ||
                 event.affectsConfiguration('lldb.showDisassembly') ||
                 event.affectsConfiguration('lldb.dereferencePointers') ||
@@ -22,7 +23,7 @@ export class AdapterSettingManager {
         }));
 
         let registerDisplaySettingCommand = (command: string, updater: (settings: AdapterSettings) => Promise<void>) => {
-            context.subscriptions.push(commands.registerCommand(command, async () => {
+            this.subscriptions.push(commands.registerCommand(command, async () => {
                 let settings = this.getAdapterSettings();
                 await updater(settings);
                 this.setAdapterSettings(settings);
@@ -50,7 +51,7 @@ export class AdapterSettingManager {
         this.status.tooltip = 'Change debugger display settings';
         this.status.hide();
 
-        subscriptions.push(debug.onDidChangeActiveDebugSession(session => {
+        this.subscriptions.push(debug.onDidChangeActiveDebugSession(session => {
             if (session && session.type == 'lldb')
                 this.status.show();
             else
@@ -58,7 +59,7 @@ export class AdapterSettingManager {
         }));
 
         this.propagateDisplaySettings();
-   }
+    }
 
     // Read current adapter settings values from workspace configuration.
     public getAdapterSettings(scope: ConfigurationScope = undefined): AdapterSettings {

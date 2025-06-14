@@ -1,19 +1,19 @@
 import {
-    window, debug, Uri, DebugSession, DebugSessionCustomEvent, ExtensionContext, WebviewPanel, ViewColumn
+    window, debug, DebugSession, DebugSessionCustomEvent, WebviewPanel, ViewColumn
 } from "vscode";
-import { Dict } from './novsc/commonTypes';
+import { Dict, DisposableSubscriber } from './novsc/commonTypes';
 
 interface DebuggerPanel extends WebviewPanel {
     preserveOrphaned: boolean
 }
 
-export class WebviewManager {
+export class WebviewManager extends DisposableSubscriber {
     sessionPanels: Dict<Dict<DebuggerPanel>> = {};
 
-    constructor(context: ExtensionContext) {
-        let subscriptions = context.subscriptions;
-        subscriptions.push(debug.onDidTerminateDebugSession(this.onTerminatedDebugSession, this));
-        subscriptions.push(debug.onDidReceiveDebugSessionCustomEvent(this.onDebugSessionCustomEvent, this));
+    constructor() {
+        super();
+        this.subscriptions.push(debug.onDidTerminateDebugSession(this.onTerminatedDebugSession, this));
+        this.subscriptions.push(debug.onDidReceiveDebugSessionCustomEvent(this.onDebugSessionCustomEvent, this));
     }
 
     onTerminatedDebugSession(session: DebugSession) {

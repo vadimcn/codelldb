@@ -1,8 +1,8 @@
 import {
     debug, env, commands, TreeDataProvider, TreeItem, ProviderResult, EventEmitter,
-    ExtensionContext, TreeItemCollapsibleState, DebugSession, DebugAdapterTracker, DebugAdapterTrackerFactory
+    TreeItemCollapsibleState, DebugSession, DebugAdapterTracker, DebugAdapterTrackerFactory
 } from 'vscode';
-import { MapEx } from './novsc/commonTypes';
+import { DisposableSubscriber, MapEx } from './novsc/commonTypes';
 import { DebugProtocol } from '@vscode/debugprotocol';
 
 type Module = DebugProtocol.Module
@@ -19,7 +19,8 @@ class ModuleProperty {
 
 type Element = Module | ModuleProperty;
 
-export class ModuleTreeDataProvider implements TreeDataProvider<Element>, DebugAdapterTrackerFactory {
+export class ModuleTreeDataProvider extends DisposableSubscriber
+    implements TreeDataProvider<Element>, DebugAdapterTrackerFactory {
 
     sessions = new MapEx<string, Module[]>();
     activeSessionId: string = undefined;
@@ -27,11 +28,12 @@ export class ModuleTreeDataProvider implements TreeDataProvider<Element>, DebugA
     onDidChangeTreeDataEmitter = new EventEmitter<any>();
     readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-    constructor(context: ExtensionContext) {
-        context.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
-        context.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
-        context.subscriptions.push(debug.onDidStartDebugSession(this.onStartDebugSession, this));
-        context.subscriptions.push(debug.onDidChangeActiveDebugSession(this.onChangedActiveDebugSession, this));
+    constructor() {
+        super();
+        this.subscriptions.push(commands.registerCommand('lldb.modules.copyValue', (arg) => this.copyValue(arg)));
+        this.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
+        this.subscriptions.push(debug.onDidStartDebugSession(this.onStartDebugSession, this));
+        this.subscriptions.push(debug.onDidChangeActiveDebugSession(this.onChangedActiveDebugSession, this));
     }
 
     copyValue(prop: ModuleProperty): Thenable<void> {

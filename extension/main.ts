@@ -56,7 +56,6 @@ class Extension implements DebugAdapterDescriptorFactory {
 
     constructor(context: ExtensionContext) {
         this.context = context;
-        this.webviewManager = new webview.WebviewManager(context);
 
         let subscriptions = context.subscriptions;
 
@@ -93,13 +92,19 @@ class Extension implements DebugAdapterDescriptorFactory {
             }
         }));
 
-        this.settingsManager = new AdapterSettingsManager(context);
+        this.webviewManager = new webview.WebviewManager();
+        subscriptions.push(this.webviewManager);
 
-        this.loadedModules = new ModulesView(context);
+        this.settingsManager = new AdapterSettingsManager();
+        subscriptions.push(this.settingsManager);
+
+        this.loadedModules = new ModulesView();
+        subscriptions.push(this.loadedModules);
         subscriptions.push(window.registerTreeDataProvider('lldb.loadedModules', this.loadedModules));
 
         this.excludedCallers = new ExcludedCallersView(context);
         this.excludedCallers.loadState();
+        subscriptions.push(this.excludedCallers);
         subscriptions.push(window.registerTreeDataProvider('lldb.excludedCallers', this.excludedCallers));
 
         subscriptions.push(window.registerUriHandler(new UriLaunchServer()));

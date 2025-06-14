@@ -20,65 +20,62 @@ class ProcessInfo {
 }
 
 export async function pickProcess(context: ExtensionContext, allUsers: boolean, options: PickProcessOptions): Promise<string> {
-    return new Promise<string>(async (resolve, reject) => {
-        try {
-            let showingAllButton = {
-                iconPath: Uri.file(context.extensionPath + '/images/users.svg'),
-                tooltip: 'Showing all processes'
-            };
-            let showingMyButton = {
-                iconPath: Uri.file(context.extensionPath + '/images/user.svg'),
-                tooltip: 'Showing owned processes'
-            };
-            let detailsButton = {
-                iconPath: new ThemeIcon('list-flat'),
-                tooltip: 'Toggle details'
-            }
+    let processes = filterProcesses(await getProcessList(context, allUsers, options), options);
 
-            let showDetails = false;
-            let processes = filterProcesses(await getProcessList(context, allUsers, options), options);
+    return new Promise<string>((resolve, reject) => {
+        let showingAllButton = {
+            iconPath: Uri.file(context.extensionPath + '/images/users.svg'),
+            tooltip: 'Showing all processes'
+        };
+        let showingMyButton = {
+            iconPath: Uri.file(context.extensionPath + '/images/user.svg'),
+            tooltip: 'Showing owned processes'
+        };
+        let detailsButton = {
+            iconPath: new ThemeIcon('list-flat'),
+            tooltip: 'Toggle details'
+        }
 
-            let qpick = window.createQuickPick<ProcessItem>();
-            qpick.title = 'Select a process:';
-            qpick.buttons = [allUsers ? showingAllButton : showingMyButton, detailsButton];
-            qpick.matchOnDescription = true;
-            qpick.matchOnDetail = true;
-            qpick.ignoreFocusOut = true;
+        let showDetails = false;
 
-            qpick.onDidAccept(() => {
-                if (qpick.selectedItems && qpick.selectedItems[0])
-                    resolve(qpick.selectedItems[0].pid.toString())
-                else
-                    resolve(undefined);
-                qpick.dispose();
-            });
+        let qpick = window.createQuickPick<ProcessItem>();
+        qpick.title = 'Select a process:';
+        qpick.buttons = [allUsers ? showingAllButton : showingMyButton, detailsButton];
+        qpick.matchOnDescription = true;
+        qpick.matchOnDetail = true;
+        qpick.ignoreFocusOut = true;
 
-            qpick.onDidTriggerButton(async (button) => {
-                if (button == qpick.buttons[0]) {
-                    allUsers = !allUsers;
-                    processes = filterProcesses(await getProcessList(context, allUsers, options), options);
-                } else if (button == qpick.buttons[1]) {
-                    showDetails = !showDetails;
-                }
-                qpick.buttons = [allUsers ? showingAllButton : showingMyButton, detailsButton];
-                qpick.busy = true;
-                qpick.items = processes.map(process => processIntoToItem(process, showDetails));
-                qpick.busy = false;
-            });
-
-            qpick.onDidHide(() => {
+        qpick.onDidAccept(() => {
+            if (qpick.selectedItems && qpick.selectedItems[0]) {
+                resolve(qpick.selectedItems[0].pid.toString())
+            } else {
                 resolve(undefined);
-                qpick.dispose();
-            });
+            }
+            qpick.dispose();
+        });
 
+        qpick.onDidTriggerButton(async (button) => {
+            if (button == qpick.buttons[0]) {
+                allUsers = !allUsers;
+                processes = filterProcesses(await getProcessList(context, allUsers, options), options);
+            } else if (button == qpick.buttons[1]) {
+                showDetails = !showDetails;
+            }
+            qpick.buttons = [allUsers ? showingAllButton : showingMyButton, detailsButton];
             qpick.busy = true;
-            qpick.show();
             qpick.items = processes.map(process => processIntoToItem(process, showDetails));
             qpick.busy = false;
-        }
-        catch (e) {
-            reject(e);
-        }
+        });
+
+        qpick.onDidHide(() => {
+            resolve(undefined);
+            qpick.dispose();
+        });
+
+        qpick.busy = true;
+        qpick.show();
+        qpick.items = processes.map(process => processIntoToItem(process, showDetails));
+        qpick.busy = false;
     });
 }
 

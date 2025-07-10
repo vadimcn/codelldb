@@ -565,6 +565,9 @@
 				"language": "c"
 			},
 			{
+				"language": "c3"
+			},
+			{
 				"language": "cpp"
 			},
 			{
@@ -641,6 +644,7 @@
 					"arm64",
 					"asm",
 					"c",
+					"c3",
 					"cpp",
 					"crystal",
 					"fortran-modern",

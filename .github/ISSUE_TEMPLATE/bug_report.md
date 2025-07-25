@@ -13,9 +13,13 @@ Debuggee: <!-- What kind of a binary you are debugging? ❶ -->
 <!-- What is the problem and how did you get there -->
 
 <details> <!-- If reporting a debugger crash or an internal error, please consider providing a verbose log ❷ -->
-<summary>Verbose log</summary><pre>
-  <!-- Log goes here -->
-</pre></details>
+<summary>Verbose log</summary>
+
+```
+Log goes here
+```
+
+</details>
 
 
 <!--

@@ -168,6 +168,23 @@
 			"sourceMaps": true
 		},
 		{
+			"name": "extension tests",
+			"preLaunchTask": "make tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"cwd": "${workspaceRoot}/build",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/build",
+				"--extensionTestsPath=${workspaceFolder}/build/tests/extension_tests.js",
+				"${workspaceFolder}/debuggee"
+			],
+			"outFiles": [
+				"${workspaceFolder}/build/tests/*.js"
+			],
+			"sourceMaps": true
+		},
+		{
 			"name": "python: current file",
 			"type": "python",
 			"request": "launch",

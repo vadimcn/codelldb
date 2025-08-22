@@ -1,7 +1,6 @@
-'use strict';
 
-/**@type {import('webpack').Configuration}*/
-const config = {
+/** @type {import('webpack').Configuration} */
+let config = {
   target: 'node',
   mode: 'production',
   output: {
@@ -27,4 +26,5 @@ const config = {
     ]
   }
 };
-module.exports = config;
+
+export default config;

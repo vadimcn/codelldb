@@ -1,4 +1,3 @@
-import { suite, test } from 'mocha';
 import * as assert from 'assert';
 import * as cp from 'child_process';
 import * as os from 'os';

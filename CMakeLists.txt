@@ -29,7 +29,6 @@ if (CMAKE_SYSROOT)
 endif()
 
 set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
-
 set(WithEnv ${CMAKE_COMMAND} -E env)
 set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
 
@@ -91,8 +90,10 @@ set(CargoFlags ${CargoFlags} --manifest-path=${CMAKE_SOURCE_DIR}/Cargo.toml --ta
 if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
     set(CargoFlags ${CargoFlags} --release)
     set(CargoBuildType release)
+    set(WebpackMode production)
 else()
     set(CargoBuildType debug)
+    set(WebpackMode development)
 endif()
 
 # Adapter
@@ -100,6 +101,8 @@ endif()
 add_subdirectory(adapter)
 add_subdirectory(lldb)
 add_subdirectory(lang_support)
+add_subdirectory(extension)
+add_subdirectory(tests)
 
 add_dependencies(adapter lldb lang_support)
 
@@ -113,12 +116,16 @@ endif()
 
 set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/codelldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
 configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
-configure_file(webpack.config.js ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.js)
+configure_file(webpack.config.mjs ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.mjs)
+configure_file(vscode.test.mjs ${CMAKE_CURRENT_BINARY_DIR}/.vscode-test.mjs)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Install node_modules
 execute_process(
-    COMMAND ${NPM} --loglevel verbose ci # like install, but actually respects package-lock file.
+    COMMAND ${UpdateFile} ${CMAKE_SOURCE_DIR}/package-lock.json ${CMAKE_BINARY_DIR}/package-lock.json
+    COMMAND ${NPM} install
+    # Copy package-lock.json back to source, so we can commit it.
+    COMMAND ${UpdateFile} ${CMAKE_BINARY_DIR}/package-lock.json ${CMAKE_SOURCE_DIR}/package-lock.json
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE Result
 )
@@ -128,9 +135,6 @@ endif()
 
 # We still need to resolve schema $ref's in it, but we'll do this during the build.
 file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json)
-
-# Copy package-lock.json back to source, so we can commit it.
-file(COPY ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
 add_custom_target(package_json
@@ -144,50 +148,14 @@ add_custom_target(package_json
                ${CMAKE_CURRENT_BINARY_DIR}/package.json
 )
 
+# Update dependency versions in npm and cargo lock files
 add_custom_target(update_lockfiles
-    COMMAND ${UpdateFile} ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_SOURCE_DIR}/package-lock.json ${CMAKE_BINARY_DIR}/package-lock.json
     COMMAND ${NPM} update
-    COMMAND ${UpdateFile} ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json
+    COMMAND ${UpdateFile} ${CMAKE_BINARY_DIR}/package-lock.json ${CMAKE_SOURCE_DIR}/package-lock.json
     COMMAND cargo update
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
-)
-
-# Extension and tests
-
-if (CMAKE_BUILD_TYPE MATCHES Release|RelWithDebInfo)
-    set(WebpackMode production)
-else()
-    set(WebpackMode development)
-endif()
-
-file(GLOB_RECURSE ExtensionFiles ${CMAKE_CURRENT_SOURCE_DIR}/extension/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/extension/*.json)
-add_custom_command(
-    OUTPUT extension.js
-    DEPENDS ${ExtensionFiles}
-    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --resolve-modules=${CMAKE_BINARY_DIR}/generated
-                                  --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=extension.js
-                                  ${CMAKE_CURRENT_SOURCE_DIR}/extension/main.ts
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    USES_TERMINAL
-)
-add_custom_target(extension
-    DEPENDS package_json extension.js
-)
-
-file(GLOB_RECURSE TestFiles ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.json)
-add_custom_command(
-    OUTPUT tests.js
-    DEPENDS ${TestFiles} ${ExtensionFiles}
-    COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal --resolve-modules=${CMAKE_BINARY_DIR}/generated
-                                  --output-path=${CMAKE_CURRENT_BINARY_DIR} --output-filename=tests.js
-                                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/adapter.test.ts
-                                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/util.test.ts
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    USES_TERMINAL
-)
-add_custom_target(adapter_tests
-    DEPENDS package_json tests.js
 )
 
 # Extension package resources
@@ -334,7 +302,7 @@ set(MochaTest ${NPM} run mocha --
     --require source-map-support/register
     --require mocha-suppress-logs
     #-g "rust_variables"
-    ${CMAKE_BINARY_DIR}/tests.js
+    ${CMAKE_BINARY_DIR}/tests/adapter_tests.js
 )
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
@@ -345,6 +313,7 @@ else()
     set(TestTriples x86_64-unknown-linux-gnu)
 endif()
 
+# Create adapter tests for each triple we need to test on the current platform
 foreach(TestTriple ${TestTriples})
     set(TestName adapter:${TestTriple})
     add_test(NAME ${TestName}
@@ -353,9 +322,15 @@ foreach(TestTriple ${TestTriples})
     set_property(TEST ${TestName} PROPERTY RUN_SERIAL TRUE)
 endforeach(TestTriple)
 
+add_test(NAME extension
+    COMMAND ${NPM} run vscode-test ${CMAKE_BINARY_DIR}/tests/extension_tests.js
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_property(TEST extension PROPERTY RUN_SERIAL TRUE)
+
 # Build testing pre-requisites
 add_custom_target(tests
-    DEPENDS lldb adapter debuggee adapter_tests
+    DEPENDS package_json lldb adapter debuggee adapter_tests extension_tests
 )
 
 # Run all tests

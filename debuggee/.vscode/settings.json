@@ -12,5 +12,10 @@
     "lldb.showDisassembly": "auto",
     "lldb.dereferencePointers": true,
     "lldb.consoleMode": "evaluate",
-    "lldb.launch.debugServer": 4711,
+    // "lldb.launch.debugServer": 4711,
+    // "lldb.rpcServer":{
+    //     "host": "127.0.0.1",
+    //     "port": 12345,
+    //     "token": "secret"
+    // }
 }

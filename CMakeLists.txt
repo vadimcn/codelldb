@@ -23,6 +23,8 @@ else()
     message(FATAL_ERROR "LLDB_PACKAGE not set." )
 endif()
 
+set(CMAKE_CTEST_ARGUMENTS "--output-on-failure" CACHE INTERNAL "CTest arguments")
+
 if (CMAKE_SYSROOT)
     set(CMAKE_C_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_CXX_FLAGS}")
@@ -331,22 +333,21 @@ add_custom_target(tests
     DEPENDS package_json lldb adapter debuggee adapter_tests extension_tests
 )
 
-# Run all tests
 add_custom_target(check
     DEPENDS tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    COMMAND ${CMAKE_CTEST_COMMAND} ${CMAKE_CTEST_ARGUMENTS}
     USES_TERMINAL
 )
 
 add_custom_target(check_adapter
     DEPENDS tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R adapter
+    COMMAND ${CMAKE_CTEST_COMMAND} ${CMAKE_CTEST_ARGUMENTS} -R adapter
     USES_TERMINAL
 )
 
 add_custom_target(check_extension
     DEPENDS tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose -R extension
+    COMMAND ${CMAKE_CTEST_COMMAND} ${CMAKE_CTEST_ARGUMENTS} -R extension
     USES_TERMINAL
 )
 

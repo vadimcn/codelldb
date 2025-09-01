@@ -5,7 +5,7 @@ let config = {
   mode: 'production',
   output: {
     libraryTarget: 'commonjs2',
-    devtoolModuleFilenameTemplate: '[resource-path]'
+    devtoolModuleFilenameTemplate: '[absolute-resource-path]',
   },
   devtool: 'source-map',
   externals: {

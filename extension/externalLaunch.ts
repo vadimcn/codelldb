@@ -123,17 +123,19 @@ export class RpcLaunchServer extends RpcServer {
             type: 'lldb',
             request: 'launch',
             name: '',
-            env: {}
+            env: {},
+            waitEndOfSession: false // Whether to wait for the end of the debug session before responding
         };
 
         if (request.type == 'LaunchEnvironment') {
             let launchEnv = request as LaunchEnvironment;
             let launchConfig = launchEnv.config ? YAML.parse(launchEnv.config) : {};
-            debugConfig.program = launchEnv.cmd.slice(0, 1);
+            debugConfig.program = launchEnv.cmd[0];
             debugConfig.args = launchEnv.cmd.slice(1);
+            debugConfig.waitEndOfSession = true;
             Object.assign(debugConfig, launchConfig);
             debugConfig.env = Object.assign(debugConfig.env, launchEnv.env, launchConfig.env);
-        } else {
+        } else { // Naked DebugConfiguration
             Object.assign(debugConfig, request);
         }
 
@@ -145,10 +147,13 @@ export class RpcLaunchServer extends RpcServer {
         }
 
         try {
+            let endSessionAsync = undefined;
+            if (debugConfig.waitEndOfSession) {
+                endSessionAsync = waitEndOfDebugSession(debugConfig);
+            }
             let success = await debug.startDebugging(undefined, debugConfig);
-            if (success && request.type == 'LaunchEnvironment' && request?.cmd?.length > 0) {
-                // Wait for the end of the debug session
-                success = await waitEndOfDebugSession(debugConfig);
+            if (success && endSessionAsync) {
+                success = await endSessionAsync;
             }
             return { success: success };
         } catch (err: any) {

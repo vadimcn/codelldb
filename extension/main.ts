@@ -141,18 +141,18 @@ class Extension implements DebugAdapterDescriptorFactory {
         }
     }
 
-    updateRpcServer() {
+    async updateRpcServer() {
         if (this.rpcServer) {
             output.appendLine('Stopping RPC server');
             this.rpcServer.close();
             this.rpcServer = undefined;
         }
         let config = getExtensionConfig();
-        let options = config.get('rpcServer') as any;
+        let options = config.get<any>('rpcServer');
         if (options) {
             output.appendLine(`Starting RPC server with: ${inspect(options)}`);
             this.rpcServer = new RpcLaunchServer({ token: options.token });
-            this.rpcServer.listen(options)
+            await this.rpcServer.listen(options);
         }
     }
 
@@ -266,7 +266,7 @@ class Extension implements DebugAdapterDescriptorFactory {
                 let launchEnv = result as LaunchEnvironment;
                 // Use args passed in by Cargo, appending any user-provided args
                 debugConfig.program = launchEnv.cmd[0];
-                debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args || []);
+                debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args ?? []);
                 debugConfig.cwd = launchEnv.cwd;
                 // Use Cargo environment, with overrides from launchConfig
                 debugConfig.env = Object.assign({}, debugConfig.env, launchEnv.env);

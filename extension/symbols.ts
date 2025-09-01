@@ -1,17 +1,21 @@
-import { window, debug, DebugSession, QuickPickItem, Range, TextEditorRevealType } from 'vscode';
+import { window, debug, DebugSession, QuickPickItem, Range, TextEditorRevealType, DebugProtocolSource } from 'vscode';
 import { Symbol, SymbolsRequest, SymbolsResponse } from 'codelldb';
 
 let MAX_SYMBOLS = 1000;
 
 type Item = QuickPickItem & { symbol: Symbol };
 
-export async function pickSymbol(debugSession: DebugSession) {
+export async function pickSymbol(debugSession: DebugSession | undefined) {
+    if (debugSession?.type != 'lldb') {
+        return;
+    }
+
     let qpick = window.createQuickPick<Item>();
     qpick.matchOnDetail = true;
     qpick.matchOnDescription = true;
     qpick.show();
 
-    async function updateSymbols(filter: string) {
+    let updateSymbols = async function (filter: string) {
         qpick.busy = true;
         let resp: SymbolsResponse = await debugSession.customRequest('_symbols', {
             filter: filter,
@@ -26,7 +30,7 @@ export async function pickSymbol(debugSession: DebugSession) {
         if (items.length == MAX_SYMBOLS)
             qpick.title = 'Too many matching symbols, please refine your query.';
         else
-            qpick.title = null;
+            qpick.title = undefined;
         qpick.busy = false;
     }
 
@@ -47,9 +51,9 @@ export async function pickSymbol(debugSession: DebugSession) {
     qpick.onDidAccept(async () => {
         let symbol = qpick.selectedItems[0].symbol;
         if (symbol.location) {
-            let uri = debug.asDebugSourceUri(symbol.location[0], debugSession);
+            let uri = debug.asDebugSourceUri(symbol.location[0] as DebugProtocolSource, debugSession);
             let editor = await window.showTextDocument(uri, { preserveFocus: true, preview: true });
-            let line = <number>symbol.location[1];
+            let line = symbol.location[1] as number;
             editor.revealRange(new Range(line - 1, 0, line, 0), TextEditorRevealType.AtTop);
         } else if (symbol.type == 'Code') {
             await debugSession.customRequest('evaluate', { context: '_command', expression: `disassemble -s ${symbol.address}` });

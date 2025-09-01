@@ -2,7 +2,7 @@
 
 mod json_map;
 
-use std::{convert::TryFrom, path::PathBuf};
+use std::path::PathBuf;
 
 pub use crate::json_map::JsonMap;
 use schemars::JsonSchema;
@@ -266,4 +266,13 @@ pub struct LaunchEnvironment {
     pub terminal_id: Either<Option<String>, u64>,
     /// Debug configuration
     pub config: Option<String>,
+}
+
+/// Response to LaunchEnvironment request
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[schemars(deny_unknown_fields)]
+pub struct LaunchResponse {
+    pub success: bool,
+    pub message: Option<String>,
 }

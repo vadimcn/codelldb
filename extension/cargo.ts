@@ -1,5 +1,7 @@
 import {
-    tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken} from 'vscode';
+    tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken,
+    TaskDefinition, TaskScope,
+} from 'vscode';
 import * as cp from 'child_process';
 import * as readline from 'readline';
 import { inspect } from 'util';
@@ -26,10 +28,10 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
-    workspaceFolder: WorkspaceFolder;
+    workspaceFolder?: WorkspaceFolder;
     cancellation?: CancellationToken;
 
-    public constructor(workspaceFolder: WorkspaceFolder, cancellation?: CancellationToken) {
+    public constructor(workspaceFolder?: WorkspaceFolder, cancellation?: CancellationToken) {
         this.workspaceFolder = workspaceFolder;
         this.cancellation = cancellation;
     }
@@ -39,8 +41,9 @@ export class Cargo {
         launcher?: { executable: string, env: Dict<string> }
     ): Promise<string> {
 
-        let taskDef = Object.assign(cargoConfig, { type: undefined, command: '' });
-        let task = new Task(taskDef, this.workspaceFolder, 'cargo', 'CodeLLDB', null, cargoConfig.problemMatcher);
+        let taskDef = Object.assign({ type: undefined, command: '' }, cargoConfig) as unknown as TaskDefinition;
+        let taskScope = this.workspaceFolder || TaskScope.Workspace;
+        let task = new Task(taskDef, taskScope, 'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher);
         task.presentationOptions.clear = true;
         task.presentationOptions.showReuseMessage = false;
         let artifacts = await runTask(task, async (cargoConfig: CargoConfig, write) => {
@@ -54,7 +57,7 @@ export class Cargo {
             cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, ...extraArgs);
 
             let cargoEnv = Object.assign({}, cargoConfig.env, launcher?.env);
-            return this.getCargoArtifacts(cargoConfig.args, cargoEnv, cargoConfig.cwd, write);
+            return this.getCargoArtifacts(cargoConfig.args ?? [], cargoEnv, cargoConfig.cwd, write);
         });
         return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
     }
@@ -93,7 +96,7 @@ export class Cargo {
     async getCargoArtifacts(
         cargoArgs: string[],
         cargoEnv: Dict<string>,
-        cargoCwd: string,
+        cargoCwd: string | undefined,
         onMessage: (data: string) => void
     ): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
@@ -130,7 +133,7 @@ export class Cargo {
                 },
                 onMessage
             );
-        } catch (err) {
+        } catch (err: any) {
             throw new ErrorWithCause('Cargo invocation failed.', { cause: err });
         }
         return artifacts;
@@ -222,13 +225,13 @@ export class Cargo {
     async runCargo(
         args: string[],
         env: Dict<string>,
-        cwd: string | null,
+        cwd: string | undefined,
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void,
     ): Promise<number> {
         let config = getExtensionConfig(this.workspaceFolder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
-        let cargoCwd = cwd || this.workspaceFolder.uri.fsPath;
+        let cargoCwd = cwd ?? (this.workspaceFolder?.uri?.fsPath);
 
         output.appendLine(`Running ${cargoCmd} ${args.join(' ')}`);
         return new Promise<number>((resolve, reject) => {
@@ -259,7 +262,7 @@ export class Cargo {
             });
 
             cargo.on('close', (exitCode) => {
-                resolve(exitCode);
+                resolve(exitCode ?? -1);
             });
 
             if (this.cancellation) {
@@ -311,13 +314,14 @@ async function runTask<T, R>(
 
 // Expands ${cargo:...} placeholders.
 export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<string>): DebugConfiguration {
-    let expander = (type: string, key: string) => {
+    let expander = (type: string | null, key: string) => {
         if (type == 'cargo') {
             let value = cargoDict[key];
             if (value == undefined)
                 throw new Error('cargo:' + key + ' is not defined');
             return value.toString();
         }
+        return null;
     };
     return expandVariablesInObject(launchConfig, expander);
 }

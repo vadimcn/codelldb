@@ -1,4 +1,4 @@
-import { LaunchEnvironment } from 'codelldb';
+import { LaunchEnvironment, LaunchResponse } from 'codelldb';
 import * as crypto from 'crypto';
 import * as net from 'net';
 import * as querystring from 'querystring';
@@ -20,10 +20,12 @@ export class UriLaunchServer implements UriHandler {
                     await debug.startDebugging(wsFolder, params.name);
 
                 } else if (params.name) {
-                    // Try all workspace folders
-                    for (let wsFolder of workspace.workspaceFolders) {
-                        if (await debug.startDebugging(wsFolder, params.name))
-                            break;
+                    if (workspace.workspaceFolders) {
+                        // Try all workspace folders
+                        for (let wsFolder of workspace.workspaceFolders) {
+                            if (await debug.startDebugging(wsFolder, params.name))
+                                break;
+                        }
                     }
                 } else {
                     throw new Error(`Unsupported combination of launch Uri parameters.`);
@@ -39,7 +41,7 @@ export class UriLaunchServer implements UriHandler {
                     env[parts[0]] = parts[1];
                 }
 
-                let args = stringArgv(cmdLine);
+                let args = cmdLine ? stringArgv(cmdLine) : [];
                 let program = args.shift();
                 let debugConfig: DebugConfiguration = {
                     type: 'lldb',
@@ -65,8 +67,8 @@ export class UriLaunchServer implements UriHandler {
             } else {
                 throw new Error(`Unsupported Uri path: ${uri.path}`);
             }
-        } catch (err) {
-            await window.showErrorMessage(err.message);
+        } catch (err: any) {
+            await window.showErrorMessage(err.toString());
         }
     }
 }
@@ -96,7 +98,7 @@ export class RpcServer {
     }
 
     public async listen(options: net.ListenOptions) {
-        return new Promise<net.AddressInfo | string>(resolve =>
+        return new Promise<net.AddressInfo | string | null>(resolve =>
             this.inner.listen(options, () => resolve(this.inner.address()))
         );
     }
@@ -107,14 +109,14 @@ export class RpcServer {
 }
 
 export class RpcLaunchServer extends RpcServer {
-    token: string;
+    token?: string;
 
     constructor(options: { token?: string }) {
-        super(request => this.onRequest(request))
+        super(request => this.onRequest(request).then(response => JSON.stringify(response)));
         this.token = options.token;
     }
 
-    async onRequest(rawRequest: string): Promise<string> {
+    async onRequest(rawRequest: string): Promise<LaunchResponse> {
         let request = YAML.parse(rawRequest);
 
         let debugConfig: DebugConfiguration = {
@@ -126,7 +128,7 @@ export class RpcLaunchServer extends RpcServer {
 
         if (request.type == 'LaunchEnvironment') {
             let launchEnv = request as LaunchEnvironment;
-            let launchConfig = YAML.parse(launchEnv.config);
+            let launchConfig = launchEnv.config ? YAML.parse(launchEnv.config) : {};
             debugConfig.program = launchEnv.cmd.slice(0, 1);
             debugConfig.args = launchEnv.cmd.slice(1);
             Object.assign(debugConfig, launchConfig);
@@ -138,19 +140,19 @@ export class RpcLaunchServer extends RpcServer {
         debugConfig.name = debugConfig.name || debugConfig.program;
         if (this.token) {
             if (debugConfig.token != this.token)
-                return '';
+                return { success: false, message: 'Token mismatch' };
             delete debugConfig.token;
         }
+
         try {
             let success = await debug.startDebugging(undefined, debugConfig);
-            if (request.type == 'LaunchEnvironment' && request?.cmd?.length > 0) {
+            if (success && request.type == 'LaunchEnvironment' && request?.cmd?.length > 0) {
                 // Wait for the end of the debug session
-                return waitEndOfDebugSession(debugConfig).then(success => JSON.stringify({ success: success }));
-            } else {
-                return JSON.stringify({ success: success });
+                success = await waitEndOfDebugSession(debugConfig);
             }
-        } catch (err) {
-            return JSON.stringify({ success: false, message: err.toString() });
+            return { success: success };
+        } catch (err: any) {
+            return { success: false, message: err.toString() };
         }
     };
 }

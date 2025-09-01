@@ -7,7 +7,8 @@ import { AdapterSettings } from 'codelldb';
 
 export interface AdapterStartOptions {
     extensionRoot: string;
-    workDir: string;
+    liblldb?: string;
+    workDir?: string;
     extraEnv: Dict<string>; // Extra environment to be set for adapter
     port: number;
     connect: boolean;  // Whether to connect or to listen on the port
@@ -23,19 +24,22 @@ export interface ProcessSpawnParams {
 }
 
 export async function getSpawnParams(
-    liblldb: string,
     options: AdapterStartOptions
 ): Promise<ProcessSpawnParams> {
-
     let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
-    let portAction = options.connect ? '--connect' : '--port';
-    let args = ['--liblldb', liblldb, portAction, options.port.toString()];
+
+    let args: Array<string> = [];
+    if (options.liblldb) {
+        args.push('--liblldb', options.liblldb);
+    }
+    args.push(options.connect ? '--connect' : '--port', options.port.toString());
     if (options.authToken) {
-        args = args.concat(['--auth-token', options.authToken]);
+        args.push('--auth-token', options.authToken);
     }
     if (options.adapterSettings) {
-        args = args.concat(['--settings', JSON.stringify(options.adapterSettings)]);
+        args.push('--settings', JSON.stringify(options.adapterSettings));
     }
+
     let env = getAdapterEnv(options.extraEnv);
     env['RUST_TRACEBACK'] = '1';
     if (options.verboseLogging) {
@@ -67,17 +71,13 @@ export async function getSpawnParams(
     }
 }
 
-export async function start(
-    liblldb: string,
-    options: AdapterStartOptions
-): Promise<cp.ChildProcess> {
-
-    let spawnParams = await getSpawnParams(liblldb, options);
+export async function start(options: AdapterStartOptions): Promise<cp.ChildProcess> {
+    let spawnParams = await getSpawnParams(options);
     spawnParams.options.stdio = ['ignore', 'pipe', 'pipe'];
     return cp.spawn(spawnParams.command, spawnParams.args, spawnParams.options);
 }
 
-export async function findLibLLDB(pathHint: string): Promise<string | null> {
+export async function findLibLLDB(pathHint: string): Promise<string | undefined> {
     let stat = await async.fs.stat(pathHint);
     if (stat.isFile())
         return pathHint;
@@ -93,6 +93,8 @@ export async function findLibLLDB(pathHint: string): Promise<string | null> {
     } else if (process.platform == 'win32') {
         libDir = path.join(pathHint, 'bin');
         pattern = /liblldb\.dll/;
+    } else {
+        throw new Error('Unreachable');
     }
 
     for (let dir of [pathHint, libDir]) {
@@ -101,10 +103,10 @@ export async function findLibLLDB(pathHint: string): Promise<string | null> {
             return path.join(dir, file);
         }
     }
-    return null;
+    return undefined;
 }
 
-async function findFileByPattern(path: string, pattern: RegExp): Promise<string | null> {
+async function findFileByPattern(path: string, pattern: RegExp): Promise<string | undefined> {
     try {
         let files = await async.fs.readdir(path);
         for (let file of files) {
@@ -115,7 +117,7 @@ async function findFileByPattern(path: string, pattern: RegExp): Promise<string 
     catch (err) {
         // Ignore missing diractories and such...
     }
-    return null;
+    return undefined;
 }
 
 export function getAdapterEnv(extraEnv: Dict<string>): Dict<string> {

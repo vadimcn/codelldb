@@ -23,7 +23,7 @@ export class ModuleTreeDataProvider extends DisposableSubscriber
     implements TreeDataProvider<Element>, DebugAdapterTrackerFactory {
 
     sessions = new MapEx<string, Module[]>();
-    activeSessionId: string = undefined;
+    activeSessionId: string | undefined;
 
     onDidChangeTreeDataEmitter = new EventEmitter<any>();
     readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::convert::TryFrom;
 use std::fmt;
 use std::marker::PhantomData;
 

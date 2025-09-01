@@ -62,8 +62,8 @@ export class AdapterSettingManager extends DisposableSubscriber {
     }
 
     // Read current adapter settings values from workspace configuration.
-    public getAdapterSettings(scope: ConfigurationScope = undefined): AdapterSettings {
-        scope = scope || debug.activeDebugSession?.workspaceFolder;
+    public getAdapterSettings(scope?: ConfigurationScope): AdapterSettings {
+        scope = scope ?? debug.activeDebugSession?.workspaceFolder;
         let config = getExtensionConfig(scope);
         let settings: AdapterSettings = {
             displayFormat: config.get('displayFormat'),

@@ -3,10 +3,11 @@ use crate::prelude::*;
 use crate::dap_session::DAPSession;
 use adapter_protocol::*;
 use std::collections::HashMap;
+use std::net::TcpStream;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
 pub struct Terminal {
     #[allow(unused)]
@@ -53,7 +54,7 @@ impl Terminal {
             let launch_env: LaunchEnvironment = serde_json::from_slice(&buf)?;
 
             Ok(Terminal {
-                connection: reader.into_inner(),
+                connection: reader.into_inner().into_std()?,
                 terminal_id: launch_env.terminal_id,
             })
         };
@@ -102,5 +103,15 @@ impl Terminal {
         unsafe {
             winapi::um::wincon::FreeConsole();
         }
+    }
+}
+
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        let response = LaunchResponse {
+            success: true,
+            message: None,
+        };
+        log_errors!(serde_json::to_writer(&mut self.connection, &response));
     }
 }

@@ -2,7 +2,7 @@ import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChanne
 import * as cp from 'child_process';
 import * as async from './novsc/async';
 import { Dict } from './novsc/commonTypes';
-import {expandVariablesInObject } from './novsc/expand';
+import { expandVariablesInObject } from './novsc/expand';
 
 // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
 export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
@@ -11,7 +11,7 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
     // Compute fixed-point of expansion of dbgconfig properties.
     let expanding = '';
     let converged = true;
-    let expander = (type: string, key: string) => {
+    let expander = (type: string | null, key: string) => {
         if (type == 'dbgconfig') {
             if (key == expanding)
                 throw new Error('Circular dependency detected during expansion of dbgconfig:' + key);
@@ -57,10 +57,10 @@ export function isEmpty(obj: any): boolean {
 }
 
 export function logProcessOutput(process: cp.ChildProcess, output: OutputChannel) {
-    process.stdout.on('data', chunk => {
+    process.stdout?.on('data', chunk => {
         output.append(chunk.toString());
     });
-    process.stderr.on('data', chunk => {
+    process.stderr?.on('data', chunk => {
         output.append(chunk.toString());
     });
 }

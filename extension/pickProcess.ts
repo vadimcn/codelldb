@@ -11,7 +11,7 @@ type PickProcessOptions = { initCommands: string[], filter: string };
 
 type ProcessItem = QuickPickItem & { pid: number };
 
-class ProcessInfo {
+interface ProcessInfo {
     pid: number;
     ppid: number;
     user: string;
@@ -19,10 +19,14 @@ class ProcessInfo {
     command: string;
 }
 
-export async function pickProcess(context: ExtensionContext, allUsers: boolean, options: PickProcessOptions): Promise<string> {
+export async function pickProcess(
+    context: ExtensionContext,
+    allUsers: boolean,
+    options: PickProcessOptions
+): Promise<string | undefined> {
     let processes = filterProcesses(await getProcessList(context, allUsers, options), options);
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string | undefined>((resolve, reject) => {
         let showingAllButton = {
             iconPath: Uri.file(context.extensionPath + '/images/users.svg'),
             tooltip: 'Showing all processes'
@@ -158,12 +162,13 @@ function parseProcessEntries(lines: string[], colOffsets: any): ProcessInfo[] {
         // is a continuation of the previous process's argument list caused by an embedded newline character.
         let matches = line.match(/^(\d+)\s+(\d+)\s+/);
         if (matches != null) {
-            let process = new ProcessInfo();
-            process.pid = parseInt(matches[1]);
-            process.ppid = parseInt(matches[2]);
-            process.user = line.substring(colOffsets.user, colOffsets.triple).trim();
-            process.triple = line.substring(colOffsets.triple, colOffsets.args).trim();
-            process.command = line.substring(colOffsets.args).trim();
+            let process: ProcessInfo = {
+                pid: parseInt(matches[1]),
+                ppid: parseInt(matches[2]),
+                user: line.substring(colOffsets.user, colOffsets.triple).trim(),
+                triple: line.substring(colOffsets.triple, colOffsets.args).trim(),
+                command: line.substring(colOffsets.args).trim(),
+            };
             items.push(process);
         } else if (line) {
             // Continuation

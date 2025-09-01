@@ -16,6 +16,7 @@ pub enum TypeLibrary {
     _LaunchRequestArguments(LaunchRequestArguments),
     _AttachRequestArguments(AttachRequestArguments),
     _LaunchEnvironment(LaunchEnvironment),
+    _LaunchResponse(LaunchResponse),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

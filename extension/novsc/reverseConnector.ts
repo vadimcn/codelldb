@@ -5,7 +5,7 @@ import { WritableBuffer } from './writableBuffer';
 /// Allows debug adapter to reverse-connect to VSCode
 export class ReverseAdapterConnector implements DebugAdapter {
     private server: net.Server = net.createServer();
-    private connection: net.Socket;
+    private connection?: net.Socket;
     private rawData: WritableBuffer = new WritableBuffer();
     private contentLength: number = -1;
     private authToken: string;
@@ -40,7 +40,7 @@ export class ReverseAdapterConnector implements DebugAdapter {
 
     handleMessage(message: DebugProtocolMessage): void {
         let json = JSON.stringify(message);
-        this.connection.write(`Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`, 'utf8');
+        this.connection!.write(`Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`, 'utf8');
     }
 
     private handleData(data: Buffer): void {
@@ -79,7 +79,7 @@ export class ReverseAdapterConnector implements DebugAdapter {
                             let msg = JSON.parse(message.toString('utf8')) as DebugProtocolMessage;
                             this.onDidSendMessageEmitter.fire(msg);
                         }
-                        catch (err) {
+                        catch (err: any) {
                             console.log('Error handling data: ' + err.toString());
                         }
                     }

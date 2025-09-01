@@ -18,6 +18,7 @@
 				"../extension/*"
 			],
 			"*": [
+				"../build/generated/*",
 				"../build/node_modules/*",
 			]
 		}

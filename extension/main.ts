@@ -2,7 +2,8 @@ import {
     workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind} from 'vscode';
+    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind
+} from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
 import * as path from 'path';
@@ -52,7 +53,7 @@ class Extension implements DebugAdapterDescriptorFactory {
     webviewManager: webview.WebviewManager;
     loadedModules: ModulesView;
     excludedCallers: ExcludedCallersView;
-    rpcServer: RpcLaunchServer;
+    rpcServer?: RpcLaunchServer;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -85,7 +86,7 @@ class Extension implements DebugAdapterDescriptorFactory {
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('lldb.library')) {
-                this.adapterDylibsCache = null;
+                this.liblldbPath = undefined;
             }
             if (event.affectsConfiguration('lldb.rpcServer')) {
                 this.updateRpcServer();
@@ -113,7 +114,7 @@ class Extension implements DebugAdapterDescriptorFactory {
     }
 
     async onActivate() {
-        let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
+        let pkg = extensions.getExtension('vadimcn.vscode-lldb')!.packageJSON;
         let currVersion = pkg.version;
         let lastVersion = this.context.globalState.get('lastLaunchedVersion');
         let lldbConfig = getExtensionConfig();
@@ -144,7 +145,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         if (this.rpcServer) {
             output.appendLine('Stopping RPC server');
             this.rpcServer.close();
-            this.rpcServer = null;
+            this.rpcServer = undefined;
         }
         let config = getExtensionConfig();
         let options = config.get('rpcServer') as any;
@@ -172,7 +173,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         folder: WorkspaceFolder | undefined,
         debugConfig: DebugConfiguration,
         cancellation?: CancellationToken
-    ): Promise<DebugConfiguration> {
+    ): Promise<DebugConfiguration | undefined | null> {
         output.clear();
 
         let config = getExtensionConfig(folder);
@@ -209,7 +210,6 @@ class Extension implements DebugAdapterDescriptorFactory {
             debugConfig.args = stringArgv(debugConfig.args);
         }
 
-
         if (debugConfig.cargo) {
             await this.handleCargoConfig(folder, debugConfig, cancellation);
             delete debugConfig.cargo;
@@ -237,7 +237,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         // The launcher sends us the debuggee path, arguments, and environment via RPC.
         let rpcResolve: (value: LaunchEnvironment) => void;
         let rpcPromise = new Promise<LaunchEnvironment>(resolve => rpcResolve = resolve);
-        let respondToLauncher: (success: boolean) => void = null;
+        let respondToLauncher: ((success: boolean) => void) | undefined;
         let rpcServer = new RpcServer(request => {
             let launchEnv: LaunchEnvironment = YAML.parse(request);
             // RPC response is delayed until the end of the debug session to keep the launcher active.
@@ -264,7 +264,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             let result = await Promise.race([rpcPromise, artifactsPromise]);
             if (typeof result == 'object') { // RPC
                 let launchEnv = result as LaunchEnvironment;
-                // Use args passed in by Cargo, appending any user-provided args launchConfig
+                // Use args passed in by Cargo, appending any user-provided args
                 debugConfig.program = launchEnv.cmd[0];
                 debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args || []);
                 debugConfig.cwd = launchEnv.cwd;
@@ -279,9 +279,9 @@ class Extension implements DebugAdapterDescriptorFactory {
                 }
             }
 
-            // If launch was initiated via RPC (case 1), we need to dismiss the launcher after the end of the session.
+            // If launch was initiated via RPC (case 1), we need to dismiss launcher at the end of the session.
             if (respondToLauncher) {
-                waitEndOfDebugSession(debugConfig).then(success => respondToLauncher(success));
+                waitEndOfDebugSession(debugConfig).then(success => respondToLauncher!(success));
             }
         } finally {
             rpcServer.close();
@@ -311,23 +311,22 @@ class Extension implements DebugAdapterDescriptorFactory {
             await this.startDebugAdapter(session.workspaceFolder, adapterSettings, port, authToken);
             await connector.accept();
             return new DebugAdapterInlineImplementation(connector);
-        } catch (err) {
+        } catch (err: any) {
             this.analyzeStartupError(err);
             throw err;
         }
     }
 
-    async analyzeStartupError(err: Error) {
+    async analyzeStartupError(err: any) {
         output.appendLine(err.toString());
         output.show(true)
-        let e = <any>err;
         let diagnostics = 'Run diagnostics';
         let actionAsync;
-        if (e.code == 'ENOENT') {
+        if (err.code == 'ENOENT') {
             actionAsync = window.showErrorMessage(
-                `Could not start debugging because executable "${e.path}" was not found.`,
+                `Could not start debugging because executable "${err.path}" was not found.`,
                 diagnostics);
-        } else if (e.code == 'Timeout' || e.code == 'Handshake') {
+        } else if (err.code == 'Timeout' || err.code == 'Handshake') {
             actionAsync = window.showErrorMessage(err.message, diagnostics);
         } else {
             actionAsync = window.showErrorMessage('Could not start debugging.', diagnostics);
@@ -364,8 +363,8 @@ class Extension implements DebugAdapterDescriptorFactory {
         mergeConfig('breakpointMode');
     }
 
-    async getLaunchLessConfig(workspaceFolder: WorkspaceFolder, cancellation: CancellationToken) {
-        let directory = null;
+    async getLaunchLessConfig(workspaceFolder: WorkspaceFolder | undefined, cancellation: CancellationToken | undefined) {
+        let directory = undefined;
         if (window.activeTextEditor?.document.languageId == 'rust' ||
             window.activeTextEditor?.document.fileName == 'Cargo.toml') {
             directory = path.dirname(window.activeTextEditor?.document.uri.fsPath);
@@ -381,8 +380,7 @@ class Extension implements DebugAdapterDescriptorFactory {
 
     async getCargoLaunchConfigs() {
         try {
-            let folder = (workspace.workspaceFolders.length == 1) ?
-                workspace.workspaceFolders[0] :
+            let folder = (workspace.workspaceFolders?.length == 1) ? workspace.workspaceFolders[0] :
                 await window.showWorkspaceFolderPick();
             let cargo = new Cargo(folder);
             let configurations = await cargo.getLaunchConfigs();
@@ -395,7 +393,7 @@ class Extension implements DebugAdapterDescriptorFactory {
                 content: JSON.stringify(debugConfigs, null, 4),
             });
             await window.showTextDocument(doc, 1, false);
-        } catch (err) {
+        } catch (err: any) {
             output.show();
             window.showErrorMessage(err.toString());
         }
@@ -409,18 +407,19 @@ class Extension implements DebugAdapterDescriptorFactory {
     ): Promise<ChildProcess> {
         let config = getExtensionConfig(folder);
         let adapterEnv = config.get<any>('adapterEnv', {});
-        let verboseLogging = config.get<boolean>('verboseLogging');
+        let verboseLogging = config.get<boolean>('verboseLogging', false);
         if (config.get<boolean>('useNativePDBReader'))
             adapterEnv['LLDB_USE_NATIVE_PDB_READER'] = 'true';
-        let [liblldb] = await this.getAdapterDylibs(config);
+        let liblldb = await this.getLibLLDB(config);
 
         output.appendLine('Launching adapter');
         output.appendLine(`liblldb: ${liblldb}`);
         output.appendLine(`environment: ${inspect(adapterEnv)}`);
         output.appendLine(`settings: ${inspect(adapterSettings)}`);
 
-        let adapterProcess = await adapter.start(liblldb, {
+        let adapterProcess = await adapter.start({
             extensionRoot: this.context.extensionPath,
+            liblldb: liblldb,
             extraEnv: adapterEnv,
             workDir: workspace.rootPath,
             port: connectPort,
@@ -444,20 +443,19 @@ class Extension implements DebugAdapterDescriptorFactory {
         return adapterProcess;
     }
 
-    // Resolve paths of the native adapter libraries and cache them.
-    async getAdapterDylibs(config: WorkspaceConfiguration): Promise<[string]> {
-        if (!this.adapterDylibsCache) {
-            let liblldb = config.get<string>('library');
-            if (liblldb) {
-                liblldb = await adapter.findLibLLDB(liblldb)
+    // Resolve the path to liblldb and cache it.
+    async getLibLLDB(config: WorkspaceConfiguration): Promise<string | undefined> {
+        if (!this.liblldbPath) {
+            let library = config.get<string>('library');
+            if (library) {
+                this.liblldbPath = await adapter.findLibLLDB(library)
             } else {
-                liblldb = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
+                this.liblldbPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
             }
-            this.adapterDylibsCache = [liblldb];
         }
-        return this.adapterDylibsCache;
+        return this.liblldbPath;
     }
-    adapterDylibsCache: [string] = null;
+    liblldbPath: string | undefined;
 
     async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
         if (!await install.ensurePlatformPackage(this.context, output, true))
@@ -525,8 +523,8 @@ class Extension implements DebugAdapterDescriptorFactory {
                         }
                     }
                 }
-            } catch (err) {
-                let message = (err.code == 'ENOENT') ? `could not find "${err.path}".` : err.message;
+            } catch (err: any) {
+                let message = (err?.code == 'ENOENT') ? `could not find "${err.path}".` : err.message;
                 await window.showErrorMessage(`Failed to query LLDB for library location: ${message}`, { modal: true });
                 box.show();
             }
@@ -546,7 +544,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             name: 'LLDB Command Prompt',
             shellPath: lldbPath,
             shellArgs: ['--no-lldbinit', '--one-line-before-file', 'command script import ' + consolePath],
-            cwd: folder.uri.fsPath,
+            cwd: folder?.uri,
             env: env,
             strictEnv: true
         });
@@ -554,13 +552,15 @@ class Extension implements DebugAdapterDescriptorFactory {
     }
 
     async viewMemory(address?: bigint) {
+        if (!debug.activeDebugSession)
+            return;
         if (address == undefined) {
             let addressStr = await window.showInputBox({
                 title: 'Enter memory address',
                 prompt: 'Hex, octal or decimal '
             });
             try {
-                address = BigInt(addressStr);
+                address = BigInt(addressStr!);
             } catch (err) {
                 window.showErrorMessage('Could not parse address', { modal: true });
                 return;

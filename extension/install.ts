@@ -7,7 +7,7 @@ import { isRosetta } from './novsc/adapter';
 
 const MaxRedirects = 10;
 
-let activeInstallation: Promise<boolean> = null;
+let activeInstallation: Promise<boolean> | undefined
 
 export async function ensurePlatformPackage(context: ExtensionContext, output: OutputChannel, modal: boolean): Promise<boolean> {
 
@@ -15,12 +15,12 @@ export async function ensurePlatformPackage(context: ExtensionContext, output: O
         return true;
 
     // Just wait if installation is already in progress.
-    if (activeInstallation != null)
+    if (activeInstallation)
         return activeInstallation;
 
     activeInstallation = doEnsurePlatformPackage(context, output, modal);
     let result = await activeInstallation;
-    activeInstallation = null;
+    activeInstallation = undefined;
     return result;
 }
 
@@ -90,7 +90,7 @@ async function doEnsurePlatformPackage(context: ExtensionContext, output: Output
 }
 
 async function getPlatformPackageUrl(): Promise<Uri> {
-    let pkg = extensions.getExtension('vadimcn.vscode-lldb').packageJSON;
+    let pkg = extensions.getExtension('vadimcn.vscode-lldb')?.packageJSON;
     let pp = pkg.config.platformPackages;
     let platform = os.platform();
     let arch = os.arch();
@@ -106,16 +106,16 @@ async function getPlatformPackageUrl(): Promise<Uri> {
 }
 
 async function download(srcUrl: Uri, destPath: string,
-    progress?: (downloaded: number, contentLength?: number) => void) {
+    progress?: (downloaded: number, contentLength: number) => void) {
 
     let url = srcUrl.toString(true);
     for (let i = 0; i < MaxRedirects; ++i) {
         let response = await async.https.get(url);
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        if (response.statusCode! >= 300 && response.statusCode! < 400 && response.headers.location) {
             url = response.headers.location;
         } else {
             return new Promise((resolve, reject) => {
-                if (response.statusCode < 200 || response.statusCode >= 300) {
+                if (response.statusCode! < 200 || response.statusCode! >= 300) {
                     reject(new Error(`HTTP status ${response.statusCode} : ${response.statusMessage}`));
                 }
                 if (response.headers['content-type'] != 'application/octet-stream') {
@@ -124,7 +124,7 @@ async function download(srcUrl: Uri, destPath: string,
                     let stm = fs.createWriteStream(destPath, { mode: 0o600 });
                     let pipeStm = response.pipe(stm);
                     if (progress) {
-                        let contentLength = response.headers['content-length'] ? Number.parseInt(response.headers['content-length']) : null;
+                        let contentLength = Number.parseInt(response.headers['content-length'] ?? '0');
                         let downloaded = 0;
                         response.on('data', (chunk) => {
                             downloaded += chunk.length;

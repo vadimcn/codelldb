@@ -4,7 +4,7 @@ use std::net;
 use std::str::FromStr;
 
 use clap::Parser;
-use codelldb_types::{Either, JsonMap, LaunchEnvironment};
+use codelldb_types::{Either, JsonMap, LaunchEnvironment, LaunchResponse};
 
 pub type Error = Box<dyn std::error::Error>;
 
@@ -64,7 +64,16 @@ fn main() -> Result<(), Error> {
     // Clear out any unread input buffered in stdin, so it doesn't get read by the shell.
     purge_stdin();
 
-    Ok(())
+    match serde_json::from_str::<LaunchResponse>(&response) {
+        Ok(response) => {
+            if response.success {
+                Ok(())
+            } else {
+                Err(response.message.unwrap_or("Failed".into()).into())
+            }
+        }
+        Err(e) => Err(Box::new(e)),
+    }
 }
 
 #[cfg(unix)]

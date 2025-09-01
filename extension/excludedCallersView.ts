@@ -28,7 +28,7 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
         this.context = context;
         this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.add', (s, f) => this.excludeCaller(f)));
         this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.remove', item => this.removeExclusion(item)));
-        this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.removeAll', _ => this.removeExclusion(null)));
+        this.subscriptions.push(commands.registerCommand('lldb.excludedCallers.removeAll', _ => this.removeExclusion(undefined)));
         this.subscriptions.push(debug.registerDebugAdapterTrackerFactory('lldb', this));
         this.subscriptions.push(debug.onDidChangeBreakpoints(e => this.breakpointsChanged(e)));
     }
@@ -42,46 +42,46 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
 
     async excludeCaller(frame: any) {
         let session = debug.activeDebugSession;
-        if (session.type == 'lldb' && frame.frameId != undefined) {
-            try {
-                let [stackframe, thread, sessionId, threadId, frameIndex, source] = frame.frameId.split(':', 6);
-                // The format of frameId is undocumented, so we check known static fields.
-                if (stackframe != 'stackframe' || thread != 'thread') {
-                    throw Error(`Could not parse stack frame id: ${frame.frameId}`);
-                }
-                let resp = await session.customRequest('_excludeCaller', {
-                    threadId: parseInt(threadId),
-                    frameIndex: parseInt(frameIndex),
-                } satisfies ExcludeCallerRequest) as ExcludeCallerResponse;
-
-                // If the adapter responds with a number, it's a breakpoint id, which we need to convert to a stable
-                // debug.Breakpoint id.  A string means the last breakpoint was an exception breakpoint.
-                let exclusions: Exclusion[] = null;
-                if (typeof resp.exclusion.siteId == 'number') {
-                    for (let bp of debug.breakpoints) {
-                        let dbp = await session.getDebugProtocolBreakpoint(bp) as DebugProtocol.Breakpoint;
-                        if (dbp && dbp.id == resp.exclusion.siteId) {
-                            exclusions = this.breakpointExclusions.setdefault(bp.id, []);
-                            break;
-                        }
-                    }
-                } else {
-                    // First element of the exceptionExclusions value tuple is the display label of the exception.
-                    exclusions = this.exceptionExclusions.setdefault(resp.exclusion.siteId, [resp.label, []])[1];
-                }
-                if (exclusions && !exclusions.find(e => e.symbol == resp.exclusion.symbol)) {
-                    exclusions.push({ symbol: resp.exclusion.symbol });
-                    this.onDidChangeTreeDataEmitter.fire(null);
-                }
-            } catch (e) {
-                await window.showErrorMessage(e.message);
+        if (session?.type != 'lldb' || frame.frameId == undefined)
+            return;
+        try {
+            let [stackframe, thread, sessionId, threadId, frameIndex, source] = frame.frameId.split(':', 6);
+            // The format of frameId is undocumented, so we check known static fields.
+            if (stackframe != 'stackframe' || thread != 'thread') {
+                throw Error(`Could not parse stack frame id: ${frame.frameId}`);
             }
+            let resp = await session.customRequest('_excludeCaller', {
+                threadId: parseInt(threadId),
+                frameIndex: parseInt(frameIndex),
+            } satisfies ExcludeCallerRequest) as ExcludeCallerResponse;
+
+            // If the adapter responds with a number, it's a breakpoint id, which we need to convert to a stable
+            // debug.Breakpoint id.  A string means the last breakpoint was an exception breakpoint.
+            let exclusions: Exclusion[] | undefined;
+            if (typeof resp.exclusion.siteId == 'number') {
+                for (let bp of debug.breakpoints) {
+                    let dbp = await session.getDebugProtocolBreakpoint(bp) as DebugProtocol.Breakpoint;
+                    if (dbp && dbp.id == resp.exclusion.siteId) {
+                        exclusions = this.breakpointExclusions.setdefault(bp.id, []);
+                        break;
+                    }
+                }
+            } else {
+                // First element of the exceptionExclusions value tuple is the display label of the exception.
+                exclusions = this.exceptionExclusions.setdefault(resp.exclusion.siteId, [resp.label, []])[1];
+            }
+            if (exclusions && !exclusions.find(e => e.symbol == resp.exclusion.symbol)) {
+                exclusions.push({ symbol: resp.exclusion.symbol });
+                this.onDidChangeTreeDataEmitter.fire(null);
+            }
+        } catch (err: any) {
+            await window.showErrorMessage(err.message);
         }
         this.saveState();
     }
 
-    async removeExclusion(item: Element) {
-        if (item == null) {
+    async removeExclusion(item: Element | undefined) {
+        if (!item) {
             this.exceptionExclusions.clear();
             this.breakpointExclusions.clear();
         } else if (item instanceof Breakpoint) {
@@ -122,7 +122,7 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
                 if (dbp) {
                     for (let exclusion of exclusions) {
                         adapterExclusions.push({
-                            siteId: dbp.id,
+                            siteId: dbp.id!,
                             symbol: exclusion.symbol
                         });
                     }
@@ -130,8 +130,9 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
             }
         }
 
-        for (let excName of this.exceptionExclusions.keys()) {
-            for (let exclusion of this.exceptionExclusions.get(excName)[1]) {
+
+        for (let [excName, [_, exclusions]] of this.exceptionExclusions.entries()) {
+            for (let exclusion of exclusions) {
                 adapterExclusions.push({
                     siteId: excName,
                     symbol: exclusion.symbol
@@ -192,7 +193,7 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
             return items;
         } else if (typeof element == 'string') {
             // Exception
-            return this.exceptionExclusions.get(element)[1];
+            return this.exceptionExclusions.get(element)?.[1];
         } else {
             // Breakpoint
             let bp = element as Breakpoint;
@@ -203,7 +204,7 @@ export class ExcludedCallersView extends DisposableSubscriber implements TreeDat
     getTreeItem(element: Element): TreeItem {
         if (typeof element == 'string') {
             // Exception
-            let label = this.exceptionExclusions.get(element)[0];
+            let label = this.exceptionExclusions.get(element)![0];
             let item = new TreeItem(label, TreeItemCollapsibleState.Expanded);
             item.iconPath = new ThemeIcon('zap');
             return item;

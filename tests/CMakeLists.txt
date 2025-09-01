@@ -33,15 +33,6 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     USES_TERMINAL
 )
-
-# add_custom_command(
-#     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/extension_tests.js
-#     DEPENDS ${ExtensionFiles} ${ExtensionTestsSrc} tsconfig.json
-#     COMMAND ${NPM} run tsc -- ${ExtensionFiles} ${ExtensionTestsSrc}
-#                               --outfile ${CMAKE_CURRENT_BINARY_DIR}/extension_tests.js
-#     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-#     USES_TERMINAL
-# )
 add_custom_target(extension_tests
     DEPENDS package_json ${CMAKE_CURRENT_BINARY_DIR}/extension_tests.js
 )

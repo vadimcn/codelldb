@@ -6,7 +6,6 @@
     ],
     "lldb.dbgconfig": {
         "targetDir": "${workspaceFolder}/../build/debuggee"
-        //"targetDir": "${workspaceFolder}/../build/debuggee-gnu"
         //"targetDir": "${workspaceFolder}/../build/debuggee-msvc"
     },
     "lldb.displayFormat": "auto",

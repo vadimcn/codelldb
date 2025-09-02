@@ -10,9 +10,7 @@ const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are 
 const sourceDir = process.env.SOURCE_DIR || path.dirname(buildDir); // assume $sourceDir is the parent of $buildDir
 
 let debuggeeDir = path.join(buildDir, 'debuggee');
-if (triple.endsWith('pc-windows-gnu'))
-    debuggeeDir = path.join(buildDir, 'debuggee-gnu');
-else if (triple.endsWith('pc-windows-msvc'))
+if (triple.endsWith('pc-windows-msvc'))
     debuggeeDir = path.join(buildDir, 'debuggee-msvc');
 
 const debuggee = path.join(debuggeeDir, 'debuggee');

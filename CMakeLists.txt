@@ -275,12 +275,12 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     )
 else()
     # On Windows we want to check both GNU DWARF and MSVC PDB debug info kinds.
-    message("Configuring debuggee-gnu")
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-gnu)
+    message("Configuring debuggee")
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee)
     execute_process(
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
                                  -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-gnu.cmake
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-gnu
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee
     )
     message("Configuring debuggee-msvc")
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc)
@@ -290,7 +290,7 @@ else()
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc
     )
     add_custom_target(debuggee
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee-gnu
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc
     )
 endif()
@@ -336,7 +336,19 @@ add_custom_target(tests
 # Run all tests
 add_custom_target(check
     DEPENDS tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    USES_TERMINAL
+)
+
+add_custom_target(check_adapter
+    DEPENDS tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R adapter
+    USES_TERMINAL
+)
+
+add_custom_target(check_extension
+    DEPENDS tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose -R extension
     USES_TERMINAL
 )
 

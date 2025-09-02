@@ -496,6 +496,7 @@
 							"object",
 							"null"
 						],
+						"default": null,
 						"defaultSnippets": [
 							{ "label": "Port 12345", "body": { "host": "127.0.0.1", "port": 12345, "token": "secret" } }
 						],

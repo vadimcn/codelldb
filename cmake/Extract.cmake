@@ -1,0 +1,5 @@
+message(STATUS "Extracting ${INPUT} to ${DESTINATION}")
+file(ARCHIVE_EXTRACT
+     INPUT "${INPUT}"
+     DESTINATION "${DESTINATION}"
+)

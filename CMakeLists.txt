@@ -114,27 +114,25 @@ endif()
 
 # Extension package content
 
-set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/codelldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
-configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
 configure_file(webpack.config.mjs ${CMAKE_CURRENT_BINARY_DIR}/webpack.config.mjs)
 configure_file(vscode.test.mjs ${CMAKE_CURRENT_BINARY_DIR}/.vscode-test.mjs)
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
+set(PLATFORM_PACKAGE_URL "https://github.com/vadimcn/codelldb/releases/download/v\${version}/\${platformPackage}" CACHE STRING "")
+configure_file(package.json ${CMAKE_CURRENT_BINARY_DIR}/package.json @ONLY)
+# We still need to resolve codelldb schema $ref's in it, but we'll do this during the build.
+file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json)
+file(COPY_FILE ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json)
 # Install node_modules
 execute_process(
-    COMMAND ${UpdateFile} ${CMAKE_SOURCE_DIR}/package-lock.json ${CMAKE_BINARY_DIR}/package-lock.json
     COMMAND ${NPM} install
-    # Copy package-lock.json back to source, so we can commit it.
-    COMMAND ${UpdateFile} ${CMAKE_BINARY_DIR}/package-lock.json ${CMAKE_SOURCE_DIR}/package-lock.json
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE Result
 )
 if (NOT ${Result} EQUAL 0)
     message(FATAL_ERROR "npm install failed: ${Result}")
 endif()
-
-# We still need to resolve schema $ref's in it, but we'll do this during the build.
-file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/package.json ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json)
+# So we can commit any changes
+file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json)
 
 # Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
 add_custom_target(package_json

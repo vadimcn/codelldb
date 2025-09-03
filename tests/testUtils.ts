@@ -199,7 +199,7 @@ export class DebugTestSession extends DebugClient {
         assert.equal(topFrame.line, line);
     }
 
-    async readVariables(variablesReference: number): Promise<Array<dp.Variable>> {
+    async readVariables(variablesReference: number): Promise<dp.Variable[]> {
         logWithStack('Awaiting variables');
         let response = await this.variablesRequest({ variablesReference: variablesReference });
         return response.body.variables;
@@ -355,7 +355,7 @@ export function char(ch: string): ValidatorFn {
     return v => parseInt(v.value) == ch.charCodeAt(0) || v.value == `'${ch}'`;
 }
 
-export function variablesAsDict(varsList: Array<dp.Variable>) {
+export function variablesAsDict(varsList: dp.Variable[]) {
     let vars: Dict<dp.Variable> = {};
     for (let v of varsList) {
         vars[v.name] = v;

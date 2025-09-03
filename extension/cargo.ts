@@ -8,7 +8,6 @@ import { inspect } from 'util';
 import { Dict } from './novsc/commonTypes';
 import { output, getExtensionConfig } from './main';
 import { expandVariablesInObject } from './novsc/expand';
-import { ErrorWithCause } from './novsc/error';
 
 export interface CargoConfig {
     args?: string[];
@@ -100,42 +99,38 @@ export class Cargo {
         onMessage: (data: string) => void
     ): Promise<CompilationArtifact[]> {
         let artifacts: CompilationArtifact[] = [];
-        try {
-            await this.runCargo(cargoArgs, cargoEnv, cargoCwd,
-                message => {
-                    if (message.reason == 'compiler-artifact') {
-                        let isBinary = message.target.crate_types.includes('bin');
-                        let isBuildScript = message.target.kind.includes('custom-build');
-                        if ((isBinary && !isBuildScript) || message.profile.test) {
-                            if (message.executable !== undefined) {
-                                if (message.executable !== null) {
-                                    artifacts.push({
-                                        fileName: message.executable,
-                                        name: message.target.name,
-                                        kind: message.target.kind[0]
-                                    });
-                                }
-                            } else { // Older cargo
-                                for (let i = 0; i < message.filenames.length; ++i) {
-                                    if (message.filenames[i].endsWith('.dSYM'))
-                                        continue;
-                                    artifacts.push({
-                                        fileName: message.filenames[i],
-                                        name: message.target.name,
-                                        kind: message.target.kind[i]
-                                    });
-                                }
+        await this.runCargo(cargoArgs, cargoEnv, cargoCwd,
+            message => {
+                if (message.reason == 'compiler-artifact') {
+                    let isBinary = message.target.crate_types.includes('bin');
+                    let isBuildScript = message.target.kind.includes('custom-build');
+                    if ((isBinary && !isBuildScript) || message.profile.test) {
+                        if (message.executable !== undefined) {
+                            if (message.executable !== null) {
+                                artifacts.push({
+                                    fileName: message.executable,
+                                    name: message.target.name,
+                                    kind: message.target.kind[0]
+                                });
+                            }
+                        } else { // Older cargo
+                            for (let i = 0; i < message.filenames.length; ++i) {
+                                if (message.filenames[i].endsWith('.dSYM'))
+                                    continue;
+                                artifacts.push({
+                                    fileName: message.filenames[i],
+                                    name: message.target.name,
+                                    kind: message.target.kind[i]
+                                });
                             }
                         }
-                    } else if (message.reason == 'compiler-message') {
-                        onMessage(message.message.rendered)
                     }
-                },
-                onMessage
-            );
-        } catch (err: any) {
-            throw new ErrorWithCause('Cargo invocation failed.', { cause: err });
-        }
+                } else if (message.reason == 'compiler-message') {
+                    onMessage(message.message.rendered)
+                }
+            },
+            onMessage
+        );
         return artifacts;
     }
 

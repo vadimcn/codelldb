@@ -28,7 +28,7 @@ export async function getSpawnParams(
 ): Promise<ProcessSpawnParams> {
     let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
 
-    let args: Array<string> = [];
+    let args: string[] = [];
     if (options.liblldb) {
         args.push('--liblldb', options.liblldb);
     }

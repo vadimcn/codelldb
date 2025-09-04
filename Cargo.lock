@@ -642,9 +642,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.27"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
 name = "memchr"
@@ -1350,12 +1350,12 @@ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 [[package]]
 name = "weaklink"
 version = "0.2.1"
-source = "git+https://github.com/vadimcn/weaklink.git#e11a77c73534b18c354ee98765dd20354ec45258"
+source = "git+https://github.com/vadimcn/weaklink.git#a97ecc2e6467ae6316e14f2d8855275b7983b5a7"
 
 [[package]]
 name = "weaklink_build"
 version = "0.2.1"
-source = "git+https://github.com/vadimcn/weaklink.git#e11a77c73534b18c354ee98765dd20354ec45258"
+source = "git+https://github.com/vadimcn/weaklink.git#a97ecc2e6467ae6316e14f2d8855275b7983b5a7"
 dependencies = [
  "goblin",
  "rand",

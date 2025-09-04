@@ -50,12 +50,12 @@ export class Cargo {
             // Insert either before `--` or at the end.
             let extraArgs = ['--message-format=json', '--color=always'];
             if (launcher) {
-                extraArgs.push(`--config=target.'cfg(all())'.runner="${launcher.executable}"`);
+                extraArgs.push(`--config=target.'cfg(all())'.runner='${launcher.executable}'`);
             }
             let pos = cargoArgs.indexOf('--');
             cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, ...extraArgs);
 
-            let cargoEnv = Object.assign({}, cargoConfig.env, launcher?.env);
+            let cargoEnv = Object.assign({}, launcher?.env, cargoConfig.env);
             return this.getCargoArtifacts(cargoConfig.args ?? [], cargoEnv, cargoConfig.cwd, write);
         });
         return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
@@ -219,7 +219,7 @@ export class Cargo {
     // Runs cargo, invokes stdout/stderr callbacks as data comes in, returns the exit code.
     async runCargo(
         args: string[],
-        env: Dict<string>,
+        extraEnv: Dict<string>,
         cwd: string | undefined,
         onStdoutJson: (obj: any) => void,
         onStderrString: (data: string) => void,
@@ -227,13 +227,14 @@ export class Cargo {
         let config = getExtensionConfig(this.workspaceFolder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
         let cargoCwd = cwd ?? (this.workspaceFolder?.uri?.fsPath);
+        let cargoEnv = Object.assign({}, process.env, extraEnv)
 
         output.appendLine(`Running ${cargoCmd} ${args.join(' ')}`);
         return new Promise<number>((resolve, reject) => {
             let cargo = cp.spawn(cargoCmd, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 cwd: cargoCwd,
-                env: Object.assign({}, env, process.env),
+                env: cargoEnv,
             });
 
             cargo.on('error', err => reject(err));

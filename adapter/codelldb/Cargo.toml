@@ -14,7 +14,6 @@ backtrace = "0.3.37"
 base64 = "0.12.3"
 bytes = "1.0.0"
 clap = {version = "4.5", default-features=false, features = ["std", "derive", "help", "usage"]}
-crossterm = "0.9.6"
 dotenvy = "0.15.7"
 env_logger = {version = "0.8.3", default-features = false}
 futures = "0.3.0"

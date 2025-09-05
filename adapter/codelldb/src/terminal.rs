@@ -36,7 +36,11 @@ impl Terminal {
                 launcher.set_extension(ext);
             }
             let req_args = RunInTerminalRequestArguments {
-                args: vec![launcher.to_string_lossy().to_string(), format!("--connect={addr}")],
+                args: vec![
+                    launcher.to_string_lossy().to_string(),
+                    format!("--connect={addr}"),
+                    "--clear-screen".into(),
+                ],
                 cwd: String::new(),
                 env: HashMap::new(),
                 kind: Some(terminal_kind),

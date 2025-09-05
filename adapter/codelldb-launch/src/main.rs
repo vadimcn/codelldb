@@ -9,19 +9,21 @@ use codelldb_types::{Either, JsonMap, LaunchEnvironment, LaunchResponse};
 pub type Error = Box<dyn std::error::Error>;
 
 #[derive(Parser, Debug)]
-struct Cli {
+struct Args {
     #[arg(long)]
     connect: Option<String>,
     #[arg(long)]
     config: Option<String>,
+    #[arg(long)]
+    clear_screen: bool,
     #[arg(trailing_var_arg = true)]
     cmd: Vec<String>,
 }
 
 fn main() -> Result<(), Error> {
-    let cli = Cli::parse();
+    let args = Args::parse();
 
-    let address = if let Some(address) = cli.connect {
+    let address = if let Some(address) = args.connect {
         address
     } else if let Ok(address) = env::var("CODELLDB_LAUNCH_CONNECT") {
         address
@@ -29,7 +31,7 @@ fn main() -> Result<(), Error> {
         return Err("Need an address to connect to.".into());
     };
 
-    let config = if let Some(config) = cli.config {
+    let config = if let Some(config) = args.config {
         Some(config)
     } else if let Ok(config) = env::var("CODELLDB_LAUNCH_CONFIG") {
         Some(config)
@@ -46,7 +48,7 @@ fn main() -> Result<(), Error> {
     let terminal_id = Either::Second(std::process::id() as u64);
 
     let request = LaunchEnvironment {
-        cmd: cli.cmd,
+        cmd: args.cmd,
         cwd: std::env::current_dir().unwrap_or_default(),
         env: env,
         terminal_id: terminal_id,
@@ -57,6 +59,10 @@ fn main() -> Result<(), Error> {
     let mut stream = net::TcpStream::connect(address)?;
     serde_json::to_writer(&mut stream, &request)?;
     stream.shutdown(net::Shutdown::Write)?;
+
+    if args.clear_screen {
+        let _ = clearscreen::ClearScreen::default().clear();
+    }
 
     let mut response = String::new();
     stream.read_to_string(&mut response)?;
@@ -103,33 +109,45 @@ fn get_tty_name() -> Result<String, Error> {
 }
 
 #[test]
-fn test_cli() {
-    let cli = Cli::parse_from(["<launch>"]);
-    assert_eq!(cli.connect, None);
-    assert_eq!(cli.config, None);
-    assert_eq!(cli.cmd, [""; 0]);
+fn test_args() {
+    let args = Args::parse_from(["<launch>"]);
+    assert_eq!(args.connect, None);
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, [""; 0]);
 
-    let cli = Cli::parse_from(["<launch>", "command"]);
-    assert_eq!(cli.connect, None);
-    assert_eq!(cli.config, None);
-    assert_eq!(cli.cmd, ["command"]);
+    let args = Args::parse_from(["<launch>", "command"]);
+    assert_eq!(args.connect, None);
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, ["command"]);
 
-    let cli = Cli::parse_from(["<launch>", "command", "-arg", "val"]);
-    assert_eq!(cli.connect, None);
-    assert_eq!(cli.config, None);
-    assert_eq!(cli.cmd, ["command", "-arg", "val"]);
+    let args = Args::parse_from(["<launch>", "--clear-screen", "command"]);
+    assert_eq!(args.connect, None);
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, true);
+    assert_eq!(args.cmd, ["command"]);
 
-    let cli = Cli::parse_from(["<launch>", "--", "-command"]);
-    assert_eq!(cli.connect, None);
-    assert_eq!(cli.config, None);
-    assert_eq!(cli.cmd, ["-command"]);
+    let args = Args::parse_from(["<launch>", "command", "-arg", "val"]);
+    assert_eq!(args.connect, None);
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, ["command", "-arg", "val"]);
 
-    let cli = Cli::parse_from(["<launch>", "--connect=127.0.0.1:12345", "command", "-arg", "val"]);
-    assert_eq!(cli.connect.as_deref(), Some("127.0.0.1:12345"));
-    assert_eq!(cli.config, None);
-    assert_eq!(cli.cmd, ["command", "-arg", "val"]);
+    let args = Args::parse_from(["<launch>", "--", "-command"]);
+    assert_eq!(args.connect, None);
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, ["-command"]);
 
-    let cli = Cli::parse_from(["<launch>", "--connect=127.0.0.1:12345", "--", "--config", "-arg", "val"]);
-    assert_eq!(cli.connect.as_deref(), Some("127.0.0.1:12345"));
-    assert_eq!(cli.cmd, ["--config", "-arg", "val"]);
+    let args = Args::parse_from(["<launch>", "--connect=127.0.0.1:12345", "command", "-arg", "val"]);
+    assert_eq!(args.connect.as_deref(), Some("127.0.0.1:12345"));
+    assert_eq!(args.config, None);
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, ["command", "-arg", "val"]);
+
+    let args = Args::parse_from(["<launch>", "--connect=127.0.0.1:12345", "--", "--config", "-arg", "val"]);
+    assert_eq!(args.connect.as_deref(), Some("127.0.0.1:12345"));
+    assert_eq!(args.clear_screen, false);
+    assert_eq!(args.cmd, ["--config", "-arg", "val"]);
 }

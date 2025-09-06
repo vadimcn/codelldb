@@ -237,7 +237,11 @@ export class Cargo {
                 env: cargoEnv,
             });
 
-            cargo.on('error', err => reject(err));
+            cargo.on('error', err => {
+                if ((err as any).code == 'ENOENT')
+                    err.message = `Could not find "${cargoCmd}" executable.`;
+                reject(err);
+            });
 
             cargo.stderr.on('data', chunk => {
                 onStderrString(chunk.toString());

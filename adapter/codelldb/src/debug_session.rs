@@ -39,6 +39,7 @@ use std::sync::Arc;
 use std::time;
 
 use adapter_protocol::*;
+use base64::prelude::{Engine, BASE64_STANDARD};
 use futures;
 use futures::prelude::*;
 use lldb::*;
@@ -1203,7 +1204,7 @@ impl DebugSession {
                     return Ok(ReadMemoryResponseBody {
                         address: format!("0x{:X}", address),
                         unreadable_bytes: Some((count - bytes_read) as i64),
-                        data: Some(base64::encode(buffer)),
+                        data: Some(BASE64_STANDARD.encode(&buffer)),
                     });
                 }
             }
@@ -1219,7 +1220,7 @@ impl DebugSession {
         let mem_ref = parse_int::parse::<i64>(&args.memory_reference)?;
         let offset = args.offset.unwrap_or(0);
         let address = (mem_ref + offset) as lldb::Address;
-        let data = base64::decode(&args.data)?;
+        let data = BASE64_STANDARD.decode(&args.data)?;
         let allow_partial = args.allow_partial.unwrap_or(false);
         let process = self.target.process();
         if let Ok(region_info) = process.memory_region_info(address) {

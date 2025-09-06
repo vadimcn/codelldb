@@ -5,18 +5,18 @@ version = "1.0.0"
 links = "lldb"
 
 [dependencies]
-bitflags = "1.0"
+bitflags = "2.0"
 cpp = "0.5"
 lazy_static = "1.3.0"
-libc = "0.2.59"
-num_enum = "0.5.7"
+libc = "0.2.175"
+num_enum = "0.7.4"
 
 [build-dependencies]
 cpp_build = "0.5"
 regex = "1.9"
 
 [dev-dependencies]
-ctor = "0.4.2"
+ctor = "0.5.0"
 lldb-stub = {path = "../lldb-stub"}
 
 [features]

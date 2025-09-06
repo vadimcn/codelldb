@@ -1,5 +1,5 @@
 use std::env;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net;
 use std::str::FromStr;
 
@@ -58,6 +58,7 @@ fn main() -> Result<(), Error> {
     let address = net::SocketAddr::from_str(&address)?;
     let mut stream = net::TcpStream::connect(address)?;
     serde_json::to_writer(&mut stream, &request)?;
+    stream.flush()?;
     stream.shutdown(net::Shutdown::Write)?;
 
     if args.clear_screen {

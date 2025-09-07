@@ -1,5 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
+/// Remove '..' in path.
 pub fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
     let path = path.as_ref();
     let mut normalized = PathBuf::new();

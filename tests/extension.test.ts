@@ -52,8 +52,8 @@ suite('Extension Tests', () => {
         let proc = cp.spawn(launcher, [
             `--connect=${addrinfo.address}:${addrinfo.port}`,
             '--config={ token: secret }',
-            path.join(ext.extensionPath, 'debuggee', 'debuggee')
-        ]);
+            'debuggee/debuggee',
+        ], { cwd: ext.extensionPath });
 
         await new Promise<void>((resolve, reject) => {
             proc.on('error', err => reject(err));

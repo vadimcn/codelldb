@@ -1652,10 +1652,7 @@ impl DebugSession {
                 Some(mapped_path) => mapped_path.clone(),
                 None => {
                     let mut path = filespec.path();
-                    // Make sure the path is absolute.
-                    if path.is_relative() {
-                        path = self.relative_path_base.join(path);
-                    }
+                    path = self.ensure_absolute_path(&path);
                     path = normalize_path(path);
                     // VSCode sometimes fails to compare equal paths that differ in casing.
                     let mapped_path = match get_fs_path_case(&path) {
@@ -1673,6 +1670,15 @@ impl DebugSession {
                     mapped_path
                 }
             }
+        }
+    }
+
+    fn ensure_absolute_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        let path = path.as_ref();
+        if path.is_relative() {
+            self.relative_path_base.join(path)
+        } else {
+            path.into()
         }
     }
 

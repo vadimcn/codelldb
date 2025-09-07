@@ -6,6 +6,7 @@ use crate::must_initialize::Initialized;
 use super::*;
 use adapter_protocol::*;
 use lldb::*;
+use std::ffi::OsStr;
 
 impl super::DebugSession {
     pub(super) fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
@@ -265,7 +266,8 @@ impl super::DebugSession {
                     if executable.is_valid() {
                         attach_info.set_executable(&executable.path());
                     } else if let Some(program) = &args.program {
-                        attach_info.set_executable(Path::new(program));
+                        let program = self.ensure_absolute_path(&program);
+                        attach_info.set_executable(&program);
                     } else {
                         bail!("unreachable");
                     }
@@ -375,13 +377,16 @@ impl super::DebugSession {
     }
 
     fn create_target_from_program(&self, program: &str) -> Result<SBTarget, Error> {
-        match self.debugger.create_target(Some(Path::new(program)), None, None, false) {
+        let mut program = self.ensure_absolute_path(&program);
+        match self.debugger.create_target(Some(&program), None, None, false) {
             Ok(target) => Ok(target),
             Err(err) => {
-                // TODO: use selected platform instead of cfg!(windows)
-                if cfg!(windows) && !program.ends_with(".exe") {
-                    let program = format!("{}.exe", program);
-                    self.debugger.create_target(Some(Path::new(&program)), None, None, false)
+                if self.debugger.selected_platform().triple().contains("windows")
+                    && program.extension() != Some(OsStr::new("exe"))
+                {
+                    // Add .exe and try again
+                    program.set_extension("exe");
+                    self.debugger.create_target(Some(&program), None, None, false)
                 } else {
                     Err(err)
                 }
@@ -461,11 +466,12 @@ impl super::DebugSession {
                     (None, _) => terminal.output_devname(),
                 };
                 if let Some(name) = name {
+                    let path = self.ensure_absolute_path(&name);
                     let _ = match fd {
-                        0 => launch_info.add_open_file_action(fd as i32, Path::new(name), true, false),
-                        1 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
-                        2 => launch_info.add_open_file_action(fd as i32, Path::new(name), false, true),
-                        _ => launch_info.add_open_file_action(fd as i32, Path::new(name), true, true),
+                        0 => launch_info.add_open_file_action(fd as i32, &path, true, false),
+                        1 => launch_info.add_open_file_action(fd as i32, &path, false, true),
+                        2 => launch_info.add_open_file_action(fd as i32, &path, false, true),
+                        _ => launch_info.add_open_file_action(fd as i32, &path, true, true),
                     };
                 }
             }

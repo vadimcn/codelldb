@@ -135,6 +135,7 @@ export class RpcLaunchServer extends RpcServer {
             debugConfig.waitEndOfSession = true;
             Object.assign(debugConfig, launchConfig);
             debugConfig.env = Object.assign(debugConfig.env, launchEnv.env, launchConfig.env);
+            debugConfig.relativePathBase = launchEnv.cwd;
         } else { // Naked DebugConfiguration
             Object.assign(debugConfig, request);
         }

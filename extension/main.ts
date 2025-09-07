@@ -10,22 +10,20 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import stringArgv from 'string-argv';
+import { AdapterSettings } from 'codelldb';
 import * as webview from './webview';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
-import * as net from 'net';
-import { Cargo, expandCargo } from './cargo';
+import { Cargo } from './cargo';
 import { pickProcess } from './pickProcess';
-import { AdapterSettings, LaunchEnvironment } from 'codelldb';
 import { ModuleTreeDataProvider as ModulesView } from './modulesView';
 import { ExcludedCallersView } from './excludedCallersView';
 import { mergeValues } from './novsc/expand';
 import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
-import { UriLaunchServer, RpcServer, RpcLaunchServer, waitEndOfDebugSession } from './externalLaunch';
-import { AdapterSettingManager as AdapterSettingsManager } from './adapterSettings';
-import YAML from 'yaml';
+import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
+import { AdapterSettingsManager } from './adapterSettingsManager';
 
 export let output = window.createOutputChannel('LLDB');
 
@@ -163,7 +161,7 @@ class Extension implements DebugAdapterDescriptorFactory {
     ): Promise<DebugConfiguration[]> {
         if (workspaceFolder == undefined)
             return []
-        let cargo = new Cargo(workspaceFolder, cancellation);
+        let cargo = new Cargo(this.context, workspaceFolder, cancellation);
         let debugConfigs = await cargo.getLaunchConfigs();
         return debugConfigs;
     }
@@ -211,8 +209,8 @@ class Extension implements DebugAdapterDescriptorFactory {
         }
 
         if (debugConfig.cargo) {
-            await this.handleCargoConfig(folder, debugConfig, cancellation);
-            delete debugConfig.cargo;
+            let cargo = new Cargo(this.context, folder, cancellation);
+            debugConfig = await cargo.resolveCargoConfig(debugConfig);
         }
 
         debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
@@ -220,76 +218,6 @@ class Extension implements DebugAdapterDescriptorFactory {
 
         output.appendLine(`Resolved debug configuration: ${inspect(debugConfig)}`);
         return debugConfig;
-    }
-
-    async handleCargoConfig(
-        folder: WorkspaceFolder | undefined,
-        debugConfig: DebugConfiguration,
-        cancellation?: CancellationToken) {
-
-        let cargoConfig = debugConfig.cargo;
-        // Handle "cargo": [...] form
-        if (cargoConfig instanceof Array) {
-            cargoConfig = { args: cargoConfig }
-        }
-
-        // Case 1: `cargo run ...` is executed, and we inject our launcher as the Cargo "runner".
-        // The launcher sends us the debuggee path, arguments, and environment via RPC.
-        let rpcResolve: (value: LaunchEnvironment) => void;
-        let rpcPromise = new Promise<LaunchEnvironment>(resolve => rpcResolve = resolve);
-        let respondToLauncher: ((success: boolean) => void) | undefined;
-        let rpcServer = new RpcServer(request => {
-            let launchEnv: LaunchEnvironment = YAML.parse(request);
-            // RPC response is delayed until the end of the debug session to keep the launcher active.
-            let asyncResponse = new Promise<string>(resolve => {
-                respondToLauncher = (success: boolean) => resolve(`{ "success": ${success} }`);
-            });
-            rpcResolve(launchEnv);
-            return asyncResponse;
-        });
-        let address = await rpcServer.listen({ host: '127.0.0.1', port: 0 }) as net.AddressInfo;
-
-        try {
-            let launcher = {
-                executable: path.join(this.context.extensionPath, 'adapter', 'codelldb-launch'),
-                env: { CODELLDB_LAUNCH_CONNECT: `${address.address}:${address.port}` },
-            };
-
-            // Case 2: mainly for backward compatibility with launch configs using `cargo build ...`.
-            // Runs `cargo build ...` and parses its output to get the debuggee path.
-            // Also triggered by `cargo run ...`, however (1) resolves its promise first.
-            let cargo = new Cargo(folder, cancellation);
-            let artifactsPromise = cargo.getProgramFromCargoConfig(cargoConfig, launcher);
-
-            let result = await Promise.race([rpcPromise, artifactsPromise]);
-            if (typeof result == 'object') { // RPC
-                let launchEnv = result as LaunchEnvironment;
-                // Use args passed in by Cargo, appending any user-provided args
-                debugConfig.program = launchEnv.cmd[0];
-                debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args ?? []);
-                debugConfig.cwd = launchEnv.cwd;
-                // Use Cargo environment, with overrides from launchConfig
-                debugConfig.env = Object.assign({}, debugConfig.env, launchEnv.env);
-                debugConfig = expandCargo(debugConfig, { program: launchEnv.cmd[0] });
-            } else { // artifacts
-                // Expand ${cargo:program}.
-                debugConfig = expandCargo(debugConfig, { program: result });
-                if (debugConfig.program == undefined) {
-                    debugConfig.program = result;
-                }
-            }
-
-            // If launch was initiated via RPC (case 1), we need to dismiss launcher at the end of the session.
-            if (respondToLauncher) {
-                waitEndOfDebugSession(debugConfig).then(success => respondToLauncher!(success));
-            }
-        } finally {
-            rpcServer.close();
-        }
-
-        // Add 'rust' to sourceLanguages, since this project obviously involves Rust.
-        debugConfig.sourceLanguages = debugConfig.sourceLanguages || [];
-        debugConfig.sourceLanguages.push('rust');
     }
 
     async createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): Promise<DebugAdapterDescriptor> {
@@ -369,7 +297,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             window.activeTextEditor?.document.fileName == 'Cargo.toml') {
             directory = path.dirname(window.activeTextEditor?.document.uri.fsPath);
         }
-        let cargo = new Cargo(workspaceFolder, cancellation);
+        let cargo = new Cargo(this.context, workspaceFolder, cancellation);
         let configs = await cargo.getLaunchConfigs(directory);
         if (configs.length == 0)
             return undefined;
@@ -382,7 +310,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         try {
             let folder = (workspace.workspaceFolders?.length == 1) ? workspace.workspaceFolders[0] :
                 await window.showWorkspaceFolderPick();
-            let cargo = new Cargo(folder);
+            let cargo = new Cargo(this.context, folder);
             let configurations = await cargo.getLaunchConfigs();
             let debugConfigs = {
                 version: '0.2.0',

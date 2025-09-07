@@ -3,7 +3,7 @@ import { AdapterSettings } from 'codelldb';
 import { getExtensionConfig } from "./main";
 import { DisposableSubscriber } from "./novsc/commonTypes";
 
-export class AdapterSettingManager extends DisposableSubscriber {
+export class AdapterSettingsManager extends DisposableSubscriber {
     status: StatusBarItem;
 
     constructor() {

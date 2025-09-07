@@ -23,7 +23,17 @@ suite('Extension Tests', () => {
         logger.clear();
     });
 
-    test('Cargo launch', async () => {
+    test('Cargo build launch', async () => {
+        let success = await vscode.debug.startDebugging(vscode.workspace.workspaceFolders[0], {
+            type: 'lldb',
+            name: 'test',
+            request: 'launch',
+            cargo: ['build', '--bin', 'rust-debuggee']
+        });
+        assert.ok(success);
+    });
+
+    test('Cargo run launch', async () => {
         let success = await vscode.debug.startDebugging(vscode.workspace.workspaceFolders[0], {
             type: 'lldb',
             name: 'test',

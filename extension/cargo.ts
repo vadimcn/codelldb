@@ -1,13 +1,18 @@
 import {
     tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken,
-    TaskDefinition, TaskScope,
+    TaskDefinition, TaskScope, ExtensionContext
 } from 'vscode';
 import * as cp from 'child_process';
 import * as readline from 'readline';
+import * as net from 'net';
+import * as path from 'path';
 import { inspect } from 'util';
 import { Dict } from './novsc/commonTypes';
 import { output, getExtensionConfig } from './main';
 import { expandVariablesInObject } from './novsc/expand';
+import { LaunchEnvironment } from 'codelldb';
+import { RpcServer, waitEndOfDebugSession } from './externalLaunch';
+import YAML from 'yaml';
 
 export interface CargoConfig {
     args?: string[];
@@ -27,38 +32,97 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
+    context: ExtensionContext;
     workspaceFolder?: WorkspaceFolder;
     cancellation?: CancellationToken;
 
-    public constructor(workspaceFolder?: WorkspaceFolder, cancellation?: CancellationToken) {
+    public constructor(context: ExtensionContext, workspaceFolder?: WorkspaceFolder, cancellation?: CancellationToken) {
+        this.context = context;
         this.workspaceFolder = workspaceFolder;
         this.cancellation = cancellation;
     }
 
-    public async getProgramFromCargoConfig(
-        cargoConfig: CargoConfig,
-        launcher?: { executable: string, env: Dict<string> }
-    ): Promise<string> {
+    public async resolveCargoConfig(debugConfig: DebugConfiguration): Promise<DebugConfiguration> {
 
-        let taskDef = Object.assign({ type: undefined, command: '' }, cargoConfig) as unknown as TaskDefinition;
-        let taskScope = this.workspaceFolder || TaskScope.Workspace;
-        let task = new Task(taskDef, taskScope, 'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher);
-        task.presentationOptions.clear = true;
-        task.presentationOptions.showReuseMessage = false;
-        let artifacts = await runTask(task, async (cargoConfig: CargoConfig, write) => {
+        let cargoConfig = debugConfig.cargo;
+        // Handle "cargo": [...] form
+        if (cargoConfig instanceof Array) {
+            cargoConfig = { args: cargoConfig }
+        }
+
+        let rpcResolve: (value: LaunchEnvironment) => void;
+        let rpcRequestPromise = new Promise<LaunchEnvironment>(resolve => rpcResolve = resolve);
+        let rpcRespond: ((success: boolean) => void) | undefined;
+        let rpcServer = new RpcServer(request => {
+            let launchEnv: LaunchEnvironment = YAML.parse(request);
+            // RPC response is delayed until the end of the debug session to keep the launcher active.
+            let responsePromise = new Promise<string>(resolve => {
+                rpcRespond = (success: boolean) => resolve(`{ "success": ${success} }`);
+            });
+            rpcResolve(launchEnv);
+            return responsePromise;
+        });
+        let address = await rpcServer.listen({ host: '127.0.0.1', port: 0 }) as net.AddressInfo;
+
+        try {
+            let runner = path.join(this.context.extensionPath, 'adapter', 'codelldb-launch');
+            let extraArgs = ['--message-format=json', '--color=always',
+                `--config=target.'cfg(all())'.runner='${runner}'`
+            ];
             let cargoArgs = cargoConfig.args || [];
-            // Insert either before `--` or at the end.
-            let extraArgs = ['--message-format=json', '--color=always'];
-            if (launcher) {
-                extraArgs.push(`--config=target.'cfg(all())'.runner='${launcher.executable}'`);
-            }
+            // Insert extraArgs either before `--` or at the end.
             let pos = cargoArgs.indexOf('--');
             cargoArgs.splice(pos >= 0 ? pos : cargoArgs.length, 0, ...extraArgs);
+            let cargoEnv = Object.assign({}, cargoConfig.env);
+            cargoEnv['CODELLDB_LAUNCH_CONNECT'] = `${address.address}:${address.port}`;
 
-            let cargoEnv = Object.assign({}, launcher?.env, cargoConfig.env);
-            return this.getCargoArtifacts(cargoConfig.args ?? [], cargoEnv, cargoConfig.cwd, write);
-        });
-        return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
+            let task = new Task(
+                { type: undefined, command: '' } as unknown as TaskDefinition,
+                this.workspaceFolder ?? TaskScope.Workspace,
+                'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher);
+            task.presentationOptions = { clear: true, showReuseMessage: false };
+
+            let artifactsPromise = runTask(task, async (_, write) => {
+                let artifacts = await this.runCargoAndGetArtifacts(cargoArgs, cargoEnv, cargoConfig.cwd, write);
+                if (rpcRespond) // This means that rpcPromise is already resolved
+                    return '';
+                return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
+            });
+
+            let result = await Promise.race([rpcRequestPromise, artifactsPromise]);
+            if (typeof result == 'object') {
+                // Case 1: `cargo run ...` is used, and our injected runner connects to the RPC endpoint
+                // and sends LaunchEnvironment info including the debuggee path, arguments, etc.
+                let launchEnv = result as LaunchEnvironment;
+                // Use args passed in by Cargo, appending any user-provided args
+                debugConfig.program = launchEnv.cmd[0];
+                debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args ?? []);
+                debugConfig.cwd = launchEnv.cwd;
+                // Use Cargo environment, with overrides from launchConfig
+                debugConfig.env = Object.assign({}, debugConfig.env, launchEnv.env);
+                debugConfig = expandCargo(debugConfig, { program: launchEnv.cmd[0] });
+            } else {
+                // Case 2: `cargo build ...` is used; the `result` is the path of the debuggee executable.
+                debugConfig = expandCargo(debugConfig, { program: result }); // Expand ${cargo:program}.
+                if (debugConfig.program == undefined) {
+                    debugConfig.program = result;
+                }
+            }
+            // If launch was initiated via RPC (case 1), we need to dismiss the launcher at the end of the session.
+            if (rpcRespond) {
+                let success = await waitEndOfDebugSession(debugConfig);
+                rpcRespond(success);
+            }
+        } finally {
+            rpcServer.close();
+        }
+
+        // Add 'rust' to sourceLanguages, since this project obviously involves Rust.
+        debugConfig.sourceLanguages = debugConfig.sourceLanguages || [];
+        debugConfig.sourceLanguages.push('rust');
+
+        delete debugConfig.cargo;
+        return debugConfig;
     }
 
     getProgramFromArtifacts(artifacts: CompilationArtifact[], filter?: { name?: string; kind?: string }): string {
@@ -92,7 +156,7 @@ export class Cargo {
     }
 
     // Runs cargo, returns a list of compilation artifacts.
-    async getCargoArtifacts(
+    async runCargoAndGetArtifacts(
         cargoArgs: string[],
         cargoEnv: Dict<string>,
         cargoCwd: string | undefined,

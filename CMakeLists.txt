@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.11.5") # Base version
+set(VERSION "1.12.0") # Base version
 
 include(cmake/CopyFiles.cmake)
 
@@ -137,15 +137,18 @@ endif()
 file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json)
 
 # Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
-add_custom_target(package_json
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/package.json
+    DEPENDS ${CMAKE_SOURCE_DIR}/package.json
     COMMAND cargo run --package codelldb-types -- ${CMAKE_BINARY_DIR}/codelldb.schema.json
     COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js
             ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
     COMMAND ${NPM} run json2ts -- ${CMAKE_BINARY_DIR}/codelldb.schema.json ${CMAKE_BINARY_DIR}/generated/codelldb.ts
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    BYPRODUCTS ${CMAKE_BINARY_DIR}/codelldb.schema.json
-               ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json
-               ${CMAKE_CURRENT_BINARY_DIR}/package.json
+    USES_TERMINAL
+)
+add_custom_target(package_json
+    DEPENDS ${CMAKE_BINARY_DIR}/package.json
 )
 
 # Update dependency versions in npm and cargo lock files

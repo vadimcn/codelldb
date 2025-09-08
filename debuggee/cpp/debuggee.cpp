@@ -29,10 +29,10 @@ extern "C" void vars();
 extern "C" void vars_update();
 extern "C" void sharedlib_entry();
 extern "C" void disassembly1();
-extern "C" void denorm_path();
 extern "C" void remote_path1();
 extern "C" void remote_path2();
-extern "C" void relative_path();
+extern "C" void relative_path1();
+extern "C" void relative_path2();
 
 void deepstack(int levelsToGo)
 {
@@ -289,8 +289,8 @@ int main(int argc, char *argv[])
     {
         remote_path1();
         remote_path2();
-        relative_path();
-        denorm_path();
+        relative_path1();
+        relative_path2();
     }
     else if (testcase == "spam")
     {

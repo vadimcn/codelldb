@@ -193,12 +193,14 @@
 			"request": "launch",
 			"program": "${dbgconfig:targetDir}/debuggee",
 			"args": ["weird_path"],
+			"initCommands": ["set set target.auto-source-map-relative false"],
+			"preRunCommands": ["set show target.source-map"],
 			"sourceMap": {
 				"/remote1": "${workspaceFolder}/cpp/remote1",
 				"/remote2": "${workspaceFolder}/cpp/remote2",
-				".": "${workspaceFolder}",
+				".": "${workspaceFolder}/cpp",
+				"../..": "${workspaceFolder}/cpp",
 			},
-			"preRunCommands": ["set show target.source-map"]
 		},
 		{
 			"name": "debuggee launch spam",
@@ -217,6 +219,14 @@
 			"terminal": "integrated"
 		},
 		{
+			"name": "debuggee launch exclude_caller",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${dbgconfig:targetDir}/debuggee",
+			"args": ["exclude_caller"],
+			"terminal": "integrated"
+		},
+		{
 			"name": "rust-debuggee",
 			"type": "lldb",
 			"request": "launch",
@@ -225,6 +235,20 @@
 			"sourceLanguages": [
 				"rust"
 			]
+		},
+		{
+			"name": "cargo build ...",
+			"type": "lldb",
+			"request": "launch",
+			// "preLaunchTask": "sleep 6",
+			"cargo": ["build", "--bin", "rust-debuggee"],
+		},
+		{
+			"name": "cargo run ...",
+			"type": "lldb",
+			"request": "launch",
+			// "preLaunchTask": "sleep 6",
+			"cargo": ["run", "--bin", "rust-debuggee"],
 		}
 	]
 }

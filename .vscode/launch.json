@@ -11,7 +11,6 @@
 				"--extensionDevelopmentPath=${workspaceRoot}/build",
 				"${workspaceFolder}/debuggee"
 			],
-			"stopOnEntry": false,
 			"outFiles": [
 				"${workspaceFolder}/build/*.js"
 			],
@@ -149,8 +148,8 @@
 				"--colors",
 				"--exit",
 				"--trace-warnings",
-				"-g", "variables update",
-				"tests"
+				"-g", "breakpoint mode",
+				"tests/adapter_tests.js"
 			],
 			"env": {
 				"TARGET_TRIPLE": "x86_64-unknown-linux-gnu",
@@ -163,7 +162,7 @@
 				//"DEBUG_SERVER": "4711"
 			},
 			"outFiles": [
-				"${workspaceFolder}/build/*.js"
+				"${workspaceFolder}/build/tests/*.js"
 			],
 			"sourceMaps": true
 		},
@@ -176,13 +175,13 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}/build",
-				"--extensionTestsPath=${workspaceFolder}/build/tests/extension_tests.js",
 				"${workspaceFolder}/debuggee"
 			],
+			"testConfiguration": "${workspaceFolder}/build/.vscode-test.mjs",
 			"outFiles": [
-				"${workspaceFolder}/build/tests/*.js"
+				"${workspaceFolder}/build/**/*.js"
 			],
-			"sourceMaps": true
+			"sourceMaps": true,
 		},
 		{
 			"name": "python: current file",
@@ -207,7 +206,7 @@
 	"compounds": [
 		{
 			"name": "codelldb + codelldb.py",
-			"configurations": ["codelldb", "codelldb.py"]
+			"configurations": [ "codelldb", "codelldb.py" ]
 		}
 	]
 }

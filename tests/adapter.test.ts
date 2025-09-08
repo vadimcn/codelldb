@@ -18,22 +18,24 @@ const debuggeeWithExt = process.platform != 'win32' ? debuggee : debuggee + '.ex
 const debuggeeSource = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'debuggee.cpp'));
 const debuggeeHeader = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'dir1', 'debuggee.h'));
 const debuggeeTypes = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'types.cpp'));
-const debuggeeDenorm = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'denorm_path.cpp'));
 const debuggeeRemote1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote1', 'remote_path.cpp'));
 const debuggeeRemote2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'remote2', 'remote_path.cpp'));
-const debuggeeRelative = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative_path.cpp'));
+const debuggeeRelative1 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative', 'relative_path1.cpp'));
+const debuggeeRelative2 = path.normalize(path.join(sourceDir, 'debuggee', 'cpp', 'relative', 'relative_path2.cpp'));
 const debuggeeSourceMap = function () {
     if (process.platform != 'win32') {
         return {
             '/remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
             '/remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
-            '.': path.join(sourceDir, 'debuggee'),
+            '.': path.join(sourceDir, 'debuggee', 'cpp'),
+            '../..': path.join(sourceDir, 'debuggee', 'cpp'),
         };
     } else { // On Windows, LLDB adds current drive letter to drive-less paths.
         return {
             'C:\\remote1': path.join(sourceDir, 'debuggee', 'cpp', 'remote1'),
             'C:\\remote2': path.join(sourceDir, 'debuggee', 'cpp', 'remote2'),
-            '.': path.join(sourceDir, 'debuggee'),
+            '.': path.join(sourceDir, 'debuggee', 'cpp'),
+            '../..': path.join(sourceDir, 'debuggee', 'cpp'),
         };
     }
 }();
@@ -265,6 +267,8 @@ function generateSuite(triple: string) {
                     },
                     () => ds.setBreakpoint(debuggeeRemote1, bpLineSource)
                 );
+                // Verify that we hit a breakpoint in both "remote_path.cpp" files, even though we've set only the
+                // first one.  This means that file path was ignored and the breakpoint has two locations.
                 await ds.verifyLocation(stopEvent.body.threadId, debuggeeRemote1, bpLineSource);
                 log('Continue');
                 let stopEvent2Async = ds.waitForStopEvent();
@@ -285,8 +289,8 @@ function generateSuite(triple: string) {
 
                 let bpLineRemote1 = findMarker(debuggeeRemote1, '#BP1');
                 let bpLineRemote2 = findMarker(debuggeeRemote2, '#BP1');
-                let bpLineRelative = findMarker(debuggeeRelative, '#BP1');
-                let bpLineDenorm = findMarker(debuggeeDenorm, '#BP1');
+                let bpLineRelative1 = findMarker(debuggeeRelative1, '#BP1');
+                let bpLineRelative2 = findMarker(debuggeeRelative2, '#BP1');
 
                 let stopEvent1 = await ds.launchAndWaitForStop(
                     {
@@ -296,12 +300,14 @@ function generateSuite(triple: string) {
                         cwd: path.dirname(debuggee),
                         sourceMap: debuggeeSourceMap,
                         relativePathBase: path.join(sourceDir, 'debuggee'),
-                        preRunCommands: ['set show target.source-map']
+                        // Disable automatic population of target.source-map
+                        initCommands: ['set set target.auto-source-map-relative false'],
+                        preRunCommands: ['set show target.source-map'],
                     }, async () => {
                         await ds.setBreakpoint(debuggeeRemote1, bpLineRemote1);
                         await ds.setBreakpoint(debuggeeRemote2, bpLineRemote2);
-                        await ds.setBreakpoint(debuggeeRelative, bpLineRelative);
-                        // await ds.setBreakpoint(debuggeeDenorm, bpLineDenorm);
+                        await ds.setBreakpoint(debuggeeRelative1, bpLineRelative1);
+                        await ds.setBreakpoint(debuggeeRelative2, bpLineRelative2);
                     }
                 );
                 await ds.verifyLocation(stopEvent1.body.threadId, debuggeeRemote1, bpLineRemote1);
@@ -317,13 +323,13 @@ function generateSuite(triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 logWithStack('Wait for stop 3');
                 let stopEvent3 = await waitForStopAsync3;
-                await ds.verifyLocation(stopEvent3.body.threadId, debuggeeRelative, bpLineRelative);
+                await ds.verifyLocation(stopEvent3.body.threadId, debuggeeRelative1, bpLineRelative1);
 
-                // let waitForStopAsync4 = ds.waitForStopEvent();
-                // await ds.continueRequest({ threadId: 0 });
-                // logWithStack('Wait for stop 4');
-                // let stopEvent4 = await waitForStopAsync4;
-                // await ds.verifyLocation(stopEvent4.body.threadId, debuggeeDenorm, bpLineDenorm);
+                let waitForStopAsync4 = ds.waitForStopEvent();
+                await ds.continueRequest({ threadId: 0 });
+                logWithStack('Wait for stop 4');
+                let stopEvent4 = await waitForStopAsync4;
+                await ds.verifyLocation(stopEvent4.body.threadId, debuggeeRelative2, bpLineRelative2);
 
                 await ds.continueRequest({ threadId: 0 });
                 logWithStack('Wait for exit');

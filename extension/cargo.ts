@@ -110,11 +110,14 @@ export class Cargo {
             }
             // If launch was initiated via RPC (case 1), we need to dismiss the launcher at the end of the session.
             if (rpcRespond) {
-                let success = await waitEndOfDebugSession(debugConfig);
-                rpcRespond(success);
+                waitEndOfDebugSession(debugConfig).then(success => {
+                    rpcRespond!(success);
+                    rpcServer.close();
+                });
             }
         } finally {
-            rpcServer.close();
+            if (!rpcRespond)
+                rpcServer.close();
         }
 
         // Add 'rust' to sourceLanguages, since this project obviously involves Rust.

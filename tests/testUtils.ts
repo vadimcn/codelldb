@@ -196,6 +196,7 @@ export class DebugTestSession extends DebugClient {
     async verifyLocation(threadId: number, file: string, line: number) {
         let stackResp = await this.stackTraceRequest({ threadId: threadId });
         let topFrame = stackResp.body.stackFrames[0];
+        assert.equal(topFrame.source.path, file)
         assert.equal(topFrame.line, line);
     }
 

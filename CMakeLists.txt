@@ -138,7 +138,7 @@ file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOU
 
 # Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/package.json
+    OUTPUT ${CMAKE_BINARY_DIR}/package.json ${CMAKE_BINARY_DIR}/generated/codelldb.ts
     DEPENDS ${CMAKE_SOURCE_DIR}/package.json
     COMMAND cargo run --package codelldb-types -- ${CMAKE_BINARY_DIR}/codelldb.schema.json
     COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js

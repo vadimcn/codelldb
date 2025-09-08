@@ -34,7 +34,7 @@ tokio-util = {version = "0.7.16", features = ["codec"]}
 termios = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
-winapi = {version = "0.3.8", features = ["std", "wincon", "namedpipeapi"]}
+winapi = {version = "0.3.8", features = ["std", "fileapi", "namedpipeapi", "wincon"]}
 
 [dev-dependencies]
 ctor = "0.5.0"

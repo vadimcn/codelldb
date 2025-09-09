@@ -72,6 +72,7 @@ suite('Extension Tests', () => {
 
 class Logger implements vscode.DebugAdapterTrackerFactory, vscode.DebugAdapterTracker {
     lines: string[] = [];
+    inspectOptions = { compact: true, breakLength: Infinity, colors: true };
 
     clear() {
         this.lines.splice(0);
@@ -79,11 +80,11 @@ class Logger implements vscode.DebugAdapterTrackerFactory, vscode.DebugAdapterTr
     createDebugAdapterTracker(session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterTracker> {
         return this;
     }
+    onWillReceiveMessage(message: any): void {
+        this.lines.push(`--> ${inspect(message, this.inspectOptions)}`);
+    }
     onDidSendMessage(message: any): void {
-        if (message.type == 'response' && !message.success) {
-            this.lines.push(`Adapter returned an error: ${message.message}`);
-            this.lines.push(`message = ${inspect(message)}`);
-        }
+        this.lines.push(`<-- ${inspect(message, this.inspectOptions)}`);
     }
     onError?(error: Error): void {
         this.lines.push(`Adapter comms error: ${error}`);

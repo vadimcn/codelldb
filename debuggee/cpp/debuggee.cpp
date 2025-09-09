@@ -167,7 +167,7 @@ int get2() { return 2; }
 void step_in()
 {
     std::vector<int> ints = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-    std::find_if(ints.begin(), ints.end(), [](int x) { return x == 5; });
+    (void)std::find_if(ints.begin(), ints.end(), [](int x) { return x == 5; });
     printf("---\n");
 
     add3(get1(),

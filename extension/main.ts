@@ -25,7 +25,7 @@ import { ReverseAdapterConnector } from './novsc/reverseConnector';
 import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
 import { AdapterSettingsManager } from './adapterSettingsManager';
 
-export let output = window.createOutputChannel('LLDB');
+export let output = window.createOutputChannel('LLDB', 'log');
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';

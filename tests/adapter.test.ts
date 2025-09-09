@@ -364,7 +364,10 @@ function generateSuite(triple: string) {
             test('variables', async function () {
                 let bpLine = findMarker(debuggeeTypes, '#BP3');
                 let stoppedEvent = await ds.launchAndWaitForStop(
-                    { name: this.test.title, program: debuggee, args: ['vars'] },
+                    {
+                        name: this.test.title, program: debuggee, args: ['vars'],
+                        _adapterSettings: { evaluationTimeout: 30 }
+                    },
                     () => ds.setBreakpoint(debuggeeTypes, bpLine)
                 );
                 await ds.verifyLocation(stoppedEvent.body.threadId, debuggeeTypes, bpLine);
@@ -747,232 +750,232 @@ function generateSuite(triple: string) {
         })
 
         if (!triple.endsWith('pc-windows-msvc'))
-        suite('Rust tests', () => {
-            test('rust primitives', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_primitives');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    bool_: true,
-                    i16_: -16,
-                    u16_: 16,
-                    i32_: -32,
-                    u32_: 32,
-                    i64_: -64,
-                    u64_: 64,
-                    i128_: -128,
-                    u128_: 128,
-                    isize_: -2,
-                    usize_: 2,
-                    f32_: 3.1415926535,
-                    f64_: 3.1415926535 * 2.0,
-                })
-                if (!triple.endsWith('pc-windows-msvc')) {
+            suite('Rust tests', () => {
+                test('rust primitives', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_primitives');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
                     await ds.compareVariables(localVars, {
-                        char_: v => v.value.includes("0041"),
-                        i8_: -8,
-                        u8_: 8,
-                        //unit: '()',
+                        bool_: true,
+                        i16_: -16,
+                        u16_: 16,
+                        i32_: -32,
+                        u32_: 32,
+                        i64_: -64,
+                        u64_: 64,
+                        i128_: -128,
+                        u128_: 128,
+                        isize_: -2,
+                        usize_: 2,
+                        f32_: 3.1415926535,
+                        f64_: 3.1415926535 * 2.0,
                     })
-                }
-            })
-
-            test('rust enums', async function () {
-                this.skip();
-
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    reg_enum1: {},
-                    reg_enum2: { $value: '{__0:100, __1:200}', __0: 100, __1: 200 },
-                    reg_enum3: { x: 11.35, y: 20.5 },
-                    reg_enum_ref: { x: 11.35, y: 20.5 },
-                    cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
-                    cstyle_enum2: 'rust_debuggee::CStyleEnum::A',
-                    enc_enum1: { $value: 'Some("string")', 0: '"string"' },
-                    enc_enum2: 'Nothing',
-                    opt_str1: 'Some("string")',
-                    opt_str2: 'None',
-                    result_ok: { $value: 'Ok("ok")', 0: '"ok"' },
-                    result_err: { $value: 'Err("err")', 0: '"err"' },
-                    cow1: 'Borrowed("their cow")',
-                    cow2: 'Owned("my cow")',
-                    opt_reg_struct1: { $value: 'Some({...})', 0: { a: 1, c: 12 } },
-                    opt_reg_struct2: 'None',
-                });
-            })
-
-            test('rust structs', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_structs');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    tuple: '{0:1, 1:"a", 2:42}',
-                    //tuple_ref: '(1, "a", 42)',
-                    tuple_struct: '{0:3, 1:"xxx", 2:-3}',
-                    reg_struct: '{b:"b", a:1, c:12, d:size=3}',
-                    //reg_struct_ref: '{b:"b", a:1, c:12, d:(3) vec![12, 34, 56]}',
-                })
-            })
-
-            test('rust arrays', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_arrays');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    array: {
-                        '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5
-                    },
-                    slice: {
-                        $value: 'size=5',
-                        '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5
-                    },
-                    mut_slice: {
-                        $value: 'size=5',
-                        '[0]': 1000, '[1]': 2000, '[2]': 3000, '[3]': 4000, '[4]': 5000
-                    },
-                    vec_int: {
-                        $value: 'size=10',
-                        '[0]': 1, '[1]': 2, '[9]': 10
-                    },
-                    vecdeque_int: {
-                        $value: 'size=10',
-                        '[0]': 1, '[1]': 2, '[9]': 10
-                    },
-                    vecdeque_popped: {
-                        $value: 'size=9',
-                        '[0]': 2, '[1]': 3, '[8]': 10
-                    },
-                    large_vec: 'size=20000',
-                    vec_str: {
-                        $value: 'size=5',
-                        '[0]': '"111"', '[4]': '"5555"'
-                    },
-                    vec_tuple: {
-                        $value: 'size=3',
-                        '[0]': { 0: 1, 1: 2 }, '[1]': { 0: 2, 1: 3 }, '[2]': { 0: 3, 1: 4 }
+                    if (!triple.endsWith('pc-windows-msvc')) {
+                        await ds.compareVariables(localVars, {
+                            char_: v => v.value.includes("0041"),
+                            i8_: -8,
+                            u8_: 8,
+                            //unit: '()',
+                        })
                     }
                 })
 
-                // // Check format-as-array.
-                // let response3 = await ds.evaluateRequest({
-                //     expression: 'array[0],[5]', context: 'watch',
-                //     frameId: frameId
-                // });
-                // await ds.compareVariables(response3.body.variablesReference, {
-                //     '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
-                // });
-            })
+                test('rust enums', async function () {
+                    this.skip();
 
-            test('rust strings', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_strings');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
-                await ds.compareVariables(localVars, {
-                    empty_string: '""',
-                    string: {
-                        $value: '"A String"',
-                        //'[0]': char('A'), '[7]': char('g')
-                    },
-                    str_slice: '"String slice"',
-                    wstr1: '"Превед йожэг!"',
-                    wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
-                    //cstring: '"C String"',
-                    osstring: '"OS String"',
-                    //path_buf: foo_bar,
-                })
-                if (!triple.endsWith('pc-windows-msvc')) {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_enums');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
                     await ds.compareVariables(localVars, {
-                        //cstr: '"C String"',
-                        //osstr: '"OS String"',
-                        path: foo_bar,
-                        str_tuple: {
-                            '0': '"A String"',
-                            '1': '"String slice"',
-                            //'2': '"C String"',
-                            //'3': '"C String"',
-                            '4': '"OS String"',
-                            //'5': '"OS String"',
-                            //'6': foo_bar,
-                            '7': foo_bar,
-                        },
+                        reg_enum1: {},
+                        reg_enum2: { $value: '{__0:100, __1:200}', __0: 100, __1: 200 },
+                        reg_enum3: { x: 11.35, y: 20.5 },
+                        reg_enum_ref: { x: 11.35, y: 20.5 },
+                        cstyle_enum1: 'rust_debuggee::CStyleEnum::A',
+                        cstyle_enum2: 'rust_debuggee::CStyleEnum::A',
+                        enc_enum1: { $value: 'Some("string")', 0: '"string"' },
+                        enc_enum2: 'Nothing',
+                        opt_str1: 'Some("string")',
+                        opt_str2: 'None',
+                        result_ok: { $value: 'Ok("ok")', 0: '"ok"' },
+                        result_err: { $value: 'Err("err")', 0: '"err"' },
+                        cow1: 'Borrowed("their cow")',
+                        cow2: 'Owned("my cow")',
+                        opt_reg_struct1: { $value: 'Some({...})', 0: { a: 1, c: 12 } },
+                        opt_reg_struct2: 'None',
+                    });
+                })
+
+                test('rust structs', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_structs');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    await ds.compareVariables(localVars, {
+                        tuple: '{0:1, 1:"a", 2:42}',
+                        //tuple_ref: '(1, "a", 42)',
+                        tuple_struct: '{0:3, 1:"xxx", 2:-3}',
+                        reg_struct: '{b:"b", a:1, c:12, d:size=3}',
+                        //reg_struct_ref: '{b:"b", a:1, c:12, d:(3) vec![12, 34, 56]}',
                     })
-                }
-            })
-
-            test('rust boxes', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    boxed: { $value: '"boxed"' },
-                    rc_box: { $value: 'strong=1, weak=0', value: { a: 1, b: '"b"', c: 12 } },
-                    rc_box2: { $value: 'strong=2, weak=0', value: { a: 1, b: '"b"', c: 12 } },
-                    rc_box2c: { $value: 'strong=2, weak=0', value: { a: 1, b: '"b"', c: 12 } },
-                    rc_box3: { $value: 'strong=1, weak=1', value: { a: 1, b: '"b"', c: 12 } },
-                    //rc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    arc_box: { $value: 'strong=1, weak=1', data: { a: 1, b: '"b"', c: 12 } },
-                    //arc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
-                    ref_cell: { $value: 'borrow=0', value: 10 },
-                    ref_cell2: { $value: 'borrow=2', value: 11 },
-                    ref_cell2_borrow1: 'borrow=2',
-                    ref_cell3: { $value: 'borrow_mut=1', value: 12 },
-                    ref_cell3_borrow: { $value: 'borrow_mut=1' },
                 })
-            })
 
-            test('rust maps', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_maps');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                // let expected1 = [
-                //     '{"0:Olaf", 1:24}',
-                //     '{"0:Harald", 1:12}',
-                //     '{"0:Einar", 1:25}',
-                //     '{"0:Conan", 1:29}',
-                // ];
-                // let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
-                // for (let expectedValue of expected1) {
-                //     assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
-                // }
-                let expected2 = [
-                    '"Olaf"',
-                    '"Harald"',
-                    '"Einar"',
-                    '"Conan"',
-                ];
-                let setValues = await ds.readVariables(localVars['hash_set'].variablesReference);
-                for (let expectedValue of expected2) {
-                    assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
-                }
-            })
+                test('rust arrays', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_arrays');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    await ds.compareVariables(localVars, {
+                        array: {
+                            '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5
+                        },
+                        slice: {
+                            $value: 'size=5',
+                            '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5
+                        },
+                        mut_slice: {
+                            $value: 'size=5',
+                            '[0]': 1000, '[1]': 2000, '[2]': 3000, '[3]': 4000, '[4]': 5000
+                        },
+                        vec_int: {
+                            $value: 'size=10',
+                            '[0]': 1, '[1]': 2, '[9]': 10
+                        },
+                        vecdeque_int: {
+                            $value: 'size=10',
+                            '[0]': 1, '[1]': 2, '[9]': 10
+                        },
+                        vecdeque_popped: {
+                            $value: 'size=9',
+                            '[0]': 2, '[1]': 3, '[8]': 10
+                        },
+                        large_vec: 'size=20000',
+                        vec_str: {
+                            $value: 'size=5',
+                            '[0]': '"111"', '[4]': '"5555"'
+                        },
+                        vec_tuple: {
+                            $value: 'size=3',
+                            '[0]': { 0: 1, 1: 2 }, '[1]': { 0: 2, 1: 3 }, '[2]': { 0: 3, 1: 4 }
+                        }
+                    })
 
-            test('rust misc', async function () {
-                let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');
-                let localVars = await ds.launchStopAndGetVars(
-                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
-                    rustDebuggeeSource, bpLine
-                );
-                await ds.compareVariables(localVars, {
-                    class: { finally: 1, import: 2, lambda: 3, raise: 4 },
+                    // // Check format-as-array.
+                    // let response3 = await ds.evaluateRequest({
+                    //     expression: 'array[0],[5]', context: 'watch',
+                    //     frameId: frameId
+                    // });
+                    // await ds.compareVariables(response3.body.variablesReference, {
+                    //     '[0]': 1, '[1]': 2, '[2]': 3, '[3]': 4, '[4]': 5,
+                    // });
                 })
-            })
-        });
+
+                test('rust strings', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_strings');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    let foo_bar = /windows/.test(triple) ? '"foo\\bar"' : '"foo/bar"';
+                    await ds.compareVariables(localVars, {
+                        empty_string: '""',
+                        string: {
+                            $value: '"A String"',
+                            //'[0]': char('A'), '[7]': char('g')
+                        },
+                        str_slice: '"String slice"',
+                        wstr1: '"Превед йожэг!"',
+                        wstr2: '"Ḥ̪͔̦̺E͍̹̯̭͜ C̨͙̹̖̙O̡͍̪͖ͅM̢̗͙̫̬E̜͍̟̟̮S̢̢̪̘̦!"',
+                        //cstring: '"C String"',
+                        osstring: '"OS String"',
+                        //path_buf: foo_bar,
+                    })
+                    if (!triple.endsWith('pc-windows-msvc')) {
+                        await ds.compareVariables(localVars, {
+                            //cstr: '"C String"',
+                            //osstr: '"OS String"',
+                            path: foo_bar,
+                            str_tuple: {
+                                '0': '"A String"',
+                                '1': '"String slice"',
+                                //'2': '"C String"',
+                                //'3': '"C String"',
+                                '4': '"OS String"',
+                                //'5': '"OS String"',
+                                //'6': foo_bar,
+                                '7': foo_bar,
+                            },
+                        })
+                    }
+                })
+
+                test('rust boxes', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_boxes');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    await ds.compareVariables(localVars, {
+                        boxed: { $value: '"boxed"' },
+                        rc_box: { $value: 'strong=1, weak=0', value: { a: 1, b: '"b"', c: 12 } },
+                        rc_box2: { $value: 'strong=2, weak=0', value: { a: 1, b: '"b"', c: 12 } },
+                        rc_box2c: { $value: 'strong=2, weak=0', value: { a: 1, b: '"b"', c: 12 } },
+                        rc_box3: { $value: 'strong=1, weak=1', value: { a: 1, b: '"b"', c: 12 } },
+                        //rc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                        arc_box: { $value: 'strong=1, weak=1', data: { a: 1, b: '"b"', c: 12 } },
+                        //arc_weak: { $value: '(refs:1,weak:1) {...}', a: 1, b: '"b"', c: 12 },
+                        ref_cell: { $value: 'borrow=0', value: 10 },
+                        ref_cell2: { $value: 'borrow=2', value: 11 },
+                        ref_cell2_borrow1: 'borrow=2',
+                        ref_cell3: { $value: 'borrow_mut=1', value: 12 },
+                        ref_cell3_borrow: { $value: 'borrow_mut=1' },
+                    })
+                })
+
+                test('rust maps', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_maps');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    // let expected1 = [
+                    //     '{"0:Olaf", 1:24}',
+                    //     '{"0:Harald", 1:12}',
+                    //     '{"0:Einar", 1:25}',
+                    //     '{"0:Conan", 1:29}',
+                    // ];
+                    // let hashValues = await ds.readVariables(localVars['hash'].variablesReference);
+                    // for (let expectedValue of expected1) {
+                    //     assert.ok(Object.values(hashValues).some(v => v.value == expectedValue), expectedValue);
+                    // }
+                    let expected2 = [
+                        '"Olaf"',
+                        '"Harald"',
+                        '"Einar"',
+                        '"Conan"',
+                    ];
+                    let setValues = await ds.readVariables(localVars['hash_set'].variablesReference);
+                    for (let expectedValue of expected2) {
+                        assert.ok(Object.values(setValues).some(v => v.value == expectedValue), expectedValue);
+                    }
+                })
+
+                test('rust misc', async function () {
+                    let bpLine = findMarker(rustDebuggeeSource, '#BP_misc');
+                    let localVars = await ds.launchStopAndGetVars(
+                        { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                        rustDebuggeeSource, bpLine
+                    );
+                    await ds.compareVariables(localVars, {
+                        class: { finally: 1, import: 2, lambda: 3, raise: 4 },
+                    })
+                })
+            });
     });
 }

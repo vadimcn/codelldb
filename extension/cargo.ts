@@ -178,18 +178,37 @@ export class Cargo {
     }
 
     public async getLaunchConfigs(directory?: string): Promise<DebugConfiguration[]> {
+        const DEFAULT_LAUNCH_CONFIGS = [{
+            type: 'lldb',
+            request: 'launch',
+            name: 'Debug',
+            program: '${workspaceFolder}/<executable file>',
+            args: [] as string[],
+            cwd: '${workspaceFolder}'
+        }];
 
         let metadata: any = null;
 
-        let exitCode = await this.runCargo(
-            ['metadata', '--no-deps', '--format-version=1'],
-            new Environment(),
-            directory,
-            m => { metadata = m },
-            stderr => { output.append(stderr); },
-        );
+        let exitCode: number | null = null;
+        try {
+            exitCode = await this.runCargo(
+                ['metadata', '--no-deps', '--format-version=1'],
+                new Environment(),
+                directory,
+                m => { metadata = m },
+                stderr => { output.append(stderr); },
+            );
+        } catch (e) {
+            // Cargo executable could not be found, fallback to default configs
+            if (e.code === "ENOENT") {
+                return DEFAULT_LAUNCH_CONFIGS;
+            }
+
+            throw e;
+        }
+
         if (exitCode != 0)
-            return []; // Most likely did not find Cargo.toml
+            return DEFAULT_LAUNCH_CONFIGS; // Most likely did not find Cargo.toml, fallback to default configs
 
         if (!metadata)
             throw new Error('Cargo has produced no metadata');

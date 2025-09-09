@@ -72,7 +72,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     set(DefaultPlatformId win32-x64)
     set(AllowedDependencies api-ms-.* ws2_32.dll kernel32.dll ntdll.dll advapi32.dll user32.dll version.dll dbghelp.dll
                             psapi.dll oleaut32.dll shlwapi.dll rpcrt4.dll ole32.dll bcrypt.dll bcryptprimitives.dll
-                            userenv.dll ucrtbase.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll)
+                            userenv.dll ucrtbase.dll netapi32.dll vcruntime140.dll vcruntime140_1.dll msvcp140.dll)
 else()
     message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} target is not supported by this build script.")
 endif()

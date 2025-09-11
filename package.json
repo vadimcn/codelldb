@@ -38,7 +38,7 @@
 	},
 	"devDependencies": {
 		"@types/vscode": "^1.60.0",
-		"@types/node": "^14.0.0",
+		"@types/node": "^18.0.0",
 		"@types/mocha": "^10.0.0",
 		"@vscode/debugprotocol": "^1.53.0",
 		"@vscode/debugadapter-testsupport": "^1.51.0",
@@ -104,8 +104,9 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Generate Launch Configurations from Cargo.toml",
-				"command": "lldb.getCargoLaunchConfigs"
+				"title": "Generate Cargo Launch Configurations",
+				"command": "lldb.getCargoLaunchConfigs",
+				"enablement": "resourceFilename == 'Cargo.toml' && resourceScheme == file"
 			},
 			{
 				"category": "LLDB",
@@ -224,6 +225,12 @@
 					"command": "lldb.excludedCallers.remove",
 					"when": "view == 'lldb.excludedCallers'",
 					"group": "inline"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "lldb.getCargoLaunchConfigs",
+					"when": "resourceFilename == 'Cargo.toml'"
 				}
 			]
 		},

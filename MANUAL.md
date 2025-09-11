@@ -486,7 +486,7 @@ Example:
 |**Display Options...**           |Interactive configuration of the above display options.
 |**Attach to Process...**         |Choose a process to attach to from the list of currently running processes.
 |**Run Diagnostics**              |Run diagnostic test to make sure that the debugger is functional.
-|**Generate launch configurations from Cargo.toml**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Rust project.  The resulting list will be opened in a new text editor, from which you can copy/paste desired sections into `launch.json`.|
+|**Generate Cargo Launch Configurations**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Cargo.toml file.  The resulting list will be opened in a new text editor, from which you can copy/paste the desired sections into `launch.json`.|
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
 |**View Memory...**               |View raw memory starting at the specified address.|
 |**Search Symbols...**            |Search for a substring among the debug target's symbols.|

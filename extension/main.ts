@@ -73,7 +73,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
         subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
-        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', () => this.getCargoLaunchConfigs()));
+        subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', (uri) => this.getCargoLaunchConfigs(uri)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', (config) => pickProcess(context, false, config)));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', (config) => pickProcess(context, true, config)));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
@@ -161,8 +161,10 @@ class Extension implements DebugAdapterDescriptorFactory {
         workspaceFolder?: WorkspaceFolder,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
+        if (!workspaceFolder)
+            return []; // Need a working directory for Cargo
         try {
-            let cargo = new Cargo(this.context, workspaceFolder, cancellation);
+            let cargo = new Cargo(workspaceFolder, cancellation);
             return await cargo.getLaunchConfigs();
         } catch (err: any) {
             await showErrorWithLog(err.message);
@@ -176,7 +178,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration | undefined> {
         try {
-            let cargo = new Cargo(this.context, workspaceFolder, cancellation);
+            let cargo = new Cargo(workspaceFolder, cancellation);
             let configs = await cargo.getLaunchConfigs();
             if (configs.length == 0)
                 return undefined;
@@ -231,8 +233,9 @@ class Extension implements DebugAdapterDescriptorFactory {
         }
 
         if (debugConfig.cargo) {
-            let cargo = new Cargo(this.context, folder, cancellation);
-            debugConfig = await cargo.resolveCargoConfig(debugConfig);
+            let cargo = new Cargo(folder, cancellation);
+            let launcher = path.join(this.context.extensionPath, 'adapter', 'codelldb-launch');
+            debugConfig = await cargo.resolveCargoConfig(debugConfig, launcher);
         }
 
         debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
@@ -313,12 +316,11 @@ class Extension implements DebugAdapterDescriptorFactory {
         mergeConfig('breakpointMode');
     }
 
-    async getCargoLaunchConfigs() {
+    async getCargoLaunchConfigs(resource?: Uri) {
         try {
-            let folder = (workspace.workspaceFolders?.length == 1) ? workspace.workspaceFolders[0] :
-                await window.showWorkspaceFolderPick();
-            let cargo = new Cargo(this.context, folder);
-            let configurations = await cargo.getLaunchConfigs();
+            resource = resource ?? window.activeTextEditor?.document.uri!;
+            let cargo = new Cargo(workspace.getWorkspaceFolder(resource));
+            let configurations = await cargo.getLaunchConfigs(resource.fsPath);
             let debugConfigs = {
                 version: '0.2.0',
                 configurations: configurations,

@@ -202,22 +202,89 @@ export class Cargo {
     }
 
     public async getLaunchConfigs(directory?: string): Promise<DebugConfiguration[]> {
+        let metadata: any = undefined;
+        try {
+            await this.runCargo(['metadata', '--no-deps', '--format-version=1'], {}, directory,
+                m => { metadata = m },
+                stderr => { output.append(stderr); },
+            );
+        } catch (err: any) {
+            if (err.code != 'ENOENT')
+                throw err;
+        }
+        return metadata ? this.debugConfigsFromCargoMetadata(metadata, directory) : [];
+    }
 
-        let metadata: any = null;
+    debugConfigsFromCargoMetadata(metadata: any, directory?: string): DebugConfiguration[] {
+        let config = getExtensionConfig(this.workspaceFolder);
+        if (config.get<boolean>('generateOldCargoConfig', false))
+            return this.debugConfigsFromCargoMetadataOld(metadata, directory);
 
-        let exitCode = await this.runCargo(
-            ['metadata', '--no-deps', '--format-version=1'],
-            {},
-            directory,
-            m => { metadata = m },
-            stderr => { output.append(stderr); },
-        );
-        if (exitCode != 0)
-            return []; // Most likely did not find Cargo.toml
+        let configs: DebugConfiguration[] = [];
+        for (let pkg of metadata.packages) {
 
-        if (!metadata)
-            throw new Error('Cargo has produced no metadata');
+            function addConfig(name: string, cargoArgs: string[]) {
+                if (metadata.packages.length > 1)
+                    cargoArgs.concat(`--package=${pkg.name}`);
 
+                let config: DebugConfiguration = {
+                    type: 'lldb',
+                    request: 'launch',
+                    name: name,
+                    cargo: {
+                        args: cargoArgs,
+                    },
+                };
+                if (cargoArgs[0] == 'run')
+                    config.args = [];
+                if (directory)
+                    config.cargo.cwd = directory;
+                configs.push(config);
+            };
+
+            for (let target of pkg.targets) {
+                let libAdded = false;
+                for (let kind of target.kind) {
+                    switch (kind) {
+                        case 'lib':
+                        case 'rlib':
+                        case 'staticlib':
+                        case 'dylib':
+                        case 'cstaticlib':
+                            if (!libAdded) {
+                                addConfig(`Debug unit tests in library '${target.name}'`,
+                                    ['test', '--lib']);
+                                libAdded = true;
+                            }
+                            break;
+
+                        case 'bin':
+                        case 'example':
+                            {
+                                let prettyKind = (kind == 'bin') ? 'executable' : kind;
+                                addConfig(`Debug ${prettyKind} '${target.name}'`,
+                                    ['run', `--${kind}=${target.name}`]);
+                                addConfig(`Debug unit tests in ${prettyKind} '${target.name}'`,
+                                    ['test', `--${kind}=${target.name}`]);
+                            }
+                            break;
+
+                        case 'bench':
+                        case 'test':
+                            {
+                                let prettyKind = (kind == 'bench') ? 'benchmark' : (kind == 'test') ? 'integration test' : kind;
+                                addConfig(`Debug ${prettyKind} '${target.name}'`,
+                                    ['test', `--${kind}=${target.name}`]);
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+        return configs;
+    }
+
+    debugConfigsFromCargoMetadataOld(metadata: any, directory?: string): DebugConfiguration[] {
         let configs: DebugConfiguration[] = [];
         for (let pkg of metadata.packages) {
             function addConfig(name: string, cargo_args: string[], filter: any) {

@@ -163,9 +163,13 @@ class Extension implements DebugAdapterDescriptorFactory {
         workspaceFolder?: WorkspaceFolder,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
-        let cargo = new Cargo(this.context, workspaceFolder, cancellation);
-        let debugConfigs = await cargo.getLaunchConfigs();
-        return debugConfigs;
+        try {
+            let cargo = new Cargo(this.context, workspaceFolder, cancellation);
+            return await cargo.getLaunchConfigs();
+        } catch (err: any) {
+            await showErrorWithLog(err.message);
+            throw err;
+        }
     }
 
     // Called when debugging starts without a launch.json file
@@ -173,12 +177,18 @@ class Extension implements DebugAdapterDescriptorFactory {
         workspaceFolder?: WorkspaceFolder,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration | undefined> {
-        let configs = await this.provideDebugConfigurations(workspaceFolder, cancellation);
-        if (configs.length == 0)
-            return undefined;
-        let items = configs.map(cfg => ({ label: cfg.name, config: cfg }));
-        let selection = await window.showQuickPick(items, { title: 'Choose debugging target' }, cancellation);
-        return selection?.config;
+        try {
+            let cargo = new Cargo(this.context, workspaceFolder, cancellation);
+            let configs = await cargo.getLaunchConfigs();
+            if (configs.length == 0)
+                return undefined;
+            let items = configs.map(cfg => ({ label: cfg.name, config: cfg }));
+            let selection = await window.showQuickPick(items, { title: 'Choose debugging target' }, cancellation);
+            return selection?.config;
+        } catch (err: any) {
+            await showErrorWithLog(err.message);
+            throw err;
+        }
     }
 
     // Invoked by VSCode to initiate a new debugging session.
@@ -199,7 +209,6 @@ class Extension implements DebugAdapterDescriptorFactory {
         if (debugConfig.type === undefined) {
             let config = await this.getLaunchLessConfig(folder, cancellation);
             if (!config) {
-                await window.showErrorMessage('No debug configuration was provided.', { modal: true });
                 return null;
             }
             debugConfig = config;
@@ -322,8 +331,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             });
             await window.showTextDocument(doc, 1, false);
         } catch (err: any) {
-            output.show();
-            window.showErrorMessage(err.toString());
+            await showErrorWithLog(err.message);
         }
     }
 
@@ -362,10 +370,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         adapterProcess.on('exit', async (code, signal) => {
             output.appendLine(`Debug adapter exit code=${code}, signal=${signal}.`);
             if (code != 0) {
-                let result = await window.showErrorMessage('Oops!  The debug adapter has terminated abnormally.', 'Open log');
-                if (result != undefined) {
-                    output.show();
-                }
+                showErrorWithLog('Oops!  The debug adapter has terminated abnormally.');
             }
         });
         return adapterProcess;
@@ -500,5 +505,12 @@ class Extension implements DebugAdapterDescriptorFactory {
                 memoryReference: `0x${address.toString(16)}`
             }
         });
+    }
+}
+
+export async function showErrorWithLog(message: string) {
+    let result = await window.showErrorMessage(message, 'Show log');
+    if (result != undefined) {
+        output.show();
     }
 }

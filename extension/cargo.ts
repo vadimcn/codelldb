@@ -203,15 +203,10 @@ export class Cargo {
 
     public async getLaunchConfigs(directory?: string): Promise<DebugConfiguration[]> {
         let metadata: any = undefined;
-        try {
-            await this.runCargo(['metadata', '--no-deps', '--format-version=1'], {}, directory,
-                m => { metadata = m },
-                stderr => { output.append(stderr); },
-            );
-        } catch (err: any) {
-            if (err.code != 'ENOENT')
-                throw err;
-        }
+        await this.runCargo(['metadata', '--no-deps', '--format-version=1'], {}, directory,
+            m => { metadata = m },
+            stderr => { output.append(stderr); },
+        );
         return metadata ? this.debugConfigsFromCargoMetadata(metadata, directory) : [];
     }
 
@@ -363,7 +358,7 @@ export class Cargo {
         let cargoCwd = cwd ?? (this.workspaceFolder?.uri?.fsPath);
         let cargoEnv = Object.assign({}, process.env, extraEnv)
 
-        output.appendLine(`Running ${cargoCmd} ${args.join(' ')}`);
+        output.appendLine(`Running: ${cargoCmd} ${args.join(' ')}`);
         return new Promise<number>((resolve, reject) => {
             let cargo = cp.spawn(cargoCmd, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
@@ -373,7 +368,8 @@ export class Cargo {
 
             cargo.on('error', err => {
                 if ((err as any).code == 'ENOENT')
-                    err.message = `Could not find "${cargoCmd}" executable.`;
+                    err.message = `Cargo: could not find "${cargoCmd}" executable.`;
+                output.appendLine(err.message);
                 reject(err);
             });
 

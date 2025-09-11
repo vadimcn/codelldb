@@ -226,6 +226,29 @@
 				}
 			]
 		},
+		"problemMatchers": [
+			{
+				"name": "codelldb-rustc",
+				"owner": "rustc",
+				"source": "CodeLLDB",
+				"fileLocation": [ "autoDetect", "${workspaceRoot}"
+				],
+				"pattern": [
+					{
+						"regexp": "^(warning|warn|error)(?:\\[(.*?)\\])?: (.*)$",
+						"severity": 1,
+						"code": 2,
+						"message": 3
+					},
+					{
+						"regexp": "^[\\s->=]*(.*?):([1-9]\\d*):([1-9]\\d*)\\s*$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				]
+			}
+		],
 		"configuration": [
 			{
 				"title": "General",

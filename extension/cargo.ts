@@ -79,7 +79,7 @@ export class Cargo {
             let task = new Task(
                 { type: undefined, command: '' } as unknown as TaskDefinition,
                 this.workspaceFolder ?? TaskScope.Workspace,
-                'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher);
+                'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher ?? '$codelldb-rustc');
             task.presentationOptions = { clear: true, showReuseMessage: false };
 
             let artifactsPromise = runTask(task, async (_, write) => {

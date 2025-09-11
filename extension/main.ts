@@ -2,7 +2,8 @@ import {
     workspace, window, commands, debug, extensions,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
-    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind
+    DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
+    languages
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -24,6 +25,7 @@ import { pickSymbol } from './symbols';
 import { ReverseAdapterConnector } from './novsc/reverseConnector';
 import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
 import { AdapterSettingsManager } from './adapterSettingsManager';
+import { LaunchCompletionProvider } from './launchCompletions';
 
 export let output = window.createOutputChannel('LLDB', 'log');
 
@@ -59,16 +61,16 @@ class Extension implements DebugAdapterDescriptorFactory {
         let subscriptions = context.subscriptions;
 
         // Register twice, as we'd like to provide configurations for both trigger types.
+        subscriptions.push(debug.registerDebugConfigurationProvider('lldb', this));
         subscriptions.push(debug.registerDebugConfigurationProvider('lldb', {
-            provideDebugConfigurations: (folder, token) =>
-                this.provideDebugConfigurations(DebugConfigurationProviderTriggerKind.Initial, folder, token)
-        }, DebugConfigurationProviderTriggerKind.Initial));
-
-        subscriptions.push(debug.registerDebugConfigurationProvider('lldb', {
-            provideDebugConfigurations: (folder, token) =>
-                this.provideDebugConfigurations(DebugConfigurationProviderTriggerKind.Dynamic, folder, token),
-            resolveDebugConfiguration: (folder, config, token) => this.resolveDebugConfiguration(folder, config, token)
+            provideDebugConfigurations: (folder, token) => this.provideDebugConfigurations(folder, token),
         }, DebugConfigurationProviderTriggerKind.Dynamic));
+
+        let completionProvider = new LaunchCompletionProvider((folder, token) => this.getLaunchLessConfig(folder, token));
+        subscriptions.push(languages.registerCompletionItemProvider({ language: 'json' }, completionProvider));
+        subscriptions.push(languages.registerCompletionItemProvider({ language: 'jsonc' }, completionProvider));
+        subscriptions.push(commands.registerCommand('lldb.insertDebugConfig',
+            (...args) => completionProvider.insertDebugConfig(args)));
 
         subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
@@ -154,16 +156,29 @@ class Extension implements DebugAdapterDescriptorFactory {
         }
     }
 
+    // Called when:
+    // 1. User creates launch.json
+    // 2. User executes "Debug: Select and Start Debugging" command
     async provideDebugConfigurations(
-        _kind: DebugConfigurationProviderTriggerKind,
-        workspaceFolder: WorkspaceFolder | undefined,
+        workspaceFolder?: WorkspaceFolder,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration[]> {
-        if (workspaceFolder == undefined)
-            return []
         let cargo = new Cargo(this.context, workspaceFolder, cancellation);
         let debugConfigs = await cargo.getLaunchConfigs();
         return debugConfigs;
+    }
+
+    // Called when debugging starts without a launch.json file
+    async getLaunchLessConfig(
+        workspaceFolder?: WorkspaceFolder,
+        cancellation?: CancellationToken
+    ): Promise<DebugConfiguration | undefined> {
+        let configs = await this.provideDebugConfigurations(workspaceFolder, cancellation);
+        if (configs.length == 0)
+            return undefined;
+        let items = configs.map(cfg => ({ label: cfg.name, config: cfg }));
+        let selection = await window.showQuickPick(items, { title: 'Choose debugging target' }, cancellation);
+        return selection?.config;
     }
 
     // Invoked by VSCode to initiate a new debugging session.
@@ -289,21 +304,6 @@ class Extension implements DebugAdapterDescriptorFactory {
         mergeConfig('sourceLanguages');
         mergeConfig('debugServer');
         mergeConfig('breakpointMode');
-    }
-
-    async getLaunchLessConfig(workspaceFolder: WorkspaceFolder | undefined, cancellation: CancellationToken | undefined) {
-        let directory = undefined;
-        if (window.activeTextEditor?.document.languageId == 'rust' ||
-            window.activeTextEditor?.document.fileName == 'Cargo.toml') {
-            directory = path.dirname(window.activeTextEditor?.document.uri.fsPath);
-        }
-        let cargo = new Cargo(this.context, workspaceFolder, cancellation);
-        let configs = await cargo.getLaunchConfigs(directory);
-        if (configs.length == 0)
-            return undefined;
-        let items = configs.map(cfg => ({ label: cfg.name, config: cfg }));
-        let selection = await window.showQuickPick(items, { title: 'Choose debugging target' }, cancellation);
-        return selection?.config;
     }
 
     async getCargoLaunchConfigs() {

@@ -32,6 +32,7 @@
 		"vscode": "^1.61.0"
 	},
 	"dependencies": {
+		"jsonc-parser": "^3.3.1",
 		"string-argv": "^0.3.2",
 		"yaml": "^1.10.0"
 	},
@@ -760,7 +761,7 @@
 				"configurationSnippets": [
 					{
 						"label": "CodeLLDB: Launch",
-						"description": "Launch a new instance of the specified program.",
+						"description": "Launch a program.",
 						"body": {
 							"type": "lldb",
 							"request": "launch",
@@ -771,8 +772,9 @@
 						}
 					},
 					{
-						"label": "CodeLLDB: Attach to PID",
-						"description": "Attach to a running process with the specified process id.",
+						"label": "CodeLLDB: Attach to Process",
+						"description": "Attach to a running process by process id.",
+						"sortText": "AAAA",
 						"body": {
 							"type": "lldb",
 							"request": "attach",
@@ -781,17 +783,7 @@
 						}
 					},
 					{
-						"label": "CodeLLDB: Attach by Name",
-						"description": "Attach to a running instance of the specified program.",
-						"body": {
-							"type": "lldb",
-							"request": "attach",
-							"name": "${2:Attach}",
-							"program": "^\"\\${workspaceFolder}/${1:<program>}\""
-						}
-					},
-					{
-						"label": "CodeLLDB: Custom",
+						"label": "CodeLLDB: Launch Custom",
 						"description": "Launch or attach using raw LLDB commands.",
 						"body": {
 							"type": "lldb",
@@ -804,39 +796,6 @@
 								"settings set target.run-args ${3:value1 value2 value3}",
 								"process launch"
 							]
-						}
-					},
-					{
-						"label": "CodeLLDB: Debug Cargo Target",
-						"description": "Debug an executable target in a Cargo package.",
-						"body": {
-							"type": "lldb",
-							"request": "launch",
-							"name": "${2:Cargo launch}",
-							"cargo": {
-								"args": [
-									"build",
-									"${1:--lib}"
-								]
-							},
-							"args": [ ]
-						}
-					},
-					{
-						"label": "CodeLLDB: Debug Cargo Tests",
-						"description": "Debug unit tests in a Cargo package.",
-						"body": {
-							"type": "lldb",
-							"request": "launch",
-							"name": "${2:Cargo test}",
-							"cargo": {
-								"args": [
-									"test",
-									"--no-run",
-									"${1:--lib}"
-								]
-							},
-							"args": [ ]
 						}
 					}
 				]

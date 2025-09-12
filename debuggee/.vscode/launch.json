@@ -122,7 +122,7 @@
 		{
 			"name": "debuggee custom vars",
 			"type": "lldb",
-			"request": "custom",
+			"request": "launch",
 			"targetCreateCommands": [
 				"target create ${dbgconfig:targetDir}/debuggee"
 			],
@@ -148,7 +148,7 @@
 		{
 			"name": "debuggee remote gdb vars",
 			"type": "lldb",
-			"request": "custom",
+			"request": "launch",
 			// gdbserver 127.0.0.1:1234 out/debuggee/debuggee vars
 			"targetCreateCommands": [
 				"target create  ${dbgconfig:targetDir}/debuggee",
@@ -178,7 +178,7 @@
 		{
 			"name": "debuggee rr mandelbrot",
 			"type": "lldb",
-			"request": "custom",
+			"request": "launch",
 			"targetCreateCommands": [
 				"log enable -f ${env:HOME}/tmp/lldb.log gdb-remote all",
 				"target create ${dbgconfig:targetDir}/debuggee",

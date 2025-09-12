@@ -8,7 +8,8 @@ import * as net from 'net';
 import * as path from 'path';
 import { inspect } from 'util';
 import { Dict } from './novsc/commonTypes';
-import { output, getExtensionConfig } from './main';
+import { getExtensionConfig } from './main';
+import { output } from './logging';
 import { expandVariablesInObject } from './novsc/expand';
 import { LaunchEnvironment } from 'codelldb';
 import { RpcServer, waitEndOfDebugSession } from './externalLaunch';
@@ -391,8 +392,9 @@ export class Cargo {
                 }
             });
 
-            cargo.on('close', (exitCode) => {
-                resolve(exitCode ?? -1);
+            cargo.on('exit', (code, signal) => {
+                output.appendLine(`Cargo exited with code ${code} ${signal ? 'signal=' + signal : ''}`);
+                resolve(code ?? -1);
             });
 
             if (this.cancellation) {
@@ -442,7 +444,7 @@ async function runTask<T, R>(
     }
 }
 
-// Expands ${cargo:...} placeholders.
+// Expands ${cargo: ...} placeholders.
 export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<string>): DebugConfiguration {
     let expander = (type: string | null, key: string) => {
         if (type == 'cargo') {

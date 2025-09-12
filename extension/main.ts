@@ -1,9 +1,8 @@
 import {
-    workspace, window, commands, debug, extensions,
+    workspace, window, commands, debug, extensions, languages,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
-    languages
 } from 'vscode';
 import { inspect } from 'util';
 import { ChildProcess } from 'child_process';
@@ -26,8 +25,7 @@ import { ReverseAdapterConnector } from './novsc/reverseConnector';
 import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
 import { AdapterSettingsManager } from './adapterSettingsManager';
 import { LaunchCompletionProvider } from './launchCompletions';
-
-export let output = window.createOutputChannel('LLDB', 'log');
+import { output, showErrorWithLog } from './logging';
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';
@@ -505,12 +503,5 @@ class Extension implements DebugAdapterDescriptorFactory {
                 memoryReference: `0x${address.toString(16)}`
             }
         });
-    }
-}
-
-export async function showErrorWithLog(message: string) {
-    let result = await window.showErrorMessage(message, 'Show log');
-    if (result != undefined) {
-        output.show();
     }
 }

@@ -5,7 +5,7 @@ import * as querystring from 'querystring';
 import stringArgv from 'string-argv';
 import { debug, DebugConfiguration, EventEmitter, tasks, Uri, UriHandler, window, workspace } from "vscode";
 import YAML from 'yaml';
-import { output } from "./main";
+import { output } from './logging';
 import { Dict } from "./novsc/commonTypes";
 
 export class UriLaunchServer implements UriHandler {

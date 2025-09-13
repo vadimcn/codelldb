@@ -114,7 +114,7 @@ jobs:
       cat /proc/cpuinfo > system.log
       cat /proc/meminfo >> system.log
       env > env.log
-      ls -lR $(Agent.BuildDirectory) > build-tree.log
+      ls -laR $(Agent.BuildDirectory) > build-tree.log
       7zz a -tzip $(Agent.BuildDirectory)/$(Triple).zip -r "*.log" CMakeCache.txt
       echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
     displayName: 'Logs'
@@ -212,7 +212,7 @@ jobs:
       cd $(Agent.BuildDirectory)
       sysctl -a > system.log
       env > env.log
-      ls -lR $(Agent.BuildDirectory) > build-tree.log
+      ls -laR $(Agent.BuildDirectory) > build-tree.log
       7z a -tzip $(Agent.BuildDirectory)/$(Triple).zip -r "*.log" CMakeCache.txt
       echo "##vso[artifact.upload artifactname=logs;]$(Agent.BuildDirectory)/$(Triple).zip"
     displayName: 'Logs'
@@ -303,7 +303,7 @@ jobs:
   - script: |
       cd $(Agent.BuildDirectory)
       set > env.log
-      ls -lR $(Agent.BuildDirectory) > build-tree.log
+      ls -laR $(Agent.BuildDirectory) > build-tree.log
       wevtutil query-events System /c:100 /rd:true /f:text >wevt-System.log
       wevtutil query-events Application /c:100 /rd:true /f:text >wevt-Application.log
       7z a -tzip $(Agent.BuildDirectory)/$(Triple).zip -r "*.log" CMakeCache.txt

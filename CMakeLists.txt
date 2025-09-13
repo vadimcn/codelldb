@@ -100,8 +100,8 @@ endif()
 
 # Adapter
 
-add_subdirectory(adapter)
 add_subdirectory(lldb)
+add_subdirectory(adapter)
 add_subdirectory(lang_support)
 add_subdirectory(extension)
 add_subdirectory(tests)

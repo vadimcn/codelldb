@@ -18,6 +18,6 @@ add_copy_files_to(PythonFiles ${CMAKE_CURRENT_BINARY_DIR}/codelldb/commands
     ${CMAKE_CURRENT_SOURCE_DIR}/codelldb/commands/nofail.py
 )
 
-add_custom_target(codelldb_scripts
+add_custom_target(codelldb_scripts ALL
     DEPENDS ${PythonFiles}
 )

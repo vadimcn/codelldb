@@ -7,7 +7,7 @@
             - [Stdio Redirection](#stdio-redirection)
         - [Attaching to an Existing Process](#attaching-to-a-running-process)
     - [Debugging Externally Launched Code](#debugging-externally-launched-code)
-        - [VSCode URL](#vscode-url)
+        - [VSCode: URL](#vscode-url)
         - [RPC Server](#rpc-server)
         - [codelldb-launch](#codelldb-launch)
     - [Remote Debugging](#remote-debugging)
@@ -41,7 +41,7 @@
 
 To start a debugging session, you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.   Here's a minimal one:
 
-```javascript
+```json
 {
     "name": "Launch",
     "type": "lldb",
@@ -165,7 +165,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 The `${command:pickProcess}` or `${command:pickMyProcess}` can be used directly in the configuration for an interactive
 list of processes running on the machine running Visual Studio Code:
 
-```javascript
+```json
 {
     "name": "Pick Process Attach",
     "type": "lldb",
@@ -178,7 +178,7 @@ The `lldb.pickProcess` and `lldb.pickMyProcess` commands provide more configurat
 optional `initCommands` arg let you specify lldb commands to configure a remote connection. The optional `filter` arg
 lets you filter the process list to those that match the specified filter.
 
-```javascript
+```json
 {
   "version": "0.2.0",
   "configurations": [
@@ -206,8 +206,10 @@ lets you filter the process list to those that match the specified filter.
 
 ## Debugging Externally Launched Code
 
-### VSCode URL
-Debugging sessions may be started from outside of VSCode by invoking a specially formatted URL:
+### VSCode: URL
+
+Debugging sessions may be started from outside of VSCode by invoking one of these URLs:
+
 - **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
   This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
   the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.
@@ -224,44 +226,14 @@ Debugging sessions may be started from outside of VSCode by invoking a specially
   - Line-oriented YAML (`%0A` encodes the 'newline' character):<br>
    `code --open-url "vscode://vadimcn.vscode-lldb/launch/config?program: /path/filename%0Aargs:%0A- arg1%0A- arg 2%0A- arg3"`<br>
 
-All URIs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), for example all literal `%` characters must be escaped as `%25`.
+All URLs above are subject to normal [URI encoding rules](https://en.wikipedia.org/wiki/Percent-encoding), for example all literal `%` characters must be escaped as `%25`.
 
 VSCode URIs may also be invoked using OS-specific tools:
   - Linux: `xdg-open <uri>`
   - MacOS: `open <uri>`
   - Windows: `start <uri>`
 
-### RPC Server
-
-The URL method has some drawbacks:
-- It launches debug session in the last active VSCode window.
-- It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
-
-Therefore, CodeLLDB offers an alternate method of performing external launches - by adding `lldb.rpcServer` setting to a workspace
-of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket:
-- The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) object of the Node.js network server object.
-- As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
-debug configurations must also contain `token` with a matching value.<br>
-- After writing configuration data, the client must half-close its end of the connection.
-- Upon completion, CodeLLDB will respond with `{ "success": true/false, "message": <optional error message> }`
-
-### codelldb-launch
-`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.
-It may be found in `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/adapter/codelldb-launch`.
-
-Usage: `codelldb-launch [--connect=<address>] [--config=<launch configuration>] [--] [debuggee --arg1 -arg2 ...]`
-- `--connect` specifies the address of the RPC server to connect to.
-  This address may also be provided via the `CODELLDB_LAUNCH_CONNECT` environment variable.
-- `--config` specifies the launch configuration as a YAML or JSON string.
-  This address may also be provided via the `CODELLDB_LAUNCH_CONFIG` environment variable.
-- `debuggee ...` specifies the path and arguments of the program to debug.
-  (You may also provide the launch configuration via `--config` to customize other parameters of the debug session)<br>
-  The presence of this parameter alters the behavior of `codelldb-launch` as follows:
-  - The debug session uses the environment and terminal where `codelldb-launch` is invoked.
-  - `codelldb-launch` will wait for the debug session to terminate before continuing.
-
-
-### URL Examples:
+#### Examples:
 
 ##### Attach debugger to the current process (C)
 ```C
@@ -285,35 +257,69 @@ Note: You may need to update your `Cargo.toml` to build the build script with `d
 debug = true
 ```
 
-### RPC Examples:
+The URL method has some drawbacks, though:
+- It launches debug session in the last active VSCode window.
+- It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
+
+
+### RPC Server
+CodeLLDB can also perform external launches via RPC:
+ `lldb.rpcServer` setting to a workspace
+of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket:
+- The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) object of the Node.js network server object.
+- As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
+debug configurations must also contain `token` with a matching value.<br>
+- After writing configuration data, the client must half-close its end of the connection.
+- Upon completion, CodeLLDB will respond with `{ "success": true/false, "message": <optional error message> }`
+
+#### Examples:
 These examples assume that you've enabled the RPC server by editing `settings.json`:
-```javascript
+```json
 "lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }
 ```
-#### Start debugging using netcat
+##### Start debugging using netcat
 ```sh
  echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
  ```
 
-#### Start debugging using codelldb-launch
+##### Start debugging using codelldb-launch
 ```sh
 codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bin/ls
 ```
 
-#### Debug Rust unit tests
+##### Debug Rust unit tests
 See also the [Cargo Support](#cargo-support) section!
 ```sh
 export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
 export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
-cargo test --config=target.'cfg(not(any()))'.runner=codelldb-launch
+cargo test --config=target.'cfg(all())'.runner=codelldb-launch
 ```
 
-#### Bazel
+##### Bazel
 ```sh
 export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
 export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
 bazel run --run_under=codelldb-launch //<package>:<target>
 ```
+
+### codelldb-launch
+`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.  Usage:
+```sh
+codelldb-launch [--connect=<address>] [--config=<launch configuration>] [--clear-screen[=true|false]] [--] [debuggee [--arg1 [-arg2 ...]]]
+```
+- `--connect` specifies the address of the CodeLLDB [RPC server](#rpc-server) endpoint to connect to.
+  This address may also be provided via the `CODELLDB_LAUNCH_CONNECT` environment variable.
+- `--config` specifies the launch configuration as a YAML or JSON string.
+  This address may also be provided via the `CODELLDB_LAUNCH_CONFIG` environment variable.
+- `--clear-screen` specifies whether to clear current terminal before launching the debuggee.
+- `debuggee ...` specifies the path and arguments of the program to debug.
+  (You may also provide the launch configuration via `--config` to customize parameters of the debug session)<br>
+  The presence of this parameter alters the behavior of `codelldb-launch` as follows:
+  - The debug session uses the environment and terminal where `codelldb-launch` was invoked.
+  - `codelldb-launch` will wait for the debug session to terminate before continuing.
+
+`codelldb-launch` may be found at `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/adapter/codelldb-launch`.
+
 
 ## Remote Debugging
 
@@ -329,7 +335,7 @@ If you require additional configuration of the remote system, you may use `preRu
 to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
 (see `help platform` for a list of available platform commands).
 
-```javascript
+```json
 {
     "name": "Remote launch",
     "type": "lldb",
@@ -338,7 +344,7 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
     "initCommands": [
         "platform select <platform>", // For example: 'remote-linux', 'remote-macosx', 'remote-android', etc.
         "platform connect connect://<remote_host>:<port>",
-        "settings set target.inherit-env false", // See note below.
+        "settings set target.inherit-env false", // See the note below.
     ],
     "env": {
         "PATH": "...", // See note below.
@@ -357,7 +363,7 @@ such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](http
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
 - Create a launch configuration.
 - Start debugging.
-```javascript
+```json
 {
     "name": "Remote attach",
     "type": "lldb",
@@ -383,7 +389,7 @@ While CodeLLDB does not natively support launching the debuggee as a different u
   (A copy of lldb-server is provided in this extension's installation directory under `lldb/bin`.
   Use the "Extensions: Open Extensions Folder" command to find where extensions are located, and look for "vadimcn.vscode-lldb".)
 - Add the following to your launch configuration:
-```javascript
+```json
     "initCommands": [
         "platform select remote-linux", // Replace with "remote-macosx" or "remote-windows" as appropriate
         "platform connect connect://127.0.0.1:12345"
@@ -413,7 +419,7 @@ rr replay -s <port>
 ```
 
 Launch config:
-```javascript
+```json
 {
     "name": "Replay",
     "type": "lldb",
@@ -426,7 +432,7 @@ Launch config:
 
 ## Inspecting a Core Dump
 Use launch configuration with `target create -c <core path>` command:
-```javascript
+```json
 {
     "name": "Core dump",
     "type": "lldb",
@@ -442,7 +448,7 @@ Source path remapping is helpful when the program's source code is located in a 
 A source map consists of pairs of "from" and "to" path prefixes.  When the debugger encounters a source
 file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
 instead.  Example:
-```javascript
+```json
     "sourceMap": { "/build/time/source/path" : "/current/source/path" }
 ```
 
@@ -453,7 +459,7 @@ in such cases: you can place common configuration values into `lldb.dbgconfig` s
 then reference via `${dbgconfig:variable}` in launch configurations.<br>
 Example:
 
-```javascript
+```json
 // settings.json
     ...
     "lldb.dbgconfig":
@@ -772,33 +778,31 @@ To enable this feature, add `"sourceLanguages": ["rust"]` into your launch confi
 
 ## Cargo Support
 
-Debugging tests and benchmarks in Cargo-based Rust projects can be tricky, since the names of the output binaries generated by Cargo are not deterministic.
-To address this, CodeLLDB can query Cargo for a list of its compilation outputs. To use this feature, replace the program property in your launch configuration with cargo:
-```javascript
+CodeLLDB has built-in support for Cargo workspaces, so you don’t need to manually configure the paths to binaries or test targets.
+To use this feature, replace the `program` property in your launch configuration with `cargo`:
+```json
 {
     "type": "lldb",
     "request": "launch",
     "cargo": {
-        "args": ["test", "--no-run", "--lib"],      // Cargo command line to build the debug target
-                                                    // "args": ["build", "--bin=foo"] is another option
+        "args": ["test", "foo", "--", "--test-threads=3"], // Cargo command line to run the debug target
         // Optional fields:
-        "env": { "RUSTFLAGS": "-Clinker=ld.mold" }, // Extra environment variables
-        "cwd": "${workspaceFolder}",                // Cargo working directory
-        "problemMatcher": "$rustc",                 // Problem matcher(s) for Cargo output
-        "filter": {                                 // Filter applied to compilation artifacts:
-            "name": "mylib",                        // In some cases, Cargo produces multiple executable artifacts;
-            "kind": "lib"                           // this helps disambiguate which one you'd like to debug.
-        }
+        "env": { "RUSTFLAGS": "-Clinker=ld.mold" },        // Extra environment variables
+        "cwd": "${workspaceFolder}",                       // Cargo working directory
+        "problemMatcher": "$rustc",                        // Problem matcher(s) for Cargo output
     },
-    "args": ["mod::fn_name"]                        // Test name/options passed to the debug target
+    "args": ["--test=test1"]  // These arguments will be appended to those passed by Cargo to the target
 }
 ```
-- You cannot use "cargo" to run your binary, only to build it. The debugger must handle the launch.
-- Be as specific as possible when specifying the build target, as CodeLLDB won't know which binary to debug
-  if Cargo produces more than one.
-- If the program property isn't provided explicitly, CodeLLDB will set it based on the Cargo output. Alternatively,
-  you can use the substitution variable ${cargo:program}.
-- If no launch.json exists, CodeLLDB will use Cargo.toml in the workspace root to generate initial configurations.
+
+If you only need to provide cargo arguments, this may be shortened to:
+```json
+{
+    "type": "lldb",
+    "request": "launch",
+    "cargo": ["test", "foo", "--", "--test-threads=3", "--test=test1"],
+}
+```
 
 # Settings
 

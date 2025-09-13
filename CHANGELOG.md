@@ -1,5 +1,23 @@
 # Release Notes
 
+
+# 1.12.0
+
+### New
+- You can now use the same Cargo command lines for debugging targets as you would when running them normally.
+  For example, use `cargo: ["run"]` instead of `cargo: ["build"]`, as was required in previous versions..
+- Added `codelldb-launch` CLI for working with CodeLLDB's RPC endpoints.  See details in the [manual](MANUAL.md#codelldb-launch).
+- Added Cargo completion provider for `launch.json`. It will be active if the workspace contains `Cargo.toml` file(s).
+
+### Changed
+- Replaced "**Generate launch configurations from Cargo.toml**" command with "**Generate Cargo Launch Configurations**".
+  The new command operates on the currently open Cargo.toml, rather than being limited to the one at the workspace root.
+  It is also available in the file explorer context menu.
+
+### Fixed
+- #1287: Spaces in path to user directory causes all operations to fail on Windows
+- #1318: Creating a launch.json silently fails when cargo is not installed on the user machine.
+
 # 1.11.5
 
 ### New

@@ -71,7 +71,7 @@ add_custom_target(codelldb_exe
 )
 
 add_custom_target(launcher_exe
-    COMMAND ${UpdateFile} ${CargoOutDir}/${LauncherExe} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${UpdateFile} ${CargoOutDir}/${LauncherExe} ${CMAKE_CURRENT_BINARY_DIR}/../bin
     DEPENDS cargo_build
     USES_TERMINAL
 )

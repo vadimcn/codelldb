@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(CodeLLDB)
 enable_testing()
 
-set(VERSION "1.12.0") # Base version
+set(VERSION "1.11.6") # Base version
 
 include(cmake/CopyFiles.cmake)
 
@@ -101,6 +101,7 @@ endif()
 # Adapter
 
 add_subdirectory(lldb)
+add_subdirectory(bin)
 add_subdirectory(adapter)
 add_subdirectory(lang_support)
 add_subdirectory(extension)
@@ -139,7 +140,7 @@ file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOU
 # Generate schema for codelldb types, resolve references to them in package.pre.json yielding the final package.json
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/package.json ${CMAKE_BINARY_DIR}/generated/codelldb.ts
-    DEPENDS ${CMAKE_SOURCE_DIR}/package.json
+    DEPENDS ${CMAKE_SOURCE_DIR}/package.json ${CMAKE_SOURCE_DIR}/src/codelldb-types/src/lib.rs
     COMMAND cargo run --package codelldb-types -- ${CMAKE_BINARY_DIR}/codelldb.schema.json
     COMMAND ${WithEnv} NODE_PATH=${CMAKE_CURRENT_BINARY_DIR}/node_modules node ${CMAKE_CURRENT_SOURCE_DIR}/tools/prep-package.js
             ${CMAKE_CURRENT_BINARY_DIR}/package.pre.json ${CMAKE_CURRENT_BINARY_DIR}/package.json
@@ -189,6 +190,8 @@ set(PackagedFilesBootstrap
 set(PackagedFilesFull
     ${PackagedFilesBootstrap}
     platform.ok
+    bin/codelldb-launch
+    bin/codelldb-launch.exe
     adapter/codelldb
     adapter/codelldb.exe
     adapter/*.so

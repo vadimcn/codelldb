@@ -48,7 +48,7 @@ suite('Extension Tests', () => {
         let addrinfo = await rpcServer.listen({ host: '127.0.0.1', port: 0 }) as AddressInfo;
 
         let ext = vscode.extensions.getExtension('vadimcn.vscode-lldb');
-        let launcher = path.join(ext.extensionPath, 'adapter', 'codelldb-launch');
+        let launcher = path.join(ext.extensionPath, 'bin', 'codelldb-launch');
         let proc = cp.spawn(launcher, [
             `--connect=${addrinfo.address}:${addrinfo.port}`,
             '--config={ token: secret }',

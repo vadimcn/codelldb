@@ -31,10 +31,23 @@ impl Terminal {
             let accept_fut = listener.accept();
 
             let current_exe = std::env::current_exe()?;
-            let mut launcher = current_exe.join("../bin/codelldb-launch");
+            let mut launcher = current_exe.with_file_name("codelldb-launch");
             if let Some(ext) = current_exe.extension() {
                 launcher.set_extension(ext);
             }
+            if !launcher.exists() {
+                launcher.pop(); // filename
+                launcher.pop(); // directory
+                launcher.push("bin");
+                launcher.push("codelldb-launch");
+                if let Some(ext) = current_exe.extension() {
+                    launcher.set_extension(ext);
+                }
+            }
+            if !launcher.exists() {
+                bail!("Could not find codelldb-launch");
+            }
+
             let req_args = RunInTerminalRequestArguments {
                 args: vec![
                     launcher.to_string_lossy().to_string(),

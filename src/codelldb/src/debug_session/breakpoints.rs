@@ -2,7 +2,7 @@ use crate::debug_session::DebugSession;
 use crate::disassembly;
 use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
-use crate::handles::{self, Handle};
+use crate::handles::Handle;
 use crate::prelude::*;
 use crate::python::{EvalContext, PyObject};
 
@@ -73,7 +73,6 @@ impl DebugSession {
         let dasm = args
             .source
             .source_reference
-            .map(|source_ref| handles::from_i64(source_ref).unwrap())
             .and_then(|source_ref| self.disasm_ranges.find_by_handle(source_ref));
 
         let breakpoints = match (dasm, args.source.adapter_data, args.source.path.as_ref()) {
@@ -548,7 +547,7 @@ impl DebugSession {
                             source: Some(Source {
                                 name: Some(dasm.source_name().to_owned()),
                                 path: Some(dasm.source_name().to_owned()),
-                                source_reference: Some(handles::to_i64(Some(dasm.handle()))),
+                                source_reference: Some(dasm.handle()),
                                 adapter_data: adapter_data,
                                 ..Default::default()
                             }),

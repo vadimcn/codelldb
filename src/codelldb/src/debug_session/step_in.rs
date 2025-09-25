@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
 use super::variables::Container;
-use crate::handles::{self};
 
 use std::cmp;
 use std::ops::Range;
@@ -21,8 +20,7 @@ impl super::DebugSession {
         &mut self,
         args: StepInTargetsArguments,
     ) -> Result<StepInTargetsResponseBody, Error> {
-        let handle = handles::from_i64(args.frame_id)?;
-        let Some(ref frame) = self.var_refs.get(handle) else {
+        let Some(ref frame) = self.var_refs.get(args.frame_id) else {
             bail!("Invalid frame id.");
         };
         let Container::StackFrame(frame) = frame else {

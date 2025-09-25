@@ -13,7 +13,7 @@ use crate::dap_session::DAPSession;
 use crate::disassembly;
 use crate::expressions;
 use crate::fsutil::normalize_path;
-use crate::handles::{self, HandleTree};
+use crate::handles::HandleTree;
 use crate::must_initialize::{Initialized, MustInitialize, NotInitialized};
 use crate::platform::{get_fs_path_case, pipe};
 use crate::python::PythonEvent;
@@ -702,7 +702,7 @@ impl DebugSession {
             let handle = self.var_refs.create(None, &key, Container::StackFrame(frame.clone()));
 
             let mut stack_frame: StackFrame = Default::default();
-            stack_frame.id = handle.get() as i64;
+            stack_frame.id = handle;
             let pc_address = frame.pc_address();
             stack_frame.instruction_pointer_reference = Some(format!("0x{:X}", pc_address.load_address(&self.target)));
             stack_frame.name = if let Some(name) = frame.function_name() {
@@ -735,7 +735,7 @@ impl DebugSession {
                     stack_frame.line = dasm.line_num_by_address(pc_addr) as i64;
                     stack_frame.source = Some(Source {
                         name: Some(dasm.source_name().to_owned()),
-                        source_reference: Some(handles::to_i64(Some(dasm.handle()))),
+                        source_reference: Some(dasm.handle()),
                         ..Default::default()
                     });
                 }
@@ -870,7 +870,7 @@ impl DebugSession {
     }
 
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {
-        let handle = handles::from_i64(args.source_reference)?;
+        let handle = args.source_reference;
         let dasm = self.disasm_ranges.find_by_handle(handle).unwrap();
         Ok(SourceResponseBody {
             content: dasm.get_source_text(self.max_instr_bytes),
@@ -984,8 +984,7 @@ impl DebugSession {
                 match goto_args.source.source_reference {
                     // Disassembly
                     Some(source_ref) => {
-                        let handle = handles::from_i64(source_ref)?;
-                        let dasm = self.disasm_ranges.find_by_handle(handle).ok_or("source_ref")?;
+                        let dasm = self.disasm_ranges.find_by_handle(source_ref).ok_or("source_ref")?;
                         let addr = dasm.address_by_line_num(goto_args.line as u32);
                         let frame = thread.frame_at_index(0).check().ok_or("frame 0")?;
                         if frame.set_pc(addr) {
@@ -1015,8 +1014,7 @@ impl DebugSession {
     }
 
     fn handle_restart_frame(&mut self, args: RestartFrameArguments) -> Result<(), Error> {
-        let handle = handles::from_i64(args.frame_id)?;
-        let frame = match self.var_refs.get(handle) {
+        let frame = match self.var_refs.get(args.frame_id) {
             Some(Container::StackFrame(ref f)) => f.clone(),
             _ => bail!("Invalid frameId"),
         };
@@ -1036,8 +1034,7 @@ impl DebugSession {
         args: DataBreakpointInfoArguments,
     ) -> Result<DataBreakpointInfoResponseBody, Error> {
         if let Some(variables_reference) = args.variables_reference {
-            let container_handle = handles::from_i64(variables_reference)?;
-            let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
+            let container = self.var_refs.get(variables_reference).expect("Invalid variables reference");
             let child = match container {
                 Container::SBValue(container) => container.child_member_with_name(&args.name),
                 Container::Locals(frame) => frame.find_variable(&args.name),
@@ -1078,7 +1075,7 @@ impl DebugSession {
         } else {
             let frame = match args.frame_id {
                 Some(frame_id) => {
-                    let handle = handles::from_i64(frame_id)?;
+                    let handle = frame_id;
                     match self.var_refs.get(handle) {
                         Some(Container::StackFrame(ref frame)) => {
                             // If they had used `frame select` command after the last stop,

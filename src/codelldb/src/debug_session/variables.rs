@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::expressions::{self, FormatSpec, PreparedExpression};
-use crate::handles::{self, Handle};
+use crate::handles::Handle;
 use crate::python::EvalContext;
 
 use super::into_string_lossy;
@@ -27,34 +27,33 @@ pub enum Container {
 
 impl super::DebugSession {
     pub(super) fn handle_scopes(&mut self, args: ScopesArguments) -> Result<ScopesResponseBody, Error> {
-        let frame_id = Handle::new(args.frame_id as u32).unwrap();
-        if let Some(Container::StackFrame(frame)) = self.var_refs.get(frame_id) {
+        if let Some(Container::StackFrame(frame)) = self.var_refs.get(args.frame_id) {
             let frame = frame.clone();
-            let locals_handle = self.var_refs.create(Some(frame_id), "[locs]", Container::Locals(frame.clone()));
+            let locals_handle = self.var_refs.create(Some(args.frame_id), "[locs]", Container::Locals(frame.clone()));
             let locals = Scope {
                 name: "Local".into(),
-                variables_reference: locals_handle.get() as i64,
+                variables_reference: locals_handle,
                 expensive: false,
                 ..Default::default()
             };
-            let statics_handle = self.var_refs.create(Some(frame_id), "[stat]", Container::Statics(frame.clone()));
+            let statics_handle = self.var_refs.create(Some(args.frame_id), "[stat]", Container::Statics(frame.clone()));
             let statics = Scope {
                 name: "Static".into(),
-                variables_reference: statics_handle.get() as i64,
+                variables_reference: statics_handle,
                 expensive: false,
                 ..Default::default()
             };
-            let globals_handle = self.var_refs.create(Some(frame_id), "[glob]", Container::Globals(frame.clone()));
+            let globals_handle = self.var_refs.create(Some(args.frame_id), "[glob]", Container::Globals(frame.clone()));
             let globals = Scope {
                 name: "Global".into(),
-                variables_reference: globals_handle.get() as i64,
+                variables_reference: globals_handle,
                 expensive: false,
                 ..Default::default()
             };
-            let registers_handle = self.var_refs.create(Some(frame_id), "[regs]", Container::Registers(frame));
+            let registers_handle = self.var_refs.create(Some(args.frame_id), "[regs]", Container::Registers(frame));
             let registers = Scope {
                 name: "Registers".into(),
-                variables_reference: registers_handle.get() as i64,
+                variables_reference: registers_handle,
                 expensive: false,
                 ..Default::default()
             };
@@ -67,7 +66,7 @@ impl super::DebugSession {
     }
 
     pub(super) fn handle_variables(&mut self, args: VariablesArguments) -> Result<VariablesResponseBody, Error> {
-        let container_handle = handles::from_i64(args.variables_reference)?;
+        let container_handle = args.variables_reference;
 
         if let Some(container) = self.var_refs.get(container_handle) {
             let variables = match container {
@@ -127,7 +126,7 @@ impl super::DebugSession {
                         let raw = Variable {
                             name: "[raw]".to_owned(),
                             value: var.type_name().unwrap_or_default().to_owned(),
-                            variables_reference: handles::to_i64(Some(handle)),
+                            variables_reference: handle,
                             presentation_hint: Some(presentation_hint(&["readOnly", "virtual"])),
                             ..Default::default()
                         };
@@ -259,7 +258,7 @@ impl super::DebugSession {
             name: name.to_owned(),
             value: value,
             type_: dtype.map(|v| v.to_owned()),
-            variables_reference: handles::to_i64(handle),
+            variables_reference: handle.unwrap_or(0),
             evaluate_name: eval_name,
             memory_reference: mem_ref,
             presentation_hint: if is_settable { None } else { Some(presentation_hint(&["readOnly"])) },
@@ -419,8 +418,7 @@ impl super::DebugSession {
     pub(super) fn handle_evaluate(&mut self, args: EvaluateArguments) -> Result<ResponseBody, Error> {
         let frame = match args.frame_id {
             Some(frame_id) => {
-                let handle = handles::from_i64(frame_id)?;
-                match self.var_refs.get(handle) {
+                match self.var_refs.get(frame_id) {
                     Some(Container::StackFrame(ref frame)) => {
                         // If they had used `frame select` command after the last stop,
                         // use currently selected frame from frame's thread, instead of the frame itself.
@@ -524,7 +522,7 @@ impl super::DebugSession {
                 Ok(EvaluateResponseBody {
                     result: summary,
                     type_: sbval.display_type_name().map(|s| s.to_owned()),
-                    variables_reference: handles::to_i64(handle),
+                    variables_reference: handle.unwrap_or(0),
                     memory_reference: self.get_mem_ref_for_var(&sbval),
                     ..Default::default()
                 })
@@ -566,7 +564,7 @@ impl super::DebugSession {
     }
 
     pub(super) fn handle_set_variable(&mut self, args: SetVariableArguments) -> Result<SetVariableResponseBody, Error> {
-        let container_handle = handles::from_i64(args.variables_reference)?;
+        let container_handle = args.variables_reference;
         let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
         let child = match container {
             Container::SBValue(container) => container.child_member_with_name(&args.name),
@@ -582,7 +580,7 @@ impl super::DebugSession {
                     let response = SetVariableResponseBody {
                         value: self.get_var_summary(&child, false),
                         type_: child.type_name().map(|s| s.to_owned()),
-                        variables_reference: Some(handles::to_i64(handle)),
+                        variables_reference: handle,
                         ..Default::default()
                     };
                     Ok(response)

@@ -2,30 +2,15 @@ use crate::prelude::*;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::mem;
-use std::num::NonZeroU32;
 use std::rc::Rc;
 
-pub type Handle = NonZeroU32;
-
-pub fn to_i64(h: Option<Handle>) -> i64 {
-    match h {
-        None => 0,
-        Some(v) => v.get() as i64,
-    }
-}
-
-pub fn from_i64(v: i64) -> Result<Handle, Error> {
-    match Handle::new(v as u32) {
-        Some(h) => Ok(h),
-        None => Err("Expected non-zero handle value".into()),
-    }
-}
+pub type Handle = i64;
 
 pub struct HandleTree<Value> {
     obj_by_handle: HashMap<Handle, (Option<Handle>, Rc<String>, Value)>,
     handle_tree: HashMap<(Option<Handle>, Rc<String>), Handle>,
     prev_handle_tree: HashMap<(Option<Handle>, Rc<String>), Handle>,
-    next_handle_value: u32,
+    next_handle_value: Handle,
 }
 
 impl<Value> HandleTree<Value> {
@@ -72,7 +57,7 @@ impl<Value> HandleTree<Value> {
 
     fn create_new_handle(&mut self) -> Handle {
         self.next_handle_value += 1;
-        Handle::new(self.next_handle_value).unwrap()
+        self.next_handle_value
     }
 
     pub fn get(&self, handle: Handle) -> Option<&Value> {
@@ -133,5 +118,5 @@ fn test2() {
     let mut handles = HandleTree::new();
     let h1 = handles.create(None, "12345", 12345);
     // Should panic because parent handle is invalid
-    let h2 = handles.create(Some(Handle::new(h1.get() + 1).unwrap()), "12345", 12345);
+    let h2 = handles.create(Some(h1 + 1), "12345", 12345);
 }

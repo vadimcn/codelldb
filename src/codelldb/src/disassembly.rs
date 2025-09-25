@@ -93,7 +93,7 @@ impl DisassembledRanges {
         instructions: SBInstructionList,
     ) -> Rc<DisassembledRange> {
         let mut ranges = self.ranges.borrow_mut();
-        let handle = Handle::new((ranges.by_handle.len() + 1000) as u32).unwrap();
+        let handle = (ranges.by_handle.len() + 1000) as Handle;
         let instruction_addrs = instructions.iter().map(|i| i.address().load_address(&self.target)).collect();
         let start_load_addr = start_addr.load_address(&self.target);
         let end_load_addr = end_addr.load_address(&self.target);

@@ -40,15 +40,6 @@ else()
     set_source_files_properties(cpp/relative/relative_path2.cpp PROPERTIES COMPILE_FLAGS "-fdebug-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=. -fdebug-prefix-map=${CMAKE_SOURCE_DIR}/cpp/relative=../../relative")
 endif()
 
-# rusttypes
-if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(Target)
-    set(Rusttypes rusttypes)
-else()
-    set(Target --target ${LLVM_TRIPLE})
-    set(Rusttypes rusttypes.exe)
-endif()
-
 set(Cargo ${CMAKE_COMMAND} -E env RUSTC_BOOTSTRAP=1 cargo -Zunstable-options)
 
 add_custom_target(rust-debuggee

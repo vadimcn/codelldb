@@ -41,7 +41,7 @@
 
 To start a debugging session, you will need to create a [launch configuration](https://code.visualstudio.com/Docs/editor/debugging#_launch-configurations) for your program.   Here's a minimal one:
 
-```json
+```jsonc
 {
     "name": "Launch",
     "type": "lldb",
@@ -60,7 +60,7 @@ To start a debugging session, you will need to create a [launch configuration](h
 |**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process).
 |**initCommands**         |[string]| LLDB commands executed upon debugger startup.
 |**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
-|**preRunCommands**       |[string]| LLDB commands executed just before launching of attaching to the debuggee.
+|**preRunCommands**       |[string]| LLDB commands executed just before launching or attaching to the debuggee.
 |**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.
 |**postRunCommands**      |[string]| LLDB commands executed just after launching or attaching to the debuggee.
 |**preTerminateCommands** |[string]| LLDB commands executed just before the debuggee is terminated or disconnected from.
@@ -90,38 +90,35 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**terminal**       |string| Destination for debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
 
-Operations performed for launch:
-- The `initCommands` sequence is executed.
-- The [debug target object](https://lldb.llvm.org/python_api/lldb.SBTarget.html) is created:
-  - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
-    is assumed to have been created by these commands and will be associated with the current debugging session.
-  - Otherwise, target is created from the binary pointed to by the `program` attribute.
-- Target properties are configured using `args`, `env`, `cwd`, `stdio`, etc, configuration attributes.
-- Breakpoints are created.
-- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration (e.g. args or env).
-- The debuggee process is created:
-  - If `processCreateCommands` attribute is present, this command sequence is executed. These are expected to have created
-    a process corresponding to the debug target.
-  - Otherwise, the default process creation action is performed (equivalent to the `process launch` command).
-- The `postRunCommands` sequence is executed.
-- Debugging until the debuggee exits, or the user requests termination.
-- The `preTerminateCommands` sequence is executed.
-- The debuggee is terminated (if still alive).
-- If restarting the debug session, go to `preRunCommands` step.
-- The `exitCommands` sequence is executed.
+### Launch sequence
+- Run `initCommands`.
+- Create the [debug target](https://lldb.llvm.org/python_api/lldb.SBTarget.html):
+  - If `targetCreateCommands` are provided, run them; the currently selected target becomes the session target.
+  - Otherwise create the target from `program`.
+- Apply configuration (`args`, `env`, `cwd`, `stdio`, etc.).
+- Create breakpoints.
+- Run `preRunCommands` (may further adjust args/env).
+- Create the process:
+  - If `processCreateCommands` are provided, run them (they must create the process).
+  - Otherwise perform the default launch (like `process launch`).
+- Run `postRunCommands`.
+- Debug until the program exits or the user terminates session.
+- Run `preTerminateCommands`.
+- Terminate the process (if still alive).
+- If restarting, jump back to step 5.
+- Run `exitCommands`.
 
 ### Stdio Redirection
-The **stdio** property is a list of redirection targets for each of the debuggee's stdio streams:
-- `null` value will cause redirect to the default debug session terminal (as specified by the **terminal** launch property),
-- `"/some/path"` will cause the stream to be redirected to the specified file, pipe or a TTY device<sup>*</sup>,
-- if you provide less than 3 values, the list will be padded to 3 entries using the last provided value,
-- you may specify more than three values, in which case additional file descriptors will be created (4, 5, etc.)
+`stdio` is a list mapping file descriptors in order: stdin (0), stdout (1), stderr (2). Rules:
+- `null`: use the default session terminal (as determined by the `terminal` property).
+- `"/some/path"`: redirect that stream to a file, pipe, or TTY device<sup>*</sup>.
+- Fewer than 3 entries: pad to length 3 by repeating the last specified value.
+- More than 3 entries: open additional descriptors (fd 4, 5, ...) accordingly.
 
 Examples:
-- `"stdio": [null, "log.txt", null]` - connect stdin and stderr to the default terminal, while sending
-stdout to "log.txt",
-- `"stdio": ["input.txt", "log.txt"]` - connect stdin to "input.txt", while sending both stdout and stderr to "log.txt",
-- `"stdio": null` - connect all three streams to the default terminal.
+- `"stdio": [null, "log.txt", null]` – stdin and stderr go to the terminal; stdout goes to `log.txt`.
+- `"stdio": ["input.txt", "log.txt"]` – stdin from `input.txt`; stdout and stderr to `log.txt`.
+- `"stdio": null` – all three streams go to the default terminal.
 
 <sup>*</sup> Run `tty` command in a terminal window to find out the TTY device name.
 
@@ -136,8 +133,7 @@ These attributes are applicable when the "attach" initiation method is selected:
 |**stopOnEntry**    |boolean |Whether to stop the debuggee immediately after attaching.
 |**waitFor**        |boolean |Wait for the process to launch.
 
-Operations performed for attach:
-Flow during the attach sequence:
+### Attach sequence
 - The `initCommands` sequence is executed.
 - The [debug target object](https://lldb.llvm.org/python_api/lldb.SBTarget.html) is created:
   - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
@@ -165,7 +161,7 @@ on some systems.  You may need to adjust system configuration to enable it.
 The `${command:pickProcess}` or `${command:pickMyProcess}` can be used directly in the configuration for an interactive
 list of processes running on the machine running Visual Studio Code:
 
-```json
+```jsonc
 {
     "name": "Pick Process Attach",
     "type": "lldb",
@@ -178,7 +174,7 @@ The `lldb.pickProcess` and `lldb.pickMyProcess` commands provide more configurat
 optional `initCommands` arg let you specify lldb commands to configure a remote connection. The optional `filter` arg
 lets you filter the process list to those that match the specified filter.
 
-```json
+```jsonc
 {
   "version": "0.2.0",
   "configurations": [
@@ -187,7 +183,7 @@ lets you filter the process list to those that match the specified filter.
       "type": "lldb",
       "request": "attach",
       "pid": "${input:pickExampleProcess}",
-      "initCommands": [ ... ], // Eg, platform select/connect commands.
+      "initCommands": [ ], // Eg, platform select/connect commands.
     },
   ],
   "inputs": [
@@ -245,44 +241,45 @@ sleep(1); // Wait for debugger to attach
 
 #### Attach debugger to the current process (Rust)
 Ever wanted to debug a build script?
-```Rust
+```rust
 let url = format!("vscode://vadimcn.vscode-lldb/launch/config?{{'request':'attach','pid':{}}}", std::process::id());
 std::process::Command::new("code").arg("--open-url").arg(url).output().unwrap();
 std::thread::sleep_ms(1000); // Wait for debugger to attach
 ```
 
 Note: You may need to update your `Cargo.toml` to build the build script with `debug`:
-```
+```toml
 [profile.dev.build-override]
 debug = true
 ```
 
-The URL method has some drawbacks, though:
+The URL method has limitations:
 - It launches debug session in the last active VSCode window.
 - It [does not work](https://github.com/microsoft/vscode-remote-release/issues/4260) with VSCode remoting.
 
 
 ### RPC Server
-CodeLLDB can also perform external launches via RPC:
- `lldb.rpcServer` setting to a workspace
-of folder configuration you can start an RPC server listening for debug configurations on a Unix or a TCP socket:
-- The value is the [options](https://nodejs.org/api/net.html#net_server_listen_options_callback) object of the Node.js network server object.
-- As a rudimentary security feature, you may add a "`token`" attribute to the server options above, in which case, the submitted
-debug configurations must also contain `token` with a matching value.<br>
-- After writing configuration data, the client must half-close its end of the connection.
-- Upon completion, CodeLLDB will respond with `{ "success": true/false, "message": <optional error message> }`
 
-#### Examples:
-These examples assume that you've enabled the RPC server by editing `settings.json`:
-```json
+You may also initiate debugging sessions via RPC by adding the `lldb.rpcServer` setting to the workspace or folder configuration.
+The value of the setting will be passed as the first argument to Node.js's [server.listen](https://nodejs.org/api/net.html#net_server_listen_options_callback) method, to start listening for connections.
+
+As a rudimentary security feature, you may add a `token` attribute to the server options above. In this case, the submitted debug configurations must also contain a `token` entry with a matching value.
+
+```jsonc
 "lldb.rpcServer": { "host": "127.0.0.1", "port": 12345, "token": "secret" }
 ```
-##### Start debugging using netcat
-```sh
- echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
- ```
 
-##### Start debugging using codelldb-launch
+The easiest way to interact with an RPC endpoint is the [codelldb-launch](#codelldb-launch) utility.
+However, you may also use it "manually":
+- Open a connection using the protocol you've configured above.
+- Write the launch configuration as a UTF-8 encoded string.
+- After writing the configuration data, the client must half-close its end of the connection.
+- Upon completion, CodeLLDB will respond with `{ "success": <true|false>, "message": <optional error message> }`.
+
+#### Examples:
+These examples assume that you've enabled the RPC server using the configuration above.
+
+##### Start debugging using [codelldb-launch](#codelldb-launch)
 ```sh
 codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bin/ls
 ```
@@ -302,24 +299,38 @@ export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
 bazel run --run_under=codelldb-launch //<package>:<target>
 ```
 
-### codelldb-launch
-`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.  Usage:
+##### Start debugging using netcat
 ```sh
-codelldb-launch [--connect=<address>] [--config=<launch configuration>] [--clear-screen[=true|false]] [--] [debuggee [--arg1 [-arg2 ...]]]
+echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
+```
+
+### codelldb-launch
+`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.
+It is located at `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/bin/codelldb-launch`.
+
+Usage:
+
+#### Variant 1
+Connect to the RPC endpoint, submit debug configuration and exit.
+
+```sh
+codelldb-launch --connect=<address> --config=<launch configuration>
 ```
 - `--connect` specifies the address of the CodeLLDB [RPC server](#rpc-server) endpoint to connect to.
   This address may also be provided via the `CODELLDB_LAUNCH_CONNECT` environment variable.
 - `--config` specifies the launch configuration as a YAML or JSON string.
   This address may also be provided via the `CODELLDB_LAUNCH_CONFIG` environment variable.
+
+
+#### Variant 2
+```sh
+codelldb-launch --connect=<address> [--config=<configuration overrides>] [--clear-screen[=true|false]] [--] debuggee [--arg1 [--arg2 ...]]
+```
+In this case the launch configuration is initialized using debuggee path, command line arguments and current environment.
+The configuration is then updated using the value of the `--config` flag.  The result is submitted to the RPC endpoint,
+after which `codelldb-launch` awaits end of the debug session.  The debug session will use the current controlling tty,
+if there is one, unless configuration overrides contain `{ "terminal": "integrated|external|console" }`.
 - `--clear-screen` specifies whether to clear current terminal before launching the debuggee.
-- `debuggee ...` specifies the path and arguments of the program to debug.
-  (You may also provide the launch configuration via `--config` to customize parameters of the debug session)<br>
-  The presence of this parameter alters the behavior of `codelldb-launch` as follows:
-  - The debug session uses the environment and terminal where `codelldb-launch` was invoked.
-  - `codelldb-launch` will wait for the debug session to terminate before continuing.
-
-`codelldb-launch` may be found at `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/adapter/codelldb-launch`.
-
 
 ## Remote Debugging
 
@@ -335,7 +346,7 @@ If you require additional configuration of the remote system, you may use `preRu
 to execute commands such as `platform mkdir`, `platform put-file`, `platform shell`, etc.
 (see `help platform` for a list of available platform commands).
 
-```json
+```jsonc
 {
     "name": "Remote launch",
     "type": "lldb",
@@ -363,7 +374,7 @@ such as [OpenOCD](http://openocd.org/), [QEMU](https://www.qemu.org/), [rr](http
 - Start remote agent. For example, run `gdbserver *:<port> <debuggee> <debuggee args>` on the remote machine.
 - Create a launch configuration.
 - Start debugging.
-```json
+```jsonc
 {
     "name": "Remote attach",
     "type": "lldb",
@@ -389,11 +400,11 @@ While CodeLLDB does not natively support launching the debuggee as a different u
   (A copy of lldb-server is provided in this extension's installation directory under `lldb/bin`.
   Use the "Extensions: Open Extensions Folder" command to find where extensions are located, and look for "vadimcn.vscode-lldb".)
 - Add the following to your launch configuration:
-```json
-    "initCommands": [
-        "platform select remote-linux", // Replace with "remote-macosx" or "remote-windows" as appropriate
-        "platform connect connect://127.0.0.1:12345"
-    ]
+```jsonc
+"initCommands": [
+    "platform select remote-linux", // Replace with "remote-macosx" or "remote-windows" as appropriate
+    "platform connect connect://127.0.0.1:12345"
+]
 ```
 
 ## Reverse Debugging
@@ -410,16 +421,16 @@ If you get any of them to work, please let me know!
 ### Example: (using rr)
 Record execution trace:
 ```sh
-rr record <debuggee> <arg1> ...
+    rr record <debuggee> <arg1> ...
 ```
 
 Replay execution:
 ```sh
-rr replay -s <port>
+    rr replay -s <port>
 ```
 
 Launch config:
-```json
+```jsonc
 {
     "name": "Replay",
     "type": "lldb",
@@ -432,7 +443,7 @@ Launch config:
 
 ## Inspecting a Core Dump
 Use launch configuration with `target create -c <core path>` command:
-```json
+```jsonc
 {
     "name": "Core dump",
     "type": "lldb",
@@ -443,13 +454,19 @@ Use launch configuration with `target create -c <core path>` command:
 ```
 
 ## Source Path Remapping
-Source path remapping is helpful when the program's source code is located in a different directory than it was at build time (for example, if a build server was used).
+Source path remapping is helpful when the program's source code is located in a different directory than it was
+at build time (for example, if a build server was used).
 
 A source map consists of pairs of "from" and "to" path prefixes.  When the debugger encounters a source
 file path beginning with one of the "from" prefixes, it will substitute the corresponding "to" prefix
 instead.  Example:
-```json
-    "sourceMap": { "/build/time/source/path" : "/current/source/path" }
+```jsonc
+"sourceMap": { "/build/time/source/path" : "/current/source/path" }
+```
+
+This corresponds to the following LLDB command:
+```
+settings set target.source-map '/build/time/source/path' '/current/source/path'
 ```
 
 ## Parameterized Launch Configurations
@@ -459,24 +476,22 @@ in such cases: you can place common configuration values into `lldb.dbgconfig` s
 then reference via `${dbgconfig:variable}` in launch configurations.<br>
 Example:
 
-```json
+```jsonc
 // settings.json
-    ...
-    "lldb.dbgconfig":
-    {
-        "dataset": "dataset1",
-        "datadir": "${env:HOME}/mydata/${dbgconfig:dataset}" // "dbgconfig" properties may reference each other,
-                                                             // as long as there is no recursion.
-    }
+"lldb.dbgconfig":
+{
+    "dataset": "dataset1",
+    "datadir": "${env:HOME}/mydata/${dbgconfig:dataset}" // "dbgconfig" properties may reference each other,
+                                                            // as long as there is no recursion.
+}
 
 // launch.json
-    ...
-    {
-        "name": "Debug program",
-        "type": "lldb",
-        "program": "${workspaceFolder}/build/bin/program",
-        "cwd": "${dbgconfig:datadir}" // will be expanded to "/home/user/mydata/dataset1"
-    }
+{
+    "name": "Debug program",
+    "type": "lldb",
+    "program": "${workspaceFolder}/build/bin/program",
+    "cwd": "${dbgconfig:datadir}" // will be expanded to "/home/user/mydata/dataset1"
+}
 ```
 
 # Debugger Features
@@ -501,7 +516,7 @@ Example:
 
 ## Debugger Commands
 
-CodeLLDB adds in-debugger commands that may be executed in the DEBUG CONSOLE panel during a debug dession:
+CodeLLDB adds in-debugger commands that may be executed in the DEBUG CONSOLE panel during a debug session:
 
 |                 |                                                         |
 |-----------------|---------------------------------------------------------|
@@ -517,8 +532,8 @@ purpose in CodeLLDB:
 2. Evaluation of [expressions](#expressions).
 
 By default, console input is interpreted as LLDB commands.  If you would like to evaluate an expression instead, prefix it with
-'`?`', e.g. '`?a+2`' (Expression type preffixes are added on top of that, i.e. '`?/nat a.size()`').
-Console input mode may altered via **"lldb.consoleMode": "evaluate"** setting: in this case expression evaluation will be the default,
+'`?`', e.g. '`?a+2`' (Expression type prefixes are added on top of that, i.e. '`?/nat a.size()`').
+Console input mode may be altered via **"lldb.consoleMode": "evaluate"** setting: in this case expression evaluation will be the default,
 while commands will need to be prefixed with either '`/cmd `' or '`' (backtick).
 
 ## Regex Breakpoints
@@ -545,8 +560,8 @@ For example, on x86_64 the restrictions are as follows:
 ## Hit conditions
 Syntax:
 ```
-    operator :: = '<' | '<=' | '=' | '>=' | '>' | '%'
-    hit_condition ::= operator number
+operator :: = '<' | '<=' | '=' | '>=' | '>' | '%'
+hit_condition ::= operator number
 ```
 
 The `'%'` operator causes a stop after every `number` of breakpoint hits.
@@ -560,15 +575,15 @@ switch to disassembly view.  This behavior may be controlled using **Show Disass
 and **Toggle Disassembly** commands.  The former allows to choose between `never`,
 `auto` (the default) and `always`, the latter toggles between `auto` and `always`.
 
-While is disassembly view, 'step over' and 'step into' debug actions will perform instruction-level
+While in disassembly view, 'step over' and 'step into' perform instruction-level
 stepping rather than source-level stepping.
 
 ![disassembly view](images/disasm.png)
 
 ## Excluded Callers
 
-Sometimes you may want skip breakpoints when called from certain code paths.  This is particularily relevant for "on throw"
-exception breakpoints in programs that use exceptions as a part of "normal" control flow.
+You may want to skip breakpoints when triggered from specific call paths — especially for "on throw" exception breakpoints
+in code that uses exceptions as part of normal control flow.
 
 When stopped on a breakpoint, you can right-click a frame in the CALL STACK panel and choose the "Exclude Caller" item.
 Afterwards, the debugger won't stop on that breakpoint location, if the excluded caller appears anywhere in the call stack.
@@ -600,27 +615,20 @@ number format and array specifiers like this: `var,x[10]`.
 
 ### Pointers
 
-When displaying pointer and reference variables, CodeLLDB will prefer to display the
-value of the object pointed to.  If you would like to see the raw address value,
-you may toggle this behavior using **Toggle Pointee Summaries** command.
-Another way to display raw pointer address is to add the pointer variable to WATCH panel and specify
-an explicit format, as described in the previous section.
+Pointer and reference values display the pointee by default. To view the raw address:
+- Use the **Toggle Pointee Summaries** command, or
+- Add the pointer to WATCH and apply a numeric format (e.g. `,p` or `,x`).
 
 ## Expressions
 
-CodeLLDB implements three expression evaluator types: "simple", "python" and "native".  These are used
-wherever user-entered expression needs to be evaluated: in the WATCH panel, in the DEBUG CONSOLE (for input
-prefixed with `?`) and in breakpoint conditions.<br>
-By default, "simple" is assumed, however you may change this using the [expressions](#launching-a-new-process) launch
-configuration property.  The default type may also be overridden on a per-expression basis using a prefix.
+CodeLLDB provides three expression evaluators: "simple", "python", and "native". They are used anywhere expressions are accepted: WATCH panel, DEBUG CONSOLE (inputs prefixed with `?`), and breakpoint conditions.<br>
+Default evaluator: `simple`. Override globally via the `expressions` launch property, or per expression with a prefix.
 
 ### Simple expressions
 Prefix: `/se `<br>
-Simple expressions are designed to enable performing basic arithmetic and logical operations on [formatted
-views](https://lldb.llvm.org/use/varformats.html) of the debuggee variables.  For example, things like indexing an
-`std::vector` or comparing `std::string` to a string literal should "just work".
+Simple expressions support arithmetic and logical operations directly on [formatted views](https://lldb.llvm.org/use/varformats.html) of values. Indexing an `std::vector` or comparing an `std::string` to a literal should “just work”.
 
-The followng features are supported:
+The following features are supported:
 - References to variables: all identifiers are assumed to refer to variables in the debuggee current stack frame.
   The identifiers may be qualified with namespaces and template parameters (e.g. `std::numeric_limits<float>::digits`).
 - Embedded [native expressions](#native-expressions): these must be delimited with `${` and `}`.
@@ -632,13 +640,12 @@ The followng features are supported:
 
 ### Python expressions
 Prefix: `/py `<br>
-Python expressions support full Python syntax.  In addition to that, any identifier prefixed by `$`, will be replaced
-with the value of the corresponding debuggee variable.  Such values may be mixed with regular Python variables.
+Python expressions support full Python syntax. Any identifier prefixed by `$` is substituted with the corresponding debuggee
+variable; these values can be mixed with normal Python variables.
 For example, `/py [math.sqrt(x) for x in $arr]` will evaluate to a list of square roots of the values contained in
 the array variable `arr`.
 
-The environment in which Python expressions are executed is shared with the internal Python interpreter of the debugger
-and is affected by the `script ...` command.   This may be used to import Python modules you are going to use later.
+Python execution shares the debugger’s embedded interpreter state and honors prior `script ...` commands.
 For example, in order to evaluate `math.sqrt(x)` above, you'll need to have imported the `math` package via
 `script import math`.  To import Python modules on debug session startup, use `"initCommands": ["script import ..."]`.
 
@@ -656,7 +663,7 @@ current debug target (e.g. C, C++ or Swift).<br>
 For example, the C++ expression evaluator offers many powerful features including interactive definition
 of new data types, instantiation of C++ classes, invocation of functions and class methods, and more.
 
-Note, however, that native evaluators ignore data formatters and operate on "raw" data structures,
+Note, however, that native evaluators ignore data formatters and operate on "raw" values,
 thus they are often not as convenient as "simple" or "python" expressions.
 
 # Python Scripting
@@ -780,7 +787,7 @@ To enable this feature, add `"sourceLanguages": ["rust"]` into your launch confi
 
 CodeLLDB has built-in support for Cargo workspaces, so you don’t need to manually configure the paths to binaries or test targets.
 To use this feature, replace the `program` property in your launch configuration with `cargo`:
-```json
+```jsonc
 {
     "type": "lldb",
     "request": "launch",
@@ -796,7 +803,7 @@ To use this feature, replace the `program` property in your launch configuration
 ```
 
 If you only need to provide cargo arguments, this may be shortened to:
-```json
+```jsonc
 {
     "type": "lldb",
     "request": "launch",
@@ -818,9 +825,9 @@ settings are distinct from workspace settings and are not subject to the usual s
 However, since common defaults for all launch configurations in a project are often desired, the CodeLLDB extension
 provides this feature via [`lldb.launch.*`](#default-launch-configuration-settings) setting group, which serve as defaults
 for the corresponding launch configuration settings.  When a setting is specified in both locations, the values will
-be merged according to on their type:
-- For lists, the resulting value will be a concatenation of both sources.
-- For dictionaties, the resulting value will be a combination of key-value pairs from both sources.  For equal keys,
+be merged according to their type:
+- For lists, the resulting value will be a concatenation of values from both sources.
+- For dictionaries, the resulting value will be a combination of key-value pairs from both sources.  For equal keys,
   the launch configuration value takes precedence.
 - For numbers and strings, the launch configuration value takes precedence.
 
@@ -840,7 +847,7 @@ The full list of LLDB settings may be obtained by executing `settings list` comm
 # Workspace Configuration Reference
 
 ## Default Launch Configuration Settings
-These settings specify the default values for launch configuration setting of the same name.
+These settings specify the default values for launch configuration settings of the same name.
 |                                |                                                         |
 |--------------------------------|---------------------------------------------------------|
 |**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.
@@ -864,7 +871,7 @@ These settings specify the default values for launch configuration setting of th
 |**lldb.dbgconfig**                 |See [Parameterized Launch Configurations](#parameterized-launch-configurations).
 |**lldb.evaluationTimeout**         |Timeout for expression evaluation, in seconds (default=5s).
 |**lldb.displayFormat**             |The default format for variable and expression values.
-|**lldb.showDisassembly**           |When to show disassembly:<li>`auto` - only when source is not available.,<li>`never` - never show.,<li>`always` - always show, even if source is available.
+|**lldb.showDisassembly**           |When to show disassembly:<li>`auto` - only when source is not available.<li>`never` - never show.<li>`always` - always show, even if source is available.
 |**lldb.dereferencePointers**       |Whether to show summaries of the pointees instead of numeric values of the pointers themselves.
 |**lldb.suppressMissingSourceFiles**|Suppress VSCode's messages about missing source files (when debug info refers to files not available on the local machine).
 |**lldb.consoleMode**               |Controls whether the DEBUG CONSOLE input is by default treated as debugger commands or as expressions to evaluate:<li>`commands` - treat debug console input as debugger commands.  In order to evaluate an expression, prefix it with '?' (question mark).",<li>`evaluate` - treat DEBUG CONSOLE input as expressions.  In order to execute a debugger command, prefix it with '/cmd ' or '\`' (backtick), <li>`split` - (experimental) use the DEBUG CONSOLE for evaluation of expressions, open a separate terminal for LLDB console.

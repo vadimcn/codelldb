@@ -1,4 +1,4 @@
-import { LaunchEnvironment, LaunchResponse } from 'codelldb';
+import { LaunchEnvironment, LaunchRequestArguments, LaunchResponse } from 'codelldb';
 import * as crypto from 'crypto';
 import * as net from 'net';
 import * as querystring from 'querystring';
@@ -119,7 +119,7 @@ export class RpcLaunchServer extends RpcServer {
     async onRequest(rawRequest: string): Promise<LaunchResponse> {
         let request = YAML.parse(rawRequest);
 
-        let debugConfig: DebugConfiguration = {
+        let debugConfig: DebugConfiguration & LaunchRequestArguments = {
             type: 'lldb',
             request: 'launch',
             name: '',
@@ -132,15 +132,16 @@ export class RpcLaunchServer extends RpcServer {
             let launchConfig = launchEnv.config ? YAML.parse(launchEnv.config) : {};
             debugConfig.program = launchEnv.cmd[0];
             debugConfig.args = launchEnv.cmd.slice(1);
+            debugConfig.terminal = launchEnv.terminalId;
             debugConfig.waitEndOfSession = true;
             Object.assign(debugConfig, launchConfig);
-            debugConfig.env = Object.assign(debugConfig.env, launchEnv.env, launchConfig.env);
+            debugConfig.env = Object.assign(debugConfig.env as any, launchEnv.env, launchConfig.env);
             debugConfig.relativePathBase = launchEnv.cwd;
         } else { // Naked DebugConfiguration
             Object.assign(debugConfig, request);
         }
 
-        debugConfig.name = debugConfig.name || debugConfig.program;
+        debugConfig.name = debugConfig.name || debugConfig.program || '';
         if (this.token) {
             if (debugConfig.token != this.token)
                 return { success: false, message: 'Token mismatch' };

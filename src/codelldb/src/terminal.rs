@@ -10,9 +10,8 @@ use tokio::io::BufReader;
 use tokio::net::TcpListener;
 
 pub struct Terminal {
-    #[allow(unused)]
-    connection: TcpStream,
-    terminal_id: Either<Option<String>, u64>,
+    connection: Option<TcpStream>,
+    terminal_id: Option<TerminalId>,
 }
 
 impl Terminal {
@@ -71,7 +70,7 @@ impl Terminal {
             let launch_env: LaunchEnvironment = serde_json::from_slice(&buf)?;
 
             Ok(Terminal {
-                connection: reader.into_inner().into_std()?,
+                connection: Some(reader.into_inner().into_std()?),
                 terminal_id: launch_env.terminal_id,
             })
         };
@@ -82,11 +81,18 @@ impl Terminal {
         }
     }
 
+    pub fn from_terminal_id(terminal_id: TerminalId) -> Terminal {
+        Terminal {
+            connection: None,
+            terminal_id: Some(terminal_id),
+        }
+    }
+
     pub fn input_devname(&self) -> Option<&str> {
         if cfg!(windows) {
             Some("CONIN$")
-        } else if let Either::First(ref tty_name) = self.terminal_id {
-            tty_name.as_deref()
+        } else if let Some(TerminalId::TTY(ref tty_name)) = self.terminal_id {
+            Some(tty_name)
         } else {
             None
         }
@@ -95,8 +101,8 @@ impl Terminal {
     pub fn output_devname(&self) -> Option<&str> {
         if cfg!(windows) {
             Some("CONOUT$")
-        } else if let Either::First(ref tty_name) = self.terminal_id {
-            tty_name.as_deref()
+        } else if let Some(TerminalId::TTY(ref tty_name)) = self.terminal_id {
+            Some(tty_name)
         } else {
             None
         }
@@ -105,7 +111,7 @@ impl Terminal {
     #[cfg(windows)]
     pub fn attach_console(&self) -> bool {
         use winapi::shared::minwindef::DWORD;
-        if let Either::Second(pid) = self.terminal_id {
+        if let Some(TerminalId::PID(pid)) = self.terminal_id {
             unsafe {
                 winapi::um::wincon::FreeConsole();
                 winapi::um::wincon::AttachConsole(pid as DWORD) != 0
@@ -125,10 +131,12 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        let response = LaunchResponse {
-            success: true,
-            message: None,
-        };
-        log_errors!(serde_json::to_writer(&mut self.connection, &response));
+        if let Some(ref connection) = self.connection {
+            let response = LaunchResponse {
+                success: true,
+                message: None,
+            };
+            log_errors!(serde_json::to_writer(connection, &response));
+        }
     }
 }

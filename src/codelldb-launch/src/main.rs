@@ -4,7 +4,8 @@ use std::net;
 use std::str::FromStr;
 
 use clap::Parser;
-use codelldb_types::{Either, JsonMap, LaunchEnvironment, LaunchResponse};
+use codelldb_types::TerminalId;
+use codelldb_types::{JsonMap, LaunchEnvironment, LaunchResponse};
 
 pub type Error = Box<dyn std::error::Error>;
 
@@ -42,10 +43,13 @@ fn main() -> Result<(), Error> {
     let env = JsonMap(env::vars().collect::<Vec<_>>());
 
     #[cfg(unix)]
-    let terminal_id = Either::First(get_tty_name().ok());
+    let terminal_id = match get_tty_name() {
+        Ok(name) => Some(TerminalId::TTY(name)),
+        Err(_) => None,
+    };
 
     #[cfg(windows)]
-    let terminal_id = Either::Second(std::process::id() as u64);
+    let terminal_id = Some(TerminalId::PID(std::process::id() as u64));
 
     let request = LaunchEnvironment {
         cmd: args.cmd,

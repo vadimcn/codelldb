@@ -53,7 +53,17 @@ pub enum ShowDisassembly {
     Auto,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
+/// Terminal device identifier
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum TerminalId {
+    /// TTY device name (Unix)
+    TTY(String),
+    /// Process ID (Windows)
+    PID(u64),
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum TerminalKind {
     /// Use integrated terminal in VSCode.
@@ -62,6 +72,9 @@ pub enum TerminalKind {
     External,
     /// Use VScode Debug Console for stdout and stderr. Stdin will be unavailable.
     Console,
+    /// Use the specified TTY device
+    #[serde(untagged)]
+    TerminalId(TerminalId),
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Copy, Clone)]
@@ -260,10 +273,8 @@ pub struct LaunchEnvironment {
     pub cwd: PathBuf,
     /// Environment variables present when codelldb-launch was invoked.
     pub env: JsonMap<String>,
-    /// Information identifying the terminal where codelldb-launch was invoked:
-    /// - on Linux/MacOS, this is the tty device name;
-    /// - on Windows, this is the process ID of some process attached to that terminal.
-    pub terminal_id: Either<Option<String>, u64>,
+    /// Terminal device identifier
+    pub terminal_id: Option<TerminalId>,
     /// Debug configuration
     pub config: Option<String>,
 }
@@ -275,4 +286,16 @@ pub struct LaunchEnvironment {
 pub struct LaunchResponse {
     pub success: bool,
     pub message: Option<String>,
+}
+
+#[test]
+fn serialization() {
+    let kind = serde_json::from_str::<TerminalKind>(r#""integrated""#).unwrap();
+    assert!(matches!(kind, TerminalKind::Integrated));
+
+    let kind = serde_json::from_str::<TerminalKind>(r#""/dev/ttyX""#).unwrap();
+    assert!(matches!(kind, TerminalKind::TerminalId(TerminalId::TTY(name)) if name == "/dev/ttyX"));
+
+    let kind = serde_json::from_str::<TerminalKind>(r#"42"#).unwrap();
+    assert!(matches!(kind, TerminalKind::TerminalId(TerminalId::PID(pid)) if pid == 42));
 }

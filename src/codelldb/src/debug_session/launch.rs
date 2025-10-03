@@ -412,8 +412,8 @@ impl super::DebugSession {
             return future::ready(()).left_future(); // The client doesn't support "runInTerminal" request.
         }
 
-        let terminal_kind = match args.terminal {
-            Some(kind) => kind,
+        let terminal_kind = match &args.terminal {
+            Some(kind) => kind.clone(),
             None => match args.console {
                 Some(ConsoleKind::InternalConsole) => TerminalKind::Console,
                 Some(ConsoleKind::ExternalTerminal) => TerminalKind::External,
@@ -423,6 +423,10 @@ impl super::DebugSession {
         };
         let terminal_kind = match terminal_kind {
             TerminalKind::Console => return future::ready(()).left_future(),
+            TerminalKind::TerminalId(terminal_id) => {
+                self.debuggee_terminal = Some(Terminal::from_terminal_id(terminal_id));
+                return future::ready(()).left_future();
+            }
             TerminalKind::External => RunInTerminalRequestArgumentsKind::External,
             TerminalKind::Integrated => RunInTerminalRequestArgumentsKind::Integrated,
         };

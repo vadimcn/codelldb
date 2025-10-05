@@ -620,7 +620,12 @@ impl super::DebugSession {
                 sbval.target().create_value_from_address("(as array)", &addr, &array_type)
             };
         }
-        sbval.set_format(format_spec.format.unwrap_or(self.global_format));
+        // Apply format spec if provided, otherwise use global format only if no custom format is set
+        if let Some(format) = format_spec.format {
+            sbval.set_format(format);
+        } else if sbval.format() == Format::Default {
+            sbval.set_format(self.global_format);
+        }
         Ok(sbval)
     }
 }

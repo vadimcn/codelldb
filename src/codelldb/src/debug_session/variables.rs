@@ -211,7 +211,9 @@ impl super::DebugSession {
     ) -> Variable {
         let name = var.name().unwrap_or_default();
         let dtype = var.display_type_name();
-        var.set_format(self.global_format);
+        if self.global_format != Format::Default {
+            var.set_format(self.global_format);
+        }
         let value = self.get_var_summary(&var, false);
         let handle = self.get_var_handle(container_handle, name, &var);
 

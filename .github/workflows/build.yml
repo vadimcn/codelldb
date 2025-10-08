@@ -85,7 +85,7 @@ jobs:
         repository: vadimcn/lldb-build
         name: lldb--${{ matrix.target_triple }}
         run-id: ${{ env.lldbRunId }}
-        path: ${{ runner.temp }}
+        path: ${{ runner.temp }}/lldb.zip
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -102,9 +102,9 @@ jobs:
         cmake -DVERSION_SUFFIX=${{ env.versionSuffix }} \
               -DCMAKE_BUILD_TYPE=RelWithDebInfo \
               -DTEST_TIMEOUT=30000 \
-              -DLLDB_PACKAGE=${{ runner.temp }}/lldb--$TARGET_TRIPLE.zip \
-              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-$TARGET_TRIPLE.cmake" \
-              -DPLATFORM_ID=${{ platformId }} \
+              -DLLDB_PACKAGE=${{ runner.temp }}/lldb.zip \
+              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.target_triple }}.cmake" \
+              -DPLATFORM_ID=${{ matrix.platformId }} \
               -DCMAKE_SYSROOT=/stretch \
               ..
         cat CMakeCache.txt

@@ -80,12 +80,13 @@ jobs:
           cargo-${{ runner.os }}-${{ matrix.target }}-
 
     - name: Download lldb
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         repository: vadimcn/lldb-build
         run-id: ${{ env.lldb_run_id }}
         name: lldb--${{ matrix.lldb_triple }}
         path: ${{ runner.temp }}
+        github-token: ${{ secrets.LLDB_BUILD_TOKEN }}
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -113,22 +114,22 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: ${{ matrix.target && format('--target={0}', matrix.target) }}
-        use-cross: ${{ matrix.cross }}
+        args: --target=${{ matrix.target }}
+        use-cross: ${{ matrix.cross || false }}
 
     - name: Test
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: ${{ matrix.target && format('--target={0}', matrix.target) }}
-        use-cross: ${{ matrix.cross }}
+        args: --target=${{ matrix.target }}
+        use-cross: ${{ matrix.cross || false }}
 
     - name: Test checked
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: ${{ matrix.target && format('--target={0}', matrix.target) }} --features=checked
-        use-cross: ${{ matrix.cross }}
+        args: --target=${{ matrix.target }} --features=checked
+        use-cross: ${{ matrix.cross || false }}
 
     - name: Cache save
       uses: actions/cache/save@v4

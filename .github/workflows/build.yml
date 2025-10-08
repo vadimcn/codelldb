@@ -11,8 +11,8 @@ defaults:
     shell: bash
 
 env:
-  lldbRunId: 18262797082
-  versionSuffix: ${{ github.ref == 'refs/heads/master' && '' || '-' }}
+  lldb_run_id: 18262797082
+  version_suffix: ${{ github.ref == 'refs/heads/master' && '' || '-' }}
 
 jobs:
   build:
@@ -83,9 +83,9 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         repository: vadimcn/lldb-build
+        run-id: ${{ env.lldb_run_id }}
         name: lldb--${{ matrix.lldb_triple }}
-        run-id: ${{ env.lldbRunId }}
-        path: ${{ runner.temp }}/lldb.zip
+        path: ${{ runner.temp }}
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -99,10 +99,10 @@ jobs:
       run: |
         mkdir -p build
         cd build
-        cmake -DVERSION_SUFFIX=${{ env.versionSuffix }} \
+        cmake -DVERSION_SUFFIX=${{ env.version_suffix }} \
               -DCMAKE_BUILD_TYPE=RelWithDebInfo \
               -DTEST_TIMEOUT=30000 \
-              -DLLDB_PACKAGE=${{ runner.temp }}/lldb.zip \
+              -DLLDB_PACKAGE=${{ runner.temp }}/lldb--${{ matrix.lldb_triple }}.zips \
               -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.lldb_triple }}.cmake" \
               -DPLATFORM_ID=${{ matrix.platformId }} \
               -DCMAKE_SYSROOT=/stretch \

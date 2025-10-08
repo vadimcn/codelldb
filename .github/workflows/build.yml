@@ -1,0 +1,235 @@
+name: Build
+
+on:
+  push:
+    branches: [ try ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      use_cache:
+        type: boolean
+        default: true
+      test:
+        type: boolean
+        default: true
+      release:
+        type: boolean
+        default: false
+      final:
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  lldb_run_id: 18262797082
+  rust_version: 1.89.0
+  version_suffix: ${{ inputs.final && '' || '-' }}
+
+jobs:
+  build:
+    permissions:
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: Linux
+          image: ubuntu-latest
+          lldb_triple: x86_64-linux-gnu
+          rust_toolchain: x86_64-unknown-linux-gnu
+          rust_targets: x86_64-unknown-linux-gnu
+          platformid: linux-x64
+
+        - os: Linux
+          image: ubuntu-latest
+          lldb_triple: aarch64-linux-gnu
+          rust_toolchain: x86_64-unknown-linux-gnu
+          rust_targets: aarch64-unknown-linux-gnu
+          platformid: linux-arm64
+          cross: true
+
+        - os: Linux
+          image: ubuntu-latest
+          lldb_triple: arm-linux-gnueabihf
+          rust_toolchain: x86_64-unknown-linux-gnu
+          rust_targets: armv7-unknown-linux-gnueabihf
+          platformid: linux-armhf
+          cross: true
+
+        - os: MacOS
+          image: macos-15-intel
+          lldb_triple: x86_64-apple-darwin
+          rust_toolchain: x86_64-apple-darwin
+          rust_targets: x86_64-apple-darwin
+          platformid: darwin-x64
+
+        - os: MacOS
+          image: macos-15
+          lldb_triple: aarch64-apple-darwin
+          rust_toolchain: aarch64-apple-darwin
+          rust_targets: aarch64-apple-darwin
+          platformid: darwin-arm64
+
+        - os: Windows
+          image: windows-latest
+          lldb_triple: x86_64-windows-msvc
+          rust_toolchain: x86_64-pc-windows-gnu
+          rust_targets: x86_64-pc-windows-msvc
+          platformid: win32-x64
+
+    name: ${{ matrix.os }} ${{ matrix.platformid }}
+    runs-on: ${{ matrix.image }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Cache Restore
+      if: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.cargo/
+          ~/.rustup/
+          build/node_modules/
+          build/target/
+        key: cargo-${{ runner.os }}-${{ matrix.platformid }}-${{ github.sha }}
+        restore-keys: |
+          cargo-${{ runner.os }}-${{ matrix.platformid }}-
+
+    - name: Install Rust
+      run: |
+        rustup default ${{ env.rust_version }}-${{ matrix.rust_toolchain }}
+        rustup target add ${{ matrix.rust_targets }}
+
+    - name: Setup (Linux)
+      if: ${{ matrix.os == 'Linux' }}
+      run: |
+        mkdir -p $RUNNER_TEMP/clang
+        wget -q -O - https://github.com/vadimcn/lldb-build/releases/download/blobs/clang-15.tar.zst | zstd -dcf | tar -xf - -C $RUNNER_TEMP/clang
+        OLD_PATH=$(<$GITHUB_PATH)
+        echo "$RUNNER_TEMP/clang/bin" > $GITHUB_PATH
+        echo "$OLD_PATH" >> $GITHUB_PATH
+
+        mkdir -p $RUNNER_TEMP/sysroot
+        wget -q -O - https://github.com/vadimcn/lldb-build/releases/download/blobs/stretch-sysroot.tar.zst | zstd -dcf | tar -xf - -C $RUNNER_TEMP/sysroot
+        cat <<EOF >> $GITHUB_ENV
+        CFLAGS=--sysroot=$RUNNER_TEMP/sysroot
+        CXXFLAGS=--sysroot=$RUNNER_TEMP/sysroot
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clinker=clang -Clink-arg=--sysroot=$RUNNER_TEMP/sysroot -Clink-arg=-fuse-ld=lld -Clink-arg=--target=x86_64-unknown-linux-gnu
+        CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUSTFLAGS=-Clinker=clang -Clink-arg=--sysroot=$RUNNER_TEMP/sysroot -Clink-arg=-fuse-ld=lld -Clink-arg=--target=armv7-unknown-linux-gnueabihf
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clinker=clang -Clink-arg=--sysroot=$RUNNER_TEMP/sysroot -Clink-arg=-fuse-ld=lld -Clink-arg=--target=aarch64-unknown-linux-gnu
+        LD_LIBRARY_PATH=$RUNNER_TEMP/sysroot/lib/x86_64-unknown-linux-gnu:$RUNNER_TEMP/clang/lib/x86_64-unknown-linux-gnu
+        EOF
+
+        /usr/bin/Xvfb :99 -screen 0 1024x768x24 &
+        echo "DISPLAY=:99.0" >> $GITHUB_ENV
+
+    - name: Setup (Windows)
+      if: ${{ matrix.os == 'Windows' }}
+      shell: cmd
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        set >> %GITHUB_ENV%
+
+    - name: Download LLDB
+      uses: actions/download-artifact@v5
+      with:
+        repository: vadimcn/lldb-build
+        run-id: ${{ env.lldb_run_id }}
+        name: lldb--${{ matrix.lldb_triple }}
+        path: ${{ runner.temp }}
+        github-token: ${{ secrets.LLDB_BUILD_TOKEN }}
+
+    - name: Configure
+      run: |
+        mkdir -p build
+        cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchain-${{ matrix.lldb_triple }}.cmake \
+              -DPLATFORM_ID=${{ matrix.platformId }} \
+              -DVERSION_SUFFIX=${{ env.version_suffix }} \
+              -DTEST_TIMEOUT=30000 \
+              -DLLDB_PACKAGE=$RUNNER_TEMP/lldb--${{ matrix.lldb_triple }}.zip \
+              -DCMAKE_VERBOSE_MAKEFILE=on \
+              -G Ninja -B build -S .
+        cat build/CMakeCache.txt
+
+    - name: Build
+      run: |
+        cmake --build build --target vsix_full
+        mv build/codelldb-full.vsix build/codelldb-${{ matrix.platformid }}.vsix
+
+    - name: Build bootstrap package
+      if: ${{ matrix.platformid == 'linux-x64' }}
+      run: |
+        cmake --build build --target vsix_bootstrap
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.platformId }}
+        path: |
+          build/package.json
+          build/*.vsix
+
+    - name: Test
+      if: ${{ !matrix.cross && (github.event_name != 'workflow_dispatch' || inputs.test) }}
+      run: |
+        cmake --build build --target check
+
+    - name: Cache save
+      uses: actions/cache/save@v4
+      if: ${{ always() }}
+      with:
+        path: |
+          ~/.cargo/
+          ~/.rustup/
+          build/node_modules/
+          build/target/
+        key: cargo-${{ runner.os }}-${{ matrix.platformid }}-${{ github.sha }}
+
+    # - name: VSCode
+    #   uses: stateful/vscode-server-action@v1
+    #   if: ${{ failure() }}
+    #   with:
+    #     timeout: 300000
+
+  release:
+    name: Release
+    if: ${{ inputs.release }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Get release metadata
+      id: meta
+      run: |
+        ls -R artifacts
+        tag_name="v$(jq -r '.version' artifacts/package.json)"
+        echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.meta.outputs.tag_name }}
+        target_commitish: ${{ github.sha }}
+        draft: true
+        generate_release_notes: true
+        files: |
+          artifacts/**/*.vsix
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -21,7 +21,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     endif()
 endif()
 
-if (CMAKE_VERBOSE_MAKEFILE)
+if (CARGO_VERBOSE)
     set(CargoFlags ${CargoFlags} -vv)
 endif()
 

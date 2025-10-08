@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, try ]
+  pull_request:
+    branches: [ master ]
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  lldbRunId: 18262797082
+  versionSuffix: ${{ github.ref == 'refs/heads/master' && '' || '-' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      env:
+      matrix:
+        include:
+        - os: Linux
+          image: ubuntu-latest
+          target_triple: x86_64-linux-gnu
+          target: x86_64-unknown-linux-gnu
+          platformid: linux-x64
+
+        - os: Linux
+          image: ubuntu-latest
+          target_triple: aarch64-linux-gnu
+          target: aarch64-unknown-linux-gnu
+          platformid: linux-arm64
+          cross: true
+
+        - os: Linux
+          image: ubuntu-latest
+          target_triple: arm-linux-gnueabihf
+          target: armv7-unknown-linux-gnueabihf
+          platformid: linux-armhf
+          cross: true
+
+        - os: MacOS
+          image: macOS-latest
+          target_triple: x86_64-apple-darwin
+          target: x86_64-apple-darwin
+          platformid: darwin-x64
+
+        - os: MacOS
+          image: macOS-latest
+          platformid: darwin-arm64
+          target_triple: aarch64-apple-darwin
+          target: aarch64-apple-darwin
+
+        - os: Windows
+          image: windows-latest
+          target_triple: x86_64-windows-msvc
+          target: x86_64-pc-windows-msvc
+          platformid: win32-x64
+
+    name: ${{ matrix.os }} ${{ matrix.target }}
+    runs-on: ${{ matrix.image }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Cache Restore
+      id: cache_restore
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: cargo-${{ runner.os }}-${{ matrix.target }}-${{ github.sha }}
+        restore-keys: |
+          cargo-${{ runner.os }}-${{ matrix.target }}-
+
+    - name: Download lldb
+      uses: actions/download-artifact@v5
+      with:
+        repository: vadimcn/lldb-build
+        name: lldb--${{ matrix.target_triple }}
+        run-id: {{ env.lldbRunId }}
+        path: {{ runner.temp }}
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: 1.70.0
+          target: ${{ matrix.target }}
+          override: true
+
+    - name:
+      shell: bash
+      run: |
+        mkdir build
+        cd build
+        cmake -DVERSION_SUFFIX=$(versionSuffix) \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DTEST_TIMEOUT=30000\
+              -DLLDB_PACKAGE={{ runner.temp }}/lldb--$(triple).zip \
+              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-$(triple).cmake \
+              -DPLATFORM_ID={( env.platformid }} \
+              -DCMAKE_SYSROOT=/stretch \
+              ..
+        cat CMakeCache.txt
+
+    - name: Configure
+
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: ${{ matrix.target && format('--target={0}', matrix.target) }}
+        use-cross: ${{ matrix.cross }}
+
+    - name: Test
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: ${{ matrix.target && format('--target={0}', matrix.target) }}
+        use-cross: ${{ matrix.cross }}
+
+    - name: Test checked
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: ${{ matrix.target && format('--target={0}', matrix.target) }} --features=checked
+        use-cross: ${{ matrix.cross }}
+
+    - name: Cache save
+      uses: actions/cache/save@v4
+      if: ${{ always() }}
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: cargo-${{ runner.os }}-${{ matrix.target }}-${{ github.sha }}

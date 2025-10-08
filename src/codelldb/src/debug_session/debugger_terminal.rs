@@ -33,8 +33,36 @@ impl super::DebugSession {
                         #[cfg(windows)]
                         terminal.attach_console();
 
+                        #[cfg(windows)]
+                        let stdin = {
+                            use std::fs::OpenOptions;
+                            OpenOptions::new()
+                                .read(true)
+                                .open(terminal.input_devname().unwrap())
+                                .unwrap()
+                        };
+                        #[cfg(windows)]
+                        let stdout = {
+                            use std::fs::OpenOptions;
+                            OpenOptions::new()
+                                .write(true)
+                                .open(terminal.output_devname().unwrap())
+                                .unwrap()
+                        };
+                        #[cfg(windows)]
+                        let stderr = {
+                            use std::fs::OpenOptions;
+                            OpenOptions::new()
+                                .write(true)
+                                .open(terminal.output_devname().unwrap())
+                                .unwrap()
+                        };
+
+                        #[cfg(unix)]
                         let stdin = File::open(terminal.input_devname().unwrap()).unwrap();
+                        #[cfg(unix)]
                         let stdout = File::create(terminal.output_devname().unwrap()).unwrap();
+                        #[cfg(unix)]
                         let stderr = File::create(terminal.output_devname().unwrap()).unwrap();
                         #[cfg(unix)]
                         let stdin_fd = stdin.as_raw_fd();

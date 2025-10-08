@@ -79,7 +79,7 @@ jobs:
         restore-keys: |
           cargo-${{ runner.os }}-${{ matrix.target }}-
 
-    - name: Download lldb
+    - name: Download LLDB
       uses: actions/download-artifact@v5
       with:
         repository: vadimcn/lldb-build
@@ -103,8 +103,8 @@ jobs:
         cmake -DVERSION_SUFFIX=${{ env.version_suffix }} \
               -DCMAKE_BUILD_TYPE=RelWithDebInfo \
               -DTEST_TIMEOUT=30000 \
-              -DLLDB_PACKAGE=${{ runner.temp }}/lldb--${{ matrix.lldb_triple }}.zips \
-              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.lldb_triple }}.cmake" \
+              -DLLDB_PACKAGE=${{ runner.temp }}/lldb--${{ matrix.lldb_triple }}.zip \
+              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.lldb_triple }}.cmake \
               -DPLATFORM_ID=${{ matrix.platformId }} \
               -DCMAKE_SYSROOT=/stretch \
               ..

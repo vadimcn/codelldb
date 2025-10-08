@@ -80,7 +80,7 @@ jobs:
           cargo-${{ runner.os }}-${{ matrix.target }}-
 
     - name: Download lldb
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v4
       with:
         repository: vadimcn/lldb-build
         name: lldb--${{ matrix.lldb_triple }}
@@ -141,4 +141,3 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: cargo-${{ runner.os }}-${{ matrix.target }}-${{ github.sha }}
-

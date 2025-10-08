@@ -22,39 +22,39 @@ jobs:
         include:
         - os: Linux
           image: ubuntu-latest
-          target_triple: x86_64-linux-gnu
+          lldb_triple: x86_64-linux-gnu
           target: x86_64-unknown-linux-gnu
           platformid: linux-x64
 
         - os: Linux
           image: ubuntu-latest
-          target_triple: aarch64-linux-gnu
+          lldb_triple: aarch64-linux-gnu
           target: aarch64-unknown-linux-gnu
           platformid: linux-arm64
           cross: true
 
         - os: Linux
           image: ubuntu-latest
-          target_triple: arm-linux-gnueabihf
+          lldb_triple: arm-linux-gnueabihf
           target: armv7-unknown-linux-gnueabihf
           platformid: linux-armhf
           cross: true
 
         - os: MacOS
           image: macOS-latest
-          target_triple: x86_64-apple-darwin
+          lldb_triple: x86_64-apple-darwin
           target: x86_64-apple-darwin
           platformid: darwin-x64
 
         - os: MacOS
           image: macOS-latest
           platformid: darwin-arm64
-          target_triple: aarch64-apple-darwin
+          lldb_triple: aarch64-apple-darwin
           target: aarch64-apple-darwin
 
         - os: Windows
           image: windows-latest
-          target_triple: x86_64-windows-msvc
+          lldb_triple: x86_64-windows-msvc
           target: x86_64-pc-windows-msvc
           platformid: win32-x64
 
@@ -83,7 +83,7 @@ jobs:
       uses: actions/download-artifact@v5
       with:
         repository: vadimcn/lldb-build
-        name: lldb--${{ matrix.target_triple }}
+        name: lldb--${{ matrix.lldb_triple }}
         run-id: ${{ env.lldbRunId }}
         path: ${{ runner.temp }}/lldb.zip
 
@@ -103,7 +103,7 @@ jobs:
               -DCMAKE_BUILD_TYPE=RelWithDebInfo \
               -DTEST_TIMEOUT=30000 \
               -DLLDB_PACKAGE=${{ runner.temp }}/lldb.zip \
-              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.target_triple }}.cmake" \
+              -DMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-${{ matrix.lldb_triple }}.cmake" \
               -DPLATFORM_ID=${{ matrix.platformId }} \
               -DCMAKE_SYSROOT=/stretch \
               ..

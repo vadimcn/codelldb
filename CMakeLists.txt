@@ -25,11 +25,6 @@ endif()
 
 set(CMAKE_CTEST_ARGUMENTS "--output-on-failure" CACHE INTERNAL "CTest arguments")
 
-if (CMAKE_SYSROOT)
-    set(CMAKE_C_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "--sysroot=${CMAKE_SYSROOT} ${CMAKE_CXX_FLAGS}")
-endif()
-
 set(TEST_TIMEOUT 5000 CACHE STRING "Test timeout [ms]")
 set(WithEnv ${CMAKE_COMMAND} -E env)
 set(UpdateFile ${CMAKE_COMMAND} -E copy_if_different)
@@ -219,6 +214,7 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/vscodeignore-full ${Content})
 set(VsceOptions
     --baseContentUrl https://github.com/vadimcn/codelldb/blob/v${VERSION}
     --baseImagesUrl https://github.com/vadimcn/codelldb/raw/v${VERSION}
+    --skip-license
 )
 
 add_custom_target(vsix_bootstrap

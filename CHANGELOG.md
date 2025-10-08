@@ -18,6 +18,7 @@
 - #1287: Spaces in path to user directory causes all operations to fail on Windows
 - #1318: Creating a launch.json silently fails when cargo is not installed on the user machine.
 - #1322: Panic while starting up debugging C++ program for the failure of an unwrap()
+- Terminal output goes to CONOUT$ file instead of terminal on Windows
 
 # 1.11.5
 

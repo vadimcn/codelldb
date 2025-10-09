@@ -92,7 +92,7 @@ jobs:
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: ${{ rust_version }}
+          toolchain: ${{ env.rust_version }}
           target: ${{ matrix.target }}
           override: true
 

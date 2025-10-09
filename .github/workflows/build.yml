@@ -12,6 +12,7 @@ defaults:
 
 env:
   lldb_run_id: 18262797082
+  rust_version: 1.89.0
   version_suffix: ${{ github.ref == 'refs/heads/master' && '' || '-' }}
 
 jobs:
@@ -91,7 +92,7 @@ jobs:
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: 1.70.0
+          toolchain: ${{ rust_version }}
           target: ${{ matrix.target }}
           override: true
 

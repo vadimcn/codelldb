@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::fsutil::lldb_quoted_string;
+use crate::fsutil::{lldb_quoted_string, normalize_path_for_lldb};
 use crate::must_initialize::Initialized;
 
 use super::*;
@@ -580,8 +580,13 @@ impl super::DebugSession {
     fn init_source_map<S: AsRef<str>>(&mut self, source_map: impl IntoIterator<Item = (S, Option<S>)>) {
         let mut args = String::new();
         for (remote, local) in source_map.into_iter() {
-            let remote_escaped = lldb_quoted_string(remote.as_ref());
-            let local_escaped = lldb_quoted_string(local.as_ref().map_or("", AsRef::as_ref));
+            // Normalize paths to use forward slashes on Windows before quoting
+            // to avoid double-escaping backslashes in source maps
+            let remote_normalized = normalize_path_for_lldb(remote.as_ref());
+            let local_normalized = normalize_path_for_lldb(local.as_ref().map_or("", AsRef::as_ref));
+            
+            let remote_escaped = lldb_quoted_string(&remote_normalized);
+            let local_escaped = lldb_quoted_string(&local_normalized);
             args.push_str(&remote_escaped);
             args.push_str(" ");
             args.push_str(&local_escaped);

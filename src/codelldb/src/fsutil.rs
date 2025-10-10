@@ -28,6 +28,20 @@ pub fn is_same_path(path1: &Path, path2: &Path) -> bool {
     }
 }
 
+/// Normalize path for LLDB by converting backslashes to forward slashes on Windows.
+/// LLDB on Windows accepts both forward and backward slashes, but forward slashes
+/// don't need escaping, which prevents issues with double-escaping in source maps.
+pub fn normalize_path_for_lldb(input: &str) -> String {
+    #[cfg(windows)]
+    {
+        input.replace('\\', "/")
+    }
+    #[cfg(not(windows))]
+    {
+        input.to_string()
+    }
+}
+
 /// Quote and escape the input string.
 pub fn lldb_quoted_string(input: &str) -> String {
     let mut result = String::with_capacity(input.len() + 2);
@@ -60,4 +74,19 @@ fn test_normalize_path() {
 fn test_lldb_quoting() {
     let quoted = lldb_quoted_string(&r#"foo " 'bar \ baz"#);
     assert_eq!(quoted, r#""foo \" 'bar \\ baz""#)
+}
+
+#[test]
+fn test_normalize_path_for_lldb() {
+    #[cfg(windows)]
+    {
+        assert_eq!(normalize_path_for_lldb(r"C:\remote1"), "C:/remote1");
+        assert_eq!(normalize_path_for_lldb(r"C:\foo\bar\baz.cpp"), "C:/foo/bar/baz.cpp");
+        assert_eq!(normalize_path_for_lldb("C:/already/forward"), "C:/already/forward");
+    }
+    #[cfg(not(windows))]
+    {
+        assert_eq!(normalize_path_for_lldb("/foo/bar"), "/foo/bar");
+        assert_eq!(normalize_path_for_lldb("/remote1"), "/remote1");
+    }
 }

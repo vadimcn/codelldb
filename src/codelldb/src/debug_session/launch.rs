@@ -470,7 +470,7 @@ impl super::DebugSession {
                     (None, _) => terminal.output_devname(),
                 };
                 if let Some(name) = name {
-                    let path = self.ensure_absolute_path(&name);
+                    let path = Path::new(name);
                     let _ = match fd {
                         0 => launch_info.add_open_file_action(fd as i32, &path, true, false),
                         1 => launch_info.add_open_file_action(fd as i32, &path, false, true),

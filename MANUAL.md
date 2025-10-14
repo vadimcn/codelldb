@@ -59,7 +59,7 @@ To start a debugging session, you will need to create a [launch configuration](h
 |**type**                 |string| *Required.* Set to `lldb`.
 |**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process).
 |**initCommands**         |[string]| LLDB commands executed upon debugger startup.
-|**targetCreateCommands**|[string]| LLDB commands executed to create debug target.
+|**targetCreateCommands** |[string]| LLDB commands executed to create the debug target.
 |**preRunCommands**       |[string]| LLDB commands executed just before launching or attaching to the debuggee.
 |**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.
 |**postRunCommands**      |[string]| LLDB commands executed just after launching or attaching to the debuggee.
@@ -78,22 +78,23 @@ To start a debugging session, you will need to create a [launch configuration](h
 
 These attributes are applicable when the "launch" initiation method is selected:
 
-|attribute          |type|         |
-|-------------------|----|---------|
-|**program**        |string| Path of the executable file.  *Required*, unless using `cargo` attribute.
+|attribute          | type |         |
+|-------------------|------|---------|
+|**program**        |string| Path to the executable on the workspace machine (the host where CodeLLDB runs).  Required unless you use `targetCreateCommands` or `cargo`.  This is equivalent to invoking `target create <program>`; for advanced options such as selecting the target architecture or a remote file path, use `targetCreateCommands` instead.
 |**cargo**          |string| See [Cargo support](#cargo-support).
-|**args**           |string &#10072; [string]| Command line parameters.  If this is a string, it will be split using shell-like syntax.
-|**cwd**            |string| Working directory.
-|**env**            |dictionary| Environment variables to set in addition to the ones inherited from the parent process environment (unless LLDB's `target.inherit-env` setting has been set to `false`, in which case the initial process environment is empty).  You may refer to existing environment variables using `${env:NAME}` syntax.  For example, in order to alter the inherited `PATH` variable, you can do this: `"PATH":"${env:HOME}/bin:${env:PATH}"`.
-|**envFile**        |string| Path of the file to read the environment variables from.  Note that `env` entries will override `envPath` entries.
+|**args**           |string &#10072; [string]| Command-line parameters.  If provided as a string, they are split using shell-like syntax.
+|**cwd**            |string| Working directory for the debuggee.
+|**env**            |dictionary| Environment variables to add on top of those inherited from the parent process (unless LLDB's `target.inherit-env` setting is `false`, in which case the initial environment is empty).  Reference existing variables with `${env:NAME}`; for example: `"PATH": "${env:HOME}/bin:${env:PATH}"`.
+|**envFile**        |string| Path to a file containing additional environment variables.  Entries defined in `env` override values loaded from this file.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
-|**terminal**       |string| Destination for debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
-|**stopOnEntry**    |boolean| Whether to stop debuggee immediately after launching.
+|**terminal**       |string| Destination for the debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for the VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
+|**stopOnEntry**    |boolean| Whether to stop the debuggee immediately after launch.
 
 ### Launch sequence
 - Run `initCommands`.
 - Create the [debug target](https://lldb.llvm.org/python_api/lldb.SBTarget.html):
-  - If `targetCreateCommands` are provided, run them; the currently selected target becomes the session target.
+  - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
+    is assumed to have been created by these commands and will be associated with the current debugging session.
   - Otherwise create the target from `program`.
 - Apply configuration (`args`, `env`, `cwd`, `stdio`, etc.).
 - Create breakpoints.
@@ -128,7 +129,7 @@ These attributes are applicable when the "attach" initiation method is selected:
 
 |attribute          |type    |         |
 |-------------------|--------|---------|
-|**program**        |string  |Path of the executable file.
+|**program**        |string  |Path to the executable on the workspace machine (the host where CodeLLDB runs).  This is equivalent to invoking `target create <program>`; for advanced options such as selecting the target architecture or a remote file path, use `targetCreateCommands` instead.
 |**pid**            |number  |Process id to attach to.  **pid** may be omitted, in which case debugger will attempt to locate an already running instance of the program. You may also use [`${command:pickProcess}` or `${command:pickMyProcess}`](#pick-process-command) here to choose process interactively.
 |**stopOnEntry**    |boolean |Whether to stop the debuggee immediately after attaching.
 |**waitFor**        |boolean |Wait for the process to launch.

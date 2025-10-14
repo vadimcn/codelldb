@@ -1,6 +1,6 @@
 file(GLOB_RECURSE ExtensionFiles ${CMAKE_CURRENT_SOURCE_DIR}/*.ts ${CMAKE_CURRENT_SOURCE_DIR}/*.json)
 add_custom_command(
-    OUTPUT extension.js
+    OUTPUT ${CMAKE_BINARY_DIR}/extension.js
     DEPENDS package_json ${CMAKE_BINARY_DIR}/generated/codelldb.ts ${ExtensionFiles}
     COMMAND ${NPM} run webpack -- --mode=${WebpackMode} --stats=minimal
                                   --resolve-modules=${CMAKE_BINARY_DIR}/generated
@@ -10,5 +10,5 @@ add_custom_command(
     USES_TERMINAL
 )
 add_custom_target(extension
-    DEPENDS extension.js
+    DEPENDS ${CMAKE_BINARY_DIR}/extension.js
 )

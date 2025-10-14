@@ -234,7 +234,7 @@ class Extension implements DebugAdapterDescriptorFactory {
 
         if (debugConfig.cargo) {
             let cargo = new Cargo(folder, cancellation);
-            let launcher = path.join(this.context.extensionPath, 'adapter', 'codelldb-launch');
+            let launcher = path.join(this.context.extensionPath, 'bin', 'codelldb-launch');
             debugConfig = await cargo.resolveCargoConfig(debugConfig, launcher);
         }
 

@@ -281,7 +281,7 @@ pub struct LaunchEnvironment {
 
 /// Response to LaunchEnvironment request
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 #[schemars(deny_unknown_fields)]
 pub struct LaunchResponse {
     pub success: bool,

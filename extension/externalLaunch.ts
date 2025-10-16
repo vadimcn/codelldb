@@ -164,7 +164,8 @@ export class RpcLaunchServer extends RpcServer {
     };
 }
 
-
+// Return a future that will be resolved upon termination of the debug session (result=true).
+// The future will also be resolved after `timeout` milliseconds (result=false).
 export function waitEndOfDebugSession(debugConfig: DebugConfiguration, timeout: number = 5000): Promise<boolean> {
     let resolvePromise: (value: boolean) => void;
     let promise = new Promise<boolean>(resolve => resolvePromise = resolve);

@@ -1,5 +1,12 @@
 # Release Notes
 
+# 1.11.7
+
+### Fixed
+- #1327: Terminal output goes to CONOUT$ file instead of terminal
+- #1328: rust app launch.json from 1.11.5 doesnt work anymore in 1.11.6
+- #1333: Launch not interpreting ${fileBasenameNoExtension}
+- #1334: create a launch.json file without check cargo
 
 # 1.11.6
 

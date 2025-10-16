@@ -241,7 +241,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         let dbgconfigConfig = getExtensionConfig(folder, 'dbgconfig');
         debugConfig = util.expandDbgConfig(debugConfig, dbgconfigConfig);
 
-        // Transform "request":"custom" to "request":"launch"
+        // Convert legacy "request":"custom" to "request":"launch"
         if (debugConfig.request == 'custom') {
             debugConfig.request = 'launch';
         }
@@ -250,14 +250,24 @@ class Extension implements DebugAdapterDescriptorFactory {
             debugConfig.args = stringArgv(debugConfig.args);
         }
 
+        debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
+        debugConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
+
+        return debugConfig;
+    }
+
+    async resolveDebugConfigurationWithSubstitutedVariables(
+        folder: WorkspaceFolder | undefined,
+        debugConfig: DebugConfiguration,
+        cancellation?: CancellationToken
+    ): Promise<DebugConfiguration | undefined | null> {
         if (debugConfig.cargo) {
             let cargo = new Cargo(folder, cancellation);
             let launcher = path.join(this.context.extensionPath, 'bin', 'codelldb-launch');
             debugConfig = await cargo.resolveCargoConfig(debugConfig, launcher);
         }
-
-        debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
-        debugConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
+        if (cancellation?.isCancellationRequested)
+            return undefined;
 
         output.appendLine(`Resolved debug configuration: ${inspect(debugConfig)}`);
         return debugConfig;

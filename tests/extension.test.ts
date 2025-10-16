@@ -28,7 +28,7 @@ suite('Extension Tests', () => {
             type: 'lldb',
             name: 'test',
             request: 'launch',
-            cargo: ['build', '--bin', 'rust-debuggee']
+            cargo: ['build', '--bin', 'rust-debuggee', '--manifest-path=${workspaceFolder}/rust/Cargo.toml']
         });
         assert.ok(success);
     });
@@ -38,7 +38,7 @@ suite('Extension Tests', () => {
             type: 'lldb',
             name: 'test',
             request: 'launch',
-            cargo: ['run', '--bin', 'rust-debuggee']
+            cargo: ['run', '--bin', 'rust-debuggee', '--manifest-path=${workspaceFolder}/rust/Cargo.toml']
         });
         assert.ok(success);
     });

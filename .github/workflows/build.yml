@@ -42,14 +42,14 @@ jobs:
         - os: Linux
           image: ubuntu-latest
           lldb_triple: x86_64-linux-gnu
-          rust_toolchain: ${{ env.rust_version }}-x86_64-unknown-linux-gnu
+          rust_toolchain: x86_64-unknown-linux-gnu
           rust_targets: x86_64-unknown-linux-gnu
           platformid: linux-x64
 
         - os: Linux
           image: ubuntu-latest
           lldb_triple: aarch64-linux-gnu
-          rust_toolchain: ${{ env.rust_version }}-x86_64-unknown-linux-gnu
+          rust_toolchain: x86_64-unknown-linux-gnu
           rust_targets: aarch64-unknown-linux-gnu
           platformid: linux-arm64
           cross: true
@@ -57,7 +57,7 @@ jobs:
         - os: Linux
           image: ubuntu-latest
           lldb_triple: arm-linux-gnueabihf
-          rust_toolchain: ${{ env.rust_version }}-x86_64-unknown-linux-gnu
+          rust_toolchain: x86_64-unknown-linux-gnu
           rust_targets: armv7-unknown-linux-gnueabihf
           platformid: linux-armhf
           cross: true
@@ -65,21 +65,21 @@ jobs:
         - os: MacOS
           image: macos-15-intel
           lldb_triple: x86_64-apple-darwin
-          rust_toolchain: ${{ env.rust_version }}-x86_64-apple-darwin
+          rust_toolchain: x86_64-apple-darwin
           rust_targets: x86_64-apple-darwin
           platformid: darwin-x64
 
         - os: MacOS
           image: macos-15
           lldb_triple: aarch64-apple-darwin
-          rust_toolchain: ${{ env.rust_version }}-aarch64-apple-darwin
+          rust_toolchain: aarch64-apple-darwin
           rust_targets: aarch64-apple-darwin
           platformid: darwin-arm64
 
         - os: Windows
           image: windows-latest
           lldb_triple: x86_64-windows-msvc
-          rust_toolchain: ${{ env.rust_version }}-x86_64-pc-windows-gnu
+          rust_toolchain: x86_64-pc-windows-gnu
           rust_targets: x86_64-pc-windows-msvc
           platformid: win32-x64
 
@@ -105,7 +105,7 @@ jobs:
 
     - name: Install Rust
       run: |
-        rustup default ${{ matrix.rust_toolchain }}
+        rustup default ${{ rust_version }}-${{ matrix.rust_toolchain }}
         rustup target add ${{ matrix.rust_targets }}
 
     - name: Setup (Linux)

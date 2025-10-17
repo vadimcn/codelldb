@@ -26,7 +26,7 @@ defaults:
 
 env:
   lldb_run_id: 18262797082
-  rust_version: 1.90.0
+  rust_version: 1.89.0
   version_suffix: ${{ inputs.final && '' || '-' }}
 
 jobs:

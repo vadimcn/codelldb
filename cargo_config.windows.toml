@@ -1,6 +1,12 @@
 [build]
 target-dir = "${CMAKE_CURRENT_BINARY_DIR}/target"
 
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"
+
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+
 [env]
 CC_${LLVM_TRIPLE} = "${CMAKE_C_COMPILER}"
 CXX_${LLVM_TRIPLE} = "${CMAKE_CXX_COMPILER}"

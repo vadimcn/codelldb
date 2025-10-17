@@ -2,7 +2,7 @@
 target-dir = "${CMAKE_CURRENT_BINARY_DIR}/target"
 
 [target.x86_64-pc-windows-msvc]
-linker = "rust-lld"
+linker = "lld-link"
 
 [target.x86_64-pc-windows-gnu]
 linker = "rust-lld"

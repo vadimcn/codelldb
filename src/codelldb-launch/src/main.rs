@@ -61,6 +61,8 @@ fn main() -> Result<(), Error> {
 
     let address = net::SocketAddr::from_str(&address)?;
     let mut stream = net::TcpStream::connect(address)?;
+    #[cfg(windows)]
+    set_tcp_keepalive(&stream)?;
     serde_json::to_writer(&mut stream, &request)?;
     stream.flush()?;
     stream.shutdown(net::Shutdown::Write)?;
@@ -85,6 +87,18 @@ fn main() -> Result<(), Error> {
         }
         Err(e) => Err(Box::new(e)),
     }
+}
+
+/// Windows may abrutly terminate an idle TCP connection after approximately 2 minutes unless
+/// explicitly configured to keep the connection alive.
+#[cfg(windows)]
+fn set_tcp_keepalive(stream: &net::TcpStream) -> Result<(), Error> {
+    use socket2::{SockRef, TcpKeepalive};
+    use std::time::Duration;
+    let sock_ref = SockRef::from(&stream);
+    let keepalive = TcpKeepalive::new().with_time(Duration::from_secs(30));
+    sock_ref.set_tcp_keepalive(&keepalive)?;
+    Ok(())
 }
 
 #[cfg(unix)]

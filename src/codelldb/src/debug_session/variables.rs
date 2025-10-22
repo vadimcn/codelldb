@@ -67,79 +67,75 @@ impl super::DebugSession {
 
     pub(super) fn handle_variables(&mut self, args: VariablesArguments) -> Result<VariablesResponseBody, Error> {
         let container_handle = args.variables_reference;
-
-        if let Some(container) = self.var_refs.get(container_handle) {
-            let variables = match container {
-                Container::Locals(frame) => {
-                    let ret_val = frame.thread().stop_return_value();
-                    let variables = frame.variables(&VariableOptions {
-                        arguments: true,
-                        locals: true,
-                        statics: false,
-                        in_scope_only: true,
-                    });
-                    let mut vars_iter = variables.iter();
-                    let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), true)?;
-                    // Prepend last function return value, if any.
-                    if let Some(ret_val) = ret_val {
-                        let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
-                        variable.name = "[return value]".to_owned();
-                        variables.insert(0, variable);
-                    }
-                    variables
+        let container = self.var_refs.get(container_handle).ok_or(str_error("Invalid variabes reference"))?;
+        let variables = match container {
+            Container::Locals(frame) => {
+                let ret_val = frame.thread().stop_return_value();
+                let variables = frame.variables(&VariableOptions {
+                    arguments: true,
+                    locals: true,
+                    statics: false,
+                    in_scope_only: true,
+                });
+                let mut vars_iter = variables.iter();
+                let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), true)?;
+                // Prepend last function return value, if any.
+                if let Some(ret_val) = ret_val {
+                    let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
+                    variable.name = "[return value]".to_owned();
+                    variables.insert(0, variable);
                 }
-                Container::Statics(frame) => {
-                    let variables = frame.variables(&VariableOptions {
-                        arguments: false,
-                        locals: false,
-                        statics: true,
-                        in_scope_only: true,
-                    });
-                    let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableStatic);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                variables
+            }
+            Container::Statics(frame) => {
+                let variables = frame.variables(&VariableOptions {
+                    arguments: false,
+                    locals: false,
+                    statics: true,
+                    in_scope_only: true,
+                });
+                let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableStatic);
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+            }
+            Container::Globals(frame) => {
+                let variables = frame.variables(&VariableOptions {
+                    arguments: false,
+                    locals: false,
+                    statics: true,
+                    in_scope_only: true,
+                });
+                let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableGlobal);
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+            }
+            Container::Registers(frame) => {
+                let list = frame.registers();
+                let mut vars_iter = list.iter();
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+            }
+            Container::SBValue(var) => {
+                let container_eval_name = self.compose_container_eval_name(container_handle);
+                let var = var.clone();
+                let mut vars_iter = var.children();
+                let mut variables =
+                    self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle), false)?;
+                // If synthetic, add [raw] view.
+                if var.is_synthetic() {
+                    let raw_var = var.non_synthetic_value();
+                    let handle = self.var_refs.create(Some(container_handle), "[raw]", Container::SBValue(raw_var));
+                    let raw = Variable {
+                        name: "[raw]".to_owned(),
+                        value: var.type_name().unwrap_or_default().to_owned(),
+                        variables_reference: handle,
+                        presentation_hint: Some(presentation_hint(&["readOnly", "virtual"])),
+                        ..Default::default()
+                    };
+                    variables.push(raw);
                 }
-                Container::Globals(frame) => {
-                    let variables = frame.variables(&VariableOptions {
-                        arguments: false,
-                        locals: false,
-                        statics: true,
-                        in_scope_only: true,
-                    });
-                    let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableGlobal);
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
-                }
-                Container::Registers(frame) => {
-                    let list = frame.registers();
-                    let mut vars_iter = list.iter();
-                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
-                }
-                Container::SBValue(var) => {
-                    let container_eval_name = self.compose_container_eval_name(container_handle);
-                    let var = var.clone();
-                    let mut vars_iter = var.children();
-                    let mut variables =
-                        self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle), false)?;
-                    // If synthetic, add [raw] view.
-                    if var.is_synthetic() {
-                        let raw_var = var.non_synthetic_value();
-                        let handle = self.var_refs.create(Some(container_handle), "[raw]", Container::SBValue(raw_var));
-                        let raw = Variable {
-                            name: "[raw]".to_owned(),
-                            value: var.type_name().unwrap_or_default().to_owned(),
-                            variables_reference: handle,
-                            presentation_hint: Some(presentation_hint(&["readOnly", "virtual"])),
-                            ..Default::default()
-                        };
-                        variables.push(raw);
-                    }
-                    variables
-                }
-                Container::StackFrame(_) => vec![],
-            };
-            Ok(VariablesResponseBody { variables: variables })
-        } else {
-            Err(format!("Invalid variabes reference: {}", container_handle))?
-        }
+                variables
+            }
+            Container::StackFrame(_) => vec![],
+        };
+        Ok(VariablesResponseBody { variables: variables })
     }
 
     fn compose_container_eval_name(&self, container_handle: Handle) -> String {
@@ -567,7 +563,7 @@ impl super::DebugSession {
 
     pub(super) fn handle_set_variable(&mut self, args: SetVariableArguments) -> Result<SetVariableResponseBody, Error> {
         let container_handle = args.variables_reference;
-        let container = self.var_refs.get(container_handle).expect("Invalid variables reference");
+        let container = self.var_refs.get(container_handle).ok_or(str_error("Invalid variables reference"))?;
         let child = match container {
             Container::SBValue(container) => container.child_member_with_name(&args.name),
             Container::Locals(frame) | Container::Globals(frame) | Container::Statics(frame) => {

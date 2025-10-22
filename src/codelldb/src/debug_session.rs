@@ -871,7 +871,7 @@ impl DebugSession {
 
     fn handle_source(&mut self, args: SourceArguments) -> Result<SourceResponseBody, Error> {
         let handle = args.source_reference;
-        let dasm = self.disasm_ranges.find_by_handle(handle).unwrap();
+        let dasm = self.disasm_ranges.find_by_handle(handle).ok_or(str_error("Invalid source reference"))?;
         Ok(SourceResponseBody {
             content: dasm.get_source_text(self.max_instr_bytes),
             mime_type: Some("text/x-lldb.disassembly".to_owned()),
@@ -1034,7 +1034,7 @@ impl DebugSession {
         args: DataBreakpointInfoArguments,
     ) -> Result<DataBreakpointInfoResponseBody, Error> {
         if let Some(variables_reference) = args.variables_reference {
-            let container = self.var_refs.get(variables_reference).expect("Invalid variables reference");
+            let container = self.var_refs.get(variables_reference).ok_or(str_error("Invalid variables reference"))?;
             let child = match container {
                 Container::SBValue(container) => container.child_member_with_name(&args.name),
                 Container::Locals(frame) => frame.find_variable(&args.name),

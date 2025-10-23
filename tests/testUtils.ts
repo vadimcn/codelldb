@@ -71,7 +71,14 @@ export function logWithStack(message: string) {
     log(message);
     let stack = Error().stack;
     let lines = stack.split('\n');
-    for (let i = 2; i < lines.length - 1; ++i)
+    let lastIdx = lines.length - 1;
+    for (let i = lines.length - 1; i > 0; i--) {
+        if (/adapter.test.ts|adapter_tests.js/.test(lines[i])) {
+            lastIdx = i;
+            break;
+        }
+    }
+    for (let i = 2; i <= lastIdx; ++i)
         console.log(`${lines[i]}`);
 }
 

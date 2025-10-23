@@ -976,6 +976,15 @@ function generateSuite(triple: string) {
                         class: { finally: 1, import: 2, lambda: 3, raise: 4 },
                     })
                 })
+
+                test('rust panic', async function () {
+                    let stoppedEvent = await ds.launchAndWaitForStop(
+                        { name: this.test.title, program: rustDebuggee, args: ['panic'], sourceLanguages: ['rust'] },
+                        () => ds.setExceptionBreakpointsRequest({ filters: ['rust_panic'] })
+                    );
+                    let stackTrace = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 5 });
+                    assert.match(stackTrace.body.stackFrames[0].name, /rust_panic/);
+                })
             });
     });
 }

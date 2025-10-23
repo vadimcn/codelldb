@@ -445,7 +445,7 @@ impl DebugSession {
                 Some(bp)
             }
             RUST_PANIC => {
-                let bp = self.target.breakpoint_create_by_name("rust_panic");
+                let bp = self.target.breakpoint_create_by_regex("rust_panic$");
                 bp.add_name("rust_panic");
                 Some(bp)
             }

@@ -1,5 +1,11 @@
 # Release Notes
 
+# 1.11.8
+
+### Fixed
+- #1336: Rust 'on panic' breakpoint should use regex breakpoints for 'rust_panic'
+- #1339: Panic during remote debugging startup
+
 # 1.11.7
 
 ### Fixed

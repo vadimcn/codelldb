@@ -222,7 +222,7 @@ jobs:
 
 - job: Windows
   pool:
-    vmImage: 'windows-2025'
+    vmImage: 'windows-2022'
 
   variables:
     PlatformId: 'win32-x64'

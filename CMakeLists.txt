@@ -129,11 +129,8 @@ file(COPY_FILE ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json ${CMAKE_CURRENT_BIN
 execute_process(
     COMMAND ${NPM} install
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    RESULT_VARIABLE Result
+    COMMAND_ERROR_IS_FATAL ANY
 )
-if (NOT ${Result} EQUAL 0)
-    message(FATAL_ERROR "npm install failed: ${Result}")
-endif()
 # So we can commit any changes
 file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/package-lock.json ${CMAKE_CURRENT_SOURCE_DIR}/package-lock.json)
 
@@ -275,6 +272,7 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
                                  -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DCMAKE_SYSROOT=${CMAKE_SYSROOT}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee
+        COMMAND_ERROR_IS_FATAL ANY
     )
     add_custom_target(debuggee
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee
@@ -287,6 +285,7 @@ else()
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
                                  -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-gnu.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee
+        COMMAND_ERROR_IS_FATAL ANY
     )
     message("Configuring debuggee-msvc")
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc)
@@ -294,6 +293,7 @@ else()
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
                                  -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-msvc.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc
+        COMMAND_ERROR_IS_FATAL ANY
     )
     add_custom_target(debuggee
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee

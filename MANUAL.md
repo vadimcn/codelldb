@@ -58,7 +58,7 @@ To start a debugging session, you will need to create a [launch configuration](h
 |**name**                 |string| *Required.* Launch configuration name, as you want it to appear in the Run and Debug panel.
 |**type**                 |string| *Required.* Set to `lldb`.
 |**request**              |string| *Required.* Session initiation method:<br><li>`launch` to [create a new process](#launching-a-new-process),<br><li>`attach` to [attach to an already running process](#attaching-to-a-running-process).
-|**initCommands**         |[string]| LLDB commands executed upon debugger startup.
+|**initCommands**         |[string]| LLDB commands executed upon debugger startup.  Note that the target is not yet created at this point; if you need to perform an action related to the specific debugging target, prefer using `preRunCommands`.
 |**targetCreateCommands** |[string]| LLDB commands executed to create the debug target.
 |**preRunCommands**       |[string]| LLDB commands executed just before launching or attaching to the debuggee.
 |**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.

@@ -189,15 +189,16 @@ pub struct CommonLaunchFields {
     pub source_map: Option<JsonMap<Option<String>>>,
     /// The default evaluator type used for expressions
     pub expressions: Option<Expressions>,
-    /// Initialization commands executed upon debugger startup
+    /// Initialization commands executed upon debugger startup.  Note that the target is not yet created at this point;
+    /// if you need to perform an action related to the specific debugging target, prefer using `preRunCommands`.
     pub init_commands: Option<Vec<String>>,
-    /// Commands executed just before the program is launched
+    /// Commands executed just before the debuggee is launched or attached to
     pub pre_run_commands: Option<Vec<String>>,
-    /// Commands executed just after the program has been launched
+    /// Commands executed just after the debuggee has been launched or attached to
     pub post_run_commands: Option<Vec<String>>,
     /// Commands executed just before the debuggee is terminated or disconnected from
     pub pre_terminate_commands: Option<Vec<String>>,
-    /// Commands executed at the end of debugging session
+    /// Commands executed at the end of debugging session, after the debuggee has been terminated
     pub exit_commands: Option<Vec<String>>,
     /// A list of source languages to enable language-specific features for
     pub source_languages: Option<Vec<String>>,

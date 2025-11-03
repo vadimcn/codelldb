@@ -1,5 +1,5 @@
 import {
-    workspace, window, commands, debug, extensions, languages,
+    workspace, window, commands, debug, extensions, languages, lm,
     ExtensionContext, WorkspaceConfiguration, WorkspaceFolder, CancellationToken, ConfigurationScope,
     DebugConfiguration, DebugAdapterDescriptorFactory, DebugSession, DebugAdapterExecutable,
     DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
@@ -26,6 +26,7 @@ import { UriLaunchServer, RpcLaunchServer } from './externalLaunch';
 import { AdapterSettingsManager } from './adapterSettingsManager';
 import { LaunchCompletionProvider } from './launchCompletions';
 import { output, showErrorWithLog } from './logging';
+import { LLDBCommandTool, SessionInfoTool } from './vibeDebug';
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';
@@ -108,6 +109,9 @@ class Extension implements DebugAdapterDescriptorFactory {
         subscriptions.push(window.registerTreeDataProvider('lldb.excludedCallers', this.excludedCallers));
 
         subscriptions.push(window.registerUriHandler(new UriLaunchServer()));
+
+        subscriptions.push(lm.registerTool('codelldb_session_info', new SessionInfoTool()));
+        subscriptions.push(lm.registerTool('codelldb', new LLDBCommandTool()));
 
         this.updateRpcServer();
     }

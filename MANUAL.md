@@ -667,6 +667,15 @@ of new data types, instantiation of C++ classes, invocation of functions and cla
 Note, however, that native evaluators ignore data formatters and operate on "raw" values,
 thus they are often not as convenient as "simple" or "python" expressions.
 
+## Agent-assisted debugging
+
+CodeLLDB provides tools that allow LLM agents to interact with active debug sessions.
+To request agent assistance, simply mention `#codelldb` in your prompt:
+
+```text
+Debug this for me! #codelldb
+```
+
 # Python Scripting
 
 ## Debugger API

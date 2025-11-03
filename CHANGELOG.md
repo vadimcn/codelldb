@@ -1,5 +1,10 @@
 # Release Notes
 
+# 1.12.0
+
+### New
+- [Vibe debugging!](MANUAL.md#agent-assisted-debugging)
+
 # 1.11.8
 
 ### Fixed

@@ -481,11 +481,14 @@ impl super::DebugSession {
         frame: Option<SBFrame>,
         return_output: bool, // return command output in EvaluateResponseBody::result
     ) -> Result<EvaluateResponseBody, Error> {
-        let context = self.context_from_frame(frame.as_ref());
         let mut result = SBCommandReturnObject::new();
         result.set_immediate_output_file(SBFile::from(self.console_pipe.try_clone()?, true))?;
         let interp = self.debugger.command_interpreter();
-        let ok = interp.handle_command_with_context(command, &context, &mut result, false);
+        let ok = if let Some(frame) = frame {
+            interp.handle_command_with_context(command, &SBExecutionContext::from_frame(&frame), &mut result, false)
+        } else {
+            interp.handle_command(command, &mut result, false)
+        };
         debug!("{} -> {:?}, {:?}", command, ok, result);
         // TODO: multiline
         if result.succeeded() {
@@ -548,7 +551,11 @@ impl super::DebugSession {
         (PreparedExpression::Python(pp_expr), Some(python)) | //.
         (PreparedExpression::Simple(pp_expr), Some(python)) => {
             let pycode = python.compile_code(pp_expr, "<input>").map_err(blame_user)?;
-            let exec_context = self.context_from_frame(frame);
+            let exec_context = if let Some(frame) = frame {
+                SBExecutionContext::from_frame(frame)
+            } else {
+                SBExecutionContext::new()
+            };
             let eval_cotext = if matches!(expression, PreparedExpression::Simple(_)) {
                 EvalContext::SimpleExpression
             }else {

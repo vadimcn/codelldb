@@ -809,6 +809,38 @@
 					}
 				]
 			}
+		],
+		"languageModelTools": [
+			{
+				"name": "codelldb_session_info",
+				"displayName": "Get debug session info",
+				"modelDescription": "Get information about the current debug session, including its ID.",
+				"canBeReferencedInPrompt": true,
+				"toolReferenceName": "codelldb_session_info",
+				"when": "debugType == 'lldb'"
+			},
+			{
+				"name": "codelldb",
+				"displayName": "Execute LLDB command.",
+				"modelDescription": "Execute LLDB command in the specified debug session, or in current debug session if session_id is not provided.",
+				"canBeReferencedInPrompt": true,
+				"toolReferenceName": "codelldb",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"session_id": {
+							"type": "string",
+							"description": "Debug session ID, which must be obtained by invoking the codelldb_session_info tool.  This ID must be re-queried for each user prompt, as the current debug session changes dynamically in response to user actions."
+						},
+						"command": {
+							"type": "string",
+							"description": "LLDB command and its arguments."
+						}
+					},
+					"required": [ "command" ]
+				},
+				"when": "debugType == 'lldb'"
+			}
 		]
 	},
 	"config": {

@@ -672,7 +672,7 @@ impl DebugSession {
 
         if let Some((pycode, eval_context)) = py_condition {
             let frame = thread.frame_at_index(0);
-            let exec_context = self.context_from_frame(Some(&frame));
+            let exec_context = SBExecutionContext::from_frame(&frame);
             // TODO: pass bpno
             let should_stop = match &self.python {
                 Some(python) => match python.evaluate_as_bool(&pycode, &exec_context, *eval_context) {

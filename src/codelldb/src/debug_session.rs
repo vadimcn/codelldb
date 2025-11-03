@@ -1679,22 +1679,6 @@ impl DebugSession {
         }
     }
 
-    fn context_from_frame(&self, frame: Option<&SBFrame>) -> SBExecutionContext {
-        match frame {
-            Some(frame) => SBExecutionContext::from_frame(&frame),
-            None => {
-                let target = self.debugger.selected_target();
-                let process = target.process();
-                if process.is_valid() {
-                    let thread = process.selected_thread();
-                    SBExecutionContext::from_thread(&thread)
-                } else {
-                    SBExecutionContext::from_target(&target)
-                }
-            }
-        }
-    }
-
     fn thread_by_id(&self, thread_id: i64) -> Result<SBThread, Error> {
         let process = self.target.process();
         match process.thread_by_id(thread_id as ThreadID) {

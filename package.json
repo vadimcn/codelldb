@@ -187,11 +187,13 @@
 				{
 					"id": "lldb.loadedModules",
 					"name": "Modules",
+					"icon": "${checklist}",
 					"when": "debugType == 'lldb'"
 				},
 				{
 					"id": "lldb.excludedCallers",
 					"name": "Excluded Callers",
+					"icon": "${filter}",
 					"when": "debugType == 'lldb'"
 				}
 			]

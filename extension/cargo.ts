@@ -115,9 +115,10 @@ export class Cargo {
             cargoEnv['CODELLDB_LAUNCH_CONNECT'] = `${address.address}:${address.port}`;
 
             let task = new Task(
-                { type: undefined, command: '' } as unknown as TaskDefinition,
+                { type: undefined, command: '', name: debugConfig.name } as unknown as TaskDefinition,
                 this.workspaceFolder ?? TaskScope.Workspace,
-                'cargo', 'CodeLLDB', undefined, cargoConfig.problemMatcher ?? '$codelldb-rustc');
+                debugConfig.name, 'CodeLLDB', undefined,
+                cargoConfig.problemMatcher ?? '$codelldb-rustc');
             task.presentationOptions = { clear: true, showReuseMessage: false };
 
             let artifactsPromise = runTask(task, async (_, write) => {

@@ -3,6 +3,7 @@ import * as cp from 'child_process';
 import * as async from './novsc/async';
 import { Dict } from './novsc/commonTypes';
 import { expandVariablesInObject } from './novsc/expand';
+import { ListenOptions } from 'net';
 
 // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
 export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
@@ -88,3 +89,4 @@ export async function getLLDBDirectories(executable: string): Promise<LLDBDirect
     }
 }
 
+export type RpcConfig = ListenOptions & { token?: string };

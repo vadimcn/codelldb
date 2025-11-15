@@ -147,12 +147,52 @@ class Extension implements DebugAdapterDescriptorFactory {
             this.rpcServer = undefined;
         }
         let config = getExtensionConfig();
-        let options = config.get<any>('rpcServer');
+        let options = config.get<util.RpcConfig | "auto">('rpcServer');
+
+        if (options === "auto") {
+            // Use an automatically-generated but persistent token. VS Code caches environment contributions between
+            // reloads, so keeping this static will prevent us from invalidating all terminals on every window reload.
+            // This helps mostly to prevent other users from accessing the server. A better alternative would probably
+            // be supporting Unix Sockets - this is what VS Code's Git adapter uses.
+            let autoToken = this.context.globalState.get<string>("autoRpcToken");
+            if (!autoToken) {
+                autoToken = crypto.randomUUID();
+                await this.context.globalState.update("autoRpcToken", autoToken);
+            }
+
+            options = {
+                host: "127.0.0.1",
+                port: 61147, // Just a consistent, random port that's probably not in use.
+                token: autoToken,
+            };
+        }
+
         if (options) {
             output.appendLine(`Starting RPC server with: ${inspect(options)}`);
+
             this.rpcServer = new RpcLaunchServer({ token: options.token });
-            await this.rpcServer.listen(options);
+            this.rpcServer.onError((err) => {
+                output.appendLine(`RPC Error: ${inspect(err)}`);
+            });
+
+            let addr;
+            try {
+                addr = await this.rpcServer.listen(options);
+            } catch (err) {
+                output.appendLine(`Failed to start server: ${inspect(err)}`);
+            }
+
+            // If the user doesn't specify a port, then allow auto-resolution to play out and expose it via environment
+            // variables.
+            if (addr && typeof addr == "object") {
+                options.port = addr.port;
+            }
         }
+
+
+        output.appendLine(`Updating environment contributions for RPC.`);
+
+        this.updateEnvironmentVariableCollection(options);
     }
 
     // Discover debuggable targets in the current workspace and generate debug configs for them
@@ -533,5 +573,42 @@ class Extension implements DebugAdapterDescriptorFactory {
                 memoryReference: `0x${address.toString(16)}`
             }
         });
+    }
+
+    /**
+     * Add bundled binaries like codelldb-launch to $PATH so that users can use them from the terminal without
+     * manually having to update their rc-files. This is also more resilient across extension versions.
+     */
+    updateEnvironmentVariableCollection(rpcConfig?: util.RpcConfig) {
+        const binariesUri = Uri.joinPath(this.context.extensionUri, "bin");
+        const pathContribution = binariesUri.fsPath + path.delimiter;
+        this.context.environmentVariableCollection.prepend(
+            "PATH",
+            pathContribution,
+        );
+        this.context.environmentVariableCollection.description =
+            "Enables use of the `codelldb-launch` program in the terminal";
+
+        if (rpcConfig?.host && rpcConfig.port) {
+            this.context.environmentVariableCollection.replace(
+                "CODELLDB_LAUNCH_CONNECT",
+                `${rpcConfig.host}:${rpcConfig.port}`,
+            );
+        } else {
+            this.context.environmentVariableCollection.delete(
+                "CODELLDB_LAUNCH_CONNECT",
+            );
+        }
+
+        if (rpcConfig?.token) {
+            this.context.environmentVariableCollection.replace(
+                "CODELLDB_LAUNCH_CONFIG",
+                JSON.stringify({ token: rpcConfig.token }),
+            );
+        } else {
+            this.context.environmentVariableCollection.delete(
+                "CODELLDB_LAUNCH_CONFIG",
+            );
+        }
     }
 }

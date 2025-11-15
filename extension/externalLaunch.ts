@@ -98,9 +98,13 @@ export class RpcServer {
     }
 
     public async listen(options: net.ListenOptions) {
-        return new Promise<net.AddressInfo | string | null>(resolve =>
-            this.inner.listen(options, () => resolve(this.inner.address()))
-        );
+        return new Promise<net.AddressInfo | string | null>((resolve, reject) => {
+            try {
+                this.inner.listen(options, () => resolve(this.inner.address()));
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     public close() {

@@ -523,9 +523,18 @@
 					},
 					"lldb.rpcServer": {
 						"description": "Start an RPC server that will accept debug configuration requests.",
-						"type": [
-							"object",
-							"null"
+						"anyOf": [
+							{
+								"type": [
+									"object",
+									"string",
+									"null"
+								]
+							},
+							{
+								"const": "auto",
+								"description": "Automatically determine connection details and expose them to the integrated terminal."
+							}
 						],
 						"default": null,
 						"defaultSnippets": [

@@ -6,7 +6,7 @@ pub mod prelude {
         character::complete::{digit1, space0},
         error::ParseError,
         sequence::delimited,
-        AsChar, InputTakeAtPosition, Parser,
+        AsChar, Input, Parser,
     };
 
     pub use crate::error::{str_error, Error};
@@ -16,11 +16,11 @@ pub mod prelude {
     pub use nom::IResult;
     //pub type IResult<I, O, E = nom::error::VerboseError<I>> = Result<(I, O), nom::Err<E>>;
 
-    pub fn ws<I, O, E: ParseError<I>, P>(parser: P) -> impl FnMut(I) -> IResult<I, O, E>
+    pub fn ws<I, O, E: ParseError<I>, P>(parser: P) -> impl Parser<I, Output = O, Error = E>
     where
-        P: Parser<I, O, E>,
-        I: InputTakeAtPosition,
-        <I as InputTakeAtPosition>::Item: AsChar + Clone,
+        P: Parser<I, Output = O, Error = E>,
+        I: Input,
+        <I as Input>::Item: AsChar + Clone,
     {
         delimited(space0, parser, space0)
     }

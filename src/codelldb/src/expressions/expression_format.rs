@@ -2,6 +2,7 @@ use nom::{
     character::complete::{anychar, char},
     combinator::{opt, verify},
     sequence::{delimited, pair},
+    Parser,
 };
 
 use super::prelude::*;
@@ -46,7 +47,7 @@ pub fn get_expression_format<'a>(expr: &'a str) -> Result<(&'a str, FormatSpec),
             opt(delimited(char('['), unsigned, char(']'))),
         );
 
-        match parser(spec) {
+        match parser.parse(spec) {
             // Fully parsed
             Ok(("", (format_ch, array))) => {
                 let format = match format_ch {

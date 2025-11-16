@@ -19,7 +19,8 @@ pub fn python_string(input: Span) -> IResult<Span, Span> {
             recognize(many0_count(alt((
                 recognize(pair(char('\\'), anychar)), //.
                 recognize(none_of(delim)),
-            ))))(input)
+            ))))
+            .parse(input)
         }
     }
     recognize(alt((
@@ -27,7 +28,8 @@ pub fn python_string(input: Span) -> IResult<Span, Span> {
         delimited(char('\''), body("\'"), char('\'')),
         delimited(tag("r\""), is_not("\""), char('"')),
         delimited(tag("r\'"), is_not("\'"), char('\'')),
-    )))(input)
+    )))
+    .parse(input)
 }
 
 // Recognize $-prefixed native expressions, such as "$foo", "$foo::bar", "${foo::bar + 3}"
@@ -38,7 +40,8 @@ pub fn native_expr(input: Span) -> IResult<Span, Span> {
             recognize(qualified_ident), //.
             delimited(tag("{"), recognize(is_not("}")), tag("}")),
         )),
-    )(input)
+    )
+    .parse(input)
 }
 
 // Translates a Simple Expression into a Python expression.
@@ -65,7 +68,8 @@ pub fn preprocess_python_expr(expr: &str) -> Result<String, Error> {
                 acc.push_str(item.as_ref());
                 acc
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     match parser(expr).finish() {

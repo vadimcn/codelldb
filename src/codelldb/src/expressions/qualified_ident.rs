@@ -5,6 +5,7 @@ use nom::{
     combinator::{opt, recognize},
     multi::{many0_count, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, terminated},
+    Parser,
 };
 
 use super::prelude::*;
@@ -27,13 +28,14 @@ pub fn ident(input: Span) -> IResult<Span, Span> {
     recognize(pair(
         alt((alpha1, tag("_"))),
         many0_count(alt((alphanumeric1, tag("_")))),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 fn template_param(input: Span) -> IResult<Span, QIdentParam> {
     match qualified_ident(input) {
         Ok((rest, result)) => Ok((rest, QIdentParam::QIdent(result))),
-        Err(_) => match recognize(is_not("<,>"))(input) {
+        Err(_) => match recognize(is_not("<,>")).parse(input) {
             Ok((rest, result)) => Ok((rest, QIdentParam::Other(result.trim()))),
             Err(err) => Err(err),
         },
@@ -41,12 +43,13 @@ fn template_param(input: Span) -> IResult<Span, QIdentParam> {
 }
 
 fn template_params(input: Span) -> IResult<Span, Vec<QIdentParam>> {
-    let (rest, parameters) = delimited(tag("<"), separated_list0(tag(","), ws(template_param)), tag(">"))(input)?;
+    let (rest, parameters) =
+        delimited(tag("<"), separated_list0(tag(","), ws(template_param)), tag(">")).parse(input)?;
     Ok((rest, parameters))
 }
 
 fn qident_segment(input: Span) -> IResult<Span, QIdentSegment> {
-    let (rest, (ident, parameters)) = pair(ident, opt(preceded(space0, template_params)))(input)?;
+    let (rest, (ident, parameters)) = pair(ident, opt(preceded(space0, template_params))).parse(input)?;
     let parameters = match parameters {
         Some(parameters) => parameters,
         None => Vec::new(),
@@ -58,7 +61,8 @@ pub fn qualified_ident(input: Span) -> IResult<Span, QIdent> {
     preceded(
         opt(terminated(tag("::"), space0)),
         separated_list1(ws(tag("::")), qident_segment),
-    )(input)
+    )
+    .parse(input)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

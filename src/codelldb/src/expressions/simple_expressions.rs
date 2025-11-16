@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::RangeTo;
+use std::cell::RefCell;
 
 use nom::{
     branch::alt,
@@ -10,7 +10,7 @@ use nom::{
     error::ParseError,
     multi::fold_many0,
     sequence::{delimited, pair, preceded},
-    AsChar, InputLength, InputTakeAtPosition, Offset, Parser, Slice,
+    AsChar, Input, Parser,
 };
 
 use super::prelude::*;
@@ -21,43 +21,55 @@ fn python_number(input: Span) -> IResult<Span, Span> {
     alt((
         recognize(pair(digit1, opt(pair(tag("."), digit0)))),
         recognize(pair(tag("."), digit1)),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 // Parse <term> [<op> <term> [<op> <term> [...]]]
 fn binary_op<'a, I, O1, E: ParseError<I>>(
-    operator: impl Parser<I, O1, E>,
-    mut term: impl Parser<I, Cow<'a, str>, E>,
-) -> impl FnOnce(I) -> IResult<I, Cow<'a, str>, E>
+    operator: impl Parser<I, Output = O1, Error = E>,
+    term: impl Parser<I, Output = Cow<'a, str>, Error = E>,
+) -> impl Parser<I, Output = Cow<'a, str>, Error = E>
 where
-    I: 'a,
-    I: Clone + Offset + Slice<RangeTo<usize>> + InputLength,
-    I: AsRef<str>,
-    I: InputTakeAtPosition,
-    <I as InputTakeAtPosition>::Item: AsChar + Clone,
+    I: 'a + Input,
+    <I as Input>::Item: AsChar + Clone,
     O1: AsRef<str>,
 {
+    let operator = RefCell::new(operator);
+    let term = RefCell::new(term);
+
     move |input: I| {
-        let (input, init) = term.parse(input)?;
+        let (input, init) = term.borrow_mut().parse(input)?;
         fold_many0(
-            pair(ws(operator), term),
+            |input: I| {
+                let (input, op) = {
+                    let mut op_parser = operator.borrow_mut();
+                    op_parser.parse(input)?
+                };
+                let (input, val) = {
+                    let mut term_parser = term.borrow_mut();
+                    term_parser.parse(input)?
+                };
+                Ok((input, (op, val)))
+            },
             move || init.to_string(),
             |mut acc: String, (op, val): (O1, Cow<str>)| {
                 acc.push_str(op.as_ref());
                 acc.push_str(val.as_ref());
                 acc
             },
-        )(input)
+        )
+        .parse(input)
         .map(|(input, res)| (input, Cow::from(res)))
     }
 }
 
 fn disjunction(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("or").map(|_| " or "), conjunction)(input)
+    binary_op(tag("or").map(|_| " or "), conjunction).parse(input)
 }
 
 fn conjunction(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("and").map(|_| " and "), inversion)(input)
+    binary_op(tag("and").map(|_| " and "), inversion).parse(input)
 }
 
 fn inversion(input: Span) -> IResult<Span, Cow<str>> {
@@ -65,38 +77,40 @@ fn inversion(input: Span) -> IResult<Span, Cow<str>> {
         preceded(ws(tag("not")), inversion) //
             .map(|inv| format!("not {}", inv).into()),
         comparison,
-    ))(input)
+    ))
+    .parse(input)
 }
 
 fn comparison(input: Span) -> IResult<Span, Cow<str>> {
     binary_op(
         alt((tag("=="), tag("!="), tag(">="), tag(">"), tag("<="), tag("<"))),
         bitwise_or,
-    )(input)
+    )
+    .parse(input)
 }
 
 fn bitwise_or(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("|"), bitwise_xor)(input)
+    binary_op(tag("|"), bitwise_xor).parse(input)
 }
 
 fn bitwise_xor(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("^"), bitwise_and)(input)
+    binary_op(tag("^"), bitwise_and).parse(input)
 }
 
 fn bitwise_and(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("&"), bitwise_shift)(input)
+    binary_op(tag("&"), bitwise_shift).parse(input)
 }
 
 fn bitwise_shift(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(alt((tag("<<"), tag(">>"))), addsub)(input)
+    binary_op(alt((tag("<<"), tag(">>"))), addsub).parse(input)
 }
 
 fn addsub(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(alt((tag("+"), tag("-"))), muldiv)(input)
+    binary_op(alt((tag("+"), tag("-"))), muldiv).parse(input)
 }
 
 fn muldiv(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(alt((tag("*"), tag("//"), tag("/"), tag("%"))), unary)(input)
+    binary_op(alt((tag("*"), tag("//"), tag("/"), tag("%"))), unary).parse(input)
 }
 
 fn unary(input: Span) -> IResult<Span, Cow<str>> {
@@ -104,11 +118,12 @@ fn unary(input: Span) -> IResult<Span, Cow<str>> {
         pair(ws(alt((char('-'), char('+'), char('~')))), power) //
             .map(|(op, pow)| format!("{}{}", op, pow).into()),
         power,
-    ))(input)
+    ))
+    .parse(input)
 }
 
 fn power(input: Span) -> IResult<Span, Cow<str>> {
-    binary_op(tag("**"), primary)(input)
+    binary_op(tag("**"), primary).parse(input)
 }
 
 fn primary(input: Span) -> IResult<Span, Cow<str>> {
@@ -125,7 +140,8 @@ fn primary(input: Span) -> IResult<Span, Cow<str>> {
             acc.push_str(item.as_ref());
             acc
         },
-    )(input)
+    )
+    .parse(input)
     .map(|(input, res)| (input, Cow::from(res)))
 }
 
@@ -138,17 +154,19 @@ fn atom(i: Span) -> IResult<Span, Cow<str>> {
         recognize(qualified_ident).map(|e| format!("__eval('{}')", e).into()),
         native_expr.map(|e| format!("__eval('{}')", e).into()),
         group,
-    )))(i)
+    )))
+    .parse(i)
 }
 
 fn group(input: Span) -> IResult<Span, Cow<str>> {
     map(delimited(char('('), expression, char(')')), |e| {
         format!("({})", e).into()
-    })(input)
+    })
+    .parse(input)
 }
 
 pub fn expression(input: Span) -> IResult<Span, Cow<str>> {
-    ws(disjunction)(input)
+    ws(disjunction).parse(input)
 }
 
 #[cfg(test)]

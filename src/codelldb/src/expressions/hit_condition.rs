@@ -25,7 +25,8 @@ pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
             map(preceded(tag(">"), preceded(space0, unsigned)), |n| HitCondition::GT(n)),
             map(preceded(tag("%"), preceded(space0, unsigned)), |n| HitCondition::MOD(n)),
             map(unsigned, |n| HitCondition::GE(n)),
-        ))(input)
+        ))
+        .parse(input)
     }
 
     match parser.parse(expr.trim()) {

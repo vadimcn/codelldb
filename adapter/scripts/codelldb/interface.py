@@ -336,7 +336,9 @@ def evaluate_in_context(code, exec_context, eval_context):
         if eval_context == 2:  # EvalContext::SimpleExpression
             frame = exec_context.GetFrame()
             eval_globals = {}
+            # Helpers used by the expression evaluator
             eval_globals['__eval'] = lambda expr: nat_eval(frame, expr)
+            eval_globals['Value'] = Value
             return eval(code, eval_globals, {})
         else:
             lldb.frame = exec_context.GetFrame()

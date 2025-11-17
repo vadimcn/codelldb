@@ -5,6 +5,16 @@
 ### New
 - [Vibe debugging!](MANUAL.md#agent-assisted-debugging)
 
+### Changed
+- Updated the bundled LLDB to v21.1.0
+- Reworked [simple expressions](MANUAL.md#simple-expressions) to be more aligned with LLDB's
+  [Data Inspection Language](https://discourse.llvm.org/t/rfc-data-inspection-language/69893) (DIL):
+  - Added new operators: `*` (dereference), `&` (address of) and `->` (the equivalent of `(*a).b`).
+  - Aligned operator precedence with that of C++
+
+  (Currently the DIL RFC is only partially implemented and isn't yet usable for general expression evaluation,
+  however, once complete, it may become the underlying implementation of simple expressioons.)
+
 # 1.11.8
 
 ### Fixed

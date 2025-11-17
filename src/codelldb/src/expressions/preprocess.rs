@@ -47,7 +47,7 @@ pub fn native_expr(input: Span) -> IResult<Span, Span> {
 // Translates a Simple Expression into a Python expression.
 pub fn preprocess_simple_expr(expr: &str) -> Result<String, Error> {
     match super::simple_expressions::expression(expr).finish() {
-        Ok(("", result)) => Ok(result.into_owned()),
+        Ok(("", result)) => Ok(result),
         Ok((input, _)) => Err(syntax_error_message(expr, input).into()),
         Err(e) => Err(syntax_error_message(expr, e.input).into()),
     }

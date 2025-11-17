@@ -32,10 +32,28 @@ pub mod prelude {
 
     #[cfg(test)]
     macro_rules! assert_matches(($e:expr, $p:pat) => { let e = $e; assert!(matches!(e, $p), "{:?} !~ {}", e, stringify!($p)) });
+
+    #[cfg(test)]
+    macro_rules! test_parser {
+        ($parser:expr, $input:expr, $expected_parsed:literal, $expected_rest: literal) => {
+            match $parser.parse($input) {
+                Ok((rest, parsed)) if parsed == $expected_parsed && rest == $expected_rest => {}
+                Ok((rest, parsed)) => panic!(
+                    "Expected to parse \"{}\" as \"{}\", \"{}\", got \"{}\", \"{}\"",
+                    $input, $expected_parsed, $expected_rest, parsed, rest
+                ),
+                Err(e) => panic!("Parsing of \"{}\" failed: {}", $input, e),
+            }
+        };
+        ($parser:expr, $input:expr, $parsed:literal) => {
+            test_parser!($parser, $input, $parsed, "")
+        };
+    }
 }
 
 mod expression_format;
 mod hit_condition;
+mod literals;
 mod preprocess;
 mod qualified_ident;
 mod simple_expressions;

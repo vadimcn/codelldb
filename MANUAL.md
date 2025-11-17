@@ -633,11 +633,18 @@ The following features are supported:
 - References to variables: all identifiers are assumed to refer to variables in the debuggee current stack frame.
   The identifiers may be qualified with namespaces and template parameters (e.g. `std::numeric_limits<float>::digits`).
 - Embedded [native expressions](#native-expressions): these must be delimited with `${` and `}`.
-- Literals: integers, floats and strings, `True`, `False`.
-- Operators: `()`, `**`, `*`, `/`, `//`, `%`, `<<`, `>>`, `~`, `&`, `^`, `|`, `==`, `!=`, `>`, `>=`, `<`, `<=`,
-             `not`, `and`, `or` with the same precedence as in Python.
-- Attribute access: `<expr>.<attr>`.
+- Literals: integers, floats, strings, booleans (`true`, `false`).
+- Binary operators: `+`, `-`, `*`, `/`, `%`, `<<`, `>>`, `&`, `^`, `|`, `==`, `!=`, `>`, `>=`, `<`, `<=`,
+                    `&&`, `||` with the same precedence/associativity as in C++.
+                    Note that division is the Python "true division", use `//` for integer division.
+- Unary operators: `+`, `-`, `!`, `~`, `*` (dereference), `&` (address-of).
+- Member access: `<expr>.<attr>`, `<expr>-><attr>`
 - Indexing: `<expr>[<expr>]`.
+- Pythonisms:
+  - `**`: exponentiation (higher precedence than multiplication, right-associative)
+  - `//` integer division (same precedence as division)
+  - Aliases for C++ operators: `and` for `&&`, `or` for `||`, `not` for `!`.
+  - `True` and `False` aliases for `true` and `false`.
 
 ### Python expressions
 Prefix: `/py `<br>

@@ -10,9 +10,17 @@ class Value(object):
     def __init__(self, sbvalue):
         self.__sbvalue = sbvalue
 
-    @classmethod
-    def unwrap(cls, value):
+    @staticmethod
+    def unwrap(value):
         return value.__sbvalue if type(value) is Value else value
+
+    @staticmethod
+    def dereference(value):
+        return Value(value.__sbvalue.Dereference())
+
+    @staticmethod
+    def address_of(value):
+        return Value(value.__sbvalue.AddressOf())
 
     def __nonzero__(self):
         return self.__sbvalue.__nonzero__()

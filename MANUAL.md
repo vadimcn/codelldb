@@ -63,6 +63,7 @@ To start a debugging session, you will need to create a [launch configuration](h
 |**preRunCommands**       |[string]| LLDB commands executed just before launching or attaching to the debuggee.
 |**processCreateCommands**|[string]| LLDB commands executed to create/attach the debuggee process.
 |**postRunCommands**      |[string]| LLDB commands executed just after launching or attaching to the debuggee.
+|**gracefulShutdown**     |string &#10072; [string]| See [Graceful Shutdown](#graceful-shutdown).
 |**preTerminateCommands** |[string]| LLDB commands executed just before the debuggee is terminated or disconnected from.
 |**exitCommands**         |[string]| LLDB commands executed at the end of the debugging session.
 |**expressions**          |string| The default expression evaluator type: `simple`, `python` or `native`.  See [Expressions](#expressions).
@@ -90,7 +91,7 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**terminal**       |string| Destination for the debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for the VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop the debuggee immediately after launch.
 
-### Launch sequence
+### Launch Sequence
 - Run `initCommands`.
 - Create the [debug target](https://lldb.llvm.org/python_api/lldb.SBTarget.html):
   - If `targetCreateCommands` attribute is present, this command sequence is executed.  The currently selected target
@@ -98,16 +99,25 @@ These attributes are applicable when the "launch" initiation method is selected:
   - Otherwise create the target from `program`.
 - Apply configuration (`args`, `env`, `cwd`, `stdio`, etc.).
 - Create breakpoints.
-- Run `preRunCommands` (may further adjust args/env).
+- The `preRunCommands` sequence is executed.  These commands may alter debug target configuration.
 - Create the process:
   - If `processCreateCommands` are provided, run them (they must create the process).
   - Otherwise perform the default launch (like `process launch`).
 - Run `postRunCommands`.
 - Debug until the program exits or the user terminates session.
+- Attempt to [shut down the debuggee gracefully](#graceful-shutdown), if requested.
 - Run `preTerminateCommands`.
 - Terminate the process (if still alive).
-- If restarting, jump back to step 5.
+- If restarting, go to `preRunCommands` step.
 - Run `exitCommands`.
+
+### Graceful Shutdown
+
+If the `gracefulShutdown` attribute is present, CodeLLDB will handle VSCode
+[graceful termination requests](https://microsoft.github.io/debug-adapter-protocol/specification#Requests_Terminate):
+- If the value is a string (e.g. `"gracefulShutdown": "SIGTERM"`), it is treated as a signal name to be sent to the debuggee (not supported on Windows).
+  If the debuggee is currently stopped, it will be resumed so it can receive the signal.
+- If the value is a list of strings, it is interpreted as LLDB commands to execute.
 
 ### Stdio Redirection
 `stdio` is a list mapping file descriptors in order: stdin (0), stdout (1), stderr (2). Rules:
@@ -154,8 +164,6 @@ These attributes are applicable when the "attach" initiation method is selected:
 - If restarting the debug session, go to `preRunCommands` step.
 - The `exitCommands` sequence is executed.
 
-Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
-on some systems.  You may need to adjust system configuration to enable it.
 
 ### Pick Process Command
 
@@ -198,8 +206,7 @@ lets you filter the process list to those that match the specified filter.
       }
     }
   ]
-}
-```
+}```
 
 ## Debugging Externally Launched Code
 
@@ -865,22 +872,24 @@ The full list of LLDB settings may be obtained by executing `settings list` comm
 
 ## Default Launch Configuration Settings
 These settings specify the default values for launch configuration settings of the same name.
-|                                |                                                         |
-|--------------------------------|---------------------------------------------------------|
-|**lldb.launch.initCommands**    |Commands executed *before* initCommands of individual launch configurations.
-|**lldb.launch.preRunCommands**  |Commands executed *before* preRunCommands of individual launch configurations.
-|**lldb.launch.postRunCommands** |Commands executed *before* postRunCommands of individual launch configurations.
-|**lldb.launch.exitCommands**    |Commands executed *after* exitCommands of individual launch configurations.
-|**lldb.launch.env**             |Additional environment variables that will be merged with 'env' of individual launch configurations.
-|**lldb.launch.envFile**         |The default envFile path.
-|**lldb.launch.cwd**             |The default program working directory.
-|**lldb.launch.stdio**           |The default stdio destination.
-|**lldb.launch.expressions**     |The default expression evaluator.
-|**lldb.launch.terminal**        |The default terminal type.
-|**lldb.launch.sourceMap**       |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
-|**lldb.launch.breakpointMode**  |The default breakpoint resolution mode.
-|**lldb.launch.relativePathBase**|The default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
-|**lldb.launch.sourceLanguages** |A list of source languages used in the program.  This is used to enable language-specific debugger features.
+|                                    |                                                         |
+|------------------------------------|---------------------------------------------------------|
+|**lldb.launch.initCommands**        |Commands executed *before* initCommands of individual launch configurations.
+|**lldb.launch.preRunCommands**      |Commands executed *before* preRunCommands of individual launch configurations.
+|**lldb.launch.postRunCommands**     |Commands executed *before* postRunCommands of individual launch configurations.
+|**lldb.launch.gracefulShutdown**    |Commands executed *after* gracefulShutdown of individual launch configurations.
+|**lldb.launch.preTerminateCommands**|Commands executed *after* preTerminateCommands of individual launch configurations.
+|**lldb.launch.exitCommands**        |Commands executed *after* exitCommands of individual launch configurations.
+|**lldb.launch.env**                 |Additional environment variables that will be merged with 'env' of individual launch configurations.
+|**lldb.launch.envFile**             |The default envFile path.
+|**lldb.launch.cwd**                 |The default program working directory.
+|**lldb.launch.stdio**               |The default stdio destination.
+|**lldb.launch.expressions**         |The default expression evaluator.
+|**lldb.launch.terminal**            |The default terminal type.
+|**lldb.launch.sourceMap**           |Additional entries that will be merged with 'sourceMap's of individual launch configurations.
+|**lldb.launch.breakpointMode**      |The default breakpoint resolution mode.
+|**lldb.launch.relativePathBase**    |The default base directory used for resolution of relative source paths.  Defaults to "${workspaceFolder}".
+|**lldb.launch.sourceLanguages**     |A list of source languages used in the program.  This is used to enable language-specific debugger features.
 
 ## General
 |                                   |                                                         |

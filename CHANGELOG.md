@@ -4,6 +4,7 @@
 
 ### New
 - [Vibe debugging!](MANUAL.md#agent-assisted-debugging)
+- [Graceful shutdown](MANUAL.md#graceful-shutdown)
 
 ### Changed
 - Updated the bundled LLDB to v21.1.0

@@ -87,6 +87,7 @@ pub struct DebugSession {
     evaluation_timeout: time::Duration,
     source_languages: Vec<String>,
     breakpoint_mode: BreakpointMode,
+    graceful_shutdown: Option<Either<String, Vec<String>>>,
     summary_timeout: time::Duration,
     max_summary_length: usize,
     max_instr_bytes: usize,
@@ -173,6 +174,7 @@ impl DebugSession {
             evaluation_timeout: time::Duration::from_secs(5),
             source_languages: vec!["cpp".into()],
             breakpoint_mode: BreakpointMode::Path,
+            graceful_shutdown: None,
             summary_timeout: time::Duration::from_millis(10),
             max_summary_length: 32,
             max_instr_bytes: 9,
@@ -406,6 +408,9 @@ impl DebugSession {
             RequestArguments::configurationDone(_) =>
                 self.handle_configuration_done()
                     .map(|_| ResponseBody::configurationDone),
+            RequestArguments::terminate(args) =>
+                self.handle_terminate(args)
+                    .map(|_| ResponseBody::terminate),
             RequestArguments::disconnect(args) =>
                 self.handle_disconnect(args)
                     .map(|_| ResponseBody::disconnect),

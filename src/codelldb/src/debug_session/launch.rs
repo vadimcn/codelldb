@@ -326,7 +326,7 @@ impl super::DebugSession {
 
     pub(super) fn handle_restart(&mut self, args: RestartRequestArguments) -> Result<(), Error> {
         if let Some(commands) = &self.pre_terminate_commands {
-            self.exec_commands("preTerminateCommands", &commands)?;
+            log_errors!(self.exec_commands("preTerminateCommands", &commands));
         }
 
         self.debug_event_listener.cork();
@@ -344,9 +344,34 @@ impl super::DebugSession {
         Ok(())
     }
 
+    pub(super) fn handle_terminate(&mut self, _args: Option<TerminateArguments>) -> Result<(), Error> {
+        match &self.graceful_shutdown {
+            Some(Either::First(sig_name)) => {
+                let process = self.target.process();
+                let signals = process.unix_signals();
+                if !signals.is_valid() {
+                    bail!("The current platform does not support sending signals.");
+                };
+                let signo = signals
+                    .signal_number_from_name(&sig_name)
+                    .ok_or_else(|| str_error(format!("Invalid signal name: {sig_name}")))?;
+                signals.set_should_stop(signo, false);
+                if !process.state().is_running() {
+                    log_errors!(process.resume());
+                }
+                process.signal(signo)?;
+            }
+            Some(Either::Second(commands)) => {
+                self.exec_commands("gracefulShutdown", &commands)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn handle_disconnect(&mut self, args: Option<DisconnectArguments>) -> Result<(), Error> {
         if let Some(commands) = &self.pre_terminate_commands {
-            self.exec_commands("preTerminateCommands", &commands)?;
+            log_errors!(self.exec_commands("preTerminateCommands", &commands));
         }
 
         // Let go of the terminal helper connection
@@ -354,7 +379,7 @@ impl super::DebugSession {
         self.terminate_debuggee(args.map(|a| a.terminate_debuggee).flatten())?;
 
         if let Some(commands) = &self.exit_commands {
-            self.exec_commands("exitCommands", &commands)?;
+            log_errors!(self.exec_commands("exitCommands", &commands));
         }
 
         Ok(())
@@ -518,7 +543,17 @@ impl super::DebugSession {
         }
 
         if let Some(breakpoint_mode) = &args_common.breakpoint_mode {
-            self.breakpoint_mode = breakpoint_mode.to_owned();
+            self.breakpoint_mode = *breakpoint_mode;
+        }
+
+        self.graceful_shutdown = args_common.graceful_shutdown.clone();
+        if self.graceful_shutdown.is_some() {
+            self.send_event(EventBody::capabilities(CapabilitiesEventBody {
+                capabilities: Capabilities {
+                    supports_terminate_request: Some(true),
+                    ..Default::default()
+                },
+            }));
         }
 
         if let Some(ref settings) = args_common.adapter_settings {

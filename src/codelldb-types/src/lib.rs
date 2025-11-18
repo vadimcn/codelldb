@@ -196,6 +196,13 @@ pub struct CommonLaunchFields {
     pub pre_run_commands: Option<Vec<String>>,
     /// Commands executed just after the debuggee has been launched or attached to
     pub post_run_commands: Option<Vec<String>>,
+    /// Gracefully shut down the debuggee when the user requests termination of the debug session:
+    /// - If the value is a string, it is treated as a signal name to be sent to the debuggee (not supported on Windows).
+    ///   If the debuggee is currently stopped, if will be resumed so it can receive the signal.
+    /// - If the value is a list of strings, it is interpreted as LLDB commands to execute.
+    ///
+    /// A second termination request will immediately terminate the debuggee.
+    pub graceful_shutdown: Option<Either<String, Vec<String>>>,
     /// Commands executed just before the debuggee is terminated or disconnected from
     pub pre_terminate_commands: Option<Vec<String>>,
     /// Commands executed at the end of debugging session, after the debuggee has been terminated

@@ -333,6 +333,7 @@ class Extension implements DebugAdapterDescriptorFactory {
         mergeConfig('initCommands');
         mergeConfig('preRunCommands');
         mergeConfig('postRunCommands');
+        mergeConfig('gracefulShutdown', true);
         mergeConfig('preTerminateCommands', true);
         mergeConfig('exitCommands', true);
         mergeConfig('env');

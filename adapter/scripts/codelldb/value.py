@@ -22,6 +22,22 @@ class Value(object):
     def address_of(value):
         return Value(value.__sbvalue.AddressOf())
 
+    @staticmethod
+    def cast(ty, value):
+        if isinstance(ty, str):
+            # Parse type values like "char * &"
+            name = ty.rstrip('*& ')
+            mods = ty[len(name):]
+            ty = value.__sbvalue.GetTarget().FindFirstType(name.strip())
+            for ch in mods:
+                if ch == '*':
+                    ty = ty.GetPointerType()
+                elif ch == '&':
+                    ty = ty.GetReferenceType()
+            if not ty.IsValid():
+                raise ValueError('Could not resolve type "' + name + mods + '"')
+        return Value(value.__sbvalue.Cast(ty))
+
     def __nonzero__(self):
         return self.__sbvalue.__nonzero__()
 

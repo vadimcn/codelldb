@@ -97,6 +97,13 @@ impl SBFrame {
             })
         })
     }
+    pub fn get_value_for_variable_path(&self, var_path: &str) -> SBValue {
+        with_cstr(var_path, |var_path| {
+            cpp!(unsafe [self as "SBFrame*", var_path as "const char*"] -> SBValue as "SBValue" {
+                return self->GetValueForVariablePath(var_path);
+            })
+        })
+    }
     pub fn registers(&self) -> SBValueList {
         cpp!(unsafe [self as "SBFrame*"] -> SBValueList as "SBValueList" {
             return self->GetRegisters();

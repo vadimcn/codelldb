@@ -158,6 +158,11 @@ def session_init(debugger, console_fd):
             console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
         session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
         commands.register(debugger)
+        # Init session dictionary
+        globals = get_instance_dict(debugger)
+        exec('import codelldb', globals)
+        exec('import codelldb as debugger', globals)
+        exec('from codelldb import Value', globals)
     except Exception as err:
         log.exception('session_init failed')
     return True

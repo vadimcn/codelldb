@@ -3,9 +3,10 @@ use std::borrow::Cow;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::char,
-    combinator::recognize,
-    sequence::{delimited, preceded},
+    character::complete::{char, one_of},
+    combinator::{opt, recognize},
+    multi::many0,
+    sequence::{delimited, pair, preceded},
     Parser,
 };
 use nom_language::precedence::{binary_op, precedence, unary_op, Assoc, Binary, Unary};
@@ -19,14 +20,27 @@ use super::prelude::*;
 #[allow(mismatched_lifetime_syntaxes)]
 pub fn expression(input: Span) -> IResult<Span, String> {
     fn operand(input: Span) -> IResult<Span, Cow<str>> {
-        ws(alt((
-            numeric_literal.map(Cow::from),
-            boolean_literal,
-            python_string.map(Cow::from),
-            recognize(qualified_ident).map(|e| format!("__eval('{e}')").into()),
-            native_expr.map(|e| format!("__eval('{e}')").into()),
-            delimited(tag("("), expression, tag(")")).map(|e| format!("({e})").into()),
-        )))
+        let cast = delimited(
+            char('('),
+            recognize(pair(ws(qualified_ident), many0(ws(one_of("*&"))))),
+            char(')'),
+        );
+
+        pair(
+            opt(ws(cast)),
+            ws(alt((
+                numeric_literal.map(Cow::from),
+                boolean_literal,
+                python_string.map(Cow::from),
+                recognize(qualified_ident).map(|e| format!("__eval('{e}')").into()),
+                native_expr.map(|e| format!("__eval('{e}')").into()),
+                delimited(tag("("), expression, tag(")")).map(|e| format!("({e})").into()),
+            ))),
+        )
+        .map(|(c, e)| match c {
+            Some(c) => format!("Value.cast('{c}', {e})").into(),
+            None => e,
+        })
         .parse(input)
     }
 
@@ -178,5 +192,11 @@ mod test {
         test_parser!(expression, " * foo.bar", "Value.dereference(__eval('foo').__getattr__('bar'))");
         test_parser!(expression, " & foo.bar", "Value.address_of(__eval('foo').__getattr__('bar'))");
         test_parser!(expression, " & foo->bar", "Value.address_of(Value.dereference(__eval('foo')).__getattr__('bar'))");
+    }
+
+    #[test]
+    fn cast_test() {
+        test_parser!(expression, " (foo) bar", "Value.cast('foo', __eval('bar'))");
+        test_parser!(expression, " (foo * &) bar", "Value.cast('foo * &', __eval('bar'))");
     }
 }

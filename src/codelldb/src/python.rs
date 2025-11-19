@@ -186,13 +186,6 @@ impl PythonInterface {
             interface: self.clone(),
             debugger: debugger.clone(),
         };
-        let interpreter = debugger.command_interpreter();
-        let mut result = SBCommandReturnObject::new();
-        // Initialize session dictionary
-        interpreter.handle_command("script import codelldb, debugger", &mut result, false);
-        if !result.succeeded() {
-            error!("{:?}", result.error());
-        }
         unsafe { (self.py.session_init)(debugger.clone(), get_raw_fd(console_stream)) };
         let mut senders = self.session_event_senders.lock().unwrap();
         senders.insert(debugger.id(), sender);

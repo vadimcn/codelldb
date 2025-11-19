@@ -13,7 +13,6 @@ from .value import Value
 from .event import Event
 from . import commands
 
-
 log = logging.getLogger('codelldb')
 
 try:
@@ -187,12 +186,15 @@ def compile_code(result, expr_ptr, expr_len, filename_ptr, filename_len):
         try:
             pycode = compile(expr, filename, 'eval')
         except SyntaxError:
+            pycode = None
+        if not pycode:
             pycode = compile(expr, filename, 'exec')
         incref(pycode)
         result[0] = PyObjectResult.Ok(pycode)
     except Exception as err:
         error = lldb.SBError()
-        error.SetErrorString(traceback.format_exc())
+        error.SetErrorString(str(err))
+        log.exception('Expression compilation failed:')
         error = from_swig_wrapper(error, RustSBError)
         result[0] = PyObjectResult.Err(error)
     return True
@@ -208,7 +210,8 @@ def evaluate_as_sbvalue(result, pycode, exec_context, eval_context):
         result[0] = ValueResult.Ok(from_swig_wrapper(value, RustSBValue))
     except Exception as err:
         error = lldb.SBError()
-        error.SetErrorString(traceback.format_exc())
+        error.SetErrorString(str(err))
+        log.exception('Evaluation failed:')
         error = from_swig_wrapper(error, RustSBError)
         result[0] = ValueResult.Err(error)
     return True
@@ -223,7 +226,8 @@ def evaluate_as_bool(result, pycode, exec_context, eval_context):
         result[0] = BoolResult.Ok(value)
     except Exception as err:
         error = lldb.SBError()
-        error.SetErrorString(traceback.format_exc())
+        error.SetErrorString(str(err))
+        log.exception('Evaluation failed:')
         error = from_swig_wrapper(error, RustSBError)
         result[0] = BoolResult.Err(error)
     return True

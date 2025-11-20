@@ -75,7 +75,7 @@ impl Terminal {
             })
         };
 
-        match tokio::time::timeout(Duration::from_secs(5), terminal_fut).await {
+        match tokio::time::timeout(Duration::from_secs(10), terminal_fut).await {
             Ok(res) => res,
             Err(_) => bail!("Terminal agent did not respond within the allotted time."),
         }

@@ -30,6 +30,7 @@ pub struct PyObject {
 
 impl Drop for PyObject {
     fn drop(&mut self) {
+        debug!("Dropping object at {:?}", self.object);
         unsafe { (self.destructor)(self.object) }
     }
 }
@@ -233,6 +234,7 @@ impl PythonSession {
 
     // Compiles Python source, returns a code object.
     pub fn compile_code(&self, expr: &str, filename: &str) -> Result<PyObject, Error> {
+        debug!("Compiling code: {expr}");
         let expt_ptr = expr.as_ptr() as *const c_char;
         let expr_size = expr.len();
         let filename_ptr = filename.as_ptr() as *const c_char;
@@ -242,10 +244,13 @@ impl PythonSession {
             (self.interface.py.compile_code)(&mut result, expt_ptr, expr_size, filename_ptr, filename_size);
         }
         match result {
-            PyResult::Ok(object) => Ok(PyObject {
-                object: object,
-                destructor: self.interface.py.drop_pyobject,
-            }),
+            PyResult::Ok(object) => {
+                debug!("Created code object at {:?}", object);
+                Ok(PyObject {
+                    object: object,
+                    destructor: self.interface.py.drop_pyobject,
+                })
+            }
             PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
@@ -258,6 +263,7 @@ impl PythonSession {
         exec_context: &SBExecutionContext,
         eval_context: EvalContext,
     ) -> Result<SBValue, Error> {
+        debug!("Evaluating code object at {:?}", code.object);
         let exec_context = exec_context.clone();
         let eval_context = eval_context as c_int;
         let mut result = PyResult::Invalid;
@@ -265,7 +271,10 @@ impl PythonSession {
             (self.interface.py.evaluate_as_sbvalue)(&mut result, code.object, exec_context, eval_context);
         }
         match result {
-            PyResult::Ok(value) => Ok(value),
+            PyResult::Ok(value) => {
+                debug!("Evaluation result: {:?}", value);
+                Ok(value)
+            }
             PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
@@ -278,6 +287,7 @@ impl PythonSession {
         exec_context: &SBExecutionContext,
         eval_context: EvalContext,
     ) -> Result<bool, Error> {
+        debug!("Evaluating code object at {:?}", code.object);
         let exec_context = exec_context.clone();
         let eval_context = eval_context as c_int;
         let mut result = PyResult::Invalid;
@@ -285,7 +295,10 @@ impl PythonSession {
             (self.interface.py.evaluate_as_bool)(&mut result, code.object, exec_context, eval_context);
         }
         match result {
-            PyResult::Ok(value) => Ok(value),
+            PyResult::Ok(value) => {
+                debug!("Evaluation result: {:?}", value);
+                Ok(value)
+            }
             PyResult::Err(error) => Err(error.into()),
             _ => Err("Evaluation failed".into()),
         }
@@ -349,8 +362,8 @@ fn test_sizeof() {
 
 #[test]
 fn pypath() {
-    use lldb::*;
     use crate::TEST_DEBUGGER;
+    use lldb::*;
     let interp = TEST_DEBUGGER.command_interpreter();
     let mut result = SBCommandReturnObject::new();
     let status = interp.handle_command("script import sys; print(sys.path)", &mut result, false);
@@ -360,8 +373,8 @@ fn pypath() {
 
 #[test]
 fn evaluate() {
-    use lldb::*;
     use crate::TEST_DEBUGGER;
+    use lldb::*;
     let adapter_dir = Path::new(env!("ADAPTER_SOURCE_DIR"));
     let interface = initialize(&TEST_DEBUGGER, adapter_dir).unwrap();
     let (session, _events) = interface.new_session(

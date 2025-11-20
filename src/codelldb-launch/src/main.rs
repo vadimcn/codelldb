@@ -7,6 +7,7 @@ use std::time::Duration;
 use clap::Parser;
 use codelldb_types::TerminalId;
 use codelldb_types::{JsonMap, LaunchEnvironment, LaunchResponse};
+use log::{debug, trace};
 use socket2::{SockRef, TcpKeepalive};
 
 pub type Error = Box<dyn std::error::Error>;
@@ -24,6 +25,8 @@ struct Args {
 }
 
 fn main() -> Result<(), Error> {
+    env_logger::init();
+
     let args = Args::parse();
 
     let address = if let Some(address) = args.connect {
@@ -60,9 +63,11 @@ fn main() -> Result<(), Error> {
         terminal_id: terminal_id,
         config: config,
     };
+    trace!("Request: {:?}", request);
 
     let address = net::SocketAddr::from_str(&address)?;
     let mut stream = net::TcpStream::connect(address)?;
+    debug!("Connected to {:?}", stream.peer_addr().unwrap());
 
     // Windows may abrutly terminate an idle TCP connection after approximately 2 minutes.
     SockRef::from(&stream).set_tcp_keepalive(&TcpKeepalive::new().with_time(Duration::from_secs(30)))?;
@@ -77,6 +82,7 @@ fn main() -> Result<(), Error> {
 
     let mut response = String::new();
     stream.read_to_string(&mut response)?;
+    debug!("Response: {}", response);
 
     // Clear out any unread input buffered in stdin, so it doesn't get read by the shell.
     purge_stdin();

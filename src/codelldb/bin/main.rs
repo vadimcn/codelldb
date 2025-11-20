@@ -1,4 +1,6 @@
+use std::io::Write;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use clap::Parser;
 use log::info;
@@ -6,7 +8,21 @@ use log::info;
 type Error = Box<dyn std::error::Error>;
 
 fn main() -> Result<(), Error> {
-    env_logger::Builder::from_default_env().init();
+    let started = Instant::now();
+    env_logger::builder()
+        .format(move |buf, record| {
+            let elapsed = started.elapsed();
+            writeln!(
+                buf,
+                "[{}.{} {} {}] {}",
+                elapsed.as_secs(),
+                elapsed.subsec_millis(),
+                record.level(),
+                record.module_path().unwrap_or(""),
+                record.args()
+            )
+        })
+        .init();
 
     let cli = codelldb::Cli::parse();
 

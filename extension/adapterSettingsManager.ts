@@ -1,5 +1,5 @@
-import { workspace, window, commands, debug, ExtensionContext, ConfigurationScope, StatusBarItem, StatusBarAlignment, QuickPickItem } from "vscode";
-import { AdapterSettings } from 'codelldb';
+import { AdapterSettings, DisplayFormat, ShowDisassembly } from 'codelldb';
+import { commands, ConfigurationScope, debug, MarkdownString, StatusBarAlignment, StatusBarItem, window, workspace } from "vscode";
 import { getExtensionConfig } from "./main";
 import { DisposableSubscriber } from "./novsc/commonTypes";
 
@@ -9,46 +9,48 @@ export class AdapterSettingsManager extends DisposableSubscriber {
     constructor() {
         super();
 
-        this.subscriptions.push(commands.registerCommand('lldb.changeDisplaySettings', () => this.changeDisplaySettings()));
-
-        this.subscriptions.push(workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('lldb.displayFormat') ||
-                event.affectsConfiguration('lldb.showDisassembly') ||
-                event.affectsConfiguration('lldb.dereferencePointers') ||
-                event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
-                event.affectsConfiguration('lldb.evaluationTimeout') ||
-                event.affectsConfiguration('lldb.consoleMode')) {
-                this.propagateDisplaySettings();
-            }
+        this.subscriptions.push(commands.registerCommand('lldb.displayFormat', async () => {
+            let settings = this.getAdapterSettings();
+            settings.displayFormat = await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']) as DisplayFormat;
+            if (settings.displayFormat)
+                this.setAdapterSettings(settings);
         }));
 
-        let registerDisplaySettingCommand = (command: string, updater: (settings: AdapterSettings) => Promise<void>) => {
-            this.subscriptions.push(commands.registerCommand(command, async () => {
-                let settings = this.getAdapterSettings();
-                await updater(settings);
+        this.subscriptions.push(commands.registerCommand('lldb.showDisassembly', async () => {
+            let settings = this.getAdapterSettings();
+            settings.showDisassembly = await window.showQuickPick(['auto', 'always', 'never']) as ShowDisassembly;
+            if (settings.showDisassembly)
                 this.setAdapterSettings(settings);
-            }));
-        };
+        }));
 
-        registerDisplaySettingCommand('lldb.toggleConsoleMode', async (settings) => {
-            settings.consoleMode = (settings.consoleMode == 'commands') ? 'evaluate' : 'commands';
-        });
-        registerDisplaySettingCommand('lldb.showDisassembly', async (settings) => {
-            settings.showDisassembly = <AdapterSettings['showDisassembly']>await window.showQuickPick(['always', 'auto', 'never']);
-        });
-        registerDisplaySettingCommand('lldb.toggleDisassembly', async (settings) => {
+        this.subscriptions.push(commands.registerCommand('lldb.toggleDisassembly', () => {
+            let settings = this.getAdapterSettings();
             settings.showDisassembly = (settings.showDisassembly == 'auto') ? 'always' : 'auto';
-        });
-        registerDisplaySettingCommand('lldb.displayFormat', async (settings) => {
-            settings.displayFormat = <AdapterSettings['displayFormat']>await window.showQuickPick(['auto', 'hex', 'decimal', 'binary']);
-        });
-        registerDisplaySettingCommand('lldb.toggleDerefPointers', async (settings) => {
+            this.setAdapterSettings(settings);
+        }));
+
+        this.subscriptions.push(commands.registerCommand('lldb.toggleConsoleMode', () => {
+            let settings = this.getAdapterSettings();
+            settings.consoleMode = (settings.consoleMode == 'commands') ? 'evaluate' : 'commands';
+            this.setAdapterSettings(settings);
+        }));
+
+        this.subscriptions.push(commands.registerCommand('lldb.toggleDerefPointers', () => {
+            let settings = this.getAdapterSettings();
             settings.dereferencePointers = !settings.dereferencePointers;
-        });
+            this.setAdapterSettings(settings);
+        }));
+
+        this.subscriptions.push(commands.registerCommand('lldb._updateAdapterSetting', (setting: string, value: any) => {
+            let settings = this.getAdapterSettings();
+            (settings as any)[setting] = value;
+            this.setAdapterSettings(settings);
+        }));
 
         this.status = window.createStatusBarItem(StatusBarAlignment.Left, 0);
-        this.status.command = 'lldb.changeDisplaySettings';
-        this.status.tooltip = 'Change debugger display settings';
+        this.status.tooltip = new MarkdownString(this.createSettingsHtml(this.getAdapterSettings()));
+        this.status.tooltip.isTrusted = true;
+        this.status.tooltip.supportHtml = true;
         this.status.hide();
 
         this.subscriptions.push(debug.onDidChangeActiveDebugSession(session => {
@@ -59,6 +61,16 @@ export class AdapterSettingsManager extends DisposableSubscriber {
         }));
 
         this.propagateDisplaySettings();
+        this.subscriptions.push(workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('lldb.displayFormat') ||
+                event.affectsConfiguration('lldb.showDisassembly') ||
+                event.affectsConfiguration('lldb.dereferencePointers') ||
+                event.affectsConfiguration('lldb.suppressMissingSourceFiles') ||
+                event.affectsConfiguration('lldb.evaluationTimeout') ||
+                event.affectsConfiguration('lldb.consoleMode')) {
+                this.propagateDisplaySettings();
+            }
+        }));
     }
 
     // Read current adapter settings values from workspace configuration.
@@ -106,38 +118,30 @@ export class AdapterSettingsManager extends DisposableSubscriber {
         }
     }
 
-    // UI for changing display settings.
-    async changeDisplaySettings() {
-        let settings = this.getAdapterSettings();
-        let qpick = window.createQuickPick<QuickPickItem & { command: string }>();
-        qpick.items = [
-            {
-                label: `Value formatting: ${settings.displayFormat}`,
-                detail: 'Default format for displaying variable values and evaluation results.',
-                command: 'lldb.displayFormat'
-            },
-            {
-                label: `Show disassembly: ${settings.showDisassembly}`,
-                detail: 'When to display disassembly.',
-                command: 'lldb.showDisassembly'
-            },
-            {
-                label: `Dereference pointers: ${settings.dereferencePointers ? 'on' : 'off'}`,
-                detail: 'Whether to show a summary of the pointee or a numeric pointer value.',
-                command: 'lldb.toggleDerefPointers'
-            },
-            {
-                label: `Console mode: ${settings.consoleMode}`,
-                detail: 'Whether Debug Console input is treated as debugger commands or as expressions to evaluate.',
-                command: 'lldb.toggleConsoleMode'
-            }
-        ];
-        qpick.title = 'Debugger display settings';
-        qpick.onDidAccept(() => {
-            let item = qpick.selectedItems[0];
-            qpick.hide();
-            commands.executeCommand(item.command);
-        });
-        qpick.show();
+    createSettingsHtml(settings: AdapterSettings): string {
+        function option(setting: string, label: string, value: any) {
+            let args = encodeURIComponent(JSON.stringify([setting, value]));
+            let opt = `<a href="command:lldb._updateAdapterSetting?${args}">[${label}]</a>`;
+            return opt;
+        }
+        return `<b>Display format:</b> &nbsp;
+                    ${option('displayFormat', 'auto', 'auto')} &nbsp;
+                    ${option('displayFormat', 'hex', 'hex')} &nbsp;
+                    ${option('displayFormat', 'dec', 'decimal')} &nbsp;
+                    ${option('displayFormat', 'bin', 'binary')}
+                <br>
+                <b>Show disassembly:</b> &nbsp;
+                    ${option('showDisassembly', 'auto', 'auto')} &nbsp;
+                    ${option('showDisassembly', 'always', 'always')} &nbsp;
+                    ${option('showDisassembly', 'never', 'never')}
+                <br>
+                <b>Dereference pointers:</b> &nbsp;
+                    ${option('dereferencePointers', 'on', true)} &nbsp;
+                    ${option('dereferencePointers', 'off', false)}
+                <br>
+                <b>Console mode:</b> &nbsp;
+                    ${option('consoleMode', 'commands', 'commands')} &nbsp;
+                    ${option('consoleMode', 'evaluate', 'evaluate')}
+            `;
     }
 }

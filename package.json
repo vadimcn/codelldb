@@ -110,11 +110,6 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Display Options...",
-				"command": "lldb.changeDisplaySettings"
-			},
-			{
-				"category": "LLDB",
 				"title": "Copy Value",
 				"command": "lldb.modules.copyValue"
 			},

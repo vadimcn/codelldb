@@ -261,6 +261,7 @@
 		],
 		"configuration": [
 			{
+				"id": "general",
 				"title": "General",
 				"properties": {
 					"lldb.consoleMode": {
@@ -359,6 +360,7 @@
 				}
 			},
 			{
+				"id": "launch",
 				"title": "Launch configuration defaults",
 				"properties": {
 					"lldb.launch.initCommands": {
@@ -388,6 +390,15 @@
 						"scope": "resource",
 						"order": 3
 					},
+					"lldb.launch.gracefulShitdown": {
+						"markdownDescription": "Commands executed *after* gracefulShutdown of individual launch configurations.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"scope": "resource",
+						"order": 5
+					},
 					"lldb.launch.preTerminateCommands": {
 						"markdownDescription": "Commands executed *after* preTerminateCommands in individual launch configurations.",
 						"type": "array",
@@ -395,7 +406,7 @@
 							"type": "string"
 						},
 						"scope": "resource",
-						"order": 4
+						"order": 6
 					},
 					"lldb.launch.exitCommands": {
 						"markdownDescription": "Commands executed *after* exitCommands in individual launch configurations.",
@@ -404,7 +415,7 @@
 							"type": "string"
 						},
 						"scope": "resource",
-						"order": 4
+						"order": 7
 					},
 					"lldb.launch.env": {
 						"description": "Additional environment variables merged with 'env' individual launch configurations.",
@@ -418,6 +429,7 @@
 						"order": 10
 					},
 					"lldb.launch.envFile": {
+						"description": "Path to a file containing additional environment variables.  Entries defined in `env` will override the values loaded from this file.",
 						"type": "string",
 						"order": 10
 					},
@@ -461,6 +473,11 @@
 							"simple",
 							"python",
 							"native"
+						],
+						"enumDescriptions": [
+							"Simple Expressions",
+							"Python Expressions",
+							"Native Expressions"
 						],
 						"scope": "resource",
 						"order": 10
@@ -514,6 +531,7 @@
 				}
 			},
 			{
+				"id": "advanced",
 				"title": "Advanced",
 				"properties": {
 					"lldb.verboseLogging": {

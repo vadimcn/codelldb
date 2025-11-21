@@ -53,7 +53,9 @@ suite('Extension Tests', () => {
             `--connect=${addrinfo.address}:${addrinfo.port}`,
             '--config={ token: secret }',
             'debuggee/debuggee',
-        ], { cwd: ext.extensionPath });
+        ], { cwd: ext.extensionPath, stdio: 'pipe', env: { ...process.env, RUST_LOG: 'debug' }});
+        proc.stdout.on('data', buf => console.log(buf.toString()));
+        proc.stderr.on('data', buf => console.error(buf.toString()));
 
         await new Promise<void>((resolve, reject) => {
             proc.on('error', err => reject(err));

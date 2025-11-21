@@ -13,6 +13,7 @@ export namespace fs {
     export const stat = promisify(_fs.stat);
     export const copyFile = promisify(_fs.copyFile);
     export const unlink = promisify(_fs.unlink);
+    export const mkdir = promisify(_fs.mkdir);
 }
 
 export namespace cp {

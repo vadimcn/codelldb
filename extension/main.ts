@@ -15,6 +15,7 @@ import * as webview from './webview';
 import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
+import * as async from './novsc/async';
 import { Cargo } from './cargo';
 import { pickProcess } from './pickProcess';
 import { ModuleTreeDataProvider as ModulesView } from './modulesView';
@@ -27,6 +28,7 @@ import { AdapterSettingsManager } from './adapterSettingsManager';
 import { LaunchCompletionProvider } from './launchCompletions';
 import { output, showErrorWithLog } from './logging';
 import { LLDBCommandTool, SessionInfoTool } from './vibeDebug';
+import { AddressInfo } from 'net';
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';
@@ -53,6 +55,7 @@ class Extension implements DebugAdapterDescriptorFactory {
     loadedModules: ModulesView;
     excludedCallers: ExcludedCallersView;
     rpcServer?: RpcLaunchServer;
+    rpcFile?: string;
 
     constructor(context: ExtensionContext) {
         this.context = context;
@@ -112,8 +115,6 @@ class Extension implements DebugAdapterDescriptorFactory {
 
         subscriptions.push(lm.registerTool('codelldb_session_info', new SessionInfoTool()));
         subscriptions.push(lm.registerTool('codelldb', new LLDBCommandTool()));
-
-        this.updateRpcServer();
     }
 
     async onActivate() {
@@ -136,6 +137,18 @@ class Extension implements DebugAdapterDescriptorFactory {
             }
         }
         install.ensurePlatformPackage(this.context, output, false);
+
+        let context = this.context;
+        context.environmentVariableCollection.description = 'No-config debugging';
+        context.environmentVariableCollection.prepend('PATH', path.join(context.extensionPath, 'bin') + path.delimiter);
+        if (context.storageUri?.fsPath) {
+            if (!await async.fs.exists(context.storageUri.fsPath))
+                await async.fs.mkdir(context.storageUri.fsPath);
+            this.rpcFile = Uri.joinPath(context.storageUri, 'rpcaddress.txt').fsPath;
+            context.environmentVariableCollection.replace('CODELLDB_LAUNCH_CONNECT_FILE', this.rpcFile);
+        }
+
+        this.updateRpcServer();
     }
 
     onDeactivate() {
@@ -149,6 +162,10 @@ class Extension implements DebugAdapterDescriptorFactory {
             output.appendLine('Stopping RPC server');
             this.rpcServer.close();
             this.rpcServer = undefined;
+
+            if (this.rpcFile && await async.fs.exists(this.rpcFile)) {
+                await async.fs.unlink(this.rpcFile);
+            }
         }
         let config = getExtensionConfig();
         let options = config.get<any>('rpcServer');
@@ -156,6 +173,18 @@ class Extension implements DebugAdapterDescriptorFactory {
             output.appendLine(`Starting RPC server with: ${inspect(options)}`);
             this.rpcServer = new RpcLaunchServer({ token: options.token });
             await this.rpcServer.listen(options);
+
+            let address = this.rpcServer.inner.address();
+            if (this.rpcFile && address) {
+                if (typeof (address) == 'object') {
+                    let ainfo = address as AddressInfo;
+                    address = `${ainfo.address}:${ainfo.port}`;
+                }
+                await async.fs.writeFile(this.rpcFile, address);
+
+                let launch_config = `{ token: "${options.token}" }`;
+                this.context.environmentVariableCollection.replace('CODELLDB_LAUNCH_CONFIG', launch_config);
+            }
         }
     }
 

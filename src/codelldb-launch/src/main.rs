@@ -1,4 +1,5 @@
 use std::env;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::net;
 use std::str::FromStr;
@@ -32,6 +33,10 @@ fn main() -> Result<(), Error> {
     let address = if let Some(address) = args.connect {
         address
     } else if let Ok(address) = env::var("CODELLDB_LAUNCH_CONNECT") {
+        address
+    } else if let Ok(path) = env::var("CODELLDB_LAUNCH_CONNECT_FILE") {
+        let mut address = String::new();
+        File::open(&path).expect(&format!("Open {path}")).read_to_string(&mut address)?;
         address
     } else {
         return Err("Need an address to connect to.".into());

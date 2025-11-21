@@ -86,7 +86,7 @@ These attributes are applicable when the "launch" initiation method is selected:
 |**args**           |string &#10072; [string]| Command-line parameters.  If provided as a string, they are split using shell-like syntax.
 |**cwd**            |string| Working directory for the debuggee.
 |**env**            |dictionary| Environment variables to add on top of those inherited from the parent process (unless LLDB's `target.inherit-env` setting is `false`, in which case the initial environment is empty).  Reference existing variables with `${env:NAME}`; for example: `"PATH": "${env:HOME}/bin:${env:PATH}"`.
-|**envFile**        |string| Path to a file containing additional environment variables.  Entries defined in `env` override values loaded from this file.
+|**envFile**        |string| Path to a file containing additional environment variables.  Entries defined in `env` will override the values loaded from this file.
 |**stdio**          |string &#10072; [string] &#10072; dictionary| See [Stdio Redirection](#stdio-redirection).
 |**terminal**       |string| Destination for the debuggee's stdio streams: <ul><li>`console` for DEBUG CONSOLE</li><li>`integrated` (default) for the VSCode integrated terminal</li><li>`external` for a new terminal window</li></ul>
 |**stopOnEntry**    |boolean| Whether to stop the debuggee immediately after launch.
@@ -206,7 +206,8 @@ lets you filter the process list to those that match the specified filter.
       }
     }
   ]
-}```
+}
+```
 
 ## Debugging Externally Launched Code
 
@@ -214,15 +215,15 @@ lets you filter the process list to those that match the specified filter.
 
 Debugging sessions may be started from outside of VSCode by invoking one of these URLs:
 
-- **`vscode://vadimcn.vscode-lldb/launch?name=<configuration name>,[folder=<path>]`**</br>
-  This will start a new debug session using the named launch configuration.  The optional `folder` parameter specifies
+- **vscode://vadimcn.vscode-lldb/launch?name=\<configuration name\>,[folder=\<path\>]**</br>
+  This will start a new debug session using the named launch configuration.  The optional **folder** parameter specifies
   the workspace folder where the launch configuration is defined.  If omitted, all folders in the current workspace will be searched.
   - `code --open-url "vscode://vadimcn.vscode-lldb/launch?name=Debug My Project"`
-- **`vscode://vadimcn.vscode-lldb/launch/command?<env1>=<val1>&<env2>=<val2>&<command-line>`**</br>
-  The \<command-line\> will be split into the program name and arguments array using the usual shell command-line parsing rules.
+- **vscode://vadimcn.vscode-lldb/launch/command?\<env1\>=\<val1\>&\<env2\>=\<val2\>&\<command-line\>**</br>
+  The **\<command-line\>** will be split into the program name and arguments array using the usual shell command-line parsing rules.
   - `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?/path/filename arg1 \"arg 2\" arg3"`
   - `code --open-url "vscode://vadimcn.vscode-lldb/launch/command?RUST_LOG=error&/path/filename arg1 'arg 2' arg3"`
-- **`vscode://vadimcn.vscode-lldb/launch/config?<yaml>`**</br>
+- **vscode://vadimcn.vscode-lldb/launch/config?\<yaml\>**</br>
   This endpoint accepts a [YAML](https://yaml.org/) snippet matching one of the above debug session initiation methods.
   The `type` and the `request` attributes may be omitted, and will default to "lldb" and "launch" respectively.
   - JSON-like YAML (if you are not quoting keys in mappings, remember to insert a space after the colon!):<br>
@@ -269,7 +270,7 @@ The URL method has limitations:
 ### RPC Server
 
 You may also initiate debugging sessions via RPC by adding the `lldb.rpcServer` setting to the workspace or folder configuration.
-The value of the setting will be passed as the first argument to Node.js's [server.listen](https://nodejs.org/api/net.html#net_server_listen_options_callback) method, to start listening for connections.
+The value of the setting will be passed as the first argument to Node.js's [**server.listen**](https://nodejs.org/api/net.html#net_server_listen_options_callback) method, to start listening for connections.
 
 As a rudimentary security feature, you may add a `token` attribute to the server options above. In this case, the submitted debug configurations must also contain a `token` entry with a matching value.
 
@@ -278,8 +279,16 @@ As a rudimentary security feature, you may add a `token` attribute to the server
 ```
 
 The easiest way to interact with an RPC endpoint is the [codelldb-launch](#codelldb-launch) utility.
-However, you may also use it "manually":
-- Open a connection using the protocol you've configured above.
+When invoked from the integrated terminal, the RPC server address and port will be passed to it automatically.
+
+> **Note**
+> Every VS Code window hosts its own RPC server, so make sure the TCP port numbers do not collide.
+> You may specify port `0` to let the OS choose an available port; that randomly assigned value is forwarded
+> to `codelldb-launch` in the integrated terminal, but when launching from an external terminal you must provide
+> the concrete port yourself.
+
+You can also connect to the RPC server manually:
+- Open a TCP connection using the target port you've configured above.
 - Write the launch configuration as a UTF-8 encoded string.
 - After writing the configuration data, the client must half-close its end of the connection.
 - Upon completion, CodeLLDB will respond with `{ "success": <true|false>, "message": <optional error message> }`.
@@ -287,7 +296,19 @@ However, you may also use it "manually":
 #### Examples:
 These examples assume that you've enabled the RPC server using the configuration above.
 
-##### Start debugging using [codelldb-launch](#codelldb-launch)
+When using an external terminal, define the following environment variables first:
+```sh
+export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
+export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
+export PATH=<codelldb-extension-dir>/bin:$PATH  # See below
+```
+
+##### Start debugging using codelldb-launch
+```sh
+codelldb-launch /usr/bin/ls
+```
+
+##### Start debugging using codelldb-launch with explicit endpoint address and launch configuration
 ```sh
 codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bin/ls
 ```
@@ -295,15 +316,11 @@ codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bi
 ##### Debug Rust unit tests
 See also the [Cargo Support](#cargo-support) section!
 ```sh
-export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
-export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
-cargo test --config=target.'cfg(all())'.runner=codelldb-launch
+cargo test --config="target.'cfg(all())'.runner='codelldb-launch'"
 ```
 
 ##### Bazel
 ```sh
-export CODELLDB_LAUNCH_CONNECT=127.0.0.1:12345
-export CODELLDB_LAUNCH_CONFIG="{ token: 'secret' }"
 bazel run --run_under=codelldb-launch //<package>:<target>
 ```
 
@@ -313,10 +330,19 @@ echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
 ```
 
 ### codelldb-launch
-`codelldb-launch` is a CLI tool that interacts with the above RPC endpoint.
-It is located at `$HOME/.vscode/extensions/vadimcn.vscode-lldb-<version>/bin/codelldb-launch`.
+`codelldb-launch` is a CLI utility that talks to the RPC endpoint described above.
 
-Usage:
+You will find the binary at
+[`VS Code extensions directory`](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace#_where-are-extensions-installed)`/vadimcn.vscode-lldb-<version>/bin/codelldb-launch`
+
+Anther way to locate it from within VS Code:
+1. Run **View: Show Extensions**.
+2. Select **CodeLLDB**.
+3. In the details pane, choose the **Size** link in the upper-right corner. The file explorer that opens is the extension folder.
+4. Append `/bin/codelldb-launch`.
+
+
+#### Usage:
 
 #### Variant 1
 Connect to the RPC endpoint, submit debug configuration and exit.
@@ -363,17 +389,12 @@ to execute commands such as `platform mkdir`, `platform put-file`, `platform she
     "initCommands": [
         "platform select <platform>", // For example: 'remote-linux', 'remote-macosx', 'remote-android', etc.
         "platform connect connect://<remote_host>:<port>",
-        "settings set target.inherit-env false", // See the note below.
     ],
     "env": {
         "PATH": "...", // See note below.
     }
 }
 ```
-Note: By default, debuggee will inherit environment from the debugger.  However, this environment  will be of your
-**local** machine.  In most cases these values will not be suitable on the remote system,
-so you should consider disabling environment inheritance with `settings set target.inherit-env false` and
-initializing them as appropriate, starting with `PATH`.
 
 ### Connecting to a gdbserver-style agent
 This includes not just gdbserver itself, but also execution environments that implement the gdbserver protocol,
@@ -534,15 +555,18 @@ CodeLLDB adds in-debugger commands that may be executed in the DEBUG CONSOLE pan
 
 ## Debug Console
 
-The VSCode [DEBUG CONSOLE](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) panel serves a dual
-purpose in CodeLLDB:
-1. Execution of [LLDB commands](https://lldb.llvm.org/use/tutorial.html).
-2. Evaluation of [expressions](#expressions).
+The VS Code [DEBUG CONSOLE](https://code.visualstudio.com/docs/editor/debugging#_debug-console-repl) in CodeLLDB has two jobs:
 
-By default, console input is interpreted as LLDB commands.  If you would like to evaluate an expression instead, prefix it with
-'`?`', e.g. '`?a+2`' (Expression type prefixes are added on top of that, i.e. '`?/nat a.size()`').
-Console input mode may be altered via **"lldb.consoleMode": "evaluate"** setting: in this case expression evaluation will be the default,
-while commands will need to be prefixed with either '`/cmd `' or '`' (backtick).
+- Run [LLDB commands](https://lldb.llvm.org/use/tutorial.html).
+- Evaluate [expressions](#expressions).
+
+Input is treated as LLDB commands by default. To evaluate an expression instead, prefix it with `?`, e.g. `?a+2`.
+Expression-type prefixes stack on top of that, so `?/nat a.size()` forces the native evaluator.
+
+Use the `lldb.consoleMode` setting to change the default behavior:
+- `commands` (default) – input is a command unless it starts with `?`.
+- `evaluate` – input is evaluated as an expression; commands must be prefixed with `/cmd ` or a backtick (`).
+- `split` – expressions stay in the DEBUG CONSOLE, while LLDB commands are run in a separate terminal.
 
 ## Regex Breakpoints
 Function breakpoints prefixed with '`/re `', are interpreted as regular expressions.
@@ -791,11 +815,11 @@ Where to find the LLDB dynamic library:
 Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
 You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the dynamic library.
 
-Note: Debian builds of LLDB have a bug whereby they search for `lldb-server` helper binary relative to the current
-executable module (which in this case is CodeLLDB), rather than relative to liblldb (as they should).  As a result,
-you may see the following error after switching to an alternate backend: "Unable to locate lldb-server-\<version\>".
-To fix this, determine where `lldb-server` is installed (via `which lldb-server-<version>`), then add
-this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-server path>"}`.
+> **Note**: Debian builds of LLDB have a bug whereby they search for `lldb-server` helper binary relative to the current
+> executable module (which in this case is CodeLLDB), rather than relative to liblldb (as they should).  As a result,
+> you may see the following error after switching to an alternate backend: "Unable to locate lldb-server-\<version\>".
+> To fix this, determine where `lldb-server` is installed (via `which lldb-server-<version>`), then add
+> this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-server path>"}`.
 
 
 # Rust Language Support
@@ -822,7 +846,7 @@ To use this feature, replace the `program` property in your launch configuration
         "cwd": "${workspaceFolder}",                       // Cargo working directory
         "problemMatcher": "$rustc",                        // Problem matcher(s) for Cargo output
     },
-    "args": ["--test=test1"]  // These arguments will be appended to those passed by Cargo to the target
+    "args": ["--test=test1"]  // These arguments will be appended to those passed to the debug target by Cargo
 }
 ```
 

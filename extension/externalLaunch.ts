@@ -153,11 +153,11 @@ export class RpcLaunchServer extends RpcServer {
             if (debugConfig.waitEndOfSession) {
                 endSessionAsync = waitEndOfDebugSession(debugConfig);
             }
-            let success = await debug.startDebugging(undefined, debugConfig);
-            if (success && endSessionAsync) {
-                success = await endSessionAsync;
-            }
-            return { success: success };
+            if (!await debug.startDebugging(undefined, debugConfig))
+                throw Error('Could not start debugging');
+            if (!await endSessionAsync)
+                throw Error('Debug session did not start within the allotted time');
+            return { success: true };
         } catch (err: any) {
             return { success: false, message: err.toString() };
         }
@@ -165,46 +165,43 @@ export class RpcLaunchServer extends RpcServer {
 }
 
 // Return a future that will be resolved upon termination of the debug session (result=true).
-// The future will also be resolved after `timeout` milliseconds (result=false).
-export function waitEndOfDebugSession(debugConfig: DebugConfiguration, timeout: number = 5000): Promise<boolean> {
-    let resolvePromise: (value: boolean) => void;
-    let promise = new Promise<boolean>(resolve => resolvePromise = resolve);
+// The future will also be resolved after `timeout` seconds (result=false).
+export function waitEndOfDebugSession(debugConfig: DebugConfiguration, timeout: number = 10): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+        let sessionId = crypto.randomBytes(16).toString('base64');
+        debugConfig._codelldbSessionId = sessionId;
 
-    let sessionId = crypto.randomBytes(16).toString('base64');
-    debugConfig._codelldbSessionId = sessionId;
-
-    let failedLaunchCleanup: NodeJS.Timeout;
-    let startSub = debug.onDidStartDebugSession(session => {
-        if (session.configuration._codelldbSessionId == sessionId) {
-            startSub.dispose();
-            clearTimeout(failedLaunchCleanup); // Disarm the cleanup timer.
-            let endSub = debug.onDidTerminateDebugSession(session => {
-                if (session.configuration._codelldbSessionId == sessionId) {
-                    endSub.dispose();
-                    resolvePromise(true);
-                }
-            })
-        }
-    });
-
-    function armTimer() {
-        failedLaunchCleanup = setTimeout(() => {
-            startSub.dispose();
-            resolvePromise(false)
-        }, timeout);
-    }
-
-    let preLaunchTask = debugConfig.preLaunchTask as string;
-    if (preLaunchTask) {
-        let taskSub = tasks.onDidEndTask(e => {
-            if (e.execution.task.name == preLaunchTask) {
-                taskSub.dispose();
-                armTimer();
+        let failedLaunchCleanup: NodeJS.Timeout;
+        let startSub = debug.onDidStartDebugSession(session => {
+            if (session.configuration._codelldbSessionId == sessionId) {
+                startSub.dispose();
+                clearTimeout(failedLaunchCleanup); // Disarm the cleanup timer.
+                let endSub = debug.onDidTerminateDebugSession(session => {
+                    if (session.configuration._codelldbSessionId == sessionId) {
+                        endSub.dispose();
+                        resolve(true);
+                    }
+                })
             }
         });
-    } else {
-        armTimer();
-    }
 
-    return promise;
+        function armTimer() {
+            failedLaunchCleanup = setTimeout(() => {
+                startSub.dispose();
+                resolve(false);
+            }, timeout * 1000);
+        }
+
+        let preLaunchTask = debugConfig.preLaunchTask as string;
+        if (preLaunchTask) {
+            let taskSub = tasks.onDidEndTask(e => {
+                if (e.execution.task.name == preLaunchTask) {
+                    taskSub.dispose();
+                    armTimer();
+                }
+            });
+        } else {
+            armTimer();
+        }
+    });
 }

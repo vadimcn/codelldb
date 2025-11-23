@@ -931,34 +931,28 @@ impl DebugSession {
         let interpreter = self.debugger.command_interpreter();
         let targets = match interpreter.handle_completions(text, cursor_index as u32, None) {
             None => vec![],
-            Some((common_continuation, completions)) => {
-                // LLDB completions usually include some prefix of the string being completed, without telling us what that prefix is.
-                // For example, completing "set show tar" might return ["target.arg0", "target.auto-apply-fixits", ...].
-
-                // Take a slice up to the cursor, split it on whitespaces, then get the last part.
-                // This is the (likely) prefix of completions returned by LLDB.
-                let prefix = &text[..cursor_index].split_whitespace().next_back().unwrap_or_default();
-                let prefix_len = prefix.chars().count();
-                let extended_prefix = format!("{}{}", prefix, common_continuation);
-
+            Some((_, completions)) => {
                 let mut targets = vec![];
                 for completion in completions {
-                    // Check if we guessed prefix correctly
-                    let item = if completion.starts_with(&extended_prefix) {
-                        CompletionItem {
-                            label: completion,
-                            start: Some(args.column - prefix_len as i64),
-                            length: Some(prefix_len as i64),
-                            ..Default::default()
+                    if text.ends_with(&completion) {
+                        continue; // Already includes the entire completion
+                    }
+                    // Find the longest prefix of `completion` that `text` ends with
+                    let mut prefix_len = 0;
+                    for (idx, (offset, _)) in completion.char_indices().enumerate() {
+                        let prefix = &completion[..offset];
+                        if text.ends_with(prefix) {
+                            prefix_len = idx;
                         }
-                    } else {
-                        // Let VSCode apply its own heuristics to figure out the prefix.
-                        CompletionItem {
-                            label: completion,
-                            ..Default::default()
-                        }
-                    };
-                    targets.push(item);
+                    }
+                    targets.push(CompletionItem {
+                        //text: Some(completion[prefix_len..].into()),
+                        text: Some(completion.clone()),
+                        label: completion,
+                        start: Some((text.chars().count() - prefix_len) as i64),
+                        length: Some(prefix_len as i64),
+                        ..Default::default()
+                    });
                 }
                 targets
             }

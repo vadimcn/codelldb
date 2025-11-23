@@ -50,11 +50,16 @@ impl SBCommandInterpreter {
             })
         })
     }
+    // Returns:
+    // - The common suffix that all candidates share beyond what is already typed at the cursor.  This is what LLDB
+    //   inserts on first [Tab].
+    // - The individual completion candidates.  These may include several characters left of the cursor (usually up to
+    //   the beginning of the current word).
     pub fn handle_completions(
         &self,
         current_line: &str,
         cursor_pos: u32,
-        range: Option<(u32, u32)>,
+        range: Option<std::ops::Range<u32>>, // the range of completion to return, for pagination
     ) -> Option<(String, Vec<String>)> {
         unsafe {
             let line_start = if current_line.is_empty() {
@@ -66,7 +71,7 @@ impl SBCommandInterpreter {
             let cursor = line_start.offset(cursor_pos as isize);
             let (first_match, max_matches) = match range {
                 None => (0, -1),
-                Some((first_match, max_matches)) => (first_match as c_int, max_matches as c_int),
+                Some(r) => (r.start as c_int, (r.end.saturating_sub(r.start)) as c_int),
             };
             let mut matches = SBStringList::new();
             let rc = cpp!(unsafe [self as "SBCommandInterpreter*",
@@ -79,9 +84,9 @@ impl SBCommandInterpreter {
                 None
             } else {
                 let mut iter = matches.iter();
-                let common_continuation = iter.next().unwrap().to_owned();
+                let common_suffix = iter.next().unwrap().to_owned();
                 let completions = iter.map(|s| s.to_owned()).collect::<Vec<String>>();
-                Some((common_continuation, completions))
+                Some((common_suffix, completions))
             }
         }
     }

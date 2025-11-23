@@ -688,6 +688,16 @@ impl DebugSession {
                 name: descr,
             });
         }
+        // While the debuggee is running, LLDB will report no threads. However, if we report zero threads to VSCode,
+        // VSCode will refuse to honor pause requests from the user. To keep the "pause" button functional,
+        // we report a dummy thread instead. VSCode hides the thread list while the debuggee is running and refreshes
+        // it as soon as the target stops, so the placeholder will not be visible to the user.
+        if response.threads.len() == 0 && self.target.process().state().is_running() {
+            response.threads.push(Thread {
+                id: 0,
+                name: String::new(),
+            });
+        }
         Ok(response)
     }
 

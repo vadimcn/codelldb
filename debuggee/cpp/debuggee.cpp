@@ -6,20 +6,22 @@
 #include <vector>
 #include <thread>
 #include <exception>
+#include <chrono>
 
 #if !defined(_WIN32)
 #include <unistd.h>
 #include <dlfcn.h>
+#else
+#include <windows.h>
+#endif
+
 #if defined(__APPLE__)
 #include <crt_externs.h>
 #define environ (*_NSGetEnviron())
 #endif
+
 #if defined(__linux__)
 #include <sys/prctl.h>
-#endif
-#else
-#include <windows.h>
-void sleep(unsigned secs) { Sleep(secs * 1000); }
 #endif
 
 #include "dir1/debuggee.h"
@@ -49,37 +51,37 @@ void inf_loop()
     {
         printf("\r%lld ", i);
         fflush(stdout);
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         i += 1;
     }
 }
 
-void threads(int num_threads, int linger_time = 1)
+void threads(int num_threads, int sleep_time_ms = 1000, int iters = 1)
 {
-#if !defined(__MINGW32__) || defined(_GLIBCXX_HAS_GTHREADS)
     std::vector<int> alive(num_threads);
     std::vector<std::thread> threads;
     for (int i = 0; i < num_threads; ++i)
     {
         int *am_alive = &alive[i];
-        std::thread thread([am_alive, linger_time](int id)
-                           {
+        std::thread thread([am_alive, sleep_time_ms, iters](int id) {
             *am_alive = 1;
-            printf("I'm thread %d\n", id);
-            sleep(id % 4 + linger_time);
+            for (int i = 0; i < iters; i++)
+            {
+                printf("Thread %d running\n", id);
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
+            }
             printf("Thread %d exiting\n", id);
-            *am_alive = 0; }, i);
+            *am_alive = 0;
+        }, i);
         threads.push_back(std::move(thread));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    sleep(1);
+
     for (int i = 0; i < num_threads; ++i)
     {
         printf("Joining %d\n", i);
         threads[i].join();
     }
-#else
-    sleep(1);
-#endif
 }
 
 void dump_env()
@@ -217,7 +219,7 @@ int main(int argc, char *argv[])
     }
     else if (testcase == "threads_long")
     {
-        threads(15, 10000);
+        threads(5, 1000, 10000);
     }
     else if (testcase == "dump_env")
     {

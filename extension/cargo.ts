@@ -122,9 +122,11 @@ export class Cargo {
             task.presentationOptions = { clear: true, showReuseMessage: false };
 
             let artifactsPromise = runTask(task, async (_, write) => {
-                let artifacts = await this.runCargoAndGetArtifacts(cargoArgs, cargoEnv, cargoConfig.cwd, write);
+                let [exitCode, artifacts] = await this.runCargoAndGetArtifacts(cargoArgs, cargoEnv, cargoConfig.cwd, write);
                 if (rpcRespond) // This means that rpcPromise is already resolved
                     return '';
+                if (exitCode != 0)
+                    throw new Error('Cargo command did not complete successfully.');
                 return this.getProgramFromArtifacts(artifacts, cargoConfig.filter);
             });
 
@@ -203,9 +205,9 @@ export class Cargo {
         cargoEnv: Dict<string>,
         cargoCwd: string | undefined,
         onMessage: (data: string) => void
-    ): Promise<CompilationArtifact[]> {
+    ): Promise<[number, CompilationArtifact[]]> {
         let artifacts: CompilationArtifact[] = [];
-        await this.runCargoAndParseJson(cargoArgs, cargoEnv, cargoCwd,
+        let exitCode = await this.runCargoAndParseJson(cargoArgs, cargoEnv, cargoCwd,
             message => {
                 if (message.reason == 'compiler-artifact') {
                     let isBinary = message.target.crate_types.includes('bin');
@@ -237,7 +239,7 @@ export class Cargo {
             },
             onMessage
         );
-        return artifacts;
+        return [exitCode, artifacts];
     }
 
     // Run Cargo, parse each output line as JSON.

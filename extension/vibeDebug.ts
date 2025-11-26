@@ -19,10 +19,10 @@ export class SessionInfoTool implements LanguageModelTool<any> {
             let processState = statusResponse.result;
             try {
                 let backtraceResponse = await session.customRequest('evaluate', {
-                    expression: 'thread backtrace',
+                    expression: 'thread backtrace -c 25',
                     context: '_command'
                 });
-                processState += '\n' + backtraceResponse.result;
+                processState += '\n\nTop stack frames:\n' + backtraceResponse.result;
             } catch (e) {
                 // May fail if the process is running
             }

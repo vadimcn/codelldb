@@ -119,7 +119,7 @@ jobs:
         echo "$OLD_PATH" >> $GITHUB_PATH
 
         mkdir -p $RUNNER_TEMP/sysroot
-        wget -q -O - https://github.com/vadimcn/lldb-build/releases/download/blobs/stretch-sysroot.tar.zst | zstd -dcf | tar -xf - -C $RUNNER_TEMP/sysroot
+        wget -q -O - https://github.com/vadimcn/lldb-build/releases/download/blobs/sysroot.tar.zst | zstd -dcf | tar -xf - -C $RUNNER_TEMP/sysroot
         cat <<EOF >> $GITHUB_ENV
         CFLAGS=--sysroot=$RUNNER_TEMP/sysroot
         CXXFLAGS=--sysroot=$RUNNER_TEMP/sysroot

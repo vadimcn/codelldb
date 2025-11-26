@@ -1,0 +1,11 @@
+[tool.autopep8]
+max_line_length = 120
+
+[[tool.pyright.executionEnvironments]]
+root = "."
+extraPaths = [
+  "adapter/scripts",
+  "adapter/lang_support",
+  "build/lldb/lib/lldb-python",
+]
+pythonVersion = "3.6"

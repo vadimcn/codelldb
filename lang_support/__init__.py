@@ -1,5 +1,6 @@
 import logging
 from os import path
+import codelldb
 
 log = logging.getLogger(__name__)
 
@@ -19,4 +20,4 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
             except Exception as e:
                 message = 'Failed to initialize language support for {}'.format(lang)
                 log.exception(message)
-                print(message, str(e))
+                codelldb.debugger_message('{}: {}'.format(message, e), 'stderr')

@@ -26,7 +26,7 @@ if (CARGO_VERBOSE)
 endif()
 
 add_custom_target(adapter
-    DEPENDS codelldb_exe launcher_exe codelldb_scripts ${DIAFiles}
+    DEPENDS codelldb_exe launcher_exe codelldb_scripts lang_support ${DIAFiles}
 )
 
 set(CodelldbExe codelldb${ExeSuffix})

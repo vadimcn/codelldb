@@ -106,7 +106,7 @@
 				"category": "LLDB",
 				"title": "Generate Cargo Launch Configurations",
 				"command": "lldb.getCargoLaunchConfigs",
-				"enablement": "resourceFilename == 'Cargo.toml' && resourceScheme == file"
+				"enablement": "resourceFilename == 'Cargo.toml' && isFileSystemResource"
 			},
 			{
 				"category": "LLDB",
@@ -227,7 +227,7 @@
 			"explorer/context": [
 				{
 					"command": "lldb.getCargoLaunchConfigs",
-					"when": "resourceFilename == 'Cargo.toml'"
+					"when": "resourceFilename == 'Cargo.toml' && isFileSystemResource && !explorerResourceIsFolder"
 				}
 			]
 		},

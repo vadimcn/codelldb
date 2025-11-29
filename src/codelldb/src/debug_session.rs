@@ -1436,8 +1436,10 @@ impl DebugSession {
             self.handle_breakpoint_event(&bp_event);
         } else if let Some(thread_event) = event.as_thread_event() {
             self.handle_thread_event(&thread_event);
-        } else if let Some(diag_event) = event.as_diagnostic_event() {
-            self.handle_diagnostic_event(&diag_event);
+        } else if lldb_stub::v15.resolve().is_ok() {
+            if let Some(diag_event) = event.as_diagnostic_event() {
+                self.handle_diagnostic_event(&diag_event);
+            }
         }
     }
 

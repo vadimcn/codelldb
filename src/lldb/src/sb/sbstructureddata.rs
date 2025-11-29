@@ -32,19 +32,14 @@ impl SBStructuredData {
             return self->GetBooleanValue(fail_value);
         })
     }
-    pub fn int_value(&self, fail_value: i64) -> i64 {
-        cpp!(unsafe[self as "SBStructuredData*", fail_value as "int64_t"] -> i64 as "int64_t" {
-            return self->GetSignedIntegerValue(fail_value);
+    pub fn float_value(&self, fail_value: f64) -> f64 {
+        cpp!(unsafe[self as "SBStructuredData*", fail_value as "double"] -> f64 as "double" {
+            return self->GetFloatValue(fail_value);
         })
     }
     pub fn uint_value(&self, fail_value: u64) -> u64 {
         cpp!(unsafe[self as "SBStructuredData*", fail_value as "uint64_t"] -> u64 as "uint64_t" {
-            return self->GetSignedIntegerValue(fail_value);
-        })
-    }
-    pub fn float_value(&self, fail_value: f64) -> f64 {
-        cpp!(unsafe[self as "SBStructuredData*", fail_value as "double"] -> f64 as "double" {
-            return self->GetFloatValue(fail_value);
+            return self->GetIntegerValue(fail_value);
         })
     }
 }

@@ -68,31 +68,25 @@ fn main() -> Result<(), Error> {
 }
 
 fn get_api_groups(manifest: &str) -> Result<HashMap<String, Vec<Import>>, Error> {
-    use toml::Value;
-
     let cfg = fs::read_to_string(manifest)?;
-    let table: Value = toml::from_str(&cfg)?;
+    let table = cfg.parse::<toml::Table>()?;
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
 
     let mut api_groups = HashMap::new();
 
-    for (version, section) in table.as_table().unwrap() {
+    for (version, signatures) in table {
         let cpp_path = out_dir.join(format!("probe_{version}.cpp"));
         let mut cpp = fs::File::create(&cpp_path)?;
         writeln!(cpp, "#define LLDB_API")?; // On Windows we want the "static" symbols
         writeln!(cpp, "#include <lldb/API/LLDB.h>")?;
         writeln!(cpp, "using namespace lldb;")?;
 
-        let mut idx = 0;
-        for (class, methods) in section.as_table().unwrap() {
-            for method in methods.as_array().unwrap() {
-                let (name, params, qual) = split_method_sig(method.as_str().unwrap());
-                if name == class {
-                    writeln!(cpp, "auto c{idx} = {class}{params};")?; // constructor
-                } else {
-                    writeln!(cpp, "auto ({class}::* p{idx}){params}{qual} = &{class}::{name};")?;
-                }
-                idx += 1;
+        for (idx, signature) in signatures.as_array().expect("list").iter().enumerate() {
+            let (class, name, args, qual) = split_fn_signature(signature.as_str().expect("string"));
+            if let Some(class) = class {
+                writeln!(cpp, "auto ({class}::* p{idx}){args}{qual} = &{class}::{name};")?;
+            } else {
+                writeln!(cpp, "auto (*p{idx}){args}{qual} = &{name};")?; // Standalone function or static method.
             }
         }
 
@@ -116,9 +110,29 @@ fn get_api_groups(manifest: &str) -> Result<HashMap<String, Vec<Import>>, Error>
     Ok(api_groups)
 }
 
-// "GetProcessInfoAtIndex(uint32_t, SBProcessInfo&) const" ->  ("GetProcessInfoAtIndex", "(uint32_t, SBProcessInfo&)", " const")
-fn split_method_sig(sig: &str) -> (&str, &str, &str) {
-    let a = sig.find('(').unwrap();
-    let b = sig.rfind(')').unwrap() + 1;
-    (&sig[..a], &sig[a..b], &sig[b..])
+// Splits function signature into: (<class name if any>, <function name>, <arguments>, <qualifiers>)
+//
+// "lldb::SBAddressRangeList::GetSize() const"
+//    -> (Some("lldb::SBAddressRangeList", "GetSize", "()", " const")
+//  "static lldb::SBDebugger::GetDiagnosticFromEvent(const lldb::SBEvent &event)"
+//    -> (None, "lldb::SBDebugger::GetDiagnosticFromEvent", "(const lldb::SBEvent &event)", "")
+
+fn split_fn_signature(mut signarure: &str) -> (Option<&str>, &str, &str, &str) {
+    let mut is_static = false;
+    if signarure.starts_with("static ") {
+        is_static = true;
+        signarure = &signarure[7..];
+    }
+    let i = signarure.find('(').unwrap();
+    let j = signarure.rfind(')').unwrap() + 1;
+    let name = &signarure[..i];
+    let args = &signarure[i..j];
+    let qual = &signarure[j..];
+
+    if is_static {
+        (None, name, args, qual)
+    } else {
+        let i = name.rfind("::").unwrap();
+        (Some(&name[..i]), &name[i + 2..], args, qual)
+    }
 }

@@ -1,4 +1,8 @@
-[v16]
-SBInstruction = [
-  "GetControlFlowKind(lldb::SBTarget target)",
+
+v15 = [
+  "static SBDebugger::GetDiagnosticFromEvent(const lldb::SBEvent &event)"
+]
+
+v16 = [
+  "SBInstruction::GetControlFlowKind(lldb::SBTarget target)"
 ]

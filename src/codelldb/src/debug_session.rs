@@ -122,6 +122,13 @@ impl DebugSession {
         let debugger = SBDebugger::create(false);
         debugger.set_async_mode(true);
 
+        let debugger_listener = debugger.listener();
+        debugger.broadcaster().add_listener(
+            &debugger_listener,
+            SBDebugger::BroadcastBitWarning | SBDebugger::BroadcastBitError,
+        );
+        debugger_listener.start_listening_for_event_class(&debugger, SBThread::broadcaster_class_name(), !0);
+
         let (con_reader, con_writer) = pipe().unwrap();
 
         let (python, mut python_events_stream) = if let Some(python_interface) = python_interface {
@@ -581,15 +588,6 @@ impl DebugSession {
     }
 
     fn handle_initialize(&mut self, args: InitializeRequestArguments) -> Result<Capabilities, Error> {
-        self.debugger.broadcaster().add_listener(
-            &self.debugger.listener(),
-            SBDebugger::BroadcastBitWarning | SBDebugger::BroadcastBitError,
-        );
-        self.debugger.listener().start_listening_for_event_class(
-            &self.debugger,
-            SBThread::broadcaster_class_name(),
-            !0,
-        );
         self.client_caps = Initialized(args);
         Ok(self.make_capabilities())
     }

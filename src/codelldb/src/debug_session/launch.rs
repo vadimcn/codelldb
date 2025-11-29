@@ -150,7 +150,7 @@ impl super::DebugSession {
         // Instead, child inherits the console of the parent process, so we need to attach/detach around the launch.
         #[cfg(windows)]
         if let Some(terminal) = &self.debuggee_terminal {
-            terminal.attach_console();
+            log_errors!(terminal.attach_console());
         }
 
         let launch_result: Result<SBProcess, Error> = (|| match &args.process_create_commands {
@@ -460,13 +460,21 @@ impl super::DebugSession {
         let fut = Terminal::create(terminal_kind, title, self.dap_session.clone());
         let self_ref = self.self_ref.clone();
         async move {
-            let result = fut.await;
+            #[allow(unused_mut)]
+            let mut result = fut.await;
+            // Test whether we can actually attach to that console
+            #[cfg(windows)]
+            if let Ok(terminal) = &result {
+                match terminal.attach_console() {
+                    Ok(()) => terminal.detach_console(),
+                    Err(err) => result = Err(err),
+                }
+            }
             self_ref
                 .map(|s| match result {
                     Ok(terminal) => s.debuggee_terminal = Some(terminal),
                     Err(err) => s.console_error(format!(
-                        "Failed to redirect stdio to a terminal. ({})\nDebuggee output will appear here.",
-                        err
+                        "Failed to redirect stdio to a terminal. ({err})\nDebuggee output will appear here.",
                     )),
                 })
                 .await

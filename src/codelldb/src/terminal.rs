@@ -109,15 +109,20 @@ impl Terminal {
     }
 
     #[cfg(windows)]
-    pub fn attach_console(&self) -> bool {
+    pub fn attach_console(&self) -> Result<(), Error> {
         use winapi::shared::minwindef::DWORD;
         if let Some(TerminalId::PID(pid)) = self.terminal_id {
             unsafe {
                 winapi::um::wincon::FreeConsole();
-                winapi::um::wincon::AttachConsole(pid as DWORD) != 0
+                if winapi::um::wincon::AttachConsole(pid as DWORD) != 0 {
+                    Ok(())
+                } else {
+                    let err = winapi::um::errhandlingapi::GetLastError();
+                    bail!(format!("Could not attach to console (err=0x{err:08X})"))
+                }
             }
         } else {
-            false
+            bail!("No console process id.")
         }
     }
 

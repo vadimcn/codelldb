@@ -31,7 +31,7 @@ impl super::DebugSession {
                 .map(|s| match result {
                     Ok(terminal) => {
                         #[cfg(windows)]
-                        terminal.attach_console();
+                        log_errors!(terminal.attach_console());
 
                         let stdin = File::open(terminal.input_devname().unwrap()).unwrap();
                         let stdout = File::create(terminal.output_devname().unwrap()).unwrap();

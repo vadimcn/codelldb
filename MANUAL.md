@@ -535,12 +535,12 @@ Example:
 |**Toggle Pointee Summaries**     |Choose whether to display pointee's summaries rather than the numeric value of the pointer itself. See [Pointers](#pointers).
 |**Display Options...**           |Interactive configuration of the above display options.
 |**Attach to Process...**         |Choose a process to attach to from the list of currently running processes.
-|**Run Diagnostics**              |Run diagnostic test to make sure that the debugger is functional.
 |**Generate Cargo Launch Configurations**|Generate all possible launch configurations (binaries, examples, unit tests) for the current Cargo.toml file.  The resulting list will be opened in a new text editor, from which you can copy/paste the desired sections into `launch.json`.|
 |**Command Prompt**               |Open LLDB command prompt in a terminal, for managing installed Python packages and other maintenance tasks.|
 |**View Memory...**               |View raw memory starting at the specified address.|
 |**Search Symbols...**            |Search for a substring among the debug target's symbols.|
-|**Use Alternate Backend...**     |Choose alternate LLDB instance to be used instead of the bundled one. See [Alternate LLDB backends](#alternate-lldb-backends)
+|**Use Alternate Backend...**     |Choose alternate LLDB instance to be used instead of the bundled one. See [Alternate LLDB backends](#alternate-lldb-backends).|
+|**Run Self-Test**                |Run diagnostic test to make sure that the debugger is functional.|
 
 
 ## Debugger Commands
@@ -798,29 +798,35 @@ for use in CodeLLDB, you will need to use the **LLDB: Command Prompt** command i
 - `stdout` output will be sent to the Debug Console
 - `stderr` output will be sent to the Output/LLDB panel
 
+
 # Alternate LLDB Backends
 
-CodeLLDB can use external LLDB backends instead of the bundled one.  For example, when debugging Swift programs,
-one might want to use a custom LLDB instance that has Swift extensions built in.   In order to use an alternate backend,
-you will need to provide location of the corresponding LLDB dynamic library (which must be v13.0 or later) via
-**lldb.library** configuration setting.
+Even though CodeLLDB bundles a complete LLDB package for every supported platform, you may still want to point the
+extension at a different backend - for example, a custom LLDB build that contains Swift-specific extensions.
 
-Where to find the LLDB dynamic library:
-- Linux: `<lldb root>/lib/liblldb.so.<verson>`,<br>
-    `<lldb root>` is wherever you've installed LLDB, or `/usr`, if it's a standard distro package.
-- MacOS: `<lldb framework>/LLDB` if built as Apple framework, `<lldb root>/lib/liblldb.<version>.dylib` otherwise.<br>
-    `<lldb framework>` is typically located under `/Library/Developer/<toolchain>/.../PrivateFrameworks`.
-- Windows: `<lldb root>/bin/liblldb.dll`.
+## Liblldb
+CodeLLDB embeds LLDB by loading its dynamic library (`liblldb`) and driving the debugger through the API it exports
+rather than spawning the `lldb` command-line tool (as some other extensions do).  To switch to an alternate backend,
+point **lldb.library** at the desired `liblldb` shared library (which must be v15.0 or later).
 
-Since locating liblldb is not always trivial, CodeLLDB provides the **Use Alternate Backend...** command to assist with this task.
-You will be prompted to enter the file name of the main LLDB executable, which CodeLLDB will then use to find the dynamic library.
+To make locating `liblldb` easier, CodeLLDB provides the **Use Alternate Backend...** command.  It prompts for the path
+to the main `lldb` executable and then uses it to locate the corresponding shared library.
 
-> **Note**: Debian builds of LLDB have a bug whereby they search for `lldb-server` helper binary relative to the current
-> executable module (which in this case is CodeLLDB), rather than relative to liblldb (as they should).  As a result,
-> you may see the following error after switching to an alternate backend: "Unable to locate lldb-server-\<version\>".
-> To fix this, determine where `lldb-server` is installed (via `which lldb-server-<version>`), then add
-> this configuration entry: `"lldb.adapterEnv": {"LLDB_DEBUGSERVER_PATH": "<lldb-server path>"}`.
+How to find `liblldb` manually:
+- **Linux**: `$LLDB_INSTALL_ROOT/lib/liblldb.so.<version>`,<br>
+    `<lldb install root>` is wherever you've installed LLDB, or `/usr`, if it's a standard distro package.
+- **MacOS**: `$LLDB_FRAMEWORK/LLDB` if built as Apple framework, `$LLDB_INSTALL_ROOT/lib/liblldb.<version>.dylib` otherwise.<br>
+    `LLDB_FRAMEWORK` is typically located under `/Library/Developer/<toolchain>/.../PrivateFrameworks`.
+- **Windows**: `$LLDB_INSTALL_ROOT/bin/liblldb.dll`.
 
+## LLDB Server
+LLDB always employs the client-server architecture, even for local debugging (except on Windows).
+[LLDB Server](https://lldb.llvm.org/man/lldb-server.html) is the binary that runs and monitors the debugged program
+in response to requests of the main debugger.
+
+In most cases LLDB can locate the server binary automatically, however, sometimes this fails and you may see
+errors similar to this: "Unable to locate lldb-server-\<version\>".
+In such cases you may override the default search logic via the **lldb.server** setting.
 
 # Rust Language Support
 
@@ -933,9 +939,10 @@ These settings specify the default values for launch configuration settings of t
 |-----------------------|---------------------------------------------------------|
 |**lldb.verboseLogging**|Enables verbose logging.  The log can be viewed in OUTPUT/LLDB panel.
 |**lldb.rpcServer**     |See [RPC server](#rpc-server).
-|**lldb.library**       |The [alternate](#alternate-lldb-backends) LLDB library to use. This can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.
+|**lldb.library**       |See [Alternate Backends](#alternate-lldb-backends).
+|**lldb.server**        |See [Alternate Backends](#alternate-lldb-backends).
 |**lldb.adapterEnv**    |Extra environment variables passed to the debug adapter.
-|**lldb.cargo**         |Name of the command to invoke as Cargo.
+|**lldb.cargo**         |Executable used for Cargo invocations.  Override this if Cargo is not on the PATH or if you want to use an alternative tool/wrapper.
 |**lldb.evaluateForHovers**  |Enable value preview when cursor is hovering over a variable.
 |**lldb.commandCompletions** |Enable command completions in DEBUG CONSOLE.
 |**lldb.useNativePDBReader** |Use the native reader for the PDB debug info format: LLDB includes two readers for the Microsoft PDB format: one based on the Microsoft DIA SDK and another implemented natively in LLDB. Currently, the DIA-based reader is the default because it is more complete. However, the native reader is faster and may be preferred for large binaries.

@@ -9,22 +9,22 @@ const MaxRedirects = 10;
 
 let activeInstallation: Promise<boolean> | undefined
 
-export async function ensurePlatformPackage(context: ExtensionContext, output: OutputChannel, modal: boolean): Promise<boolean> {
+export async function ensurePlatformPackage(extensionPath: string, output: OutputChannel, modal: boolean): Promise<boolean> {
 
-    if (await async.fs.exists(path.join(context.extensionPath, 'platform.ok')))
+    if (await async.fs.exists(path.join(extensionPath, 'platform.ok')))
         return true;
 
     // Just wait if installation is already in progress.
     if (activeInstallation)
         return activeInstallation;
 
-    activeInstallation = doEnsurePlatformPackage(context, output, modal);
+    activeInstallation = doEnsurePlatformPackage(output, modal);
     let result = await activeInstallation;
     activeInstallation = undefined;
     return result;
 }
 
-async function doEnsurePlatformPackage(context: ExtensionContext, output: OutputChannel, modal: boolean): Promise<boolean> {
+async function doEnsurePlatformPackage(output: OutputChannel, modal: boolean): Promise<boolean> {
 
     let packageUrl = await getPlatformPackageUrl();
     output.appendLine(`Installing platform package from ${packageUrl}`);

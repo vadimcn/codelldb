@@ -107,7 +107,7 @@ export class DebugTestSession extends DebugClient {
                     let address = <net.AddressInfo>server.address();
 
                     session.adapter = await adapter.start({
-                        extensionRoot: extensionRoot,
+                        extensionPath: extensionRoot,
                         liblldb: liblldb,
                         extraEnv: { RUST_LOG: 'error,codelldb=debug' },
                         adapterSettings: { summaryTimeout: 1.0 },

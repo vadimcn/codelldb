@@ -18,6 +18,24 @@ export namespace fs {
 
 export namespace cp {
     export const execFile = promisify(_cp.execFile);
+
+    export type ChildProcess = _cp.ChildProcess & { exit: Promise<number> };
+
+    export function spawn(command: string, args?: readonly string[], options?: _cp.SpawnOptions): ChildProcess {
+        let subproc = _cp.spawn(command, args ?? [], options ?? {}) as ChildProcess;
+
+        // Promise that resolves on child process exit (or failure to spawn)
+        subproc.exit = new Promise((resolve, reject) => {
+            subproc.on('error', err => {
+                if (!subproc.pid) // Otherwise it isn't a spawning error
+                    reject(err);
+            });
+            subproc.on('exit', (code, _signal) => {
+                resolve(code ?? -1);
+            });
+        });
+        return subproc;
+    }
 }
 
 export namespace https {
@@ -37,8 +55,33 @@ export namespace net {
             socket.on('connect', () => resolve(socket));
         });
     }
+    export class Server {
+        private inner: _net.Server = _net.createServer();
+
+        async listen(options?: _net.ListenOptions): Promise<void> {
+            return new Promise((resolve) =>
+                this.inner.listen(options, resolve)
+            );
+        }
+
+        address(): _net.AddressInfo | string | null {
+            return this.inner.address();
+        }
+
+        async accept(): Promise<_net.Socket> {
+            return new Promise<_net.Socket>(resolve =>
+                this.inner.on('connection', socket => resolve(socket))
+            );
+        }
+
+        async close(): Promise<void> {
+            return new Promise<void>((resolve, reject) =>
+                this.inner.close(err => { if (err) resolve(); else reject(err) })
+            )
+        }
+    }
 }
 
-export async function sleep(ms: number) {
+export async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }

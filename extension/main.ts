@@ -5,10 +5,9 @@ import {
     DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
 } from 'vscode';
 import { inspect } from 'util';
-import { ChildProcess } from 'child_process';
-import * as path from 'path';
-import * as os from 'os';
-import * as crypto from 'crypto';
+import * as path from 'node:path';
+import * as crypto from 'node:crypto';
+import { AddressInfo } from 'node:net';
 import stringArgv from 'string-argv';
 import { AdapterSettings } from 'codelldb';
 import * as webview from './webview';
@@ -16,6 +15,7 @@ import * as util from './configUtils';
 import * as adapter from './novsc/adapter';
 import * as install from './install';
 import * as async from './novsc/async';
+import { Dict } from './novsc/commonTypes';
 import { Cargo } from './cargo';
 import { pickProcess } from './pickProcess';
 import { ModuleTreeDataProvider as ModulesView } from './modulesView';
@@ -28,7 +28,7 @@ import { AdapterSettingsManager } from './adapterSettingsManager';
 import { LaunchCompletionProvider } from './launchCompletions';
 import { output, showErrorWithLog } from './logging';
 import { LLDBCommandTool, SessionInfoTool } from './vibeDebug';
-import { AddressInfo } from 'net';
+import { alternateBackend, selfTest, commandPrompt } from './adapterUtils';
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';
@@ -77,20 +77,17 @@ class Extension implements DebugAdapterDescriptorFactory {
 
         subscriptions.push(debug.registerDebugAdapterDescriptorFactory('lldb', this));
 
-        subscriptions.push(commands.registerCommand('lldb.diagnose', () => this.runDiagnostics()));
         subscriptions.push(commands.registerCommand('lldb.getCargoLaunchConfigs', (uri) => this.getCargoLaunchConfigs(uri)));
         subscriptions.push(commands.registerCommand('lldb.pickMyProcess', (config) => pickProcess(context, false, config)));
         subscriptions.push(commands.registerCommand('lldb.pickProcess', (config) => pickProcess(context, true, config)));
         subscriptions.push(commands.registerCommand('lldb.attach', () => this.attach()));
-        subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => this.alternateBackend()));
-        subscriptions.push(commands.registerCommand('lldb.commandPrompt', () => this.commandPrompt()));
-        subscriptions.push(commands.registerCommand('lldb.symbols', () => pickSymbol(debug.activeDebugSession)));
         subscriptions.push(commands.registerCommand('lldb.viewMemory', () => this.viewMemory()));
+        subscriptions.push(commands.registerCommand('lldb.symbols', () => pickSymbol(debug.activeDebugSession)));
+        subscriptions.push(commands.registerCommand('lldb.alternateBackend', () => alternateBackend(this.context.extensionPath)));
+        subscriptions.push(commands.registerCommand('lldb.selfTest', () => this.runSelfTest()));
+        subscriptions.push(commands.registerCommand('lldb.commandPrompt', () => commandPrompt(this.context.extensionPath)));
 
         subscriptions.push(workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('lldb.library')) {
-                this.liblldbPath = undefined;
-            }
             if (event.affectsConfiguration('lldb.rpcServer')) {
                 this.updateRpcServer();
             }
@@ -136,7 +133,7 @@ class Extension implements DebugAdapterDescriptorFactory {
                 }
             }
         }
-        install.ensurePlatformPackage(this.context, output, false);
+        install.ensurePlatformPackage(this.context.extensionPath, output, false);
 
         let context = this.context;
         context.environmentVariableCollection.description = 'No-config debugging';
@@ -186,6 +183,16 @@ class Extension implements DebugAdapterDescriptorFactory {
                 this.context.environmentVariableCollection.replace('CODELLDB_LAUNCH_CONFIG', launch_config);
             }
         }
+    }
+
+    async attach() {
+        let debugConfig: DebugConfiguration = {
+            type: 'lldb',
+            request: 'attach',
+            name: 'Attach',
+            pid: '${command:pickMyProcess}',
+        };
+        await debug.startDebugging(undefined, debugConfig);
     }
 
     // Discover debuggable targets in the current workspace and generate debug configs for them
@@ -317,12 +324,12 @@ class Extension implements DebugAdapterDescriptorFactory {
             delete session.configuration.sourceLanguages;
         }
 
-        let authToken = crypto.randomBytes(16).toString('base64');
-        let connector = new ReverseAdapterConnector(authToken);
-        let port = await connector.listen();
+        let startOptions = this.getAdapterStartOptions(session.workspaceFolder, adapterSettings);
+        let connector = new ReverseAdapterConnector(startOptions.authToken as string);
+        startOptions.port = await connector.listen();
 
         try {
-            await this.startDebugAdapter(session.workspaceFolder, adapterSettings, port, authToken);
+            await this.startDebugAdapter(startOptions);
             await connector.accept();
             return new DebugAdapterInlineImplementation(connector);
         } catch (err: any) {
@@ -346,7 +353,7 @@ class Extension implements DebugAdapterDescriptorFactory {
             actionAsync = window.showErrorMessage('Could not start debugging.', diagnostics);
         }
         if ((await actionAsync) == diagnostics) {
-            await this.runDiagnostics();
+            await this.runSelfTest();
         }
     }
 
@@ -397,36 +404,14 @@ class Extension implements DebugAdapterDescriptorFactory {
         }
     }
 
-    async startDebugAdapter(
-        folder: WorkspaceFolder | undefined,
-        adapterSettings: AdapterSettings,
-        connectPort: number,
-        authToken: string
-    ): Promise<ChildProcess> {
-        let config = getExtensionConfig(folder);
-        let adapterEnv = config.get<any>('adapterEnv', {});
-        let verboseLogging = config.get<boolean>('verboseLogging', false);
-        if (config.get<boolean>('useNativePDBReader'))
-            adapterEnv['LLDB_USE_NATIVE_PDB_READER'] = 'true';
-        let liblldb = await this.getLibLLDB(config);
-
+    async startDebugAdapter(options: adapter.AdapterStartOptions): Promise<async.cp.ChildProcess> {
         output.appendLine('Launching adapter');
-        output.appendLine(`liblldb: ${liblldb}`);
-        output.appendLine(`environment: ${inspect(adapterEnv)}`);
-        output.appendLine(`settings: ${inspect(adapterSettings)}`);
+        output.appendLine(`liblldb: ${options.liblldb}`);
+        output.appendLine(`lldbServer: ${options.lldbServer}`);
+        output.appendLine(`environment: ${inspect(options.extraEnv)}`);
+        output.appendLine(`settings: ${inspect(options.adapterSettings)}`);
 
-        let adapterProcess = await adapter.start({
-            extensionRoot: this.context.extensionPath,
-            liblldb: liblldb,
-            extraEnv: adapterEnv,
-            workDir: workspace.rootPath,
-            port: connectPort,
-            connect: true,
-            authToken: authToken,
-            adapterSettings: adapterSettings,
-            verboseLogging: verboseLogging
-        });
-
+        let adapterProcess = await adapter.start(options);
         util.logProcessOutput(adapterProcess, output);
 
         adapterProcess.on('exit', async (code, signal) => {
@@ -438,112 +423,48 @@ class Extension implements DebugAdapterDescriptorFactory {
         return adapterProcess;
     }
 
-    // Resolve the path to liblldb and cache it.
-    async getLibLLDB(config: WorkspaceConfiguration): Promise<string | undefined> {
-        if (!this.liblldbPath) {
-            let library = config.get<string>('library');
-            if (library) {
-                this.liblldbPath = await adapter.findLibLLDB(library)
-            } else {
-                this.liblldbPath = await adapter.findLibLLDB(path.join(this.context.extensionPath, 'lldb'));
-            }
+    getAdapterStartOptions(
+        folder: WorkspaceFolder | undefined,
+        adapterSettings: AdapterSettings = {},
+        port: number = 0
+    ): adapter.AdapterStartOptions {
+        let config = getExtensionConfig(folder);
+        let verboseLogging = config.get<boolean>('verboseLogging', false);
+        let liblldb = config.get<string>('library');
+        let adapterEnv = Object.assign({}, config.get<object>('adapterEnv')) as Dict<string>;
+        let lldbServer = config.get<string>('server');
+        if (config.get<boolean>('useNativePDBReader'))
+            adapterEnv['LLDB_USE_NATIVE_PDB_READER'] = 'true';
+        let authToken = crypto.randomBytes(16).toString('base64');
+        return {
+            extensionPath: this.context.extensionPath,
+            liblldb: liblldb,
+            lldbServer: lldbServer,
+            extraEnv: adapterEnv,
+            workDir: workspace.rootPath,
+            port: port,
+            connect: true,
+            authToken: authToken,
+            adapterSettings: adapterSettings,
+            verboseLogging: verboseLogging
         }
-        return this.liblldbPath;
     }
-    liblldbPath: string | undefined;
 
     async checkPrerequisites(folder?: WorkspaceFolder): Promise<boolean> {
-        if (!await install.ensurePlatformPackage(this.context, output, true))
+        if (!await install.ensurePlatformPackage(this.context.extensionPath, output, true))
             return false;
         return true;
     }
 
-    async runDiagnostics(folder?: WorkspaceFolder) {
-        let succeeded;
-        try {
-            let authToken = crypto.randomBytes(16).toString('base64');
-            let connector = new ReverseAdapterConnector(authToken);
-            let port = await connector.listen();
-            let adapter = await this.startDebugAdapter(folder, {}, port, authToken);
-            let adapterExitAsync = new Promise((resolve, reject) => {
-                adapter.on('exit', resolve);
-                adapter.on('error', reject);
-            });
-            await connector.accept();
-            connector.handleMessage({ seq: 1, type: 'request', command: 'disconnect' });
-            connector.dispose();
-            await adapterExitAsync;
-            succeeded = true;
-        } catch (err) {
-            succeeded = false;
-        }
-
+    async runSelfTest(folder?: WorkspaceFolder) {
+        let startOptions = this.getAdapterStartOptions(folder);
+        let succeeded = await selfTest(startOptions);
         if (succeeded) {
-            window.showInformationMessage('LLDB self-test completed successfuly.', { modal: true });
+            window.showInformationMessage('CodeLLDB self-test completed successfuly.', { modal: true });
         } else {
-            window.showErrorMessage('LLDB self-test has failed.  Please check log output.', { modal: true });
             output.show();
+            window.showErrorMessage('CodeLLDB self-test has failed.  Please check log output.', { modal: true });
         }
-    }
-
-    async attach() {
-        let debugConfig: DebugConfiguration = {
-            type: 'lldb',
-            request: 'attach',
-            name: 'Attach',
-            pid: '${command:pickMyProcess}',
-        };
-        await debug.startDebugging(undefined, debugConfig);
-    }
-
-    async alternateBackend() {
-        let box = window.createInputBox();
-        box.prompt = 'Enter file name of the LLDB instance you\'d like to use. ';
-        box.onDidAccept(async () => {
-            try {
-                let dirs = await util.getLLDBDirectories(box.value);
-                if (dirs) {
-                    let libraryPath = await adapter.findLibLLDB(dirs.shlibDir);
-                    if (libraryPath) {
-                        let choice = await window.showInformationMessage(
-                            `Located liblldb at: ${libraryPath}\r\nUse it to configure the current workspace?`,
-                            { modal: true }, 'Yes'
-                        );
-                        if (choice == 'Yes') {
-                            box.hide();
-                            let lldbConfig = getExtensionConfig();
-                            lldbConfig.update('library', libraryPath, ConfigurationTarget.Workspace);
-                        } else {
-                            box.show();
-                        }
-                    }
-                }
-            } catch (err: any) {
-                let message = (err?.code == 'ENOENT') ? `could not find "${err.path}".` : err.message;
-                await window.showErrorMessage(`Failed to query LLDB for library location: ${message}`, { modal: true });
-                box.show();
-            }
-        });
-        box.show();
-    }
-
-    commandPrompt() {
-        let lldb = os.platform() != 'win32' ? 'lldb' : 'lldb.exe';
-        let lldbPath = path.join(this.context.extensionPath, 'lldb', 'bin', lldb);
-        let consolePath = path.join(this.context.extensionPath, 'adapter', 'scripts', 'console.py');
-        let folder = workspace.workspaceFolders?.[0];
-        let config = getExtensionConfig(folder);
-        let env = adapter.getAdapterEnv(config.get('adapterEnv', {}));
-
-        let terminal = window.createTerminal({
-            name: 'LLDB Command Prompt',
-            shellPath: lldbPath,
-            shellArgs: ['--no-lldbinit', '--one-line-before-file', 'command script import ' + consolePath],
-            cwd: folder?.uri,
-            env: env,
-            strictEnv: true
-        });
-        terminal.show()
     }
 
     async viewMemory(address?: bigint) {

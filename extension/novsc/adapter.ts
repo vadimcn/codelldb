@@ -2,37 +2,29 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as async from './async';
 import * as os from 'os';
-import { Dict  } from './commonTypes';
+import { Dict } from './commonTypes';
 import { AdapterSettings } from 'codelldb';
 
 export interface AdapterStartOptions {
-    extensionRoot: string;
+    extensionPath: string;
     liblldb?: string;
+    lldbServer?: string,
     workDir?: string;
-    extraEnv: Dict<string>; // Extra environment to be set for adapter
-    port: number;
-    connect: boolean;  // Whether to connect or to listen on the port
+    extraEnv?: Dict<string>; // Extra environment to be set for adapter
+    port?: number;
+    connect?: boolean;  // Whether to connect or to listen on the port
     authToken?: string; // Token to use for authentication when reverse-connecting
-    adapterSettings: AdapterSettings;
-    verboseLogging: boolean;
+    adapterSettings?: AdapterSettings;
+    verboseLogging?: boolean;
 }
 
-export interface ProcessSpawnParams {
-    command: string,
-    args: string[],
-    options: cp.SpawnOptions
-}
-
-export async function getSpawnParams(
-    options: AdapterStartOptions
-): Promise<ProcessSpawnParams> {
-    let executable = path.join(options.extensionRoot, 'adapter', 'codelldb');
-
+export async function start(options: AdapterStartOptions): Promise<async.cp.ChildProcess> {
+    let executable = path.join(options.extensionPath, 'adapter', 'codelldb');
     let args: string[] = [];
     if (options.liblldb) {
         args.push('--liblldb', options.liblldb);
     }
-    args.push(options.connect ? '--connect' : '--port', options.port.toString());
+    args.push(options.connect ? '--connect' : '--port', (options.port ?? 0).toString());
     if (options.authToken) {
         args.push('--auth-token', options.authToken);
     }
@@ -40,11 +32,12 @@ export async function getSpawnParams(
         args.push('--settings', JSON.stringify(options.adapterSettings));
     }
 
-    let env = getAdapterEnv(options.extraEnv);
-    env['RUST_TRACEBACK'] = '1';
-    if (options.verboseLogging) {
+    let env = getAdapterEnv(options.extraEnv ?? {});
+    if (options.lldbServer)
+        env['LLDB_DEBUGSERVER_PATH'] = options.lldbServer;
+    if (options.verboseLogging)
         env['RUST_LOG'] = 'error,codelldb=debug';
-    }
+    env['RUST_TRACEBACK'] = '1';
 
     // Check if workDir exists and is a directory, otherwise launch with default cwd.
     let workDir = options.workDir;
@@ -61,20 +54,9 @@ export async function getSpawnParams(
         executable = 'arch';
     }
 
-    return {
-        command: executable,
-        args: args,
-        options: {
-            env: env,
-            cwd: workDir
-        }
-    }
-}
-
-export async function start(options: AdapterStartOptions): Promise<cp.ChildProcess> {
-    let spawnParams = await getSpawnParams(options);
-    spawnParams.options.stdio = ['ignore', 'pipe', 'pipe'];
-    return cp.spawn(spawnParams.command, spawnParams.args, spawnParams.options);
+    return async.cp.spawn(executable, args, {
+        env: env, cwd: workDir, stdio: ['ignore', 'pipe', 'pipe']
+    });
 }
 
 export async function findLibLLDB(pathHint: string): Promise<string | undefined> {
@@ -99,19 +81,18 @@ export async function findLibLLDB(pathHint: string): Promise<string | undefined>
 
     for (let dir of [pathHint, libDir]) {
         let file = await findFileByPattern(dir, pattern);
-        if (file) {
-            return path.join(dir, file);
-        }
+        if (file)
+            return file;
     }
     return undefined;
 }
 
-async function findFileByPattern(path: string, pattern: RegExp): Promise<string | undefined> {
+export async function findFileByPattern(dir: string, pattern: RegExp): Promise<string | undefined> {
     try {
-        let files = await async.fs.readdir(path);
+        let files = await async.fs.readdir(dir);
         for (let file of files) {
             if (pattern.test(file))
-                return file;
+                return path.join(dir, file);
         }
     }
     catch (err) {

@@ -87,4 +87,3 @@ export async function getLLDBDirectories(executable: string): Promise<LLDBDirect
         throw new Error(stderr);
     }
 }
-

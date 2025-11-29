@@ -34,14 +34,14 @@
 	"dependencies": {
 		"jsonc-parser": "^3.3.1",
 		"string-argv": "^0.3.2",
-		"yaml": "^1.10.0"
+		"yaml": "^1.10.0",
+		"@vscode/debugadapter-testsupport": "^1.68.0"
 	},
 	"devDependencies": {
 		"@types/vscode": "^1.60.0",
 		"@types/node": "^18.0.0",
 		"@types/mocha": "^10.0.0",
-		"@vscode/debugprotocol": "^1.53.0",
-		"@vscode/debugadapter-testsupport": "^1.51.0",
+		"@vscode/debugprotocol": "^1.68.0",
 		"@vscode/test-cli": "^0.0.11",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
@@ -99,8 +99,8 @@
 			},
 			{
 				"category": "LLDB",
-				"title": "Run Diagnostics",
-				"command": "lldb.diagnose"
+				"title": "Run Self-Test",
+				"command": "lldb.selfTest"
 			},
 			{
 				"category": "LLDB",
@@ -550,13 +550,19 @@
 						"order": 2
 					},
 					"lldb.library": {
-						"markdownDescription": "Which LLDB library to use.\n\nThis can be either a file path (recommended) or a directory, in which case platform-specific heuristics will be used to locate the actual library file.",
+						"markdownDescription": "Location of the `liblldb*` shared library to load.\n\nProvide either the absolute path to that file (recommended) or the path to an LLDB installation directory.",
+						"type": "string",
+						"scope": "resource",
+						"order": 10
+					},
+					"lldb.server": {
+						"markdownDescription": "Location of the LLDB debug server binary.\n\nThis setting overrides the default debug server discovery logic; see the User's Manual for details.",
 						"type": "string",
 						"scope": "resource",
 						"order": 10
 					},
 					"lldb.cargo": {
-						"markdownDescription": "Name of the command to invoke as Cargo.",
+						"markdownDescription": "Executable used for Cargo invocations.\n\nOverride this if Cargo is not on the PATH or if you want to use an alternative tool/wrapper.",
 						"type": "string",
 						"default": "cargo",
 						"scope": "resource",

@@ -23,7 +23,7 @@ defaults:
 
 env:
   lldb_release: codelldb/21.x-70
-  rust_version: 1.89.0
+  rust_version: 1.91.0
   version_suffix: ${{ inputs.final && ' ' || '-' }}
   SCCACHE_GHA_ENABLED: true
   RUSTC_WRAPPER: "sccache"

@@ -131,6 +131,14 @@ impl SBFrame {
     }
 }
 
+impl PartialEq for SBFrame {
+    fn eq(&self, other: &Self) -> bool {
+        cpp!(unsafe [self as "SBFrame*", other as "SBFrame*"] -> bool as "bool" {
+            return self->IsEqual(*other);
+        })
+    }
+}
+
 impl IsValid for SBFrame {
     fn is_valid(&self) -> bool {
         cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {

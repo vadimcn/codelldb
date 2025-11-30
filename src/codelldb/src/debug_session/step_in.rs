@@ -12,6 +12,7 @@ use regex_lite::Regex;
 #[derive(Debug, Clone)]
 pub(super) struct StepInTargetInternal {
     target_fn: SBFunction,
+    /// Range of addresses occupied by the statement for which this target was computed
     stmt_range: Range<Address>,
 }
 
@@ -34,29 +35,27 @@ impl super::DebugSession {
         };
         let _token = lldb_stub::v16.resolve()?;
 
-        // This is the typical case we aim to handle:
+        // The typical case we aim to handle:
         // ```
-        //    AAA(BBB(),  <-- execution stopped on this line; the user wants to step into AAA, bypassing BBB and CCC
+        //    AAA(BBB(),  <-- execution stopped here; the user wants to step into AAA, bypassing BBB and CCC
         //        CCC())
         // ```
         // In this scenario, the current PC will typically point to the `call BBB` instruction,
-        // with `call CCC` and `call AAA` following. Since `call CCC` is on a different line, `call AAA` will
+        // with `call CCC` and `call AAA` following.  Since `call CCC` is on a different line, `call AAA` will
         // likely be in a separate code range from `call BBB`, with a separate LineEntry. As a result, scanning
         // only the address range of the current LineEntry (that of `call BBB`) won't discover `call AAA`.
+        //
         // To handle this, we determine the address range covering the entire statement by looking for all LineEntries
-        // with the same line number as the current one, then find the largest end address.
-        // This, of course, assumes the instruction ordering is as described above, but in debug builds, this is usually the case.
+        // with the same line number as the current one, then find the largest end address.  The address range of the
+        // statement is then PC..max_end_addr.  Of course, this assumes that instructions are ordered in the logical
+        // order of function calls, but, in debug builds, this usually holds true.
         let mut max_end_addr = 0;
         for le in cu.line_entries() {
             if le.line() == curr_le.line() && le.file_spec().filename() == curr_le.file_spec().filename() {
-                debug!(
-                    "{:?}, range: {:X}..{:X}",
-                    le,
-                    le.start_address().load_address(&self.target),
-                    le.end_address().load_address(&self.target)
-                );
-                let end_eddr = le.end_address().load_address(&self.target);
-                max_end_addr = cmp::max(max_end_addr, end_eddr);
+                let start_address = le.start_address().load_address(&self.target);
+                let end_address = le.end_address().load_address(&self.target);
+                debug!("{le:?}, range: {start_address:X}..{end_address:X}");
+                max_end_addr = cmp::max(max_end_addr, end_address);
             }
         }
         // Get instructions for address range PC..max_end_addr
@@ -175,29 +174,72 @@ impl super::DebugSession {
             thread.step_instruction(false)?;
         } else {
             if let Some(step_target) = step_target {
-                let target_name = step_target.target_fn.name();
-                self.with_sync_mode(||
-                    // SBThread::StepInto(target...) will step only within the range of the LineEntry covering the
-                    // current PC (the variant with `end_line` works only if the compiler generated a line number index).
-                    // Since the target function might belong to a different LineEntry, we attempt
-                    // step-ins until execution moves outside the statement range computed above.
-                    // This will happen in two cases: either we successfully step into the target function, or
-                    // we step outside the call site statement.
-                    loop {
-                        let result = thread.step_into_target(target_name, None, RunMode::OnlyDuringStepping);
-                        if result.is_err() || self.current_cancellation.is_cancelled() {
-                            break;
-                        }
-                        let frame = thread.frame_at_index(0);
-                        if !step_target.stmt_range.contains(&frame.pc()) {
-                            break;
-                        }
-                    });
+                log_errors!(self.step_into_target(&thread, &step_target));
                 self.notify_process_stopped();
             } else {
                 thread.step_into(RunMode::OnlyDuringStepping)?;
             }
         }
         Ok(())
+    }
+
+    fn step_into_target(&self, thread: &SBThread, step_target: &StepInTargetInternal) -> Result<(), Error> {
+        let _token = lldb_stub::v16.resolve()?;
+        self.with_sync_mode(|| {
+            let start_frame = thread.frame_at_index(0);
+            thread.step_into(RunMode::OnlyThisThread)?;
+            loop {
+                if self.current_cancellation.is_cancelled() {
+                    bail!("Cancelled");
+                }
+
+                let curr_frame = thread.frame_at_index(0);
+                if !curr_frame.is_valid() {
+                    bail!("Invalid current frame");
+                }
+
+                if curr_frame.function() == step_target.target_fn {
+                    return Ok(()); // Success!
+                }
+
+                let instr = self.target.read_instructions(&curr_frame.pc_address(), 1, None).instruction_at_index(0);
+                if let InstructionControlFlowKind::Jump | InstructionControlFlowKind::FarJump =
+                    instr.control_flow_kind(&self.target)
+                {
+                    // We are on a trampoline that jumps to the actual function
+                    thread.step_into(RunMode::OnlyThisThread)?;
+                    continue;
+                }
+
+                // Figure out where we landed
+                let start_frame_idx =
+                    thread.frames().take(10).enumerate().find_map(
+                        |(idx, frame)| {
+                            if frame == start_frame {
+                                Some(idx)
+                            } else {
+                                None
+                            }
+                        },
+                    );
+                match start_frame_idx {
+                    None => {
+                        // We are in a parent frame of start_frame - stop
+                        bail!("Stepped out of start_frame");
+                    }
+                    Some(0) => {
+                        // Still in the start_frame
+                        if !step_target.stmt_range.contains(&curr_frame.pc()) {
+                            bail!("Stepped out of stmt_range");
+                        }
+                        thread.step_into(RunMode::OnlyThisThread)?; // Try again
+                    }
+                    Some(_) => {
+                        // We stepped in, but not into the function we need - step back out
+                        thread.step_out()?;
+                    }
+                }
+            }
+        })
     }
 }

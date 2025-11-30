@@ -3,7 +3,7 @@
 	"displayName": "CodeLLDB",
 	"version": "@VERSION@",
 	"publisher": "vadimcn",
-	"description": "A native debugger powered by LLDB.  Debug C++, Rust and other compiled languages.",
+	"description": "Debugger for native code, powered by LLDB. Debug C++, Rust, and other compiled languages.",
 	"license": "MIT",
 	"author": {
 		"name": "vadimcn"
@@ -515,10 +515,7 @@
 							"integer"
 						],
 						"defaultSnippets": [
-							{
-								"label": "Port 4711",
-								"body": 4711
-							}
+							{ "label": "Port 4711", "body": 4711 }
 						],
 						"scope": "resource",
 						"order": 999

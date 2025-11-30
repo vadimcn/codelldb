@@ -5,16 +5,22 @@
 ### New
 - [Vibe debugging!](MANUAL.md#agent-assisted-debugging)
 - [Graceful shutdown](MANUAL.md#graceful-shutdown)
+- Added automatic [propagation of RPC server configuration](MANUAL.md#rpc-server) to `codelldb-launch` (integrated terminal only).
 
 ### Changed
-- Updated the bundled LLDB to v21.1.0
+- Updated bundled LLDB to v21.1.
 - Reworked [simple expressions](MANUAL.md#simple-expressions) to be more aligned with LLDB's
   [Data Inspection Language](https://discourse.llvm.org/t/rfc-data-inspection-language/69893) (DIL):
   - Added new operators: `*` (dereference), `&` (address of) and `->` (the equivalent of `(*a).b`).
   - Aligned operator precedence with that of C++
+- Added a status bar tooltip for quick changes of display settings.
 
-  (Currently the DIL RFC is only partially implemented and isn't yet usable for general expression evaluation,
-  however, once complete, it may become the underlying implementation of simple expressioons.)
+### Fixed
+- Restored compatibility with liblldb versions earlier than 15.
+- Fixed the pause button before the first stop.
+- Improved debug console completions.
+- Rust: Stopped installing the wildcard Rust synthetics provider by default.  This change will get rid of the **[raw]**
+  child element on primitive types.
 
 # 1.11.8
 

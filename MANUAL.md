@@ -332,15 +332,8 @@ echo "{ program: '/usr/bin/ls', token: 'secret' }" | netcat -N 127.0.0.1 12345
 ### codelldb-launch
 `codelldb-launch` is a CLI utility that talks to the RPC endpoint described above.
 
-You will find the binary at
-[`VS Code extensions directory`](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace#_where-are-extensions-installed)`/vadimcn.vscode-lldb-<version>/bin/codelldb-launch`
-
-Anther way to locate it from within VS Code:
-1. Run **View: Show Extensions**.
-2. Select **CodeLLDB**.
-3. In the details pane, choose the **Size** link in the upper-right corner. The file explorer that opens is the extension folder.
-4. Append `/bin/codelldb-launch`.
-
+The extension installs `codelldb-launch` into its `bin` directory and adds that directory to the PATH used by VS Code's integrated terminals.
+To locate the executable, run `which codelldb-launch` (Linux/MacOS), or `where codelldb-launch` (Windows).
 
 #### Usage:
 
@@ -360,9 +353,9 @@ codelldb-launch --connect=<address> --config=<launch configuration>
 ```sh
 codelldb-launch --connect=<address> [--config=<configuration overrides>] [--clear-screen[=true|false]] [--] debuggee [--arg1 [--arg2 ...]]
 ```
-In this case the launch configuration is initialized using debuggee path, command line arguments and current environment.
-The configuration is then updated using the value of the `--config` flag.  The result is submitted to the RPC endpoint,
-after which `codelldb-launch` awaits end of the debug session.  The debug session will use the current controlling tty,
+In this case the launch configuration is initialized using the debuggee path, command-line arguments, and current environment.
+The configuration is then updated using the value of the `--config` flag. The result is submitted to the RPC endpoint,
+after which `codelldb-launch` awaits the end of the debug session. The debug session will use the current controlling tty,
 if there is one, unless configuration overrides contain `{ "terminal": "integrated|external|console" }`.
 - `--clear-screen` specifies whether to clear current terminal before launching the debuggee.
 
@@ -418,7 +411,7 @@ Please note that depending on protocol features implemented by the remote stub, 
 For example, in the case of "bare-metal" debugging (OpenOCD), the debugger may not be aware of memory locations
 of the debuggee modules; you may need to specify this manually:
 ```
-target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>`
+target modules load --file ${workspaceFolder}/build/debuggee -s <base load address>
 ```
 
 ## Debugging as a Different User
@@ -438,10 +431,10 @@ While CodeLLDB does not natively support launching the debuggee as a different u
 
 ## Reverse Debugging
 
-Also known as [Time travel debugging](https://en.wikipedia.org/wiki/Time_travel_debugging).  Provided you use a debugging backend that supports
-[these commands](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB be used to control reverse execution and stepping.
+Also known as [Time travel debugging](https://en.wikipedia.org/wiki/Time_travel_debugging). Provided you use a debugging backend that supports
+[these commands](https://sourceware.org/gdb/onlinedocs/gdb/Packets.html#bc), CodeLLDB can be used to control reverse execution and stepping.
 
-As of this writing, the only known backend that works is [Mozilla's rr](https://rr-project.org/).  The minimum supported version is 5.3.0.
+As of this writing, the only known backend that works is [Mozilla's rr](https://rr-project.org/). The minimum supported version is 5.3.0.
 
 There are others mentioned [here](http://www.sourceware.org/gdb/news/reversible.html) and [here](https://github.com/mozilla/rr/wiki/Related-work).
 [QEMU](https://www.qemu.org/) reportedly [supports record/replay](https://github.com/qemu/qemu/blob/master/docs/replay.txt) in full system emulation mode.
@@ -820,11 +813,11 @@ How to find `liblldb` manually:
 - **Windows**: `$LLDB_INSTALL_ROOT/bin/liblldb.dll`.
 
 ## LLDB Server
-LLDB always employs the client-server architecture, even for local debugging (except on Windows).
+LLDB always employs a client-server architecture, even for local debugging (except on Windows).
 [LLDB Server](https://lldb.llvm.org/man/lldb-server.html) is the binary that runs and monitors the debugged program
 in response to requests of the main debugger.
 
-In most cases LLDB can locate the server binary automatically, however, sometimes this fails and you may see
+In most cases LLDB can locate the server binary automatically; however, sometimes this fails and you may see
 errors similar to this: "Unable to locate lldb-server-\<version\>".
 In such cases you may override the default search logic via the **lldb.server** setting.
 

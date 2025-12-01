@@ -91,6 +91,7 @@ export class DebugTestSession extends DebugClient {
 
     static async start(): Promise<DebugTestSession> {
         let session = new DebugTestSession('', '', 'lldb');
+        session.defaultTimeout = 10000;
 
         if (process.env.DEBUG_SERVER) {
             let port = parseInt(process.env.DEBUG_SERVER)

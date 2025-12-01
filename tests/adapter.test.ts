@@ -978,12 +978,16 @@ function generateSuite(triple: string) {
                 })
 
                 test('rust panic', async function () {
+                    let panicBpId;
                     let stoppedEvent = await ds.launchAndWaitForStop(
                         { name: this.test.title, program: rustDebuggee, args: ['panic'], sourceLanguages: ['rust'] },
-                        () => ds.setExceptionBreakpointsRequest({ filters: ['rust_panic'] })
+                        async () => {
+                            let response = await ds.setExceptionBreakpointsRequest({ filters: ['rust_panic'] });
+                            panicBpId = response.body.breakpoints[0].id;
+                        }
                     );
-                    let stackTrace = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 5 });
-                    assert.match(stackTrace.body.stackFrames[0].name, /rust_panic/);
+                    assert.equal(stoppedEvent.body.reason, 'breakpoint');
+                    assert.equal(stoppedEvent.body.hitBreakpointIds[0], panicBpId);
                 })
             });
     });

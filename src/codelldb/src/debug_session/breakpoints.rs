@@ -362,7 +362,7 @@ impl DebugSession {
     pub(super) fn handle_set_exception_breakpoints(
         &mut self,
         args: SetExceptionBreakpointsArguments,
-    ) -> Result<(), Error> {
+    ) -> Result<SetExceptionBreakpointsResponseBody, Error> {
         let mut breakpoints = self.breakpoints.borrow_mut();
         breakpoints.breakpoint_infos.retain(|_id, bp_info| {
             if let BreakpointKind::Exception(_) = bp_info.kind {
@@ -373,10 +373,12 @@ impl DebugSession {
             }
         });
 
+        let mut result = vec![];
         for exc_name in &args.filters {
             if let Some(bp) = self.set_exception_breakpoint(exc_name) {
                 let bp_info = self.make_bp_info(bp, BreakpointKind::Exception(exc_name.into()), None, None, None);
                 self.init_bp_actions(&bp_info);
+                result.push(self.make_bp_response(&bp_info, false));
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
         }
@@ -390,10 +392,11 @@ impl DebugSession {
                     None,
                 );
                 self.init_bp_actions(&bp_info);
+                result.push(self.make_bp_response(&bp_info, false));
                 breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
             }
         }
-        Ok(())
+        Ok(SetExceptionBreakpointsResponseBody { breakpoints: result })
     }
 
     pub(super) fn get_exception_filters() -> &'static [ExceptionBreakpointsFilter] {

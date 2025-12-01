@@ -437,7 +437,7 @@ impl DebugSession {
                                 .map(|r| ResponseBody::setFunctionBreakpoints(r)),
                         RequestArguments::setExceptionBreakpoints(args) =>
                             self.handle_set_exception_breakpoints(args)
-                                .map(|_| ResponseBody::setExceptionBreakpoints),
+                                .map(|r| ResponseBody::setExceptionBreakpoints(r)),
                         RequestArguments::exceptionInfo(args) =>
                             self.handle_execption_info(args)
                                 .map(|r| ResponseBody::exceptionInfo(r)),

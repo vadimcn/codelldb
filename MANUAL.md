@@ -164,6 +164,11 @@ These attributes are applicable when the "attach" initiation method is selected:
 - If restarting the debug session, go to `preRunCommands` step.
 - The `exitCommands` sequence is executed.
 
+### OS Restrictions
+Operating systems may restrict attaching to running processes, even when the target is owned by the same user.
+For example, many modern Linux distributions [restrict](https://wiki.ubuntu.com/SecurityTeam/Roadmap/KernelHardening#ptrace_Protection)
+the [ptrace](https://en.wikipedia.org/wiki/Ptrace#Support) syscall by default.
+You may need to adjust your system settings to enable this capability.
 
 ### Pick Process Command
 
@@ -314,7 +319,7 @@ codelldb-launch --connect=127.0.0.1:12345 --config="{ token: 'secret' }" /usr/bi
 ```
 
 ##### Debug Rust unit tests
-See also the [Cargo Support](#cargo-support) section!
+See also the [Cargo Support](#cargo-support) section.
 ```sh
 cargo test --config="target.'cfg(all())'.runner='codelldb-launch'"
 ```

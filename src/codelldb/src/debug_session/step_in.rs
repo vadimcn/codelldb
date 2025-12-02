@@ -67,7 +67,7 @@ impl super::DebugSession {
         // Find `call` instructions and try to determine their targets.
         let mut target_fns = Vec::new();
         for instr in instructions {
-            match instr.control_flow_kind(&self.target) {
+            match self.control_flow_kind(&instr) {
                 InstructionControlFlowKind::Call | InstructionControlFlowKind::FarCall => {
                     if let Ok(func) = self.call_target_function(&instr) {
                         // Include only targets that have line numbers debug info
@@ -101,6 +101,23 @@ impl super::DebugSession {
         Ok(StepInTargetsResponseBody { targets })
     }
 
+    fn control_flow_kind(&self, instr: &SBInstruction) -> InstructionControlFlowKind {
+        let kind = instr.control_flow_kind(&self.target);
+        if kind == InstructionControlFlowKind::Unknown {
+            if self.target.triple().starts_with("arm") {
+                match instr.mnemonic(&self.target) {
+                    "bl" => InstructionControlFlowKind::Call,
+                    "b" => InstructionControlFlowKind::Jump,
+                    _ => InstructionControlFlowKind::Other,
+                }
+            } else {
+                kind
+            }
+        } else {
+            kind
+        }
+    }
+
     // Try to determine target function of a call instruction.
     fn call_target_function(&self, instruction: &SBInstruction) -> Result<SBFunction, Error> {
         let address = self.instruction_target_address(instruction)?;
@@ -111,7 +128,7 @@ impl super::DebugSession {
         let target_instr = self.target.read_instructions(&address, 1, None).instruction_at_index(0);
         if target_instr.is_valid() {
             if let InstructionControlFlowKind::Jump | InstructionControlFlowKind::FarJump =
-                target_instr.control_flow_kind(&self.target)
+                self.control_flow_kind(&target_instr)
             {
                 let address = self.instruction_target_address(&target_instr)?;
                 if let Some(func) = address.function() {
@@ -204,7 +221,7 @@ impl super::DebugSession {
 
                 let instr = self.target.read_instructions(&curr_frame.pc_address(), 1, None).instruction_at_index(0);
                 if let InstructionControlFlowKind::Jump | InstructionControlFlowKind::FarJump =
-                    instr.control_flow_kind(&self.target)
+                    self.control_flow_kind(&instr)
                 {
                     // We are on a trampoline that jumps to the actual function
                     thread.step_into(RunMode::OnlyThisThread)?;

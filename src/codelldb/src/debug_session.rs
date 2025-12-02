@@ -1455,7 +1455,11 @@ impl DebugSession {
             match process_event.process_state() {
                 Running | Stepping | Attaching | Launching => self.notify_process_running(),
                 Stopped => {
-                    if !process_event.restarted() {
+                    if process_event.restarted() {
+                        for reason in process_event.restarted_reasons() {
+                            self.console_message(reason);
+                        }
+                    } else {
                         self.notify_process_stopped()
                     }
                 }

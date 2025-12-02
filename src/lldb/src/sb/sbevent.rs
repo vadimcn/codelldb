@@ -131,6 +131,24 @@ impl<'a> SBProcessEvent<'a> {
             return SBProcess::GetRestartedFromEvent(*event);
         })
     }
+    pub fn num_restarted_reasons(&self) -> u32 {
+        let event = self.0;
+        cpp!(unsafe [event as "SBEvent*"] -> u32 as "uint32_t" {
+            return SBProcess::GetNumRestartedReasonsFromEvent(*event);
+        })
+    }
+    pub fn restarted_reason_at_index(&self, index: u32) -> &str {
+        let event = self.0;
+        let ptr = cpp!(unsafe [event as "SBEvent*", index as "uint32_t"] -> *const c_char as "const char*" {
+            return SBProcess::GetRestartedReasonAtIndexFromEvent(*event, index);
+        });
+        unsafe { get_str(ptr) }
+    }
+    pub fn restarted_reasons(&'a self) -> impl Iterator<Item = &'a str> + 'a {
+        SBIterator::new(self.num_restarted_reasons(), move |index| {
+            self.restarted_reason_at_index(index)
+        })
+    }
     pub fn interrupted(&self) -> bool {
         let event = self.0;
         cpp!(unsafe [event as "SBEvent*"] -> bool as "bool" {

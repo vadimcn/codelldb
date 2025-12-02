@@ -352,9 +352,18 @@ impl super::DebugSession {
                 let signo = signals
                     .signal_number_from_name(&sig_name)
                     .ok_or_else(|| str_error(format!("Invalid signal name: {sig_name}")))?;
+                signals.set_should_suppress(signo, false);
                 signals.set_should_stop(signo, false);
+                signals.set_should_notify(signo, false);
                 if !process.state().is_running() {
+                    // Resume before sending the signal.
                     log_errors!(process.resume());
+                    for _ in 0..10 {
+                        if process.state().is_running() {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
                 }
                 process.signal(signo)?;
             }

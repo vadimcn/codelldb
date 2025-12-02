@@ -355,7 +355,9 @@ impl super::DebugSession {
                 let signo = signals
                     .signal_number_from_name(&sig_name)
                     .ok_or_else(|| str_error(format!("Invalid signal name: {sig_name}")))?;
+                signals.set_should_suppress(signo, false);
                 signals.set_should_stop(signo, false);
+                signals.set_should_notify(signo, false);
                 if !process.state().is_running() {
                     log_errors!(process.resume());
                 }

@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <stdlib.h>
+#include <signal.h>
 #include <algorithm>
 #include <complex>
 #include <vector>
@@ -179,6 +180,17 @@ void step_in()
     printf("---\n");
 }
 
+void sig_handler(int signo)
+{
+    printf("Caught signal: %d\n", signo);
+}
+
+void signals() {
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+    inf_loop();
+}
+
 int main(int argc, char *argv[])
 {
 #if defined(__linux__)
@@ -318,6 +330,10 @@ int main(int argc, char *argv[])
     else if (testcase == "step_in")
     {
         step_in();
+    }
+    else if (testcase == "signals")
+    {
+        signals();
     }
     else
     {

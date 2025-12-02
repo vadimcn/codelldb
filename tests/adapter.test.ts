@@ -681,7 +681,23 @@ function generateSuite(triple: string) {
                 assert.ok(stackTrace.body.stackFrames[0].name.includes('call_target'));
                 // Should not be "caller", as we've just excluded it.
                 assert.ok(stackTrace.body.stackFrames[1].name.includes('main'));
-            })
+            });
+
+            test('step into target', async function () {
+                let bpLine = findMarker(debuggeeSource, '#BP4');
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['step_in'] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
+                let stackTrace = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 5 });
+                let targets = await ds.stepInTargetsRequest({ frameId: stackTrace.body.stackFrames[0].id });
+                let target = targets.body.targets.find(t => t.label.includes('add3'));
+                let stepIn = await ds.stepInRequest({ threadId: stoppedEvent.body.threadId, targetId: target.id });
+                assert.ok(stepIn.success);
+
+                let stackTrace2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 5 });
+                assert.ok(stackTrace2.body.stackFrames[0].name.includes('add3'));
+            });
         });
 
         suite('Attach tests', () => {

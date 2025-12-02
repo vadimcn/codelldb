@@ -172,7 +172,7 @@ void step_in()
     (void)std::find_if(ints.begin(), ints.end(), [](int x) { return x == 5; });
     printf("---\n");
 
-    add3(get1(),
+    add3(get1(), // #BP4
          add2(get2(),
               get1()),
          get1());

@@ -1317,6 +1317,12 @@ impl DebugSession {
             PythonEvent::SendDapEvent(event) => {
                 log_errors!(self.dap_session.try_send_event(event));
             }
+            PythonEvent::StartDebugging { request, configuration } => {
+                let request = RequestArguments::startDebugging(
+                    StartDebuggingRequestArguments { request, configuration }
+                );
+                tokio::task::spawn_local(self.dap_session.send_request(request));
+            }
             PythonEvent::DebuggerMessage { output, category } => {
                 self.console_message_impl(Some(&category), output);
             }

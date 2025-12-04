@@ -156,10 +156,8 @@ impl DAPSession {
     }
 
     /// Send a reverse request to the DAP client.
-    pub fn send_request(
-        &self,
-        request_args: RequestArguments,
-    ) -> impl Future<Output = Result<ResponseBody, Error >> {
+    // Not using "async fn" here, because we want to return a 'static future.
+    pub fn send_request(&self, request_args: RequestArguments) -> impl Future<Output = Result<ResponseBody, Error>> {
         let (resp_sender, resp_receiver) = oneshot::channel();
         let request = ProtocolMessageType::Request(request_args);
         let out_sender = self.out_sender.clone();

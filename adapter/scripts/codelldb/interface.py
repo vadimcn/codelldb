@@ -4,7 +4,6 @@ import os
 from typing import Optional
 import lldb
 import logging
-import traceback
 import ctypes
 import json
 from ctypes import (CFUNCTYPE, POINTER, py_object, sizeof, byref, memmove, cast,

@@ -22,11 +22,11 @@ pub use crate::dap::{
     SetExceptionBreakpointsArguments, SetExceptionBreakpointsResponseBody, SetFunctionBreakpointsArguments,
     SetInstructionBreakpointsArguments, SetInstructionBreakpointsResponseBody, SetVariableArguments,
     SetVariableResponseBody, Source, SourceArguments, SourceBreakpoint, SourceResponseBody, StackFrame,
-    StackFrameModuleId, StackFramePresentationHint, StackTraceArguments, StackTraceResponseBody, StepBackArguments,
-    StepInArguments, StepInTarget, StepInTargetsArguments, StepInTargetsResponseBody, StepOutArguments,
-    SteppingGranularity, StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread, ThreadEventBody,
-    ThreadsResponseBody, Variable, VariablePresentationHint, VariablesArguments, VariablesResponseBody,
-    WriteMemoryArguments, WriteMemoryResponseBody,
+    StackFrameModuleId, StackFramePresentationHint, StackTraceArguments, StackTraceResponseBody,
+    StartDebuggingRequestArguments, StartDebuggingRequestArgumentsRequest, StepBackArguments, StepInArguments,
+    StepInTarget, StepInTargetsArguments, StepInTargetsResponseBody, StepOutArguments, SteppingGranularity,
+    StoppedEventBody, TerminateArguments, TerminatedEventBody, Thread, ThreadEventBody, ThreadsResponseBody, Variable,
+    VariablePresentationHint, VariablesArguments, VariablesResponseBody, WriteMemoryArguments, WriteMemoryResponseBody,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -114,6 +114,7 @@ pub enum RequestArguments {
     disconnect(Option<DisconnectArguments>),
     // Reverse
     runInTerminal(RunInTerminalRequestArguments),
+    startDebugging(StartDebuggingRequestArguments),
     // Custom
     _adapterSettings(AdapterSettings),
     _symbols(SymbolsRequest),
@@ -168,6 +169,7 @@ pub enum ResponseBody {
     disconnect,
     // Reverse
     runInTerminal(RunInTerminalResponseBody),
+    startDebugging,
     // Custom
     _adapterSettings,
     _symbols(SymbolsResponse),

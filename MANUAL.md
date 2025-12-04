@@ -734,9 +734,9 @@ def evaluate(expr: str, unwrap: bool = False) -> Value | lldb.SBValue:
         unwrap: Whether to unwrap the result and return it as lldb.SBValue
     '''
 def wrap(obj: lldb.SBValue) -> Value:
-    '''Extracts an lldb.SBValue from Value'''
+  '''Wrap an lldb.SBValue as a Value.'''
 def unwrap(obj: Value) -> lldb.SBValue:
-    '''Wraps lldb.SBValue in a Value object'''
+  '''Extract the underlying lldb.SBValue from a Value.'''
 def create_webview(html: Optional[str] = None, title: Optional[str] = None, view_column: Optional[int] = None,
                    preserve_focus: bool = False, enable_find_widget: bool = False,
                    retain_context_when_hidden: bool = False, enable_scripts: bool = False):
@@ -749,6 +749,8 @@ def create_webview(html: Optional[str] = None, title: Optional[str] = None, view
         retain_context_when_hidden: Controls if the webview panel retains its context when it is hidden.
         enable_scripts:     Controls if scripts are enabled in the webview.
     '''
+def start_debugging(request, configuration):
+    '''Start a new debugging session.'''
 ```
 
 ## Webview

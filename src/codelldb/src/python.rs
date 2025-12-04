@@ -40,8 +40,15 @@ unsafe impl Send for PyObject {}
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum PythonEvent {
-    DebuggerMessage { output: String, category: String },
     SendDapEvent(EventBody),
+    StartDebugging {
+        request: adapter_protocol::StartDebuggingRequestArgumentsRequest,
+        configuration: serde_json::Map<String, serde_json::Value>,
+    },
+    DebuggerMessage {
+        output: String,
+        category: String,
+    },
 }
 
 // Interface through which the rest of CodeLLDB interacts with Python, via C ABI.

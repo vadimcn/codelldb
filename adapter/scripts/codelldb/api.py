@@ -1,7 +1,7 @@
 from lldb import SBValue
 import warnings
 import __main__
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict
 
 from . import interface
 from .value import Value
@@ -113,6 +113,12 @@ def display_html(html: str, title: Optional[str] = None, position: Optional[int]
         html_webview.set_html(html)
         if reveal:
             html_webview.reveal(view_column=position)
+
+
+def start_debugging(request: str, configuration: Dict[str, Any]):
+    '''Start a new debug session'''
+    debugger_id = interface.current_debugger().GetID()
+    interface.fire_event(debugger_id, dict(type='StartDebugging', request=request, configuration=configuration))
 
 
 def __lldb_init_module(debugger, internal_dict):  # pyright: ignore

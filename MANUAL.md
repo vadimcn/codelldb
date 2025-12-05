@@ -164,6 +164,8 @@ These attributes are applicable when the "attach" initiation method is selected:
 - If restarting the debug session, go to `preRunCommands` step.
 - The `exitCommands` sequence is executed.
 
+Note that attaching to a running process may be [restricted](https://en.wikipedia.org/wiki/Ptrace#Support)
+on some systems. You may need to adjust system configuration to enable it.
 
 ### Pick Process Command
 

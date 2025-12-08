@@ -39,6 +39,11 @@ impl SBSymbol {
             return self->GetEndAddress();
         })
     }
+    pub fn size(&self) -> u64 {
+        cpp!(unsafe [self as "SBSymbol*"] -> u64 as "uint64_t" {
+            return self->GetSize();
+        })
+    }
     pub fn instructions(&self, target: &SBTarget) -> SBInstructionList {
         let target = target.clone();
         cpp!(unsafe [self as "SBSymbol*", target as "SBTarget"] -> SBInstructionList as "SBInstructionList" {

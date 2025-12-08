@@ -49,6 +49,12 @@ impl SBAddress {
         })
         .check()
     }
+    pub fn module(&self) -> Option<SBModule> {
+        cpp!(unsafe [self as "SBAddress*"] -> SBModule as "SBModule" {
+            return self->GetModule();
+        })
+        .check()
+    }
     /// Modifies object in-place
     pub fn add_offset(&mut self, offset: u64) -> bool {
         cpp!(unsafe [self as "SBAddress*", offset as "int64_t"] -> bool as "bool" {

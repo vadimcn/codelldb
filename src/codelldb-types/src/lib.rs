@@ -144,6 +144,8 @@ pub struct Symbol {
     #[serde(rename = "type")]
     pub type_: String,
     pub address: String,
+    pub size: u64,
+    pub module: Option<String>,
     pub location: Option<(Source, u32)>,
 }
 

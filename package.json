@@ -385,7 +385,7 @@
 						"scope": "resource",
 						"order": 3
 					},
-					"lldb.launch.gracefulShitdown": {
+					"lldb.launch.gracefulShutdown": {
 						"markdownDescription": "Commands executed *after* gracefulShutdown of individual launch configurations.",
 						"type": "array",
 						"items": {

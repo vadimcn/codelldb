@@ -204,24 +204,24 @@ impl DisassembledRange {
         let mut dump = String::new();
         for instr in self.instructions.iter() {
             let load_addr = instr.address().load_address(&self.target);
-            instr_data.resize(instr.byte_size(), 0);
-            instr.data(&self.target).read_raw_data(0, &mut instr_data).unwrap();
             dump.clear();
-            for (i, b) in instr_data.iter().enumerate() {
-                if i >= max_instr_bytes {
-                    dump.push('>');
-                    break;
+            instr_data.resize(instr.byte_size(), 0);
+            if instr.data(&self.target).read_raw_data(0, &mut instr_data).is_ok() {
+                for (i, b) in instr_data.iter().enumerate() {
+                    if i >= max_instr_bytes {
+                        dump.push('>');
+                        break;
+                    }
+                    let _ = write!(dump, "{:02X} ", b);
                 }
-                let _ = write!(dump, "{:02X} ", b);
             }
             let mnemonic = instr.mnemonic(&self.target);
             let operands = instr.operands(&self.target);
             let comment = instr.comment(&self.target);
             let comment_sep = if comment.is_empty() { "" } else { "  ; " };
             #[rustfmt::skip]
-            let _ = writeln!(text, "{:08X}: {:<dumpwidth$} {:<6} {}{}{}", //.
-                load_addr, dump, mnemonic, operands, comment_sep, comment,
-                dumpwidth=max_instr_bytes * 3 + 2
+            let _ = writeln!(text, "{load_addr:08X}: {dump:<dump_width$} {mnemonic:<6} {operands}{comment_sep}{comment}",
+                dump_width=max_instr_bytes * 3 + 2
             );
         }
 

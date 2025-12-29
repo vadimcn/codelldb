@@ -749,6 +749,7 @@ impl DebugSession {
                     stack_frame.source = Some(Source {
                         name: Some(dasm.source_name().to_owned()),
                         source_reference: Some(dasm.handle()),
+                        origin: Some("disassembly".into()),
                         ..Default::default()
                     });
                 }

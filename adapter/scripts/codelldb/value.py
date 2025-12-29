@@ -3,6 +3,12 @@ import operator
 from typing import Any
 
 
+def current_target():
+    # Avoid curcular imports
+    from codelldb.interface import current_target
+    return current_target()
+
+
 class Value(object):
     '''A wrapper around SBValue that implements standard Python operators.'''
     __slots__ = ['__sbvalue']
@@ -26,9 +32,15 @@ class Value(object):
     def cast(ty, value):
         if isinstance(ty, str):
             # Parse type values like "char * &"
-            name = ty.rstrip('*& ')
+            name = ty.rstrip('*& ').strip()
             mods = ty[len(name):]
-            ty = value.__sbvalue.GetTarget().FindFirstType(name.strip())
+            # FindTypes matches types on prefix, we want an exact match
+            for ty in current_target().FindTypes(name):
+                if ty.name == name:
+                    break
+            else:
+                ty = lldb.SBType()
+
             for ch in mods:
                 if ch == '*':
                     ty = ty.GetPointerType()
@@ -36,6 +48,13 @@ class Value(object):
                     ty = ty.GetReferenceType()
             if not ty.IsValid():
                 raise ValueError('Could not resolve type "' + name + mods + '"')
+
+        if not isinstance(value, Value):
+            if isinstance(value, (int, float)):
+                value = Value(current_target().CreateValueFromExpression('literal', str(value)))
+            else:
+                raise ValueError('Cannot cast values of type ' + str(type(value)))
+
         return Value(value.__sbvalue.Cast(ty))
 
     def __nonzero__(self):

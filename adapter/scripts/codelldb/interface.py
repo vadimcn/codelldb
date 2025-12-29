@@ -381,6 +381,15 @@ def current_debugger() -> lldb.SBDebugger:
     raise Exception('No current execution context')
 
 
+def current_target() -> lldb.SBTarget:
+    global current_exec_context
+    if lldb.target:
+        return lldb.target
+    if current_exec_context:
+        return current_exec_context.GetTarget()
+    raise Exception('No current execution context')
+
+
 def current_frame() -> lldb.SBFrame:
     global current_exec_context
     if lldb.frame:

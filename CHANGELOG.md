@@ -1,5 +1,16 @@
 # Release Notes
 
+# 1.12.1
+
+### New
+- Added `start_debugging()` function to CodeLLDB's [Python API](MANUAL.md#debugger-api).   This translates into the [StartDebugging](https://microsoft.github.io/debug-adapter-protocol/specification#Reverse_Requests_StartDebugging) DAP request.
+- [Step Into Targets](https://code.visualstudio.com/updates/v1_46#_step-into-targets) now works on ARM platforms.
+
+### Fixed
+- #1357: can't watch contents of pointers
+- #1364: get_source_text panic due to unwrap on unknown/empty opcode
+- Codelldb will now unblock the signal specified in `gracefulShutdown` before delivering it to the debuggee.
+
 # 1.12.0
 
 ### New

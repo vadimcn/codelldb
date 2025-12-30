@@ -29,8 +29,8 @@ export function charCode(ch: string): number {
     return ch.charCodeAt(0);
 }
 
-function asyncTimer(timeoutMillis: number): Promise<void> {
-    return new Promise<void>((resolve) => setTimeout(resolve));
+export function asyncTimer(timeoutMillis: number): Promise<void> {
+    return new Promise<void>((resolve) => setTimeout(resolve, timeoutMillis));
 }
 
 export function withTimeout<T>(timeoutMillis: number, promise: Promise<T>): Promise<T> {

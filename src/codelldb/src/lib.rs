@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{env, net};
 
 use adapter_protocol::AdapterSettings;
@@ -8,7 +9,6 @@ use dap_session::DAPChannel;
 use lldb::*;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time::Duration;
 use tokio_util::codec::Decoder;
 
 #[allow(unused_imports)]

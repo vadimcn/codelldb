@@ -7,6 +7,7 @@ use super::*;
 use adapter_protocol::*;
 use lldb::*;
 use std::ffi::OsStr;
+use std::time::Duration;
 
 impl super::DebugSession {
     pub(super) fn report_launch_cfg_error(&mut self, err: serde_json::Error) -> Result<ResponseBody, Error> {
@@ -359,12 +360,15 @@ impl super::DebugSession {
                     // Resume before sending the signal.
                     log_errors!(process.resume());
                     for _ in 0..10 {
-                        if process.state().is_running() {
+                        let state = process.state();
+                        // Sleep unconditionally; without this pause signals sometimes never arrive.
+                        std::thread::sleep(Duration::from_millis(100));
+                        if state.is_running() {
                             break;
                         }
-                        std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                 }
+                debug!("Sending signal {signo}");
                 process.signal(signo)?;
             }
             Some(Either::Second(commands)) => {

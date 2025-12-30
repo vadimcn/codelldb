@@ -51,9 +51,6 @@ impl super::DebugSession {
         let mut config_done_recv = self.configuration_done_sender.subscribe();
         let self_ref = self.self_ref.clone();
         let fut = async move {
-            // Work around https://github.com/microsoft/vscode/issues/231074 by pausing before sending the
-            // `runInTerminal` message.  This gives VSCode the chance to process `output` messages we sent earlier.
-            tokio::time::sleep(time::Duration::from_millis(100)).await;
             log_errors!(config_done_recv.recv().await);
             self_ref.map(|s| s.create_terminal(&args)).await.await;
             self_ref.map(|s| s.complete_launch(args)).await

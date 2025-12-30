@@ -3,7 +3,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, withTimeout } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, asyncTimer } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
@@ -697,6 +697,20 @@ function generateSuite(triple: string) {
 
                 let stackTrace2 = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 5 });
                 assert.ok(stackTrace2.body.stackFrames[0].name.includes('add3'));
+            });
+
+            test('graceful shutdown', async function () {
+                if (triple.includes('pc-windows')) this.skip();
+
+                let bpLine = findMarker(debuggeeSource, '#BP5');
+                await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['signals'], gracefulShutdown: "SIGINT" },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
+                let waitExitedAsync = ds.waitForEvent('exited');
+                await ds.terminateRequest();
+                let exitedEvent = await waitExitedAsync;
+                assert.equal(exitedEvent.body.exitCode, 2); // exitCode == SIGINT
             });
         });
 

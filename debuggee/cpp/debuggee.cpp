@@ -183,12 +183,13 @@ void step_in()
 void sig_handler(int signo)
 {
     printf("Caught signal: %d\n", signo);
+    exit(signo);
 }
 
 void signals() {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-    inf_loop();
+    inf_loop(); // #BP5
 }
 
 int main(int argc, char *argv[])

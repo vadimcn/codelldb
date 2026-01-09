@@ -19,6 +19,7 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
 
     debugger.HandleCommand("type format add --category Rust --format d 'char' 'signed char'")
     debugger.HandleCommand("type format add --category Rust --format u 'unsigned char'")
+    debugger.HandleCommand("type summary add --category Rust --python-function lang_support.rust.char_summary 'char32_t'")
 
     sysroot = None
     formatters = codelldb.get_config('lang.rust.formatters')
@@ -62,3 +63,13 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
 def is_rust_type(sbtype, internal_dict):
     kind = internal_dict['lldb_lookup'].classify_rust_type(sbtype)
     return kind != 'Other'
+
+
+def char_summary(valobj, internal_dict):
+    v = valobj.GetValueAsUnsigned()
+    if v > 0x10FFFF or (0xD800 <= v <= 0xDFFF):
+        return f"U+{v:04X} (invalid)"
+    ch = chr(v)
+    if not ch.isprintable():
+        return f"U+{v:04X}"
+    return f"U+{v:04X} '{ch}'"

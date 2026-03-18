@@ -105,7 +105,7 @@ export class Cargo {
 
         try {
             let extraArgs = ['--message-format=json', '--color=always',
-                `--config=target.'cfg(all())'.runner='${launcher}'`
+                `--config=target.'cfg(all())'.runner=["${launcher.replace(/\\/g, '/')}"]`
             ];
             let cargoArgs = cargoConfig.args || [];
             // Insert extraArgs either before `--` or at the end.

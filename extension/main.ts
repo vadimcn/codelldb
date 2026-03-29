@@ -5,6 +5,7 @@ import {
     DebugAdapterDescriptor, Uri, ConfigurationTarget, DebugAdapterInlineImplementation, DebugConfigurationProviderTriggerKind,
 } from 'vscode';
 import { inspect } from 'util';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { AddressInfo } from 'node:net';
@@ -431,6 +432,12 @@ class Extension implements DebugAdapterDescriptorFactory {
         let config = getExtensionConfig(folder);
         let verboseLogging = config.get<boolean>('verboseLogging', false);
         let liblldb = config.get<string>('library');
+        if (liblldb) {
+            if (folder)
+                liblldb = liblldb.replace(/\$\{workspaceFolder\}/g, () => folder.uri.fsPath);
+            liblldb = liblldb.replace(/\$\{userHome\}/g, () => os.homedir());
+            liblldb = liblldb.replace(/\$\{env:([^}]+)\}/g, (_, name) => process.env[name] ?? '');
+        }
         let adapterEnv = Object.assign({}, config.get<object>('adapterEnv')) as Dict<string>;
         let lldbServer = config.get<string>('server');
         if (config.get<boolean>('useNativePDBReader'))

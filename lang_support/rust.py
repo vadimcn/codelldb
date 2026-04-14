@@ -36,33 +36,41 @@ def __lldb_init_module(debugger, internal_dict):  # pyright: ignore
             if hasattr(subprocess, 'STARTUPINFO'):
                 si = subprocess.STARTUPINFO(dwFlags=subprocess.STARTF_USESHOWWINDOW,  # type: ignore
                                             wShowWindow=subprocess.SW_HIDE)  # type: ignore
-            sysroot = subprocess.check_output(command, startupinfo=si, encoding='utf-8').strip()
+            try:
+                sysroot = subprocess.check_output(command, startupinfo=si, encoding='utf-8').strip()
+            except (OSError, subprocess.CalledProcessError) as err:
+                log.exception(f'Could not execute {command}')
+                codelldb.debugger_message('Could not locate Rust toolchain', category='stderr')
+                return
         formatters = path.join(sysroot, 'lib/rustlib/etc')
 
-    codelldb.debugger_message('Loading Rust formatters from {}'.format(formatters))
+    log.info(f'Rust formatters dir: {formatters}')
     lldb_lookup = path.join(formatters, 'lldb_lookup.py')
     lldb_commands = path.join(formatters, 'lldb_commands')
-    if path.isfile(lldb_lookup):
-        debugger.HandleCommand("command script import '{}'".format(lldb_lookup))
-        use_recognizer_fn = version_major >= 19 and hasattr(internal_dict['lldb_lookup'], 'classify_rust_type')
-        with open(lldb_commands, 'rt') as f:
-            for line in f:
-                if use_recognizer_fn and line.startswith('type synthetic') and '-x ".*"' in line:
-                    # Replace wildcard matching with a recognizer function so Rust synthetics do not get attached
-                    # to types we do not intend to handle, such as ints or floats.
-                    line = 'type synthetic add -l lldb_lookup.synthetic_lookup --recognizer-function lang_support.rust.is_rust_type --category Rust'
-                debugger.HandleCommand(line.strip())
-    else:
+    if not path.isfile(lldb_lookup) or not path.isfile(lldb_commands):
+        message = 'Could not find LLDB data formatters in your Rust toolchain.'
         if sysroot and '-msvc' in sysroot:
-            codelldb.debugger_message(
-                'Could not find LLDB data formatters in your Rust toolchain.  '
-                'For more information, please visit https://github.com/vadimcn/codelldb/wiki/Windows',
-                category='stderr')
+            message += '  For more information, please visit https://github.com/vadimcn/codelldb/wiki/Windows'
+        codelldb.debugger_message(message, category='stderr')
+        return
+
+    codelldb.debugger_message('Loading Rust formatters from {}'.format(formatters))
+    debugger.HandleCommand("command script import '{}'".format(lldb_lookup))
+    with open(lldb_commands, 'rt') as f:
+        for line in f:
+            line = line.strip()
+            # On LLDB versions that support recognizer functions, detect this line:
+            #   "type synthetic add -l lldb_lookup.synthetic_lookup -x ".*" --category Rust"
+            # and add a recognizer function to skip obvious non-Rust types, such as integers and floats.
+            if (version_major >= 19 and
+                    line.startswith('type synthetic add') and '-x ".*"' in line):
+                line = line.replace('-x ".*"', '--recognizer-function lang_support.rust.is_rust_type')
+            if line and not line.startswith('#'):
+                debugger.HandleCommand(line)
 
 
 def is_rust_type(sbtype, internal_dict):
-    kind = internal_dict['lldb_lookup'].classify_rust_type(sbtype)
-    return kind != 'Other'
+    return sbtype.GetTypeClass() != lldb.eTypeClassBuiltin
 
 
 def char_summary(valobj, internal_dict):

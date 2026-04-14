@@ -117,6 +117,7 @@ eBasicTypeSignedWChar: int
 eBasicTypeUnsignedWChar: int
 eBasicTypeChar16: int
 eBasicTypeChar32: int
+eBasicTypeChar8: int
 eBasicTypeShort: int
 eBasicTypeUnsignedShort: int
 eBasicTypeInt: int
@@ -139,10 +140,32 @@ eBasicTypeObjCID: int
 eBasicTypeObjCClass: int
 eBasicTypeObjCSel: int
 eBasicTypeNullPtr: int
+eBasicTypeOther: int
+eBasicTypeFloat128: int
 
 eFormatChar: int
 
+eTypeClassInvalid: int
+eTypeClassArray: int
+eTypeClassBlockPointer: int
+eTypeClassBuiltin: int
+eTypeClassClass: int
+eTypeClassComplexFloat: int
+eTypeClassComplexInteger: int
+eTypeClassEnumeration: int
+eTypeClassFunction: int
+eTypeClassMemberPointer: int
+eTypeClassObjCObject: int
+eTypeClassObjCInterface: int
+eTypeClassObjCObjectPointer: int
+eTypeClassPointer: int
+eTypeClassReference: int
 eTypeClassStruct: int
+eTypeClassTypedef: int
+eTypeClassUnion: int
+eTypeClassVector: int
+eTypeClassOther: int
+eTypeClassAny: int
 
 eValueTypeVariableGlobal: int
 eValueTypeVariableStatic: int

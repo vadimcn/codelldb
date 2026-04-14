@@ -22,7 +22,7 @@ defaults:
     shell: bash
 
 env:
-  lldb_release: codelldb/21.x-70
+  lldb_release: codelldb/22.x-72
   rust_version: 1.91.0
   version_suffix: ${{ inputs.final && ' ' || '-' }}
   SCCACHE_GHA_ENABLED: true

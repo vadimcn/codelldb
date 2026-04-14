@@ -275,6 +275,13 @@ impl super::DebugSession {
 
     // Get displayable string from an SBValue
     pub(super) fn get_var_summary(&self, var: &SBValue, unlimited: bool) -> String {
+        let var_type = var.type_();
+
+        // Special case for Rust's unit type as LLDB returns an error for instances of void.
+        if var_type.basic_type() == BasicType::Void {
+            return "()".into();
+        }
+
         let err = var.error();
         if err.is_failure() {
             return format!("<{}>", err);
@@ -282,12 +289,12 @@ impl super::DebugSession {
 
         let mut var = Cow::Borrowed(var);
 
+        // Rather than showing the pointer's numeric value, which is rather uninteresting, we display a summary
+        // of the object it points to (if deref_pointers is enabled).
         if self.deref_pointers
             && var.format() == Format::Default
-            && var.type_().type_class().intersects(TypeClass::Pointer | TypeClass::Reference)
+            && var_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference)
         {
-            // Rather than showing pointer's numeric value, which is rather uninteresting,
-            // we prefer to display summary of the object it points to.
             match self.try_deref_pointer(var.as_ref()) {
                 Either::First(summary) => return summary,
                 Either::Second(Some(pointee)) => var = Cow::Owned(pointee),

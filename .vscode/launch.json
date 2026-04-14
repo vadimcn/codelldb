@@ -70,8 +70,8 @@
 					"localRoot": "${workspaceFolder}/adapter"
 				},
 				{
-					"remoteRoot": "${workspaceFolder}/build/formatters",
-					"localRoot": "${workspaceFolder}/formatters"
+					"remoteRoot": "${workspaceFolder}/build/lang_support",
+					"localRoot": "${workspaceFolder}/lang_support"
 				}
 			]
 		},

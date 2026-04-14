@@ -1,7 +1,6 @@
 import {
     tasks, DebugConfiguration, CustomExecution, EventEmitter, Pseudoterminal, Task, WorkspaceFolder, CancellationToken,
-    TaskDefinition, TaskScope, ExtensionContext, Uri, workspace
-} from 'vscode';
+    TaskDefinition, TaskScope} from 'vscode';
 import * as cp from 'child_process';
 import * as readline from 'readline';
 import * as net from 'net';
@@ -105,7 +104,7 @@ export class Cargo {
 
         try {
             let extraArgs = ['--message-format=json', '--color=always',
-                `--config=target.'cfg(all())'.runner='${launcher}'`
+                `--config=target.'cfg(all())'.runner=[${JSON.stringify(launcher)}]`
             ];
             let cargoArgs = cargoConfig.args || [];
             // Insert extraArgs either before `--` or at the end.
@@ -446,4 +445,3 @@ function debugConfigsFromCargoMetadata(metadata: any, options: CargoConfigOption
     }
     return configs;
 }
-

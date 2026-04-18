@@ -1,8 +1,10 @@
-import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChannel } from 'vscode';
+import { QuickPickItem, WorkspaceConfiguration, DebugConfiguration, OutputChannel, WorkspaceFolder, workspace } from 'vscode';
 import * as cp from 'child_process';
 import * as async from './novsc/async';
+import * as path from 'path';
+import * as os from 'os';
 import { Dict } from './novsc/commonTypes';
-import { expandVariablesInObject } from './novsc/expand';
+import { expandVariables } from './novsc/expand';
 
 // Expands variable references of the form ${dbgconfig:name} in all properties of launch configuration.
 export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig: WorkspaceConfiguration): DebugConfiguration {
@@ -27,12 +29,12 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
         converged = true;
         for (let prop of Object.keys(dbgconfig)) {
             expanding = prop;
-            dbgconfig[prop] = expandVariablesInObject(dbgconfig[prop], expander);
+            dbgconfig[prop] = expandVariables(dbgconfig[prop], expander);
         }
     } while (!converged);
 
     // Now expand dbgconfigs in the launch configuration.
-    debugConfig = expandVariablesInObject(debugConfig, (type, key) => {
+    debugConfig = expandVariables(debugConfig, (type, key) => {
         if (type == 'dbgconfig') {
             let value = dbgconfig[key];
             if (value == undefined)
@@ -42,6 +44,30 @@ export function expandDbgConfig(debugConfig: DebugConfiguration, dbgconfigConfig
         return null;
     });
     return debugConfig;
+}
+
+export function expandVSCodeVariables<T extends any>(obj: T, folder?: WorkspaceFolder): T {
+    return expandVariables(obj, (type, key) => {
+        if (type == null) {
+            if (key == 'workspaceFolder') {
+                return folder ? folder.uri.fsPath : '';
+            } else if (key == 'workspaceFolderBasename') {
+                return folder ? path.basename(folder.uri.fsPath) : '';
+            } else if (key == 'userHome') {
+                return os.homedir();
+            } else if (key == 'pathSeparator' || key == '/') {
+                return path.sep;
+            } else {
+                return null;
+            }
+        } else if (type == 'env') {
+            return process.env[key] ?? '';
+        } else if (type == 'config') {
+            return workspace.getConfiguration(undefined, folder).get<string>(key) ?? '';
+        } else {
+            return null;
+        }
+    });
 }
 
 export function isEmpty(obj: any): boolean {

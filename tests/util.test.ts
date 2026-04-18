@@ -15,7 +15,7 @@ suite('Versions', () => {
 
 suite('Util', () => {
     test('expandVariables', async () => {
-        function expander(type: string, key: string) {
+        function expander(type: string | null, key: string) {
             if (type == 'echo') return key;
             if (type == 'reverse') return key.split('').reverse().join('');
             throw new Error('Unknown ' + type + ' ' + key);

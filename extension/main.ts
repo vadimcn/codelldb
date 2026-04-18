@@ -29,6 +29,7 @@ import { LaunchCompletionProvider } from './launchCompletions';
 import { output, showErrorWithLog } from './logging';
 import { LLDBCommandTool, SessionInfoTool } from './vibeDebug';
 import { alternateBackend, selfTest, commandPrompt } from './adapterUtils';
+import { expandVSCodeVariables } from './configUtils';
 
 export function getExtensionConfig(scope?: ConfigurationScope, subkey?: string): WorkspaceConfiguration {
     let key = 'lldb';
@@ -438,10 +439,10 @@ class Extension implements DebugAdapterDescriptorFactory {
         let authToken = crypto.randomBytes(16).toString('base64');
         return {
             extensionPath: this.context.extensionPath,
-            liblldb: liblldb,
-            lldbServer: lldbServer,
-            extraEnv: adapterEnv,
-            workDir: workspace.rootPath,
+            liblldb: expandVSCodeVariables(liblldb, folder),
+            lldbServer: expandVSCodeVariables(lldbServer, folder),
+            extraEnv: expandVSCodeVariables(adapterEnv, folder),
+            workDir: folder?.uri.fsPath,
             port: port,
             connect: true,
             authToken: authToken,

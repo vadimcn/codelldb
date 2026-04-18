@@ -1,30 +1,29 @@
+import { Dict } from "./commonTypes";
 
 // Returning null means "keep the original text".
 type Expander = (type: string | null, key: string) => string | null;
 
 let expandVarRegex = /\$\{(?:([^:}]+):)?([^}]+)\}/g;
 
-export function expandVariables(str: string | String, expander: Expander): string {
-    let result = str.replace(expandVarRegex, (all: string, type: string, key: string): string => {
-        let replacement = expander(type, key);
-        return replacement != null ? replacement : all;
-    });
-    return result;
-}
+export function expandVariables<T extends any>(obj: T, expander: Expander): T {
 
-export function expandVariablesInObject(obj: any, expander: Expander): any {
-    if (typeof obj == 'string' || obj instanceof String)
-        return expandVariables(obj, expander);
+    if (typeof obj == 'string' || obj instanceof String) {
+        return obj.replace(expandVarRegex, (all: string, type: string, key: string): string => {
+            let replacement = expander(type, key);
+            return replacement != null ? replacement : all;
+        }) as T;
+    }
 
     if (isScalarValue(obj))
         return obj;
 
     if (obj instanceof Array)
-        return obj.map(v => expandVariablesInObject(v, expander));
+        return obj.map(v => expandVariables(v, expander)) as T;
 
-    for (let prop of Object.keys(obj))
-        obj[prop] = expandVariablesInObject(obj[prop], expander)
-    return obj;
+    let result: Dict<any> = {};
+    for (let prop of Object.getOwnPropertyNames(obj))
+        result[prop] = expandVariables((obj as Dict<any>)[prop], expander);
+    return result as T;
 }
 
 function isScalarValue(value: any): boolean {

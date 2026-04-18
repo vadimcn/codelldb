@@ -10,7 +10,7 @@ import { inspect } from 'util';
 import { Dict } from './novsc/commonTypes';
 import { getExtensionConfig } from './main';
 import { output } from './logging';
-import { expandVariablesInObject } from './novsc/expand';
+import { expandVariables } from './novsc/expand';
 import { LaunchEnvironment } from 'codelldb';
 import { RpcServer, waitEndOfDebugSession } from './externalLaunch';
 import YAML from 'yaml';
@@ -310,7 +310,7 @@ export class Cargo {
         return cargo;
     }
 
-    getCargoCwd(cwd: string | undefined) : string {
+    getCargoCwd(cwd: string | undefined): string {
         return cwd ?? (this.workspaceFolder?.uri?.fsPath!);
     }
 }
@@ -357,7 +357,7 @@ async function runTask<T, R>(
 
 // Expands ${cargo: ...} placeholders.
 export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<string>): DebugConfiguration {
-    let expander = (type: string | null, key: string) => {
+    return expandVariables(launchConfig, (type, key) => {
         if (type == 'cargo') {
             let value = cargoDict[key];
             if (value == undefined)
@@ -365,8 +365,7 @@ export function expandCargo(launchConfig: DebugConfiguration, cargoDict: Dict<st
             return value.toString();
         }
         return null;
-    };
-    return expandVariablesInObject(launchConfig, expander);
+    });
 }
 
 interface CargoConfigOptions {

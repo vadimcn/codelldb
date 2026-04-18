@@ -135,7 +135,7 @@ export class Cargo {
                 // and sends LaunchEnvironment info including the debuggee path, arguments, etc.
                 let launchEnv = result as LaunchEnvironment;
                 // Use args passed in by Cargo, appending any user-provided args
-                debugConfig.program = launchEnv.cmd[0];
+                debugConfig.program = path.resolve(this.getCargoCwd(cargoConfig.cwd), launchEnv.cmd[0]);
                 debugConfig.args = launchEnv.cmd.slice(1).concat(debugConfig.args ?? []);
                 debugConfig.cwd = launchEnv.cwd;
                 // Use Cargo environment, with overrides from launchConfig
@@ -143,6 +143,7 @@ export class Cargo {
                 debugConfig = expandCargo(debugConfig, { program: launchEnv.cmd[0] });
             } else {
                 // Case 2: `cargo build ...` is used; the `result` is the path of the debuggee executable.
+                result = path.resolve(this.getCargoCwd(cargoConfig.cwd), result);
                 debugConfig = expandCargo(debugConfig, { program: result }); // Expand ${cargo:program}.
                 if (debugConfig.program == undefined) {
                     debugConfig.program = result;
@@ -279,7 +280,7 @@ export class Cargo {
     ): cp.ChildProcess & { exit: Promise<number> } {
         let config = getExtensionConfig(this.workspaceFolder);
         let cargoCmd = config.get<string>('cargo', 'cargo');
-        let cargoCwd = cwd ?? (this.workspaceFolder?.uri?.fsPath);
+        let cargoCwd = this.getCargoCwd(cwd);
         let cargoEnv = Object.assign({}, process.env, extraEnv)
 
         output.appendLine(`Running: ${cargoCmd} ${args.join(' ')}`);
@@ -307,6 +308,10 @@ export class Cargo {
             }
         });
         return cargo;
+    }
+
+    getCargoCwd(cwd: string | undefined) : string {
+        return cwd ?? (this.workspaceFolder?.uri?.fsPath!);
     }
 }
 

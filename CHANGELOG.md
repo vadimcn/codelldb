@@ -1,5 +1,14 @@
 # Release Notes
 
+# 1.12.2
+
+### Fixed
+- #1379: [Rust 1.93] Inspecting Option<String>::None hangs the debugger.
+- #1136: "cwd" not working in vscode debug
+- #1384: Cargo runner execution error on Windows when workspace path contains spaces
+- #1381: Spaces in path to user directory causes %1 is not a valid Win32 application.
+- #1080: support ${workspaceFolder} in lldb.library setting
+
 # 1.12.1
 
 ### New

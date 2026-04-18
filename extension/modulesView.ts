@@ -80,22 +80,22 @@ export class ModuleTreeDataProvider extends DisposableSubscriber
             let module = element as Module;
             let props = [];
             if (module.path)
-                props.push(new ModuleProperty('path', module.path));
+                props.push(new ModuleProperty('Path', module.path));
             if (module.version)
-                props.push(new ModuleProperty('version', module.version));
-            if (module.symbolStatus)
-                props.push(new ModuleProperty('symbols', module.symbolStatus));
-            if (module.symbolFilePath)
-                props.push(new ModuleProperty('symbol file path', module.symbolFilePath));
+                props.push(new ModuleProperty('Version', module.version));
             if (module.addressRange)
-                props.push(new ModuleProperty('load address', module.addressRange));
+                props.push(new ModuleProperty('Address range', module.addressRange));
+            if (module.symbolStatus)
+                props.push(new ModuleProperty('Symbols', module.symbolStatus));
+            if (module.symbolFilePath)
+                props.push(new ModuleProperty('Symbol file', module.symbolFilePath));
             return props;
         }
     }
 
     getTreeItem(element: Element): TreeItem {
         if (element instanceof ModuleProperty) {
-            let item = new TreeItem(`${element.key}: ${element.value}`);
+            let item = new TreeItem(`${element.key}:  ${element.value}`);
             item.contextValue = 'lldb.moduleProperty';
             return item;
         } else {

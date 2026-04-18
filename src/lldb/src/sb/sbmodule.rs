@@ -15,6 +15,16 @@ impl SBModule {
             unsafe { Some(get_str(ptr)) }
         }
     }
+    pub fn version(&self) -> Vec<u32> {
+        let mut versions = [0; 16];
+        let ptr = versions.as_mut_ptr();
+        let len = versions.len();
+        let count = cpp!(unsafe [self as "SBModule*", ptr as "uint32_t*", len as "size_t"] -> u32 as "uint32_t" {
+            return self->GetVersion(ptr, len);
+        });
+        let count = std::cmp::min(count as usize, versions.len());
+        Vec::from(&versions[..count])
+    }
     pub fn file_spec(&self) -> SBFileSpec {
         cpp!(unsafe [self as "SBModule*"] -> SBFileSpec as "SBFileSpec" {
             return self->GetFileSpec();
@@ -65,6 +75,19 @@ impl SBModule {
     }
     pub fn compile_units<'a>(&'a self) -> impl Iterator<Item = SBCompileUnit> + 'a {
         SBIterator::new(self.num_compile_units(), move |index| self.compile_unit_at_index(index))
+    }
+    pub fn num_sections(&self) -> u32 {
+        cpp!(unsafe [self as "SBModule*"] -> u32 as "uint32_t" {
+                return self->GetNumSections();
+        })
+    }
+    pub fn section_at_index(&self, index: u32) -> SBSection {
+        cpp!(unsafe [self as "SBModule*", index as "uint32_t"] -> SBSection as "SBSection" {
+            return self->GetSectionAtIndex(index);
+        })
+    }
+    pub fn sections<'a>(&'a self) -> impl Iterator<Item = SBSection> + 'a {
+        SBIterator::new(self.num_sections(), move |index| self.section_at_index(index))
     }
 }
 

@@ -1623,27 +1623,45 @@ impl DebugSession {
     }
 
     fn make_module_detail(&self, module: &SBModule) -> Module {
-        let mut msg = Module {
+        let mut mod_info = Module {
             id: ModuleId::String(self.module_id(&module)),
             name: module.file_spec().filename().display().to_string(),
             path: Some(module.file_spec().path().display().to_string()),
             ..Default::default()
         };
 
-        let header_addr = module.object_header_address();
-        if header_addr.is_valid() {
-            msg.address_range = Some(format!("{:X}", header_addr.load_address(&self.target)));
+        let version = module.version();
+        if !version.is_empty() {
+            let version_str = version.iter().map(u32::to_string).collect::<Vec<_>>().join(".");
+            mod_info.version = Some(version_str);
         }
 
-        let symbols = module.symbol_file_spec();
-        if symbols.is_valid() {
-            msg.symbol_status = Some("Symbols loaded.".into());
-            msg.symbol_file_path = Some(module.symbol_file_spec().path().display().to_string());
+        let range_start = module.object_header_address().load_address(&self.target);
+        let mut range_end = range_start;
+        for section in module.sections() {
+            let sec_start = section.load_address(&self.target);
+            if sec_start != INVALID_ADDRESS {
+                let sec_end = sec_start + section.byte_size() as Address;
+                range_end = cmp::max(range_end, sec_end);
+            }
+        }
+        mod_info.address_range = Some(format!("{:X} - {:X}", range_start, range_end));
+
+        let symbol_status = if module.num_compile_units() > 0 {
+            "Source debug info"
+        } else if module.num_symbols() > 0 {
+            "Public symbols only"
         } else {
-            msg.symbol_status = Some("Symbols not found".into())
+            "No symbols"
+        };
+        mod_info.symbol_status = Some(symbol_status.into());
+
+        let symbol_file = module.symbol_file_spec();
+        if symbol_file.is_valid() {
+            mod_info.symbol_file_path = Some(module.symbol_file_spec().path().display().to_string());
         }
 
-        msg
+        mod_info
     }
 
     fn handle_thread_event(&mut self, event: &SBThreadEvent) {

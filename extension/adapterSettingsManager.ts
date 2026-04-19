@@ -54,12 +54,10 @@ export class AdapterSettingsManager extends DisposableSubscriber {
         this.status.hide();
 
         this.subscriptions.push(debug.onDidChangeActiveDebugSession(session => {
-            if (session && session.type == 'lldb') {
+            if (session && session.type == 'lldb')
                 this.status.show();
-                this.propagateDisplaySettings();
-            } else {
+            else
                 this.status.hide();
-            }
         }));
 
         this.propagateDisplaySettings();

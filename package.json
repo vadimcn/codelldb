@@ -873,6 +873,7 @@
 				"darwin-arm64": "codelldb-darwin-arm64.vsix",
 				"win32-x64": "codelldb-win32-x64.vsix",
 				"win32-ia32": "codelldb-win32-x64.vsix"
+				"win32-arm64": "codelldb-win32-arm64.vsix"
 			}
 		}
 	}

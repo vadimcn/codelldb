@@ -27,7 +27,7 @@ mkdir build  # The build directory may be changed, however tasks.json assumes it
 cd build
 cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-x86_64-linux-gnu.cmake -DLLDB_PACKAGE=${path to LLDB package}
 ```
-On other platforms, alter the toolchain file path accordingly.  You *will* get linker errors if you don't use the toolchain file.
+On other platforms, alter the toolchain file path accordingly. You *will* get linker errors if you don't use the toolchain file.
 
 If building LLDB from source, you can also do this:
 ```bash
@@ -36,7 +36,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-x86_64-linux-gnu.cmake -DLLDB
 The last parameter may be omitted if the LLVM build directory is located in the source tree.
 
 ## VSCode
-If you intend to run and debug tests in VSCode, you may want to create a symlink from `<souce>/.cargo/config.toml`
+If you intend to run and debug tests in VSCode, you may want to create a symlink from `<source>/.cargo/config.toml`
 to `<build>/.cargo/config.toml`.
 
 # Build
@@ -61,12 +61,12 @@ ctest -V -R ${regex} # Run test(s) matching the regex
 
 ## Running tests under debugger
 - Launch codelldb under the debugger with `--multi-session --port=4711`.
-- Run tests with the following environment variable set: `LLDB_SERVER=4711`.  For example: `LLDB_SERVER=4711 make check`.
+- Run tests with the following environment variable set: `LLDB_SERVER=4711`. For example: `LLDB_SERVER=4711 make check`.
 
 ## Useful targets:
-- `dev_debugging` - build extension, adapter, debuggee and other stuff needed for debugging extension directly out of
-   the build directory. After building this target you can run `code --extensionDevelopmentPath=${workspaceFolder}/build`
-   to try out the extension.
+- `dev_debugging` - build extension, adapter, debuggee and other stuff needed for debugging the extension directly out of
+  the build directory. After building this target you can run `code --extensionDevelopmentPath=${workspaceFolder}/build`
+  to try out the extension.
 - `adapter` - build the debug adapter.
 - `extension` - build VSCode extension.
 - `debuggee` - build debuggee subproject (used for testing).
@@ -74,4 +74,4 @@ ctest -V -R ${regex} # Run test(s) matching the regex
 - `check` - run all tests.
 - `vsix_bootstrap` - build VSIX package containing only the VSCode extension.
 - `vsix_full` - build VSIX package including all required native binaries (for the current platform).
-- `xclean` - extra-thorough cleaning.  Useful in cases of build problems caused by stale dependencies.
+- `xclean` - extra-thorough cleaning. Useful in cases of build problems caused by stale dependencies.

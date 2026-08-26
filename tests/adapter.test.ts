@@ -350,6 +350,53 @@ function generateSuite(triple: string) {
                 assert.equal(response4.body.variables[0].value, '20');
             });
 
+            test('restart top frame', async function () {
+                let bpLine = findMarker(debuggeeSource, '#BP2');
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['deepstack'] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
+                let stack = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
+                let frame = stack.body.stackFrames[0];
+                assert.equal(frame.canRestart, true);
+
+                let restartStopped = ds.waitForStopEvent();
+                await ds.restartFrameRequest({ frameId: frame.id });
+                await restartStopped;
+
+                let restartedStack = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
+                assert.equal(restartedStack.body.stackFrames[0].name, 'deepstack(int)');
+                let scopes = await ds.scopesRequest({ frameId: restartedStack.body.stackFrames[0].id });
+                let variables = await ds.variablesRequest({ variablesReference: scopes.body.scopes[0].variablesReference });
+                assert.equal(variables.body.variables[0].name, 'levelsToGo');
+                assert.equal(variables.body.variables[0].value, '0');
+            });
+
+            test('restart deep frame', async function () {
+                let bpLine = findMarker(debuggeeSource, '#BP2');
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: debuggee, args: ['deepstack'] },
+                    () => ds.setBreakpoint(debuggeeSource, bpLine)
+                );
+                let stack = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 20, levels: 1 });
+                let oldFrameId = stack.body.stackFrames[0].id;
+                let oldScopes = await ds.scopesRequest({ frameId: oldFrameId });
+                let oldVariablesReference = oldScopes.body.scopes[0].variablesReference;
+
+                let restartStopped = ds.waitForStopEvent();
+                await ds.restartFrameRequest({ frameId: oldFrameId });
+                await restartStopped;
+
+                await assert.rejects(ds.scopesRequest({ frameId: oldFrameId }));
+                await assert.rejects(ds.variablesRequest({ variablesReference: oldVariablesReference }));
+
+                let restartedStack = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, startFrame: 0, levels: 1 });
+                let scopes = await ds.scopesRequest({ frameId: restartedStack.body.stackFrames[0].id });
+                let variables = await ds.variablesRequest({ variablesReference: scopes.body.scopes[0].variablesReference });
+                assert.equal(variables.body.variables[0].name, 'levelsToGo');
+                assert.equal(variables.body.variables[0].value, '20');
+            });
+
             test('invalid stack frame', async function () {
                 let stoppedEvent = await ds.launchAndWaitForStop(
                     { name: this.test.title, program: debuggee, args: ['invalid_stack_frame'] }
@@ -357,7 +404,9 @@ function generateSuite(triple: string) {
                 let response = await ds.stackTraceRequest({ threadId: stoppedEvent.body.threadId, levels: 2 });
                 assert.equal(response.body.stackFrames.length, 2)
                 assert.equal(response.body.stackFrames[0].instructionPointerReference, '0x0');
+                assert.equal(response.body.stackFrames[0].canRestart, false);
                 assert.notEqual(response.body.stackFrames[1].instructionPointerReference, '0x0');
+                assert.equal(response.body.stackFrames[1].canRestart, true);
                 assert.equal(response.body.stackFrames[1].name, 'main');
             });
 

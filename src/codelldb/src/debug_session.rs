@@ -615,6 +615,7 @@ impl DebugSession {
             supports_log_points: Some(true),
             supports_modules_request: Some(true),
             supports_read_memory_request: Some(true),
+            supports_restart_frame: Some(true),
             supports_restart_request: Some(true),
             supports_set_variable: Some(true),
             supports_step_in_targets_request: Some(lldb_stub::v16.resolve().is_ok()),
@@ -716,6 +717,7 @@ impl DebugSession {
 
             let mut stack_frame: StackFrame = Default::default();
             stack_frame.id = handle;
+            stack_frame.can_restart = Some(self.restart_frame_address(&frame).is_some());
             let pc_address = frame.pc_address();
             stack_frame.instruction_pointer_reference = Some(format!("0x{:X}", pc_address.load_address(&self.target)));
             stack_frame.name = if let Some(name) = frame.function_name() {
@@ -1027,7 +1029,22 @@ impl DebugSession {
             _ => bail!("Invalid frameId"),
         };
         let thread = frame.thread();
-        thread.return_from_frame(&frame)?;
+        let frame_id = frame.frame_id();
+        let Some(restart_address) = self.restart_frame_address(&frame) else {
+            bail!("This stack frame cannot be restarted.");
+        };
+
+        if frame_id > 0 {
+            let younger_frame = thread.frame_at_index(frame_id - 1).check().ok_or("Invalid younger frame")?;
+            thread.return_from_frame(&younger_frame)?;
+        }
+
+        let restarted_frame = thread.frame_at_index(0).check().ok_or("Invalid restarted frame")?;
+        self.before_resume();
+        if !restarted_frame.set_pc(restart_address) {
+            bail!(str_error("Failed to reset the instruction pointer."));
+        }
+
         self.send_event(EventBody::stopped(StoppedEventBody {
             thread_id: Some(thread.thread_id() as i64),
             all_threads_stopped: Some(true),
@@ -1035,6 +1052,24 @@ impl DebugSession {
             ..Default::default()
         }));
         Ok(())
+    }
+
+    // Return the post-prologue address for a restartable physical frame.
+    fn restart_frame_address(&self, frame: &SBFrame) -> Option<Address> {
+        if frame.is_inlined() || frame.is_artificial() || frame.is_synthetic() {
+            return None;
+        }
+
+        let function = frame.function();
+        if !function.is_valid() {
+            return None;
+        }
+        let load_address = function.start_address().load_address(&self.target);
+        if load_address != lldb::INVALID_ADDRESS {
+            load_address.checked_add(function.prologue_byte_size() as u64)
+        } else {
+            None
+        }
     }
 
     fn handle_data_breakpoint_info(
@@ -1424,6 +1459,7 @@ impl DebugSession {
         }));
     }
 
+    // Invalidate handles and cached state tied to the current stop.
     fn before_resume(&mut self) {
         self.var_refs.reset();
         self.selected_frame_changed = false;

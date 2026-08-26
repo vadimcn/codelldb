@@ -5,6 +5,26 @@ cpp_class!(pub unsafe struct SBFrame as "SBFrame");
 unsafe impl Send for SBFrame {}
 
 impl SBFrame {
+    pub fn frame_id(&self) -> u32 {
+        cpp!(unsafe [self as "SBFrame*"] -> u32 as "uint32_t" {
+            return self->GetFrameID();
+        })
+    }
+    pub fn is_inlined(&self) -> bool {
+        cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {
+            return self->IsInlined();
+        })
+    }
+    pub fn is_artificial(&self) -> bool {
+        cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {
+            return self->IsArtificial();
+        })
+    }
+    pub fn is_synthetic(&self) -> bool {
+        cpp!(unsafe [self as "SBFrame*"] -> bool as "bool" {
+            return self->IsSynthetic();
+        })
+    }
     pub fn function_name(&self) -> Option<&str> {
         let ptr = cpp!(unsafe [self as "SBFrame*"] -> *const c_char as "const char*" {
             return self->GetFunctionName();

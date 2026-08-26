@@ -33,6 +33,11 @@ impl SBFunction {
             return self->GetEndAddress();
         })
     }
+    pub fn prologue_byte_size(&self) -> u32 {
+        cpp!(unsafe [self as "SBFunction*"] -> u32 as "uint32_t" {
+            return self->GetPrologueByteSize();
+        })
+    }
 }
 
 impl PartialEq for SBFunction {

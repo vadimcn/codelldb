@@ -1,5 +1,16 @@
 # Release Notes
 
+# Unreleased
+
+### Changed
+- Simple expressions: identifiers which could not be resolved are now remembered, so the cost of finding
+  that out is paid once per scope instead of on every stop.  Resolving a name that does not exist is
+  expensive twice over - `SBFrame::FindValue()` materializes the compile unit's globals and statics, and
+  `SBFrame::EvaluateExpression()` brings up the C++ expression parser - and in a large program each of
+  those takes seconds.  Since watch expressions are re-evaluated every time the debuggee stops, a single
+  stale watch expression could add that to every step.  (Measured on an MFC/boost application: 3.4 s in
+  FindValue plus 2.7 s in EvaluateExpression, on every step.)
+
 # 1.12.3
 
 ### Changed

@@ -145,6 +145,11 @@ def initialize(init_callback_addr, callback_context, send_message_addr, log_leve
 
 session_stdouts = {}
 
+# Expressions which LLDB's native evaluator has already failed to resolve, keyed by debugger id.
+# See nat_eval() for why these are remembered.
+unresolved_exprs = {}
+MAX_UNRESOLVED_EXPRS = 1000
+
 
 @CFUNCTYPE(c_bool, RustSBDebugger, c_size_t)
 def session_init(debugger, console_fd):
@@ -155,6 +160,7 @@ def session_init(debugger, console_fd):
             import msvcrt
             console_fd = msvcrt.open_osfhandle(console_fd, 0)  # pyright: ignore
         session_stdouts[debugger.GetID()] = os.fdopen(console_fd, 'w', 1, 'utf-8')  # line-buffered
+        unresolved_exprs[debugger.GetID()] = {}
         commands.register(debugger)
         # Init session dictionary
         globals = get_instance_dict(debugger)
@@ -172,6 +178,7 @@ def session_deinit(debugger):
     try:
         debugger = into_swig_wrapper(debugger, RustSBDebugger)
         del session_stdouts[debugger.GetID()]
+        unresolved_exprs.pop(debugger.GetID(), None)
     except Exception as err:
         log.exception('session_deinit failed')
     return True
@@ -402,6 +409,30 @@ def current_frame() -> lldb.SBFrame:
 def nat_eval(sbframe, expr):
     val = sbframe.FindVariable(expr)
     if not val.IsValid():
+        # FindVariable() above is a cheap lookup of the frame's own variables; everything below is not.
+        # FindValue() has to materialize the compile unit's globals and statics, and EvaluateExpression()
+        # brings up the C++ expression parser, which must exhaust every lookup path before it can report
+        # an undeclared identifier.  In a large program each of those takes seconds, and since watch
+        # expressions are re-evaluated on every stop, a single stale watch adds that to every step.
+        # Remember the failures so we pay for them once rather than on every stop.
+        #
+        # This cannot mask a variable that has since come into scope: those are found by FindVariable(),
+        # which always runs first.  What it remembers is that nothing outside the frame's own variables
+        # matched, which for a given scope can only change when modules are loaded or unloaded - hence
+        # the enclosing function (unqualified lookup depends on it) and the module count in the key.
+        #
+        # Note this is sound only because `expr` is always a name here: the simple-expression dialect
+        # evaluates operators, indexing and member access itself and hands __eval() a single, possibly
+        # qualified, identifier.  A failure is therefore a name resolution failure, not one that depends
+        # on the value or state of anything - which is why native expressions are not cached this way.
+        target = sbframe.GetThread().GetProcess().GetTarget()
+        cache = unresolved_exprs.get(target.GetDebugger().GetID())
+        key = (expr, sbframe.GetFunctionName(), target.GetNumModules())
+        if cache is not None:
+            error = cache.get(key)
+            if error is not None:
+                raise Exception(error)
+
         for val_type in [lldb.eValueTypeVariableGlobal,
                          lldb.eValueTypeVariableStatic,
                          lldb.eValueTypeRegister,
@@ -409,13 +440,18 @@ def nat_eval(sbframe, expr):
             val = sbframe.FindValue(expr, val_type)
             if val.IsValid():
                 break
-    if not val.IsValid():
-        val = sbframe.GetValueForVariablePath(expr)
-    if not val.IsValid():
-        val = sbframe.EvaluateExpression(expr)
-        err = val.GetError()
-        if err.Fail():
-            raise Exception(err.GetCString())
+        if not val.IsValid():
+            val = sbframe.GetValueForVariablePath(expr)
+        if not val.IsValid():
+            val = sbframe.EvaluateExpression(expr)
+            err = val.GetError()
+            if err.Fail():
+                error = err.GetCString()
+                if cache is not None:
+                    if len(cache) >= MAX_UNRESOLVED_EXPRS:
+                        cache.clear()
+                    cache[key] = error
+                raise Exception(error)
     return Value(val)
 
 

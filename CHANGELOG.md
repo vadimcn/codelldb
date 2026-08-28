@@ -11,6 +11,11 @@
   stale watch expression could add that to every step.  (Measured on an MFC/boost application: 3.4 s in
   FindValue plus 2.7 s in EvaluateExpression, on every step.)
 
+### New
+- A warning is now printed to the debug console when a watch or hover expression takes more than half a
+  second to evaluate.  Such expressions are re-evaluated on every stop, so they add their cost to every
+  step, and until now there was nothing to connect the sluggishness to its cause.
+
 # 1.12.3
 
 ### Changed

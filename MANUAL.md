@@ -703,6 +703,18 @@ of new data types, instantiation of C++ classes, invocation of functions and cla
 Note, however, that native evaluators ignore data formatters and operate on "raw" values,
 thus they are often not as convenient as "simple" or "python" expressions.
 
+### The cost of expressions that do not resolve
+
+Expressions in the WATCH panel are re-evaluated every time the debuggee stops, so their cost is added to
+every step.  Expressions that *fail* to resolve in the current frame are the expensive ones: before it can
+report "undeclared identifier", the debugger has to materialize the compile unit's globals and statics and
+then run its C++ expression parser, which in a large program with many loaded modules can take seconds.
+
+For simple expressions CodeLLDB remembers such failures, so the cost is paid once per scope rather than on
+every step, but the first evaluation is still slow.  A warning is printed to the debug console when an
+automatically re-evaluated expression takes more than half a second, naming the expression - if stepping
+has become sluggish, that is the first thing to look for.
+
 ## Agent-assisted debugging
 
 CodeLLDB provides tools that allow LLM agents to interact with active debug sessions.

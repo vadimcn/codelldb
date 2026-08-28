@@ -16,6 +16,9 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::time;
 
+/// Automatically re-evaluated expressions taking longer than this are reported to the user.
+const SLOW_EVALUATION_THRESHOLD: time::Duration = time::Duration::from_millis(500);
+
 pub enum Container {
     StackFrame(SBFrame),
     Locals(SBFrame),
@@ -443,6 +446,7 @@ impl super::DebugSession {
         };
 
         let context = args.context.as_ref().map(|s| s.as_ref());
+        let started_at = time::Instant::now();
         let result = match context {
             Some("repl") => match self.console_mode {
                 ConsoleMode::Commands => {
@@ -475,6 +479,22 @@ impl super::DebugSession {
             // "watch"
             _ => self.handle_evaluate_expression(&args.expression, frame, false),
         };
+
+        // Watch and hover expressions are re-evaluated every time the debuggee stops, so a slow one
+        // adds its cost to every step.  This is not visible to the user - all they see is that stepping
+        // has become sluggish - so point it out, once per expression.  Expressions that fail to resolve
+        // are the usual culprits: the debugger has to exhaust every lookup path before giving up.
+        if matches!(context, Some("watch") | Some("hover") | None) {
+            let elapsed = started_at.elapsed();
+            if elapsed > SLOW_EVALUATION_THRESHOLD && self.slow_evaluations.insert(args.expression.clone()) {
+                self.console_error(format!(
+                    "Evaluating \"{}\" took {:.1} s.  This expression is re-evaluated every time the debuggee \
+                     stops, so it delays each step by that much.  Consider removing it from the Watch list.",
+                    args.expression,
+                    elapsed.as_secs_f32()
+                ));
+            }
+        }
 
         // Return async, even though we already have the response,
         // so that evaluator's stdout messages get displayed first.

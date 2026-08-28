@@ -27,7 +27,7 @@ use variables::Container;
 use std;
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::CStr;
 use std::fmt::Write;
@@ -73,6 +73,7 @@ pub struct DebugSession {
     selected_frame_changed: bool,
     last_goto_request: Option<GotoTargetsArguments>,
     step_in_targets: Vec<step_in::StepInTargetInternal>,
+    slow_evaluations: HashSet<String>, // Auto-evaluated expressions we've already warned about
 
     client_caps: MustInitialize<InitializeRequestArguments>,
 
@@ -167,6 +168,7 @@ impl DebugSession {
             selected_frame_changed: false,
             last_goto_request: None,
             step_in_targets: Vec::new(),
+            slow_evaluations: HashSet::new(),
 
             client_caps: NotInitialized,
 

@@ -274,12 +274,19 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/debuggee
     )
 else()
+    if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+        set(ToolchainTripleGnu x86_64-windows-gnu)
+        set(ToolchainTripleMsvc x86_64-windows-msvc)
+    elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64")
+        set(ToolchainTripleGnu aarch64-windows-gnullvm)
+        set(ToolchainTripleMsvc aarch64-windows-msvc)
+    endif()
     # On Windows we want to check both GNU DWARF and MSVC PDB debug info kinds.
     message("Configuring debuggee")
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee)
     execute_process(
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
-                                 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-gnu.cmake
+                                 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-${ToolchainTripleGnu}.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee
         COMMAND_ERROR_IS_FATAL ANY
     )
@@ -287,7 +294,7 @@ else()
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc)
     execute_process(
         COMMAND ${CMAKE_COMMAND} ${CMAKE_SOURCE_DIR}/debuggee -G${CMAKE_GENERATOR} -DCMAKE_BUILD_TYPE=Debug
-                                 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-x86_64-windows-msvc.cmake
+                                 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchain-${ToolchainTripleMsvc}.cmake
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/debuggee-msvc
         COMMAND_ERROR_IS_FATAL ANY
     )
@@ -308,7 +315,11 @@ set(MochaTest ${NPM} run mocha --
 )
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-    set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
+    if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+        set(TestTriples x86_64-pc-windows-gnu x86_64-pc-windows-msvc)
+    elseif (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "ARM64")
+        set(TestTriples aarch64-pc-windows-gnullvm aarch64-pc-windows-msvc)
+    endif()
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(TestTriples x86_64-apple-darwin)
 else()

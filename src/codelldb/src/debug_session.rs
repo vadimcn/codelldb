@@ -1,6 +1,7 @@
 mod breakpoints;
 mod debugger_terminal;
 mod disassemble;
+mod eval_watchdog;
 mod launch;
 mod step_in;
 mod variables;

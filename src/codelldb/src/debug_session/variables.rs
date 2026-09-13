@@ -4,6 +4,7 @@ use crate::expressions::{self, FormatSpec, PreparedExpression};
 use crate::handles::Handle;
 use crate::python::EvalContext;
 
+use super::eval_watchdog::EvalWatchdog;
 use super::into_string_lossy;
 use super::AsyncResponse;
 
@@ -66,6 +67,11 @@ impl super::DebugSession {
     }
 
     pub(super) fn handle_variables(&mut self, args: VariablesArguments) -> Result<VariablesResponseBody, Error> {
+        let deadline = time::Instant::now() + self.evaluation_timeout;
+        let watchdog = self
+            .python
+            .as_ref()
+            .map(|python| EvalWatchdog::start(deadline, python.interrupt_sender()));
         let container_handle = args.variables_reference;
         let container = self.var_refs.get(container_handle).ok_or(str_error("Invalid variabes reference"))?;
         let variables = match container {
@@ -78,10 +84,11 @@ impl super::DebugSession {
                     in_scope_only: true,
                 });
                 let mut vars_iter = variables.iter();
-                let mut variables = self.convert_scope_values(&mut vars_iter, "", Some(container_handle), true)?;
+                let mut variables =
+                    self.convert_scope_values(&mut vars_iter, "", Some(container_handle), true, &watchdog)?;
                 // Prepend last function return value, if any.
                 if let Some(ret_val) = ret_val {
-                    let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle));
+                    let mut variable = self.var_to_variable(&ret_val, "", Some(container_handle), &watchdog);
                     variable.name = "[return value]".to_owned();
                     variables.insert(0, variable);
                 }
@@ -95,7 +102,7 @@ impl super::DebugSession {
                     in_scope_only: true,
                 });
                 let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableStatic);
-                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false, &watchdog)?
             }
             Container::Globals(frame) => {
                 let variables = frame.variables(&VariableOptions {
@@ -105,19 +112,24 @@ impl super::DebugSession {
                     in_scope_only: true,
                 });
                 let mut vars_iter = variables.iter().filter(|v| v.value_type() == ValueType::VariableGlobal);
-                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false, &watchdog)?
             }
             Container::Registers(frame) => {
                 let list = frame.registers();
                 let mut vars_iter = list.iter();
-                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false)?
+                self.convert_scope_values(&mut vars_iter, "", Some(container_handle), false, &watchdog)?
             }
             Container::SBValue(var) => {
                 let container_eval_name = self.compose_container_eval_name(container_handle);
                 let var = var.clone();
                 let mut vars_iter = var.children();
-                let mut variables =
-                    self.convert_scope_values(&mut vars_iter, &container_eval_name, Some(container_handle), false)?;
+                let mut variables = self.convert_scope_values(
+                    &mut vars_iter,
+                    &container_eval_name,
+                    Some(container_handle),
+                    false,
+                    &watchdog,
+                )?;
                 // If synthetic, add [raw] view.
                 if var.is_synthetic() {
                     let raw_var = var.non_synthetic_value();
@@ -135,6 +147,12 @@ impl super::DebugSession {
             }
             Container::StackFrame(_) => vec![],
         };
+        let fired = watchdog.map(EvalWatchdog::disarm).unwrap_or(false);
+        if fired {
+            if let Some(python) = &self.python {
+                python.drain_interrupt();
+            }
+        }
         Ok(VariablesResponseBody { variables: variables })
     }
 
@@ -160,13 +178,14 @@ impl super::DebugSession {
         container_eval_name: &str,
         container_handle: Option<Handle>,
         deduplicate: bool,
+        watchdog: &Option<EvalWatchdog>,
     ) -> Result<Vec<Variable>, Error> {
         let mut variables = vec![];
         let mut variables_idx = HashMap::new();
 
         let start = time::SystemTime::now();
         for var in vars_iter {
-            let variable = self.var_to_variable(&var, container_eval_name, container_handle);
+            let variable = self.var_to_variable(&var, container_eval_name, container_handle, watchdog);
 
             if deduplicate {
                 if let Some(idx) = variables_idx.get(&variable.name) {
@@ -204,7 +223,9 @@ impl super::DebugSession {
         var: &SBValue,
         container_eval_name: &str,
         container_handle: Option<Handle>,
+        watchdog: &Option<EvalWatchdog>,
     ) -> Variable {
+        let _guard = watchdog.as_ref().map(|w| w.guard());
         let name = var.name().unwrap_or_default();
         let dtype = var.display_type_name();
         if self.global_format != Format::Default {
@@ -212,6 +233,8 @@ impl super::DebugSession {
         }
         let value = self.get_var_summary(&var, false);
         let handle = self.get_var_handle(container_handle, name, &var);
+        let timed_out = watchdog.as_ref().map_or(false, |w| w.fired());
+        drop(_guard);
 
         let eval_name = if var.prefer_synthetic_value() {
             Some(compose_eval_name(container_eval_name, name))
@@ -251,6 +274,8 @@ impl super::DebugSession {
             | BasicType::LongDouble => true,
             _ => false,
         };
+
+        let (value, handle) = if timed_out { ("<timed out>".to_owned(), None) } else { (value, handle) };
 
         Variable {
             name: name.to_owned(),

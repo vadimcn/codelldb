@@ -84,6 +84,7 @@ struct PythonCalls {
         exec_context: SBExecutionContext,
         eval_context: c_int,
     ) -> bool,
+    drain_interrupt: unsafe extern "C" fn() -> bool,
 }
 
 // Initialize Python interface.
@@ -132,7 +133,7 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
         pointers: *const *const c_void,
         pointers_len: usize,
     ) {
-        if pointers_len != 8 {
+        if pointers_len != 9 {
             error!("Invalid number of pointers passed to init_callback: {}", pointers_len);
             return;
         }
@@ -147,6 +148,7 @@ pub fn initialize(debugger: &SBDebugger, adapter_dir: &Path) -> Result<Arc<Pytho
             compile_code: mem::transmute(pointers[5]),
             evaluate_as_sbvalue: mem::transmute(pointers[6]),
             evaluate_as_bool: mem::transmute(pointers[7]),
+            drain_interrupt: mem::transmute(pointers[8]),
         };
         (*interface_ptr).py = Initialized(py_calls);
     }
@@ -341,6 +343,12 @@ impl PythonSession {
             info!("Sending interrupt to Python interpreter");
             interrupt_ptr();
         }
+    }
+
+    // Absorb a pending Python interrupt, if any, by executing a bit of no-op bytecode.
+    pub fn drain_interrupt(&self) {
+        debug!("Draining pending Python interrupt, if any");
+        unsafe { (self.interface.py.drain_interrupt)() };
     }
 }
 

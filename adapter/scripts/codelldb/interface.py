@@ -129,7 +129,8 @@ def initialize(init_callback_addr, callback_context, send_message_addr, log_leve
         handle_message,
         compile_code,
         evaluate_as_sbvalue,
-        evaluate_as_bool
+        evaluate_as_bool,
+        drain_interrupt,
     ]
     ptr_arr = (c_void_p * len(pointers))(*[cast(p, c_void_p) for p in pointers])
     init_callback = CFUNCTYPE(None, c_void_p, POINTER(c_void_p), c_size_t)(init_callback_addr)
@@ -256,6 +257,18 @@ decref = ctypes.pythonapi.Py_DecRef
 decref.argtypes = [ctypes.py_object]
 
 interrupt = ctypes.pythonapi.PyErr_SetInterrupt
+
+
+@CFUNCTYPE(c_bool)
+def drain_interrupt():
+    '''Execute a bit of bytecode so that a pending keyboard interrupt (posted
+    via PyErr_SetInterrupt) is delivered here, where it is harmless, instead of
+    landing in a later formatter evaluation.  See EvalWatchdog (Rust side).'''
+    try:
+        exec('pass')
+    except BaseException:
+        pass
+    return True
 
 dummy_sberror = lldb.SBError()
 

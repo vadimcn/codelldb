@@ -256,6 +256,7 @@ impl<'a> SBBreakpointEvent<'a> {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct BreakpointEventType : u32 {
         const InvalidType = (1 << 0);
         const Added = (1 << 1);
@@ -297,6 +298,7 @@ impl<'a> SBWatchpointEvent<'a> {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct WatchpointEventType : u32 {
         const InvalidType = (1 << 0);
         const Added = (1 << 1);

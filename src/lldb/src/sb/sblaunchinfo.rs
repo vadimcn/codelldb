@@ -139,6 +139,7 @@ impl SBLaunchInfo {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct LaunchFlag : u32 {
         const None = 0;
         // Exec when launching and turn the calling

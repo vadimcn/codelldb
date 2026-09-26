@@ -59,6 +59,7 @@ impl fmt::Debug for SBSymbolContext {
 // in this class, and requests that that item be resolved, or
 // indicates that the member did get resolved.
 bitflags! {
+    #[derive(Debug)]
     pub struct SymbolContextScope : u32 {
         ///< Set when \a target is requested from
         ///a query, or was located in query

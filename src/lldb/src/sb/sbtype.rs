@@ -154,6 +154,7 @@ impl fmt::Debug for SBType {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct TypeClass : u32 {
         const Invalid = (0);
         const Array = (1 << 0);
@@ -182,6 +183,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct TypeFlags : u32 {
         const HasChildren = (1 << 0);
         const HasValue = (1 << 1);

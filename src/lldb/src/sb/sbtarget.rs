@@ -398,6 +398,7 @@ pub enum LanguageType {
 }
 
 bitflags! {
+    #[derive(Debug)]
     pub struct FunctionNameType : u32 {
         const None = 0;
         // Automatically figure out which FunctionNameType

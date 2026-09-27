@@ -127,7 +127,7 @@ impl DebugSession {
                 req.hit_condition.as_deref(),
             );
             self.init_bp_actions(&bp_info);
-            let mut breakpoint = self.make_bp_response(&bp_info, false);
+            let mut breakpoint = self.make_bp_response(&bp_info, true);
             // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings.
             if bp_info.breakpoint.num_locations() == 0 && matches!(self.breakpoint_mode, BreakpointMode::Path) {
                 if let Some((path, line)) = self.get_breakpoint_hint(&file_path_norm, req.line, req.column) {
@@ -345,7 +345,7 @@ impl DebugSession {
             );
             self.init_bp_actions(&bp_info);
 
-            result.push(self.make_bp_response(&bp_info, false));
+            result.push(self.make_bp_response(&bp_info, true));
             new_bps.insert(req.name, bp_info.id);
             breakpoint_infos.insert(bp_info.id, bp_info);
         }
@@ -506,36 +506,30 @@ impl DebugSession {
                 ..Default::default()
             }
         } else {
+            let mut source = None;
+            let mut source_line = None;
+            if include_source {
+                let address = bp_info.breakpoint.location_at_index(0).address();
+                if let Some(le) = address.line_entry() {
+                    let file_path = le.file_spec().path();
+                    source = Some(Source {
+                        name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
+                        path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
+                        ..Default::default()
+                    });
+                    source_line = Some(le.line() as i64);
+                }
+            }
+
             match &bp_info.kind {
                 BreakpointKind::Source => {
-                    let address = bp_info.breakpoint.location_at_index(0).address();
-                    if let Some(le) = address.line_entry() {
-                        let source = if include_source {
-                            let file_path = le.file_spec().path();
-                            Some(Source {
-                                name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
-                                path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
-                                ..Default::default()
-                            })
-                        } else {
-                            None
-                        };
-
-                        Breakpoint {
-                            id: Some(bp_info.id as i64),
-                            source: source,
-                            line: Some(le.line() as i64),
-                            verified: bp_info.breakpoint.num_locations() > 0,
-                            message,
-                            ..Default::default()
-                        }
-                    } else {
-                        Breakpoint {
-                            id: Some(bp_info.id as i64),
-                            verified: false,
-                            message,
-                            ..Default::default()
-                        }
+                    Breakpoint {
+                        id: Some(bp_info.id as i64),
+                        source: source,
+                        line: source_line,
+                        verified: bp_info.breakpoint.num_locations() > 0,
+                        message,
+                        ..Default::default()
                     }
                 }
                 BreakpointKind::Disassembly => {
@@ -580,6 +574,8 @@ impl DebugSession {
                 BreakpointKind::Function => Breakpoint {
                     id: Some(bp_info.id as i64),
                     verified: bp_info.breakpoint.num_locations() > 0,
+                    source: source,
+                    line: source_line,
                     message,
                     ..Default::default()
                 },
@@ -715,7 +711,7 @@ impl DebugSession {
             }
         }
 
-        // If we are supposed to stop and there's a log message, evaluate and print the message, but don't stop.
+        // If we are supposed to stop, but there is a log message, evaluate and print the message, but don't stop.
         if let Some(ref log_message) = bp_info.log_message {
             let frame = thread.frame_at_index(0);
             let message = self.format_logpoint_message(log_message, &frame);
@@ -774,24 +770,26 @@ impl DebugSession {
         let mut breakpoints = self.breakpoints.borrow_mut();
 
         if event_type.intersects(BreakpointEventType::Added) {
-            // Don't notify client if we are already tracking this one.
-            // Also, don't notify for transient breakpoints.
-            if breakpoints.breakpoint_infos.contains_key(&bp.id()) || !bp.is_valid() {
-                return;
-            }
-            let bp_info = self.make_bp_info(bp, BreakpointKind::Source, None, None, None);
-            self.send_event(EventBody::breakpoint(BreakpointEventBody {
-                reason: "new".into(),
-                breakpoint: self.make_bp_response(&bp_info, true),
-            }));
-            breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
+            info!("Breakpoint added {}", bp.id());
+            // // Don't notify client if we are already tracking this one.
+            // // Also, don't notify for transient breakpoints.
+            // if breakpoints.breakpoint_infos.contains_key(&bp.id()) || !bp.is_valid() {
+            //     return;
+            // }
+            // let bp_info = self.make_bp_info(bp, BreakpointKind::Source, None, None, None);
+            // self.send_event(EventBody::breakpoint(BreakpointEventBody {
+            //     reason: "new".into(),
+            //     breakpoint: self.make_bp_response(&bp_info, true),
+            // }));
+            // breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
         } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
-            if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp.id()) {
-                self.send_event(EventBody::breakpoint(BreakpointEventBody {
-                    reason: "changed".into(),
-                    breakpoint: self.make_bp_response(bp_info, false),
-                }));
-            }
+            info!("Breakpoint changed {}: {:?}", bp.id(), event_type);
+            // if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp.id()) {
+            //     self.send_event(EventBody::breakpoint(BreakpointEventBody {
+            //         reason: "changed".into(),
+            //         breakpoint: self.make_bp_response(bp_info, false),
+            //     }));
+            // }
         } else if event_type.intersects(BreakpointEventType::Removed) {
             bp.clear_callback();
             // Send "removed" notification only if we are tracking this breakpoint,

@@ -50,7 +50,7 @@ use tokio::sync::{broadcast, mpsc};
 pub struct DebugSession {
     self_ref: MustInitialize<Shared<DebugSession>>,
     dap_session: DAPSession,
-    python: Option<PythonSession>,
+    python: Option<Arc<PythonSession>>,
     debug_event_listener: Arc<DebugEventListener>,
     current_cancellation: cancellation::Receiver, // Cancellation associated with the current request
     configuration_done_sender: broadcast::Sender<()>,
@@ -133,7 +133,7 @@ impl DebugSession {
 
         let (python, mut python_events_stream) = if let Some(python_interface) = python_interface {
             let (python, python_events) = python_interface.new_session(&debugger, con_writer.try_clone().unwrap());
-            (Some(python), python_events)
+            (Some(Arc::new(python)), python_events)
         } else {
             let (_, receiver) = mpsc::channel(1);
             (None, receiver)

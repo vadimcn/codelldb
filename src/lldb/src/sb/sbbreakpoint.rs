@@ -7,8 +7,11 @@ cpp_class!(pub unsafe struct SBBreakpoint as "SBBreakpoint");
 
 unsafe impl Send for SBBreakpoint {}
 
+type BreakpointCallback = Box<dyn FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send>;
+
 lazy_static::lazy_static! {
-    static ref CALLBACKS: Mutex<HashMap<BreakpointID, Box<dyn FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send>>> =
+    // None means the callback is currently running.
+    static ref CALLBACKS: Mutex<HashMap<SBBreakpoint, Option<BreakpointCallback>>> =
         Mutex::new(HashMap::new());
 }
 
@@ -16,6 +19,11 @@ impl SBBreakpoint {
     pub fn id(&self) -> BreakpointID {
         cpp!(unsafe [self as "SBBreakpoint*"] -> BreakpointID as "break_id_t" {
             return self->GetID();
+        })
+    }
+    pub fn target(&self) -> SBTarget {
+        cpp!(unsafe [self as "SBBreakpoint*"] -> SBTarget as "SBTarget" {
+            return self->GetTarget();
         })
     }
     /// How many locations have been matched in debug info.
@@ -74,9 +82,8 @@ impl SBBreakpoint {
             })
         })
     }
-    // LLDB API does not provide automatic tracking of callback lifetimes; in order to prevent a memory leak,
-    // be sure to call clear_callback().  The easiest way to accomplish this is by watching for "breakpoint removed"
-    // events.
+    // The SB API does not notify us when a breakpoint callback is discarded.
+    // Clients must call clear_callback() to release the Rust closure when the breakpoint is removed.
     pub fn set_callback<F>(&self, callback: F)
     where
         F: FnMut(&SBProcess, &SBThread, &SBBreakpointLocation) -> bool + Send + 'static,
@@ -87,22 +94,25 @@ impl SBBreakpoint {
             thread: *const SBThread,
             location: *const SBBreakpointLocation,
         ) -> bool {
-            let bp_id = (*location).breakpoint().id();
-            let mut callbacks = CALLBACKS.lock().unwrap();
-            if let Some(callback) = callbacks.get_mut(&bp_id) {
-                callback(&*process, &*thread, &*location)
+            let bp = (*location).breakpoint();
+            let callback = CALLBACKS.lock().unwrap().get_mut(&bp).and_then(Option::take);
+            if let Some(mut callback) = callback {
+                let should_stop = callback(&*process, &*thread, &*location);
+                if let Some(slot) = CALLBACKS.lock().unwrap().get_mut(&bp) {
+                    if slot.is_none() {
+                        *slot = Some(callback);
+                    }
+                }
+                should_stop
             } else {
                 false
             }
         }
 
-        let bp_id = self.id();
-        let mut callbacks = CALLBACKS.lock().unwrap();
-        callbacks.insert(bp_id, Box::new(callback));
-
-        let cb = callback_thunk as *const c_void;
-        cpp!(unsafe [self as "SBBreakpoint*", cb as "SBBreakpointHitCallback"] {
-            self->SetCallback(cb, nullptr);
+        CALLBACKS.lock().unwrap().insert(self.clone(), Some(Box::new(callback)));
+        let thunk = callback_thunk as *const c_void;
+        cpp!(unsafe [self as "SBBreakpoint*", thunk as "SBBreakpointHitCallback"] {
+            self->SetCallback(thunk, nullptr);
         });
     }
     pub fn clear_callback(&self) {
@@ -110,11 +120,19 @@ impl SBBreakpoint {
             self->SetCallback(nullptr, nullptr);
         });
         let mut callbacks = CALLBACKS.lock().unwrap();
-        callbacks.remove(&self.id());
+        callbacks.remove(&self);
     }
-    pub fn clear_all_callbacks() {
-        let mut callbacks = CALLBACKS.lock().unwrap();
-        callbacks.clear();
+    // Clear callbacks for which filter(&breakpoint) returns true.
+    pub fn clear_callbacks(filter: impl Fn(&SBBreakpoint) -> bool) {
+        let bps: Vec<SBBreakpoint> = {
+            let callbacks = CALLBACKS.lock().unwrap();
+            callbacks.keys().cloned().collect()
+        };
+        for bp in bps {
+            if filter(&bp) {
+                bp.clear_callback();
+            }
+        }
     }
 }
 
@@ -123,6 +141,25 @@ impl IsValid for SBBreakpoint {
         cpp!(unsafe [self as "SBBreakpoint*"] -> bool as "bool" {
             return self->IsValid();
         })
+    }
+}
+
+impl PartialEq for SBBreakpoint {
+    fn eq(&self, other: &Self) -> bool {
+        cpp!(unsafe [self as "SBBreakpoint*", other as "SBBreakpoint*"] -> bool as "bool" {
+            return *self == *other;
+        })
+    }
+}
+
+impl Eq for SBBreakpoint {}
+
+impl std::hash::Hash for SBBreakpoint {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Breakpoints with the same ID in different targets of one debugger have
+        // identical hashes, but HashMap will distinguish them using target equality.
+        self.target().debugger().id().hash(state);
+        self.id().hash(state);
     }
 }
 

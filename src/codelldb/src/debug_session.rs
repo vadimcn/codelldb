@@ -232,12 +232,13 @@ impl DebugSession {
             // Session shutdown.
             shared_session
                 .map(|s| {
+                    // Clear any remaining callbacks owned by this session's debugger.
+                    SBBreakpoint::clear_callbacks(|bp| bp.target().debugger().id() == s.debugger.id());
                     log_errors!(s.destroy_debugger_terminal());
                     s.self_ref = NotInitialized;
                 })
                 .await;
 
-            SBBreakpoint::clear_all_callbacks(); // Callbacks hold references to the session.
 
             // There shouldn't be any other references at this point.
             if shared_session.ref_count() > 1 {

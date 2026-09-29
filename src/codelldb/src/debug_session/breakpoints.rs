@@ -1,11 +1,11 @@
-use crate::dap_session::DAPSession;
+use crate::debug_session::log_template::LogTemplate;
+use crate::debug_session::value_formatter::ValueFormatter;
 use crate::debug_session::DebugSession;
 use crate::disassembly;
-use crate::expressions::{self, HitCondition, PreparedExpression};
+use crate::expressions::{HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
 use crate::handles::Handle;
 use crate::prelude::*;
-use crate::python::{EvalContext, PyObject, PythonSession};
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -98,51 +98,6 @@ fn replace_breakpoint_index<K: Eq + Hash>(
     *existing = replacement;
 }
 
-fn breakpoint_should_stop(
-    info: &mut BreakpointInfo,
-    thread: &SBThread,
-    py_condition: Option<&(PyObject, EvalContext)>,
-    python: Option<&PythonSession>,
-    dap_session: &DAPSession,
-) -> bool {
-    if !info.exclusions.is_empty()
-        && thread
-            .frames()
-            .filter_map(|frame| frame.pc_address().symbol())
-            .any(|symbol| info.exclusions.iter().any(|exclusion| exclusion == symbol.name()))
-    {
-        return false;
-    }
-
-    if let Some((pycode, eval_context)) = py_condition {
-        let frame = thread.frame_at_index(0);
-        let exec_context = SBExecutionContext::from_frame(&frame);
-        // TODO: pass bpno
-        let should_stop = match python {
-            Some(python) => match python.evaluate_as_bool(pycode, &exec_context, *eval_context) {
-                Ok(value) => value,
-                Err(err) => {
-                    let event = EventBody::output(OutputEventBody {
-                        output: format!("Could not evaluate breakpoint condition:\n{}\n", err),
-                        category: Some("stderr".into()),
-                        ..Default::default()
-                    });
-                    log_errors!(dap_session.try_send_event(event));
-                    return true; // Stop on evaluation errors.
-                }
-            },
-            None => return true,
-        };
-        if !should_stop {
-            return false;
-        }
-    }
-
-    // LLDB counts callbacks even when they return false, but does not count hits rejected by a native condition.
-    info.hit_count += 1;
-    info.hit_condition.as_ref().map_or(true, |condition| condition.matches(info.hit_count))
-}
-
 const CPP_THROW: &str = "cpp_throw";
 const CPP_CATCH: &str = "cpp_catch";
 const RUST_PANIC: &str = "rust_panic";
@@ -211,6 +166,7 @@ impl DebugSession {
                 BreakpointKind::Source,
                 req.condition.as_deref(),
                 req.hit_condition.as_deref(),
+                req.log_message.as_deref(),
             );
             let (bp_id, num_locations, mut breakpoint) = {
                 let bp_info = bp_info.lock().unwrap();
@@ -309,6 +265,7 @@ impl DebugSession {
                 BreakpointKind::Disassembly,
                 req.condition.as_deref(),
                 req.hit_condition.as_deref(),
+                req.log_message.as_deref(),
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
@@ -348,6 +305,7 @@ impl DebugSession {
                     BreakpointKind::Disassembly,
                     req.condition.as_deref(),
                     req.hit_condition.as_deref(),
+                    req.log_message.as_deref(),
                 );
                 let (bp_id, response) = {
                     let bp_info = bp_info.lock().unwrap();
@@ -391,6 +349,7 @@ impl DebugSession {
                 BreakpointKind::Instruction,
                 req.condition.as_deref(),
                 req.hit_condition.as_deref(),
+                None,
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
@@ -435,6 +394,7 @@ impl DebugSession {
                 BreakpointKind::Function,
                 req.condition.as_deref(),
                 req.hit_condition.as_deref(),
+                None,
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
@@ -467,7 +427,8 @@ impl DebugSession {
         let mut result = vec![];
         for exc_name in &args.filters {
             if let Some(bp) = self.set_exception_breakpoint(exc_name) {
-                let bp_info = self.register_breakpoint(bp, BreakpointKind::Exception(exc_name.into()), None, None);
+                let bp_info =
+                    self.register_breakpoint(bp, BreakpointKind::Exception(exc_name.into()), None, None, None);
                 let (bp_id, response) = {
                     let bp_info = bp_info.lock().unwrap();
                     (bp_info.id, self.make_bp_response(&bp_info))
@@ -482,6 +443,7 @@ impl DebugSession {
                     bp,
                     BreakpointKind::Exception(filter.filter_id.clone()),
                     filter.condition.as_deref(),
+                    None,
                     None,
                 );
                 let (bp_id, response) = {
@@ -563,79 +525,133 @@ impl DebugSession {
         kind: BreakpointKind,
         condition: Option<&str>,
         hit_condition: Option<&str>,
+        log_message: Option<&str>,
     ) -> Arc<Mutex<BreakpointInfo>> {
         fn empty2none(s: Option<&str>) -> Option<&str> {
             s.map(str::trim).filter(|s| !s.is_empty())
         }
 
-        let py_condition = self.prepare_breakpoint_condition(&bp, empty2none(condition));
+        let py_condition = empty2none(condition).and_then(|condition| {
+            let prepared = match PreparedExpression::prepare(
+                condition,
+                self.default_expr_type,
+                self.python.as_ref(),
+                "<breakpoint condition>",
+            ) {
+                Ok(prepared) => prepared,
+                Err(err) => {
+                    self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
+                    return None;
+                }
+            };
+            if let Some(expr) = prepared.native_source() {
+                bp.set_condition(expr);
+                None
+            } else {
+                bp.set_condition(""); // In case native condition was already set
+                Some(prepared)
+            }
+        });
+
+        let hit_condition = empty2none(hit_condition).and_then(|expr| match HitCondition::parse(expr) {
+            Ok(hc) => Some(hc),
+            Err(_) => {
+                self.console_error(format!("Invalid hit condition: {}", expr));
+                None
+            }
+        });
+
+        let logpoint = empty2none(log_message).and_then(|message| {
+            match LogTemplate::prepare(message, self.default_expr_type, self.python.as_ref()) {
+                Ok(template) => Some((template, ValueFormatter::from_session(self, None))),
+                Err(error) => {
+                    self.console_error(error);
+                    None
+                }
+            }
+        });
+
         let bp_info = BreakpointInfo {
             id: bp.id(),
             breakpoint: bp,
             kind,
-            hit_condition: empty2none(hit_condition).and_then(|expr| match expressions::parse_hit_condition(expr) {
-                Ok(cond) => Some(cond),
-                Err(_) => {
-                    self.console_error(format!("Invalid hit condition: {}", expr));
-                    None
-                }
-            }),
+            hit_condition: hit_condition,
             hit_count: 0,
             exclusions: Vec::new(),
         };
 
-        let python = self.python.clone();
+        let is_logpoint = logpoint.is_some();
         let dap_session = self.dap_session.clone();
+        let console_message = move |category: &str, mut output: String| {
+            output.push('\n');
+            log_errors!(dap_session.try_send_event(EventBody::output(OutputEventBody {
+                output: output,
+                category: Some(category.into()),
+                ..Default::default()
+            })));
+        };
+
         let bp_info = Arc::new(Mutex::new(bp_info));
         let weak_bp_info = Arc::downgrade(&bp_info);
 
         bp_info.lock().unwrap().breakpoint.set_callback(move |_process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-            let Some(bp_info) = weak_bp_info.upgrade() else {
-                return true;
-            };
+
+            let bp_info = weak_bp_info.upgrade().expect("BreakpointInfo");
             let mut bp_info = bp_info.lock().unwrap();
-            breakpoint_should_stop(
-                &mut bp_info,
-                thread,
-                py_condition.as_ref(),
-                python.as_deref(),
-                &dap_session,
-            )
+
+            // Evaluate Python condition
+            if let Some(condition) = &py_condition {
+                let frame = thread.frame_at_index(0);
+                // TODO: pass bpno
+                let result = condition.evaluate_as_bool_in_frame(&frame).map_err(|err| err.to_string());
+                match result {
+                    Ok(true) => {}
+                    Ok(false) => return false,
+                    Err(err) => {
+                        drop(bp_info);
+                        console_message("stderr", format!("Could not evaluate breakpoint condition:\n{err}"));
+                        return !is_logpoint;
+                    }
+                }
+            }
+
+            // LLDB does not count hits rejected by a native condition, but does count callbacks returning false,
+            // so we maintain our own hit count for consistency.
+            bp_info.hit_count += 1;
+
+            // Evaluate hit_condition
+            if let Some(ref hit_condition) = bp_info.hit_condition {
+                if !hit_condition.matches(bp_info.hit_count) {
+                    return false;
+                }
+            }
+
+            // Handle caller exclusions
+            if !bp_info.exclusions.is_empty() {
+                for frame in thread.frames() {
+                    if let Some(symbol) = frame.pc_address().symbol() {
+                        let sym_name = symbol.name();
+                        if bp_info.exclusions.iter().any(|exclusion| exclusion == sym_name) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            //
+            if let Some((template, value_formatter)) = &logpoint {
+                match template.render(&thread.frame_at_index(0), value_formatter) {
+                    Ok(output) => console_message("console", output),
+                    Err(error) => console_message("stderr", error),
+                }
+                return false;
+            }
+
+            true
         });
 
         bp_info
-    }
-
-    fn prepare_breakpoint_condition(
-        &self,
-        bp: &SBBreakpoint,
-        condition: Option<&str>,
-    ) -> Option<(PyObject, EvalContext)> {
-        let condition = condition?;
-        let prepared = match expressions::prepare(condition, self.default_expr_type) {
-            Ok(prepared) => prepared,
-            Err(err) => {
-                self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
-                return None;
-            }
-        };
-        let (expr, eval_context) = match prepared {
-            PreparedExpression::Native(expr) => {
-                bp.set_condition(&expr);
-                return None;
-            }
-            PreparedExpression::Simple(expr) => (expr, EvalContext::SimpleExpression),
-            PreparedExpression::Python(expr) => (expr, EvalContext::PythonExpression),
-        };
-        let python = self.python.as_ref()?;
-        match python.compile_code(&expr, "<breakpoint condition>") {
-            Ok(pycode) => Some((pycode, eval_context)),
-            Err(err) => {
-                self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
-                None
-            }
-        }
     }
 
     // Generates a DAP Breakpoint from a registered breakpoint.

@@ -1,4 +1,9 @@
 use adapter_protocol::Expressions;
+use lldb::{SBExecutionContext, SBFrame, SBTarget, SBValue};
+use std::sync::Arc;
+
+use crate::prelude::{str_error, Error};
+use crate::python::{EvalContext, PyObject, PythonSession};
 
 #[macro_use]
 pub mod prelude {
@@ -59,40 +64,108 @@ mod qualified_ident;
 mod simple_expressions;
 
 pub use expression_format::{get_expression_format, FormatSpec};
-pub use hit_condition::{parse_hit_condition, HitCondition};
+pub use hit_condition::HitCondition;
 pub use preprocess::{preprocess_python_expr, preprocess_simple_expr};
 
-#[derive(Debug)]
 pub enum PreparedExpression {
     Native(String),
-    Simple(String),
-    Python(String),
+    Python {
+        code: PyObject,
+        eval_context: EvalContext,
+        python: Arc<PythonSession>,
+    },
 }
 
-// Parse expression type and preprocess it.
-pub fn prepare(expression: &str, default_type: Expressions) -> Result<PreparedExpression, prelude::Error> {
-    let (expr, ty) = get_expression_type(expression, default_type);
-    match ty {
-        Expressions::Native => Ok(PreparedExpression::Native(expr.to_owned())),
-        Expressions::Simple => Ok(PreparedExpression::Simple(preprocess_simple_expr(expr)?)),
-        Expressions::Python => Ok(PreparedExpression::Python(preprocess_python_expr(expr)?)),
+impl PreparedExpression {
+    // Parse, preprocess and, for Python-based expressions, compile an expression.
+    pub fn prepare(
+        expression: &str,
+        default_type: Expressions,
+        python: Option<&Arc<PythonSession>>,
+        filename: &str,
+    ) -> Result<Self, Error> {
+        let (expr, ty) = get_expression_type(expression, default_type);
+        Self::prepare_typed(expr, ty, python, filename)
     }
-}
 
-// Same as prepare(), but also parses formatting options at the end of expression,
-// for example, `value,x` to format value as hex or `ptr,[50]` to interpret `ptr` as an array of 50 elements.
-pub fn prepare_with_format(
-    expression: &str,
-    default_type: Expressions,
-) -> Result<(PreparedExpression, FormatSpec), prelude::Error> {
-    let (expr, ty) = get_expression_type(expression, default_type);
-    let (expr, format_spec) = get_expression_format(expr)?;
-    let pp_expr = match ty {
-        Expressions::Native => PreparedExpression::Native(expr.to_owned()),
-        Expressions::Simple => PreparedExpression::Simple(preprocess_simple_expr(expr)?),
-        Expressions::Python => PreparedExpression::Python(preprocess_python_expr(expr)?),
-    };
-    Ok((pp_expr, format_spec))
+    // Same as prepare(), but also parses formatting options at the end of expression.
+    pub fn prepare_with_format(
+        expression: &str,
+        default_type: Expressions,
+        python: Option<&Arc<PythonSession>>,
+        filename: &str,
+    ) -> Result<(Self, FormatSpec), Error> {
+        let (expr, ty) = get_expression_type(expression, default_type);
+        let (expr, format_spec) = get_expression_format(expr)?;
+        let expression = Self::prepare_typed(expr, ty, python, filename)?;
+        Ok((expression, format_spec))
+    }
+
+    fn prepare_typed(
+        expression: &str,
+        expression_type: Expressions,
+        python: Option<&Arc<PythonSession>>,
+        filename: &str,
+    ) -> Result<Self, Error> {
+        let (expression, eval_context) = match expression_type {
+            Expressions::Native => return Ok(Self::Native(expression.to_owned())),
+            Expressions::Simple => (preprocess_simple_expr(expression)?, EvalContext::SimpleExpression),
+            Expressions::Python => (preprocess_python_expr(expression)?, EvalContext::PythonExpression),
+        };
+        let python = python.ok_or_else(|| str_error("Python expressions are disabled."))?;
+        let code = python.compile_code(&expression, filename)?;
+        Ok(Self::Python {
+            code,
+            eval_context,
+            python: python.clone(),
+        })
+    }
+
+    pub fn native_source(&self) -> Option<&str> {
+        match self {
+            Self::Native(expr) => Some(expr),
+            _ => None,
+        }
+    }
+
+    pub fn evaluate_in_frame(&self, frame: &SBFrame) -> Result<SBValue, Error> {
+        match self {
+            Self::Native(expr) => Ok(frame.evaluate_expression(expr).into_result()?),
+            Self::Python {
+                code,
+                python,
+                eval_context,
+            } => Ok(python.evaluate(code, &SBExecutionContext::from_frame(frame), *eval_context)?),
+        }
+    }
+
+    // Preserve the existing frameless behavior: native expressions use the target,
+    // while Python-based expressions receive an empty execution context.
+    pub fn evaluate_in_target(&self, target: &SBTarget) -> Result<SBValue, Error> {
+        match self {
+            Self::Native(expr) => Ok(target.evaluate_expression(expr).into_result()?),
+            Self::Python {
+                code,
+                python,
+                eval_context,
+            } => Ok(python.evaluate(code, &SBExecutionContext::from_target(target), *eval_context)?),
+        }
+    }
+
+    pub fn evaluate_as_bool_in_frame(&self, frame: &SBFrame) -> Result<bool, Error> {
+        let exec_context = SBExecutionContext::from_frame(frame);
+        match self {
+            Self::Native(expr) => {
+                let value = frame.evaluate_expression(expr).into_result()?;
+                Ok(value.value_as_unsigned(0) != 0)
+            }
+            Self::Python {
+                code,
+                python,
+                eval_context,
+            } => Ok(python.evaluate_as_bool(code, &exec_context, *eval_context)?),
+        }
+    }
 }
 
 fn get_expression_type<'a>(expr: &'a str, default_type: Expressions) -> (&'a str, Expressions) {

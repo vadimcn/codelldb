@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
-use crate::expressions::{self, FormatSpec, PreparedExpression};
+use crate::expressions::{FormatSpec, PreparedExpression};
 use crate::handles::Handle;
-use crate::python::EvalContext;
 
 use super::into_string_lossy;
+use super::value_formatter::ValueFormatter;
 use super::AsyncResponse;
 
 use adapter_protocol::*;
@@ -13,7 +13,6 @@ use lldb::*;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::fmt::Write;
 use std::time;
 
 pub enum Container {
@@ -275,121 +274,8 @@ impl super::DebugSession {
 
     // Get displayable string from an SBValue
     pub(super) fn get_var_summary(&self, var: &SBValue, unlimited: bool) -> String {
-        let var_type = var.type_();
-
-        // Special case for Rust's unit type as LLDB returns an error for instances of void.
-        if var_type.basic_type() == BasicType::Void {
-            return "()".into();
-        }
-
-        let err = var.error();
-        if err.is_failure() {
-            return format!("<{}>", err);
-        }
-
-        let mut var = Cow::Borrowed(var);
-
-        // Rather than showing the pointer's numeric value, which is rather uninteresting, we display a summary
-        // of the object it points to (if deref_pointers is enabled).
-        if self.deref_pointers
-            && var.format() == Format::Default
-            && var_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference)
-        {
-            match self.try_deref_pointer(var.as_ref()) {
-                Either::First(summary) => return summary,
-                Either::Second(Some(pointee)) => var = Cow::Owned(pointee),
-                _ => {}
-            }
-        }
-
-        let summary = if let Some(summary_str) = var.summary().map(|s| into_string_lossy(s)) {
-            summary_str
-        } else if let Some(value_str) = var.value().map(|s| into_string_lossy(s)) {
-            value_str
-        } else if var.might_have_children() && var.num_children() > 0 {
-            // Try to synthesize a summary from var's children.
-            self.get_container_summary(var.as_ref(), unlimited)
-        } else {
-            // Otherwise give up.
-            "<not available>".to_owned()
-        };
-        summary
-    }
-
-    // This may return either a summary string or a pointee
-    fn try_deref_pointer(&self, ptr: &SBValue) -> Either<String, Option<SBValue>> {
-        // If the pointer has an associated synthetic, or if it's a pointer to a basic
-        // type such as `char`, use summary of the pointer itself;
-        // otherwise prefer to dereference and use summary of the pointee.
-        let pointee_type = ptr.type_().pointee_type();
-        if ptr.is_synthetic() || pointee_type.basic_type() != BasicType::Invalid {
-            if let Some(value_str) = ptr.summary().map(|s| into_string_lossy(s)) {
-                return Either::First(value_str);
-            }
-        }
-
-        if ptr.value_as_unsigned(0) == 0 {
-            return Either::First("<null>".to_owned());
-        }
-
-        let pointee = ptr.dereference();
-        if pointee.is_valid() {
-            if pointee.data().byte_size() > 0 {
-                if pointee_type.type_class().intersects(TypeClass::Pointer | TypeClass::Reference) {
-                    // If pointee is a pointer too, display its value in curly braces, otherwise it gets rather confusing.
-                    if let Some(value_str) = pointee.value().map(|s| into_string_lossy(s)) {
-                        return Either::First(format!("{{{}}}", value_str));
-                    }
-                }
-                return Either::Second(Some(pointee)); // The replacement value
-            } else {
-                return Either::First("<invalid address>".to_owned());
-            }
-        } else {
-            // Could be a void*.  Try reading one byte to determine wheter the address is valid.
-            let addr = ptr.value_as_unsigned(0);
-            let mut buff = [0u8];
-            if let Ok(1) = self.target.process().read_memory(addr, &mut buff) {
-                return Either::Second(None);
-            } else {
-                return Either::First("<invalid address>".to_owned());
-            }
-        }
-    }
-
-    // unlimited: if true, return the full summary without truncating or timing out.
-    fn get_container_summary(&self, var: &SBValue, unlimited: bool) -> String {
-        let start = time::SystemTime::now();
-        let mut summary = String::from("{");
-        let mut sep = "";
-        for child in var.children() {
-            let should_stop = self.current_cancellation.is_cancelled()
-                || (!unlimited
-                    && (summary.len() > self.max_summary_length
-                        || start.elapsed().unwrap_or_default() > self.summary_timeout));
-            if should_stop {
-                log_errors!(write!(summary, "{}...", sep));
-                break;
-            }
-
-            if let Some(name) = child.name() {
-                if let Some(Ok(value)) = child.summary().or_else(|| child.value()).map(|s| s.to_str()) {
-                    if name.starts_with("[") {
-                        log_errors!(write!(summary, "{}{}", sep, value));
-                    } else {
-                        log_errors!(write!(summary, "{}{}:{}", sep, name, value));
-                    }
-                    sep = ", ";
-                }
-            }
-        }
-
-        if summary.len() <= 1 {
-            summary.push_str("...");
-        }
-
-        summary.push_str("}");
-        summary
+        let formatter = ValueFormatter::from_session(self, Some(self.current_cancellation.clone()));
+        formatter.get_var_summary(var, unlimited)
     }
 
     // Retrieve the memory reference for a given variable.
@@ -519,8 +405,13 @@ impl super::DebugSession {
         for_clipboard: bool,
     ) -> Result<EvaluateResponseBody, Error> {
         // Expression
-        let (pp_expr, format_spec) =
-            expressions::prepare_with_format(expression, self.default_expr_type).map_err(blame_user)?;
+        let (pp_expr, format_spec) = PreparedExpression::prepare_with_format(
+            expression,
+            self.default_expr_type,
+            self.python.as_ref(),
+            "<input>",
+        )
+        .map_err(blame_user)?;
 
         match self.evaluate_expr_in_frame(&pp_expr, frame.as_ref()) {
             Ok(sbval) => {
@@ -546,33 +437,12 @@ impl super::DebugSession {
         expression: &PreparedExpression,
         frame: Option<&SBFrame>,
     ) -> Result<SBValue, Error> {
-        match (expression, self.python.as_ref()) {
-        (PreparedExpression::Native(pp_expr), _) => {
-            let result = match frame {
-                Some(frame) => frame.evaluate_expression(&pp_expr).into_result(),
-                None => self.target.evaluate_expression(&pp_expr).into_result(),
-            };
-            let result = result.map_err(|err| blame_user(err.into()))?;
-            Ok(result)
+        let result = match frame {
+            Some(frame) => expression.evaluate_in_frame(frame),
+            None => expression.evaluate_in_target(&self.target),
         }
-        (PreparedExpression::Python(pp_expr), Some(python)) | //.
-        (PreparedExpression::Simple(pp_expr), Some(python)) => {
-            let pycode = python.compile_code(pp_expr, "<input>").map_err(blame_user)?;
-            let exec_context = if let Some(frame) = frame {
-                SBExecutionContext::from_frame(frame)
-            } else {
-                SBExecutionContext::new()
-            };
-            let eval_cotext = if matches!(expression, PreparedExpression::Simple(_)) {
-                EvalContext::SimpleExpression
-            }else {
-                EvalContext::PythonExpression
-            };
-            let result = python.evaluate(&pycode, &exec_context, eval_cotext).map_err(blame_user)?;
-            Ok(result)
-        }
-        _ => bail!(blame_user("Python expressions are disabled.".into())),
-    }
+        .map_err(blame_user)?;
+        Ok(result)
     }
 
     pub(super) fn handle_set_variable(&mut self, args: SetVariableArguments) -> Result<SetVariableResponseBody, Error> {
@@ -605,30 +475,8 @@ impl super::DebugSession {
     }
 
     pub(super) fn apply_format_spec(&self, sbval: SBValue, format_spec: &FormatSpec) -> Result<SBValue, Error> {
-        let mut sbval = sbval;
-        if let Some(size) = format_spec.array {
-            let var_type = sbval.type_();
-            let type_class = var_type.type_class();
-            sbval = if type_class.intersects(TypeClass::Pointer | TypeClass::Reference) {
-                // For pointers and references we re-interpret the pointee.
-                let array_type = var_type.pointee_type().array_type(size as u64);
-                let pointee = sbval.dereference().into_result()?;
-                let addr = pointee.address().ok_or_else(|| str_error("No address"))?;
-                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-            } else if type_class.intersects(TypeClass::Array) {
-                // For arrays, re-interpret the array length.
-                let array_type = var_type.array_element_type().array_type(size as u64);
-                let addr = sbval.address().ok_or_else(|| str_error("No address"))?;
-                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-            } else {
-                // For other types re-interpret the value itself.
-                let array_type = var_type.array_type(size as u64);
-                let addr = sbval.address().ok_or_else(|| str_error("No address"))?;
-                sbval.target().create_value_from_address("(as array)", &addr, &array_type)
-            };
-        }
-        sbval.set_format(format_spec.format.unwrap_or(self.global_format));
-        Ok(sbval)
+        let formatter = ValueFormatter::from_session(self, Some(self.current_cancellation.clone()));
+        formatter.apply_format_spec(sbval, format_spec)
     }
 }
 

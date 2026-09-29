@@ -2,7 +2,9 @@ mod breakpoints;
 mod debugger_terminal;
 mod disassemble;
 mod launch;
+mod log_template;
 mod step_in;
+mod value_formatter;
 mod variables;
 
 use crate::debug_event_listener::DebugEventListener;
@@ -1159,8 +1161,13 @@ impl DebugSession {
                 }
             } else {
                 // Otherwise name is an expression
-                let (pp_expr, _format_spec) =
-                    expressions::prepare_with_format(&args.name, self.default_expr_type).map_err(blame_user)?;
+                let (pp_expr, _format_spec) = expressions::PreparedExpression::prepare_with_format(
+                    &args.name,
+                    self.default_expr_type,
+                    self.python.as_ref(),
+                    "<data breakpoint expression>",
+                )
+                .map_err(blame_user)?;
                 let value = self.evaluate_expr_in_frame(&pp_expr, frame.as_ref())?;
                 let addr = value.load_address();
                 if addr != lldb::INVALID_ADDRESS {

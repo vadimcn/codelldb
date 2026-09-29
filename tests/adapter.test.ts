@@ -3,7 +3,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
-import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, asyncTimer } from './testUtils';
+import { initUtils, DebugTestSession, findMarker, log, logWithStack, char, variablesAsDict, asyncTimer, withTimeout } from './testUtils';
 
 const triple = process.env.TARGET_TRIPLE || '';
 const buildDir = process.env.BUILD_DIR || path.dirname(__dirname); // tests are located in $buildDir/tests
@@ -205,6 +205,91 @@ function generateSuite(triple: string) {
                 await ds.continueRequest({ threadId: 0 });
                 log('Wait for exit');
                 await waitForExitAsync;
+            });
+
+            test('breakpoint events include only DAP breakpoints', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
+                let events: any[] = [];
+                ds.on('breakpoint', event => events.push(event));
+
+                let command = await ds.evaluateRequest({ expression: 'breakpoint set -n main', context: '_command' });
+                assert.ok(command.success);
+                await asyncTimer(100);
+                assert.equal(events.length, 0);
+
+                let response = await ds.setBreakpoint(debuggeeSource, findMarker(debuggeeSource, '#BP1'));
+                let id = response.body.breakpoints[0].id;
+                if (!events.some(event => event.body.reason == 'changed' && event.body.breakpoint.id == id)) {
+                    let changed = new Promise<void>(resolve => {
+                        let listener = (event: any) => {
+                            if (event.body.reason == 'changed' && event.body.breakpoint.id == id) {
+                                ds.removeListener('breakpoint', listener);
+                                resolve();
+                            }
+                        };
+                        ds.on('breakpoint', listener);
+                    });
+                    await withTimeout(3000, changed);
+                }
+                let removed = new Promise<void>(resolve => {
+                    let listener = (event: any) => {
+                        if (event.body.reason == 'removed' && event.body.breakpoint.id == id) {
+                            ds.removeListener('breakpoint', listener);
+                            resolve();
+                        }
+                    };
+                    ds.on('breakpoint', listener);
+                });
+                let deletion = await ds.evaluateRequest({ expression: `breakpoint delete ${id}`, context: '_command' });
+                assert.ok(deletion.success);
+                await withTimeout(3000, removed);
+                assert.ok(events.every(event => event.body.breakpoint.id == id));
+            });
+
+            test('adapterData breakpoints are replaced by repeated requests', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
+                let source = { adapterData: { start: 0x1000, end: 0x1004, lineOffsets: [4] } };
+                let request = { source, breakpoints: [{ line: 3 }] };
+                let first = await ds.setBreakpointsRequest(request);
+                let second = await ds.setBreakpointsRequest(request);
+                assert.equal(second.body.breakpoints[0].id, first.body.breakpoints[0].id);
+
+                await ds.setBreakpointsRequest({ source, breakpoints: [] });
+                let third = await ds.setBreakpointsRequest(request);
+                assert.notEqual(third.body.breakpoints[0].id, first.body.breakpoints[0].id);
+            });
+
+            test('replacing breakpoint sets retires old IDs', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
+                let events: any[] = [];
+                ds.on('breakpoint', event => events.push(event));
+                let verifyReplacement = async (set: () => Promise<any>, clear: () => Promise<any>) => {
+                    let first = (await set()).body.breakpoints[0].id;
+                    await clear();
+                    let second = (await set()).body.breakpoints[0].id;
+                    assert.notEqual(second, first);
+                };
+
+                let source = { path: debuggeeSource };
+                let sourceBreakpoints = [{ line: findMarker(debuggeeSource, '#BP1') }];
+                await verifyReplacement(
+                    () => ds.setBreakpointsRequest({ source, breakpoints: sourceBreakpoints }),
+                    () => ds.setBreakpointsRequest({ source, breakpoints: [] })
+                );
+                await verifyReplacement(
+                    () => ds.setFunctionBreakpointsRequest({ breakpoints: [{ name: 'main' }] }),
+                    () => ds.setFunctionBreakpointsRequest({ breakpoints: [] })
+                );
+                await verifyReplacement(
+                    () => ds.send('setInstructionBreakpoints', { breakpoints: [{ instructionReference: '0x1000' }] }),
+                    () => ds.send('setInstructionBreakpoints', { breakpoints: [] })
+                );
+                await verifyReplacement(
+                    () => ds.setExceptionBreakpointsRequest({ filters: ['cpp_throw'] }),
+                    () => ds.setExceptionBreakpointsRequest({ filters: [] })
+                );
+                await asyncTimer(100);
+                assert.ok(events.every(event => event.body.reason != 'removed'));
             });
 
             test('stop on a breakpoint (same file name)', async function () {
@@ -613,6 +698,61 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
+            });
+
+            test('logpoints interpolate and filter without stopping', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, args: ['vars'], stopOnEntry: true });
+                let line = findMarker(debuggeeTypes, '#BP3');
+                let source = { path: debuggeeTypes };
+                await ds.setBreakpointsRequest({ source, breakpoints: [
+                    { line, condition: '/nat i < 0', logMessage: 'old' }
+                ] });
+                await ds.setBreakpointsRequest({ source, breakpoints: [
+                    {
+                        line,
+                        condition: '/se i >= 2',
+                        hitCondition: '%2',
+                        logMessage: 'LOG i={i} hex={/nat i,x} py={/py int($i) + 1}'
+                    }
+                ] });
+                let outputs: string[] = [];
+                let stops: any[] = [];
+                ds.on('output', event => outputs.push(event.body.output));
+                ds.on('stopped', event => stops.push(event));
+                let exited = ds.waitForEvent('exited');
+                await ds.continueRequest({ threadId: 0 });
+                await withTimeout(10000, exited);
+                await asyncTimer(50);
+
+                let messages = outputs.filter(output => output.startsWith('LOG '));
+                assert.equal(messages.length, 4);
+                for (let [index, i] of [3, 5, 7, 9].entries()) {
+                    assert.ok(messages[index].startsWith(`LOG i=${i} hex=0x`));
+                    assert.ok(messages[index].endsWith(` py=${i + 1}\n`));
+                }
+                assert.ok(!outputs.includes('old\n'));
+                assert.equal(stops.length, 0);
+            });
+
+            test('logpoint interpolation errors report but do not stop', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, args: ['vars'], stopOnEntry: true });
+                let line = findMarker(debuggeeTypes, '#BP3');
+                await ds.setBreakpointsRequest({ source: { path: debuggeeTypes }, breakpoints: [
+                    { line, condition: '/se i == 0', logMessage: 'ERROR {/py 1 / 0}' }
+                ] });
+                let outputs: any[] = [];
+                let stops: any[] = [];
+                ds.on('output', event => outputs.push(event));
+                ds.on('stopped', event => stops.push(event));
+                let exited = ds.waitForEvent('exited');
+                await ds.continueRequest({ threadId: 0 });
+                await withTimeout(10000, exited);
+                await asyncTimer(50);
+
+                assert.ok(outputs.some(event => event.body.category == 'stderr' &&
+                    event.body.output.includes('Could not evaluate logpoint expression')));
+                assert.ok(outputs.every(event => !event.body.output.startsWith('ERROR ')));
+                assert.equal(stops.length, 0);
             });
 
             test('disassembly', async function () {

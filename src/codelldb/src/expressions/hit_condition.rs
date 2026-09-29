@@ -14,6 +14,19 @@ pub enum HitCondition {
     MOD(u32),
 }
 
+impl HitCondition {
+    pub fn matches(&self, hit_count: u32) -> bool {
+        match self {
+            Self::LT(n) => hit_count < *n,
+            Self::LE(n) => hit_count <= *n,
+            Self::EQ(n) => hit_count == *n,
+            Self::GE(n) => hit_count >= *n,
+            Self::GT(n) => hit_count > *n,
+            Self::MOD(n) => hit_count % *n == 0,
+        }
+    }
+}
+
 pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
     fn parser(input: Span) -> IResult<Span, HitCondition> {
         alt((
@@ -30,6 +43,7 @@ pub fn parse_hit_condition(expr: &str) -> Result<HitCondition, ()> {
     }
 
     match parser.parse(expr.trim()) {
+        Ok((_, HitCondition::MOD(0))) => Err(()),
         Ok((_, hc)) => Ok(hc),
         Err(_) => Err(()),
     }
@@ -46,6 +60,8 @@ fn test_parse_hit_condition() {
     assert_matches!(parse_hit_condition("==62 "), Ok(HitCondition::EQ(62)));
     assert_matches!(parse_hit_condition(">=76 "), Ok(HitCondition::GE(76)));
     assert_matches!(parse_hit_condition(">85"), Ok(HitCondition::GT(85)));
+    assert_matches!(parse_hit_condition("%0"), Err(_));
+    assert_matches!(parse_hit_condition("%2"), Ok(HitCondition::MOD(2)));
     assert_matches!(parse_hit_condition(""), Err(_));
     assert_matches!(parse_hit_condition("      "), Err(_));
     assert_matches!(parse_hit_condition("!90"), Err(_));

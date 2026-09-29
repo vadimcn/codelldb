@@ -1,13 +1,14 @@
+use crate::dap_session::DAPSession;
 use crate::debug_session::DebugSession;
 use crate::disassembly;
 use crate::expressions::{self, HitCondition, PreparedExpression};
 use crate::fsutil::normalize_path;
 use crate::handles::Handle;
 use crate::prelude::*;
-use crate::python::{EvalContext, PyObject};
+use crate::python::{EvalContext, PyObject, PythonSession};
 
 use std::collections::HashMap;
-use std::mem;
+use std::hash::Hash;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -16,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use adapter_protocol::*;
 use lldb::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum BreakpointKind {
     Source,
     Disassembly,
@@ -25,13 +26,11 @@ enum BreakpointKind {
     Exception(String), // Exception breakpoint with the given name.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct BreakpointInfo {
     id: BreakpointID,
     breakpoint: SBBreakpoint,
     kind: BreakpointKind,
-    condition: Option<String>,
-    log_message: Option<String>,
     hit_condition: Option<HitCondition>,
     hit_count: u32,
     exclusions: Vec<String>,
@@ -41,6 +40,7 @@ pub(super) struct Breakpoints {
     breakpoint_infos: HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
     source: HashMap<PathBuf, HashMap<i64, BreakpointID>>,
     assembly: HashMap<Handle, HashMap<i64, BreakpointID>>,
+    legacy_assembly: HashMap<disassembly::AdapterData, HashMap<i64, BreakpointID>>,
     instruction: HashMap<Address, BreakpointID>,
     function: HashMap<String, BreakpointID>,
 }
@@ -51,10 +51,96 @@ impl Breakpoints {
             breakpoint_infos: HashMap::new(),
             source: HashMap::new(),
             assembly: HashMap::new(),
+            legacy_assembly: HashMap::new(),
             instruction: HashMap::new(),
             function: HashMap::new(),
         }
     }
+
+    fn forget_id(&mut self, id: BreakpointID) {
+        for lines in self.source.values_mut() {
+            lines.retain(|_, stored_id| *stored_id != id);
+        }
+        for lines in self.assembly.values_mut() {
+            lines.retain(|_, stored_id| *stored_id != id);
+        }
+        for lines in self.legacy_assembly.values_mut() {
+            lines.retain(|_, stored_id| *stored_id != id);
+        }
+        self.instruction.retain(|_, stored_id| *stored_id != id);
+        self.function.retain(|_, stored_id| *stored_id != id);
+    }
+}
+
+fn remove_tracked_breakpoint(
+    target: &SBTarget,
+    breakpoint_infos: &mut HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
+    id: BreakpointID,
+) {
+    if let Some(info) = breakpoint_infos.remove(&id) {
+        let breakpoint = info.lock().unwrap().breakpoint.clone();
+        breakpoint.clear_callback();
+    }
+    target.breakpoint_delete(id);
+}
+
+fn replace_breakpoint_index<K: Eq + Hash>(
+    target: &SBTarget,
+    breakpoint_infos: &mut HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
+    existing: &mut HashMap<K, BreakpointID>,
+    replacement: HashMap<K, BreakpointID>,
+) {
+    for (key, id) in existing.iter() {
+        if replacement.get(key) != Some(id) {
+            remove_tracked_breakpoint(target, breakpoint_infos, *id);
+        }
+    }
+    *existing = replacement;
+}
+
+fn breakpoint_should_stop(
+    info: &mut BreakpointInfo,
+    thread: &SBThread,
+    py_condition: Option<&(PyObject, EvalContext)>,
+    python: Option<&PythonSession>,
+    dap_session: &DAPSession,
+) -> bool {
+    if !info.exclusions.is_empty()
+        && thread
+            .frames()
+            .filter_map(|frame| frame.pc_address().symbol())
+            .any(|symbol| info.exclusions.iter().any(|exclusion| exclusion == symbol.name()))
+    {
+        return false;
+    }
+
+    if let Some((pycode, eval_context)) = py_condition {
+        let frame = thread.frame_at_index(0);
+        let exec_context = SBExecutionContext::from_frame(&frame);
+        // TODO: pass bpno
+        let should_stop = match python {
+            Some(python) => match python.evaluate_as_bool(pycode, &exec_context, *eval_context) {
+                Ok(value) => value,
+                Err(err) => {
+                    let event = EventBody::output(OutputEventBody {
+                        output: format!("Could not evaluate breakpoint condition:\n{}\n", err),
+                        category: Some("stderr".into()),
+                        ..Default::default()
+                    });
+                    log_errors!(dap_session.try_send_event(event));
+                    return true; // Stop on evaluation errors.
+                }
+            },
+            None => return true,
+        };
+        if !should_stop {
+            return false;
+        }
+    }
+
+    // LLDB counts callbacks even when they return false, but does not count hits rejected by a native condition.
+    info.hit_count += 1;
+    info.hit_condition.as_ref().map_or(true, |condition| condition.matches(info.hit_count))
 }
 
 const CPP_THROW: &str = "cpp_throw";
@@ -124,7 +210,6 @@ impl DebugSession {
                 bp,
                 BreakpointKind::Source,
                 req.condition.as_deref(),
-                req.log_message.as_deref(),
                 req.hit_condition.as_deref(),
             );
             let (bp_id, num_locations, mut breakpoint) = {
@@ -132,7 +217,7 @@ impl DebugSession {
                 (
                     bp_info.id,
                     bp_info.breakpoint.num_locations(),
-                    self.make_bp_response(&bp_info, true),
+                    self.make_bp_response(&bp_info),
                 )
             };
             // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings.
@@ -151,16 +236,10 @@ impl DebugSession {
             }
             result.push(breakpoint);
             new_bps.insert(req.line, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info.clone());
+            breakpoint_infos.insert(bp_id, bp_info);
         }
 
-        for (line, bp_id) in existing_bps.iter() {
-            if !new_bps.contains_key(line) {
-                self.target.breakpoint_delete(*bp_id);
-                breakpoint_infos.remove(bp_id);
-            }
-        }
-        drop(mem::replace(existing_bps, new_bps));
+        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
         Ok(result)
     }
 
@@ -229,23 +308,17 @@ impl DebugSession {
                 bp,
                 BreakpointKind::Disassembly,
                 req.condition.as_deref(),
-                req.log_message.as_deref(),
                 req.hit_condition.as_deref(),
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info, false))
+                (bp_info.id, self.make_bp_response(&bp_info))
             };
             result.push(response);
             new_bps.insert(req.line, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info.clone());
+            breakpoint_infos.insert(bp_id, bp_info);
         }
-        for (line, bp_id) in existing_bps.iter() {
-            if !new_bps.contains_key(line) {
-                self.target.breakpoint_delete(*bp_id);
-            }
-        }
-        drop(mem::replace(existing_bps, new_bps));
+        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
         Ok(result)
     }
 
@@ -254,29 +327,40 @@ impl DebugSession {
         adapter_data: &disassembly::AdapterData,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
+        let Breakpoints {
+            ref mut legacy_assembly,
+            ref mut breakpoint_infos,
+            ..
+        } = *self.breakpoints.borrow_mut();
+        let existing_bps = legacy_assembly.entry(adapter_data.clone()).or_default();
+        let mut new_bps = HashMap::new();
         let mut result = vec![];
         let line_addresses = disassembly::DisassembledRange::lines_from_adapter_data(adapter_data);
         for req in requested_bps {
             if req.line >= 0 && req.line < line_addresses.len() as i64 {
                 let address = line_addresses[req.line as usize] as Address;
-                let bp = self.target.breakpoint_create_by_load_address(address);
+                let bp = match existing_bps.get(&req.line).and_then(|id| self.target.find_breakpoint_by_id(*id)) {
+                    Some(bp) => bp,
+                    None => self.target.breakpoint_create_by_load_address(address),
+                };
                 let bp_info = self.register_breakpoint(
                     bp,
                     BreakpointKind::Disassembly,
                     req.condition.as_deref(),
-                    req.log_message.as_deref(),
                     req.hit_condition.as_deref(),
                 );
                 let (bp_id, response) = {
                     let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info, false))
+                    (bp_info.id, self.make_bp_response(&bp_info))
                 };
                 result.push(response);
-                self.breakpoints.get_mut().breakpoint_infos.insert(bp_id, bp_info.clone());
+                new_bps.insert(req.line, bp_id);
+                breakpoint_infos.insert(bp_id, bp_info);
             } else {
                 result.push(Default::default());
             }
         }
+        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
         Ok(result)
     }
 
@@ -306,24 +390,18 @@ impl DebugSession {
                 bp,
                 BreakpointKind::Instruction,
                 req.condition.as_deref(),
-                None,
                 req.hit_condition.as_deref(),
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info, false))
+                (bp_info.id, self.make_bp_response(&bp_info))
             };
 
             result.push(response);
             new_bps.insert(address, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info.clone());
+            breakpoint_infos.insert(bp_id, bp_info);
         }
-        for (name, bp_id) in instruction.iter() {
-            if !new_bps.contains_key(name) {
-                self.target.breakpoint_delete(*bp_id);
-            }
-        }
-        drop(mem::replace(instruction, new_bps));
+        replace_breakpoint_index(&self.target, breakpoint_infos, instruction, new_bps);
 
         Ok(SetInstructionBreakpointsResponseBody { breakpoints: result })
     }
@@ -356,24 +434,18 @@ impl DebugSession {
                 bp,
                 BreakpointKind::Function,
                 req.condition.as_deref(),
-                None,
                 req.hit_condition.as_deref(),
             );
             let (bp_id, response) = {
                 let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info, true))
+                (bp_info.id, self.make_bp_response(&bp_info))
             };
 
             result.push(response);
             new_bps.insert(req.name, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info.clone());
+            breakpoint_infos.insert(bp_id, bp_info);
         }
-        for (name, bp_id) in function.iter() {
-            if !new_bps.contains_key(name) {
-                self.target.breakpoint_delete(*bp_id);
-            }
-        }
-        drop(mem::replace(function, new_bps));
+        replace_breakpoint_index(&self.target, breakpoint_infos, function, new_bps);
 
         Ok(SetBreakpointsResponseBody { breakpoints: result })
     }
@@ -383,27 +455,25 @@ impl DebugSession {
         args: SetExceptionBreakpointsArguments,
     ) -> Result<SetExceptionBreakpointsResponseBody, Error> {
         let mut breakpoints = self.breakpoints.borrow_mut();
-        breakpoints.breakpoint_infos.retain(|_id, bp_info| {
-            let bp_info = bp_info.lock().unwrap();
-            if let BreakpointKind::Exception(_) = bp_info.kind {
-                self.target.breakpoint_delete(bp_info.id);
-                false
-            } else {
-                true
-            }
-        });
+        let old_ids: Vec<_> = breakpoints
+            .breakpoint_infos
+            .iter()
+            .filter_map(|(&id, info)| matches!(info.lock().unwrap().kind, BreakpointKind::Exception(_)).then_some(id))
+            .collect();
+        for id in old_ids {
+            remove_tracked_breakpoint(&self.target, &mut breakpoints.breakpoint_infos, id);
+        }
 
         let mut result = vec![];
         for exc_name in &args.filters {
             if let Some(bp) = self.set_exception_breakpoint(exc_name) {
-                let bp_info =
-                    self.register_breakpoint(bp, BreakpointKind::Exception(exc_name.into()), None, None, None);
+                let bp_info = self.register_breakpoint(bp, BreakpointKind::Exception(exc_name.into()), None, None);
                 let (bp_id, response) = {
                     let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info, false))
+                    (bp_info.id, self.make_bp_response(&bp_info))
                 };
                 result.push(response);
-                breakpoints.breakpoint_infos.insert(bp_id, bp_info.clone());
+                breakpoints.breakpoint_infos.insert(bp_id, bp_info);
             }
         }
         for filter in &args.filter_options {
@@ -413,14 +483,13 @@ impl DebugSession {
                     BreakpointKind::Exception(filter.filter_id.clone()),
                     filter.condition.as_deref(),
                     None,
-                    None,
                 );
                 let (bp_id, response) = {
                     let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info, false))
+                    (bp_info.id, self.make_bp_response(&bp_info))
                 };
                 result.push(response);
-                breakpoints.breakpoint_infos.insert(bp_id, bp_info.clone());
+                breakpoints.breakpoint_infos.insert(bp_id, bp_info);
             }
         }
         Ok(SetExceptionBreakpointsResponseBody { breakpoints: result })
@@ -493,19 +562,17 @@ impl DebugSession {
         bp: SBBreakpoint,
         kind: BreakpointKind,
         condition: Option<&str>,
-        log_message: Option<&str>,
         hit_condition: Option<&str>,
     ) -> Arc<Mutex<BreakpointInfo>> {
         fn empty2none(s: Option<&str>) -> Option<&str> {
             s.map(str::trim).filter(|s| !s.is_empty())
         }
 
+        let py_condition = self.prepare_breakpoint_condition(&bp, empty2none(condition));
         let bp_info = BreakpointInfo {
             id: bp.id(),
             breakpoint: bp,
             kind,
-            condition: empty2none(condition).map(Into::into),
-            log_message: empty2none(log_message).map(Into::into),
             hit_condition: empty2none(hit_condition).and_then(|expr| match expressions::parse_hit_condition(expr) {
                 Ok(cond) => Some(cond),
                 Err(_) => {
@@ -517,47 +584,6 @@ impl DebugSession {
             exclusions: Vec::new(),
         };
 
-        // Determine type of the break condition expression.
-        let py_condition: Option<(PyObject, EvalContext)> = if let Some(ref condition) = bp_info.condition {
-            match expressions::prepare(condition, self.default_expr_type) {
-                Ok(pp_expr) => match &pp_expr {
-                    // if native, use that directly,
-                    PreparedExpression::Native(expr) => {
-                        bp_info.breakpoint.set_condition(&expr);
-                        None
-                    }
-                    // otherwise, we'll need to evaluate it ourselves in the breakpoint callback.
-                    PreparedExpression::Simple(expr) | //.
-                    PreparedExpression::Python(expr) => {
-                        if let Some(python) = &self.python {
-                            match python.compile_code(&expr, "<breakpoint condition>") {
-                                Ok(pycode) => {
-                                    let eval_context = if matches!(pp_expr, PreparedExpression::Simple(_)) {
-                                        EvalContext::SimpleExpression
-                                    } else {
-                                        EvalContext::PythonExpression
-                                    };
-                                    Some((pycode, eval_context))
-                                }
-                                Err(err) => {
-                                    self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
-                                    None
-                                }
-                            }
-                        } else {
-                            None
-                        }
-                    }
-                },
-                Err(err) => {
-                    self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
         let python = self.python.clone();
         let dap_session = self.dap_session.clone();
         let bp_info = Arc::new(Mutex::new(bp_info));
@@ -565,232 +591,100 @@ impl DebugSession {
 
         bp_info.lock().unwrap().breakpoint.set_callback(move |_process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
-
-            let console_error = |output: String| {
-                let event_body = EventBody::output(OutputEventBody {
-                    output: format!("{}\n", output),
-                    category: Some("stderr".into()),
-                    ..Default::default()
-                });
-                log_errors!(dap_session.try_send_event(event_body));
-            };
-
             let Some(bp_info) = weak_bp_info.upgrade() else {
                 return true;
             };
             let mut bp_info = bp_info.lock().unwrap();
-
-            if !bp_info.exclusions.is_empty() {
-                let symbols_on_stack: Vec<String> = thread
-                    .frames()
-                    .filter_map(|f| {
-                        if let Some(symbol) = f.pc_address().symbol() {
-                            Some(symbol.name().to_owned())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                for exclusion in &bp_info.exclusions {
-                    if symbols_on_stack.iter().any(|s| s == exclusion) {
-                        return false;
-                    }
-                }
-            }
-
-            if let Some((pycode, eval_context)) = &py_condition {
-                let frame = thread.frame_at_index(0);
-                let exec_context = SBExecutionContext::from_frame(&frame);
-                // TODO: pass bpno
-                let should_stop = match &python {
-                    Some(python) => match python.evaluate_as_bool(&pycode, &exec_context, *eval_context) {
-                        Ok(val) => val,
-                        Err(err) => {
-                            console_error(format!("Could not evaluate breakpoint condition:\n{}", err));
-                            return true; // Stop on evluation errors, even if there's a log message.
-                        }
-                    },
-                    None => {
-                        return true;
-                    }
-                };
-
-                if !should_stop {
-                    return false;
-                }
-            }
-
-            // We maintain our own hit count for consistency between native and python conditions:
-            // LLDB doesn't count breakpoint hits for which native condition evaluated to false,
-            // however it does count ones where the callback was invoked, even if it had returned false.
-            bp_info.hit_count += 1;
-
-            if let Some(hit_condition) = &bp_info.hit_condition {
-                let hit_count = bp_info.hit_count;
-                let should_stop = match hit_condition {
-                    HitCondition::LT(n) => hit_count < *n,
-                    HitCondition::LE(n) => hit_count <= *n,
-                    HitCondition::EQ(n) => hit_count == *n,
-                    HitCondition::GE(n) => hit_count >= *n,
-                    HitCondition::GT(n) => hit_count > *n,
-                    HitCondition::MOD(n) => hit_count % *n == 0,
-                };
-                if !should_stop {
-                    return false;
-                }
-            }
-
-            // // If we are supposed to stop, but there is a log message, evaluate and print the message, but don't stop.
-            // if let Some(ref log_message) = bp_info.log_message {
-            //     let frame = thread.frame_at_index(0);
-            //     let message = self.format_logpoint_message(log_message, &frame);
-            //     self.console_message(message);
-            //     return false;
-            // }
-
-            true
+            breakpoint_should_stop(
+                &mut bp_info,
+                thread,
+                py_condition.as_ref(),
+                python.as_deref(),
+                &dap_session,
+            )
         });
 
         bp_info
     }
 
-    // Generates debug_protocol::Breakpoint message from a BreakpointInfo
-    fn make_bp_response(&self, bp_info: &BreakpointInfo, include_source: bool) -> Breakpoint {
-        let message = Some(format!(
-            "Resolved locations: {}",
-            bp_info.breakpoint.num_resolved_locations()
-        ));
-
-        if bp_info.breakpoint.num_locations() == 0 {
-            Breakpoint {
-                id: Some(bp_info.id as i64),
-                verified: false,
-                message,
-                ..Default::default()
+    fn prepare_breakpoint_condition(
+        &self,
+        bp: &SBBreakpoint,
+        condition: Option<&str>,
+    ) -> Option<(PyObject, EvalContext)> {
+        let condition = condition?;
+        let prepared = match expressions::prepare(condition, self.default_expr_type) {
+            Ok(prepared) => prepared,
+            Err(err) => {
+                self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
+                return None;
             }
-        } else {
-            let mut source = None;
-            let mut source_line = None;
-            if include_source {
-                let address = bp_info.breakpoint.location_at_index(0).address();
-                if let Some(le) = address.line_entry() {
-                    let file_path = le.file_spec().path();
-                    source = Some(Source {
-                        name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
-                        path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
-                        ..Default::default()
-                    });
-                    source_line = Some(le.line() as i64);
-                }
+        };
+        let (expr, eval_context) = match prepared {
+            PreparedExpression::Native(expr) => {
+                bp.set_condition(&expr);
+                return None;
             }
-
-            match &bp_info.kind {
-                BreakpointKind::Source => Breakpoint {
-                    id: Some(bp_info.id as i64),
-                    source: source,
-                    line: source_line,
-                    verified: bp_info.breakpoint.num_locations() > 0,
-                    message,
-                    ..Default::default()
-                },
-                BreakpointKind::Disassembly => {
-                    let address = bp_info.breakpoint.location_at_index(0).address();
-                    let laddress = address.load_address(&self.target);
-                    if let Ok(dasm) = self.disasm_ranges.from_address(laddress) {
-                        let adapter_data = Some(serde_json::to_value(dasm.adapter_data()).unwrap());
-                        Breakpoint {
-                            id: Some(bp_info.id as i64),
-                            verified: true,
-                            line: Some(dasm.line_num_by_address(laddress) as i64),
-                            source: Some(Source {
-                                name: Some(dasm.source_name().to_owned()),
-                                path: Some(dasm.source_name().to_owned()),
-                                source_reference: Some(dasm.handle()),
-                                adapter_data: adapter_data,
-                                ..Default::default()
-                            }),
-                            message,
-                            ..Default::default()
-                        }
-                    } else {
-                        Breakpoint {
-                            id: Some(bp_info.id as i64),
-                            verified: false,
-                            message,
-                            ..Default::default()
-                        }
-                    }
-                }
-                BreakpointKind::Instruction => {
-                    let address = bp_info.breakpoint.location_at_index(0).address();
-                    let laddress = address.load_address(&self.target);
-                    Breakpoint {
-                        id: Some(bp_info.id as i64),
-                        verified: true,
-                        instruction_reference: Some(format!("0x{:X}", laddress)),
-                        message,
-                        ..Default::default()
-                    }
-                }
-                BreakpointKind::Function => Breakpoint {
-                    id: Some(bp_info.id as i64),
-                    verified: bp_info.breakpoint.num_locations() > 0,
-                    source: source,
-                    line: source_line,
-                    message,
-                    ..Default::default()
-                },
-                BreakpointKind::Exception(_) => Breakpoint {
-                    id: Some(bp_info.id as i64),
-                    verified: bp_info.breakpoint.num_locations() > 0,
-                    message,
-                    ..Default::default()
-                },
+            PreparedExpression::Simple(expr) => (expr, EvalContext::SimpleExpression),
+            PreparedExpression::Python(expr) => (expr, EvalContext::PythonExpression),
+        };
+        let python = self.python.as_ref()?;
+        match python.compile_code(&expr, "<breakpoint condition>") {
+            Ok(pycode) => Some((pycode, eval_context)),
+            Err(err) => {
+                self.console_error(format!("Could not parse breakpoint condition:\n{}", err));
+                None
             }
         }
     }
 
-    // Replaces {expression}'s in log_message with results of their evaluations.
-    fn format_logpoint_message(&self, log_message: &str, frame: &SBFrame) -> String {
-        // Finds expressions ({...}) in message and invokes the callback on them.
-        fn replace_logpoint_expressions<F>(message: &str, f: F) -> String
-        where
-            F: Fn(&str) -> Result<String, Error>,
-        {
-            let mut start = 0;
-            let mut nesting = 0;
-            let mut result = String::new();
-            for (idx, ch) in message.char_indices() {
-                if ch == '{' {
-                    if nesting == 0 {
-                        result.push_str(&message[start..idx]);
-                        start = idx + 1;
-                    }
-                    nesting += 1;
-                } else if ch == '}' && nesting > 0 {
-                    nesting -= 1;
-                    if nesting == 0 {
-                        let str_val = match f(&message[start..idx]) {
-                            Ok(ok) => ok,
-                            Err(err) => format!("{{Error: {}}}", err),
-                        };
-                        result.push_str(&str_val);
-                        start = idx + 1;
-                    }
-                }
-            }
-            result.push_str(&message[start..(message.len())]);
-            result
+    // Generates a DAP Breakpoint from a registered breakpoint.
+    fn make_bp_response(&self, info: &BreakpointInfo) -> Breakpoint {
+        let bp = &info.breakpoint;
+        let mut response = Breakpoint {
+            id: Some(info.id as i64),
+            verified: bp.num_locations() > 0,
+            message: Some(format!("Resolved locations: {}", bp.num_resolved_locations())),
+            ..Default::default()
+        };
+        if !response.verified {
+            return response;
         }
 
-        replace_logpoint_expressions(&log_message, |expr| {
-            let (pp_expr, format_spec) = expressions::prepare_with_format(expr, self.default_expr_type).unwrap();
-            let sbval = self.evaluate_expr_in_frame(&pp_expr, Some(frame))?;
-            let sbval = self.apply_format_spec(sbval, &format_spec)?;
-            let str_val = self.get_var_summary(&sbval, false);
-            Ok(str_val)
-        })
+        match &info.kind {
+            BreakpointKind::Source | BreakpointKind::Function => {
+                if let Some(line_entry) = bp.location_at_index(0).address().line_entry() {
+                    let file_path = line_entry.file_spec().path();
+                    response.source = Some(Source {
+                        name: Some(file_path.file_name().unwrap().to_string_lossy().into_owned()),
+                        path: Some(file_path.as_os_str().to_string_lossy().into_owned()),
+                        ..Default::default()
+                    });
+                    response.line = Some(line_entry.line() as i64);
+                }
+            }
+            BreakpointKind::Disassembly => {
+                let address = bp.location_at_index(0).address().load_address(&self.target);
+                if let Ok(dasm) = self.disasm_ranges.from_address(address) {
+                    response.line = Some(dasm.line_num_by_address(address) as i64);
+                    response.source = Some(Source {
+                        name: Some(dasm.source_name().to_owned()),
+                        path: Some(dasm.source_name().to_owned()),
+                        source_reference: Some(dasm.handle()),
+                        adapter_data: Some(serde_json::to_value(dasm.adapter_data()).unwrap()),
+                        ..Default::default()
+                    });
+                } else {
+                    response.verified = false;
+                }
+            }
+            BreakpointKind::Instruction => {
+                let address = bp.location_at_index(0).address().load_address(&self.target);
+                response.instruction_reference = Some(format!("0x{:X}", address));
+            }
+            BreakpointKind::Exception(_) => {}
+        }
+        response
     }
 
     pub(super) fn handle_breakpoint_event(&mut self, event: &SBBreakpointEvent) {
@@ -798,33 +692,10 @@ impl DebugSession {
         let event_type = event.event_type();
         let mut breakpoints = self.breakpoints.borrow_mut();
 
-        if event_type.intersects(BreakpointEventType::Added) {
-            info!("Breakpoint added {}", bp.id());
-            // // Don't notify client if we are already tracking this one.
-            // // Also, don't notify for transient breakpoints.
-            // if breakpoints.breakpoint_infos.contains_key(&bp.id()) || !bp.is_valid() {
-            //     return;
-            // }
-            // let bp_info = self.register_breakpoint(bp, BreakpointKind::Source, None, None, None);
-            // self.send_event(EventBody::breakpoint(BreakpointEventBody {
-            //     reason: "new".into(),
-            //     breakpoint: self.make_bp_response(&bp_info, true),
-            // }));
-            // breakpoints.breakpoint_infos.insert(bp_info.id, bp_info);
-        } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
-            info!("Breakpoint changed {}: {:?}", bp.id(), event_type);
-            // if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp.id()) {
-            //     self.send_event(EventBody::breakpoint(BreakpointEventBody {
-            //         reason: "changed".into(),
-            //         breakpoint: self.make_bp_response(bp_info, false),
-            //     }));
-            // }
-        } else if event_type.intersects(BreakpointEventType::Removed) {
+        if event_type.intersects(BreakpointEventType::Removed) {
             bp.clear_callback();
-            // Send "removed" notification only if we are tracking this breakpoint,
-            // otherwise we'd notify VSCode about breakpoints that had been disabled in the UI
-            // and cause them to be removed from VSCode UI altogether.
-            if breakpoints.breakpoint_infos.contains_key(&bp.id()) {
+            if breakpoints.breakpoint_infos.remove(&bp.id()).is_some() {
+                breakpoints.forget_id(bp.id());
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "removed".into(),
                     breakpoint: Breakpoint {
@@ -832,58 +703,61 @@ impl DebugSession {
                         ..Default::default()
                     },
                 }));
-                breakpoints.breakpoint_infos.remove(&bp.id());
             }
+        } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
+            if let Some(info) = breakpoints.breakpoint_infos.get(&bp.id()) {
+                let response = self.make_bp_response(&info.lock().unwrap());
+                self.send_event(EventBody::breakpoint(BreakpointEventBody {
+                    reason: "changed".into(),
+                    breakpoint: response,
+                }));
+            }
+        } else if event_type.intersects(BreakpointEventType::Added) {
+            info!("Breakpoint added {}", bp.id());
         }
     }
 
     pub(super) fn handle_exclude_caller(&mut self, args: ExcludeCallerRequest) -> Result<ExcludeCallerResponse, Error> {
         let thread = self.target.process().selected_thread();
-        if thread.stop_reason() == StopReason::Breakpoint {
-            let bp_id = thread.stop_reason_data_at_index(0) as BreakpointID;
-            let mut breakpoints = self.breakpoints.borrow_mut();
-
-            if let Some(symbol) = self.symbol_from_frame(args.thread_id as ThreadID, args.frame_index) {
-                if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
-                    let mut bp_info = bp_info.lock().unwrap();
-                    bp_info.exclusions.push(symbol.clone());
-
-                    let (site_id, label) = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
-                        let filter = DebugSession::get_exception_filters().iter().find(|f| f.filter == *exc_name);
-                        (Either::Second(exc_name.clone()), filter.unwrap().label.clone())
-                    } else {
-                        let label = if let Some(le) = bp_info.breakpoint.location_at_index(0).address().line_entry() {
-                            format!("{}:{}", le.file_spec().filename().display().to_string(), le.line())
-                        } else {
-                            String::new()
-                        };
-                        (Either::First(bp_id as i64), label)
-                    };
-                    return Ok(ExcludeCallerResponse {
-                        exclusion: ExcludedCaller { site_id, symbol },
-                        label,
-                    });
-                }
-            }
-            bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
-        } else {
+        if thread.stop_reason() != StopReason::Breakpoint {
             bail!(blame_user(str_error("Must be stopped on a breakpoint.")));
         }
+        let bp_id = thread.stop_reason_data_at_index(0) as BreakpointID;
+        let Some(symbol) = self.symbol_from_frame(args.thread_id as ThreadID, args.frame_index) else {
+            bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
+        };
+        let breakpoints = self.breakpoints.borrow();
+        let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp_id) else {
+            bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
+        };
+        let mut bp_info = bp_info.lock().unwrap();
+        bp_info.exclusions.push(symbol.clone());
+
+        let (site_id, label) = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
+            let filter = DebugSession::get_exception_filters().iter().find(|f| f.filter == *exc_name);
+            (Either::Second(exc_name.clone()), filter.unwrap().label.clone())
+        } else {
+            let label = if let Some(le) = bp_info.breakpoint.location_at_index(0).address().line_entry() {
+                format!("{}:{}", le.file_spec().filename().display().to_string(), le.line())
+            } else {
+                String::new()
+            };
+            (Either::First(bp_id as i64), label)
+        };
+        Ok(ExcludeCallerResponse {
+            exclusion: ExcludedCaller { site_id, symbol },
+            label,
+        })
     }
 
     fn symbol_from_frame(&self, thread_id: ThreadID, frame_index: u32) -> Option<String> {
-        if let Some(thread) = self.target.process().thread_by_id(thread_id) {
-            let frame = thread.frame_at_index(frame_index);
-            let pc = frame.pc_address();
-            pc.symbol().map(|s| s.name().to_owned())
-        } else {
-            None
-        }
+        let thread = self.target.process().thread_by_id(thread_id)?;
+        thread.frame_at_index(frame_index).pc_address().symbol().map(|s| s.name().to_owned())
     }
 
     pub(super) fn handle_set_excluded_callers(&mut self, args: SetExcludedCallersRequest) -> Result<(), Error> {
-        let mut breakpoints = self.breakpoints.borrow_mut();
-        for bp_info in breakpoints.breakpoint_infos.values_mut() {
+        let breakpoints = self.breakpoints.borrow();
+        for bp_info in breakpoints.breakpoint_infos.values() {
             let mut bp_info = bp_info.lock().unwrap();
             bp_info.exclusions.clear();
         }
@@ -891,13 +765,13 @@ impl DebugSession {
             match exclusion.site_id {
                 Either::First(bp_id) => {
                     let bp_id = bp_id as BreakpointID;
-                    if let Some(bp_info) = breakpoints.breakpoint_infos.get_mut(&bp_id) {
+                    if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp_id) {
                         let mut bp_info = bp_info.lock().unwrap();
                         bp_info.exclusions.push(exclusion.symbol);
                     }
                 }
                 Either::Second(exc_name) => {
-                    for bp_info in breakpoints.breakpoint_infos.values_mut() {
+                    for bp_info in breakpoints.breakpoint_infos.values() {
                         let mut bp_info = bp_info.lock().unwrap();
                         if let BreakpointKind::Exception(exc_name2) = &bp_info.kind {
                             if &exc_name == exc_name2 {

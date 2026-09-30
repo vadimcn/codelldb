@@ -17,85 +17,103 @@ use std::sync::{Arc, Mutex};
 use adapter_protocol::*;
 use lldb::*;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum BreakpointKind {
-    Source,
-    Disassembly,
+    Source(PathBuf),
+    Disassembly(Handle),
+    LegacyDisassembly(disassembly::AdapterData),
     Instruction,
     Function,
-    Exception(String), // Exception breakpoint with the given name.
+    Exception,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+enum BreakpointLocation {
+    Source(i64, Option<i64>),
+    Line(i64),
+    Address(Address),
+    Name(String),
+}
+
+impl From<(i64, Option<i64>)> for BreakpointLocation {
+    fn from((line, column): (i64, Option<i64>)) -> Self {
+        Self::Source(line, column)
+    }
+}
+
+impl From<i64> for BreakpointLocation {
+    fn from(line: i64) -> Self {
+        Self::Line(line)
+    }
+}
+
+impl From<Address> for BreakpointLocation {
+    fn from(address: Address) -> Self {
+        Self::Address(address)
+    }
+}
+
+impl From<String> for BreakpointLocation {
+    fn from(name: String) -> Self {
+        Self::Name(name)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct BreakpointKey {
+    kind: BreakpointKind,
+    location: BreakpointLocation,
 }
 
 #[derive(Debug)]
 struct BreakpointInfo {
     id: BreakpointID,
     breakpoint: SBBreakpoint,
-    kind: BreakpointKind,
+    key: BreakpointKey,
     hit_condition: Option<HitCondition>,
     hit_count: u32,
     exclusions: Vec<String>,
 }
 
+struct BreakpointRequest<'a, K> {
+    key: K,
+    condition: Option<&'a str>,
+    hit_condition: Option<&'a str>,
+    log_message: Option<&'a str>,
+}
+
 pub(super) struct Breakpoints {
-    breakpoint_infos: HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
-    source: HashMap<PathBuf, HashMap<i64, BreakpointID>>,
-    assembly: HashMap<Handle, HashMap<i64, BreakpointID>>,
-    legacy_assembly: HashMap<disassembly::AdapterData, HashMap<i64, BreakpointID>>,
-    instruction: HashMap<Address, BreakpointID>,
-    function: HashMap<String, BreakpointID>,
+    by_key: HashMap<BreakpointKey, Arc<Mutex<BreakpointInfo>>>,
+    by_id: HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
 }
 
 impl Breakpoints {
     pub(super) fn new() -> Self {
         Breakpoints {
-            breakpoint_infos: HashMap::new(),
-            source: HashMap::new(),
-            assembly: HashMap::new(),
-            legacy_assembly: HashMap::new(),
-            instruction: HashMap::new(),
-            function: HashMap::new(),
+            by_key: HashMap::new(),
+            by_id: HashMap::new(),
         }
     }
 
-    fn forget_id(&mut self, id: BreakpointID) {
-        for lines in self.source.values_mut() {
-            lines.retain(|_, stored_id| *stored_id != id);
-        }
-        for lines in self.assembly.values_mut() {
-            lines.retain(|_, stored_id| *stored_id != id);
-        }
-        for lines in self.legacy_assembly.values_mut() {
-            lines.retain(|_, stored_id| *stored_id != id);
-        }
-        self.instruction.retain(|_, stored_id| *stored_id != id);
-        self.function.retain(|_, stored_id| *stored_id != id);
+    fn insert(&mut self, info: Arc<Mutex<BreakpointInfo>>) {
+        let info_guard = info.lock().unwrap();
+        let id = info_guard.id;
+        let key = info_guard.key.clone();
+        drop(info_guard);
+        self.by_key.insert(key, info.clone());
+        self.by_id.insert(id, info);
     }
 }
 
-fn remove_tracked_breakpoint(
-    target: &SBTarget,
-    breakpoint_infos: &mut HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
-    id: BreakpointID,
-) {
-    if let Some(info) = breakpoint_infos.remove(&id) {
-        let breakpoint = info.lock().unwrap().breakpoint.clone();
+fn remove_tracked_breakpoint(target: &SBTarget, breakpoints: &mut Breakpoints, id: BreakpointID) {
+    if let Some(info) = breakpoints.by_id.remove(&id) {
+        let info = info.lock().unwrap();
+        breakpoints.by_key.remove(&info.key);
+        let breakpoint = info.breakpoint.clone();
+        drop(info);
         breakpoint.clear_callback();
     }
     target.breakpoint_delete(id);
-}
-
-fn replace_breakpoint_index<K: Eq + Hash>(
-    target: &SBTarget,
-    breakpoint_infos: &mut HashMap<BreakpointID, Arc<Mutex<BreakpointInfo>>>,
-    existing: &mut HashMap<K, BreakpointID>,
-    replacement: HashMap<K, BreakpointID>,
-) {
-    for (key, id) in existing.iter() {
-        if replacement.get(key) != Some(id) {
-            remove_tracked_breakpoint(target, breakpoint_infos, *id);
-        }
-    }
-    *existing = replacement;
 }
 
 const CPP_THROW: &str = "cpp_throw";
@@ -104,6 +122,81 @@ const RUST_PANIC: &str = "rust_panic";
 const SWIFT_THROW: &str = "swift_throw";
 
 impl DebugSession {
+    fn update_breakpoints<'a, K: Clone + Into<BreakpointLocation>>(
+        &self,
+        breakpoints: &mut Breakpoints,
+        kind: BreakpointKind,
+        requests: impl IntoIterator<Item = BreakpointRequest<'a, K>>,
+        mut create: impl FnMut(&K) -> Option<SBBreakpoint>,
+    ) -> Vec<Breakpoint> {
+        let old_keys: Vec<_> = breakpoints.by_key.keys().filter(|key| key.kind == kind).cloned().collect();
+        let mut old: HashMap<_, _> = old_keys
+            .into_iter()
+            .map(|key| {
+                let info = breakpoints.by_key.remove(&key).unwrap();
+                (key, info)
+            })
+            .collect();
+        let mut replacement = HashMap::new();
+        let mut responses = Vec::new();
+
+        for request in requests {
+            let BreakpointRequest {
+                key,
+                condition,
+                hit_condition,
+                log_message,
+            } = request;
+            let breakpoint_key = BreakpointKey {
+                kind: kind.clone(),
+                location: key.clone().into(),
+            };
+
+            // A repeated key uses the breakpoint from the previous request entry.
+            let info = match replacement.remove(&breakpoint_key).or_else(|| old.remove(&breakpoint_key)) {
+                Some(info) => {
+                    let id = info.lock().unwrap().id;
+                    if self.target.find_breakpoint_by_id(id).is_some() {
+                        Some(info)
+                    } else {
+                        remove_tracked_breakpoint(&self.target, breakpoints, id);
+                        None
+                    }
+                }
+                None => None,
+            };
+
+            let info = if let Some(info) = info {
+                info
+            } else if let Some(bp) = create(&key) {
+                Arc::new(Mutex::new(BreakpointInfo {
+                    id: bp.id(),
+                    breakpoint: bp,
+                    key: breakpoint_key.clone(),
+                    hit_condition: None,
+                    hit_count: 0,
+                    exclusions: Vec::new(),
+                }))
+            } else {
+                responses.push(Breakpoint::default());
+                continue;
+            };
+
+            self.configure_breakpoint(&info, condition, hit_condition, log_message);
+            responses.push(self.make_bp_response(&info.lock().unwrap()));
+            replacement.insert(breakpoint_key, info);
+        }
+
+        for info in old.into_values() {
+            let id = info.lock().unwrap().id;
+            remove_tracked_breakpoint(&self.target, breakpoints, id);
+        }
+        for info in replacement.into_values() {
+            breakpoints.insert(info);
+        }
+        responses
+    }
+
     pub(super) fn handle_set_breakpoints(
         &mut self,
         args: SetBreakpointsArguments,
@@ -134,68 +227,50 @@ impl DebugSession {
         file_path: &Path,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let Breakpoints {
-            ref mut source,
-            ref mut breakpoint_infos,
-            ..
-        } = *self.breakpoints.borrow_mut();
-
         let file_path_norm = normalize_path(file_path);
-        let existing_bps = source.entry(file_path.into()).or_default();
-        let mut new_bps = HashMap::new();
-        let mut result = vec![];
-        for req in requested_bps {
-            // Find an existing breakpoint or create a new one
-            let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
-                Some(bp) => bp,
-                None => {
-                    let location = match self.breakpoint_mode {
-                        BreakpointMode::Path => file_path_norm.as_os_str(),
-                        BreakpointMode::File => file_path_norm.file_name().ok_or("Missing file name")?,
-                    };
-                    self.target.breakpoint_create_by_location(
-                        Path::new(location),
-                        req.line as u32,
-                        req.column.map(|c| c as u32),
-                    )
-                }
-            };
+        let location = match self.breakpoint_mode {
+            BreakpointMode::Path => file_path_norm.as_os_str(),
+            BreakpointMode::File => file_path_norm.file_name().ok_or("Missing file name")?,
+        };
+        let kind = BreakpointKind::Source(file_path.into());
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        let mut result = self.update_breakpoints(
+            &mut breakpoints,
+            kind,
+            requested_bps.iter().map(|req| BreakpointRequest {
+                key: (req.line, req.column),
+                condition: req.condition.as_deref(),
+                hit_condition: req.hit_condition.as_deref(),
+                log_message: req.log_message.as_deref(),
+            }),
+            |&(line, column)| {
+                Some(self.target.breakpoint_create_by_location(
+                    Path::new(location),
+                    line as u32,
+                    column.map(|column| column as u32),
+                ))
+            },
+        );
+        drop(breakpoints);
 
-            let bp_info = self.register_breakpoint(
-                bp,
-                BreakpointKind::Source,
-                req.condition.as_deref(),
-                req.hit_condition.as_deref(),
-                req.log_message.as_deref(),
-            );
-            let (bp_id, num_locations, mut breakpoint) = {
-                let bp_info = bp_info.lock().unwrap();
-                (
-                    bp_info.id,
-                    bp_info.breakpoint.num_locations(),
-                    self.make_bp_response(&bp_info),
-                )
-            };
-            // If the breakpoint can't be resolved, try BreakpointMode::File mode and report findings.
-            if num_locations == 0 && matches!(self.breakpoint_mode, BreakpointMode::Path) {
-                if let Some((path, line)) = self.get_breakpoint_hint(&file_path_norm, req.line, req.column) {
-                    let message = format!(
-                        "Breakpoint at {}:{} could not be resolved, but a valid location was found at {}:{}",
-                        file_path_norm.display(),
-                        req.line,
-                        path.display(),
-                        line
-                    );
-                    self.console_message(&message);
-                    breakpoint.message = Some(message);
+        // If a source breakpoint can't be resolved, suggest a likely location in another file.
+        if matches!(self.breakpoint_mode, BreakpointMode::Path) {
+            for (req, response) in requested_bps.iter().zip(&mut result) {
+                if response.id.is_some() && !response.verified {
+                    if let Some((path, line)) = self.get_breakpoint_hint(&file_path_norm, req.line, req.column) {
+                        let message = format!(
+                            "Breakpoint at {}:{} could not be resolved, but a valid location was found at {}:{}",
+                            file_path_norm.display(),
+                            req.line,
+                            path.display(),
+                            line
+                        );
+                        self.console_message(&message);
+                        response.message = Some(message);
+                    }
                 }
             }
-            result.push(breakpoint);
-            new_bps.insert(req.line, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info);
         }
-
-        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
         Ok(result)
     }
 
@@ -243,40 +318,22 @@ impl DebugSession {
         dasm: Rc<disassembly::DisassembledRange>,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let Breakpoints {
-            ref mut assembly,
-            ref mut breakpoint_infos,
-            ..
-        } = *self.breakpoints.borrow_mut();
-        let existing_bps = assembly.entry(dasm.handle()).or_default();
-        let mut new_bps = HashMap::new();
-        let mut result = vec![];
-        for req in requested_bps {
-            let laddress = dasm.address_by_line_num(req.line as u32);
-
-            // Find an existing breakpoint or create a new one
-            let bp = match existing_bps.get(&req.line).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
-                Some(bp) => bp,
-                None => self.target.breakpoint_create_by_load_address(laddress),
-            };
-
-            let bp_info = self.register_breakpoint(
-                bp,
-                BreakpointKind::Disassembly,
-                req.condition.as_deref(),
-                req.hit_condition.as_deref(),
-                req.log_message.as_deref(),
-            );
-            let (bp_id, response) = {
-                let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info))
-            };
-            result.push(response);
-            new_bps.insert(req.line, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info);
-        }
-        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
-        Ok(result)
+        let kind = BreakpointKind::Disassembly(dasm.handle());
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        Ok(self.update_breakpoints(
+            &mut breakpoints,
+            kind,
+            requested_bps.iter().map(|req| BreakpointRequest {
+                key: req.line,
+                condition: req.condition.as_deref(),
+                hit_condition: req.hit_condition.as_deref(),
+                log_message: req.log_message.as_deref(),
+            }),
+            |&line| {
+                let address = dasm.address_by_line_num(line as u32);
+                Some(self.target.breakpoint_create_by_load_address(address))
+            },
+        ))
     }
 
     fn set_new_dasm_breakpoints(
@@ -284,177 +341,108 @@ impl DebugSession {
         adapter_data: &disassembly::AdapterData,
         requested_bps: &[SourceBreakpoint],
     ) -> Result<Vec<Breakpoint>, Error> {
-        let Breakpoints {
-            ref mut legacy_assembly,
-            ref mut breakpoint_infos,
-            ..
-        } = *self.breakpoints.borrow_mut();
-        let existing_bps = legacy_assembly.entry(adapter_data.clone()).or_default();
-        let mut new_bps = HashMap::new();
-        let mut result = vec![];
+        let kind = BreakpointKind::LegacyDisassembly(adapter_data.clone());
         let line_addresses = disassembly::DisassembledRange::lines_from_adapter_data(adapter_data);
-        for req in requested_bps {
-            if req.line >= 0 && req.line < line_addresses.len() as i64 {
-                let address = line_addresses[req.line as usize] as Address;
-                let bp = match existing_bps.get(&req.line).and_then(|id| self.target.find_breakpoint_by_id(*id)) {
-                    Some(bp) => bp,
-                    None => self.target.breakpoint_create_by_load_address(address),
-                };
-                let bp_info = self.register_breakpoint(
-                    bp,
-                    BreakpointKind::Disassembly,
-                    req.condition.as_deref(),
-                    req.hit_condition.as_deref(),
-                    req.log_message.as_deref(),
-                );
-                let (bp_id, response) = {
-                    let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info))
-                };
-                result.push(response);
-                new_bps.insert(req.line, bp_id);
-                breakpoint_infos.insert(bp_id, bp_info);
-            } else {
-                result.push(Default::default());
-            }
-        }
-        replace_breakpoint_index(&self.target, breakpoint_infos, existing_bps, new_bps);
-        Ok(result)
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        Ok(self.update_breakpoints(
+            &mut breakpoints,
+            kind,
+            requested_bps.iter().map(|req| BreakpointRequest {
+                key: req.line,
+                condition: req.condition.as_deref(),
+                hit_condition: req.hit_condition.as_deref(),
+                log_message: req.log_message.as_deref(),
+            }),
+            |&line| {
+                if line < 0 {
+                    return None;
+                }
+                let address = *line_addresses.get(line as usize)? as Address;
+                Some(self.target.breakpoint_create_by_load_address(address))
+            },
+        ))
     }
 
     pub(super) fn handle_set_instruction_breakpoints(
         &mut self,
         args: SetInstructionBreakpointsArguments,
     ) -> Result<SetInstructionBreakpointsResponseBody, Error> {
-        let Breakpoints {
-            ref mut instruction,
-            ref mut breakpoint_infos,
-            ..
-        } = *self.breakpoints.borrow_mut();
-
-        let mut new_bps = HashMap::new();
-        let mut result = vec![];
-        for req in args.breakpoints {
-            // Find an existing breakpoint or create a new one
-            let base_addr = parse_int::parse::<u64>(&req.instruction_reference)?;
-            let address = base_addr.wrapping_add(req.offset.unwrap_or(0) as u64);
-
-            let bp = match instruction.get(&address).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
-                Some(bp) => bp,
-                None => self.target.breakpoint_create_by_load_address(address),
-            };
-
-            let bp_info = self.register_breakpoint(
-                bp,
-                BreakpointKind::Instruction,
-                req.condition.as_deref(),
-                req.hit_condition.as_deref(),
-                None,
-            );
-            let (bp_id, response) = {
-                let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info))
-            };
-
-            result.push(response);
-            new_bps.insert(address, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info);
-        }
-        replace_breakpoint_index(&self.target, breakpoint_infos, instruction, new_bps);
-
-        Ok(SetInstructionBreakpointsResponseBody { breakpoints: result })
+        let requested = args
+            .breakpoints
+            .iter()
+            .map(|req| {
+                let base_addr = parse_int::parse::<u64>(&req.instruction_reference)?;
+                let address = base_addr.wrapping_add(req.offset.unwrap_or(0) as u64);
+                Ok(BreakpointRequest {
+                    key: address,
+                    condition: req.condition.as_deref(),
+                    hit_condition: req.hit_condition.as_deref(),
+                    log_message: None,
+                })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        let breakpoints = self.update_breakpoints(
+            &mut breakpoints,
+            BreakpointKind::Instruction,
+            requested,
+            |&address| Some(self.target.breakpoint_create_by_load_address(address)),
+        );
+        Ok(SetInstructionBreakpointsResponseBody { breakpoints })
     }
 
     pub(super) fn handle_set_function_breakpoints(
         &mut self,
         args: SetFunctionBreakpointsArguments,
     ) -> Result<SetBreakpointsResponseBody, Error> {
-        let Breakpoints {
-            ref mut function,
-            ref mut breakpoint_infos,
-            ..
-        } = *self.breakpoints.borrow_mut();
-        let mut new_bps = HashMap::new();
-        let mut result = vec![];
-        for req in args.breakpoints {
-            // Find an existing breakpoint or create a new one
-            let bp = match function.get(&req.name).and_then(|bp_id| self.target.find_breakpoint_by_id(*bp_id)) {
-                Some(bp) => bp,
-                None => {
-                    if req.name.starts_with("/re ") {
-                        self.target.breakpoint_create_by_regex(&req.name[4..])
-                    } else {
-                        self.target.breakpoint_create_by_name(&req.name)
-                    }
-                }
-            };
-
-            let bp_info = self.register_breakpoint(
-                bp,
-                BreakpointKind::Function,
-                req.condition.as_deref(),
-                req.hit_condition.as_deref(),
-                None,
-            );
-            let (bp_id, response) = {
-                let bp_info = bp_info.lock().unwrap();
-                (bp_info.id, self.make_bp_response(&bp_info))
-            };
-
-            result.push(response);
-            new_bps.insert(req.name, bp_id);
-            breakpoint_infos.insert(bp_id, bp_info);
-        }
-        replace_breakpoint_index(&self.target, breakpoint_infos, function, new_bps);
-
-        Ok(SetBreakpointsResponseBody { breakpoints: result })
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        let breakpoints = self.update_breakpoints(
+            &mut breakpoints,
+            BreakpointKind::Function,
+            args.breakpoints.iter().map(|req| BreakpointRequest {
+                key: req.name.clone(),
+                condition: req.condition.as_deref(),
+                hit_condition: req.hit_condition.as_deref(),
+                log_message: None,
+            }),
+            |name| {
+                Some(if let Some(regex) = name.strip_prefix("/re ") {
+                    self.target.breakpoint_create_by_regex(regex)
+                } else {
+                    self.target.breakpoint_create_by_name(name)
+                })
+            },
+        );
+        Ok(SetBreakpointsResponseBody { breakpoints })
     }
 
     pub(super) fn handle_set_exception_breakpoints(
         &mut self,
         args: SetExceptionBreakpointsArguments,
     ) -> Result<SetExceptionBreakpointsResponseBody, Error> {
-        let mut breakpoints = self.breakpoints.borrow_mut();
-        let old_ids: Vec<_> = breakpoints
-            .breakpoint_infos
+        let requested = args
+            .filters
             .iter()
-            .filter_map(|(&id, info)| matches!(info.lock().unwrap().kind, BreakpointKind::Exception(_)).then_some(id))
-            .collect();
-        for id in old_ids {
-            remove_tracked_breakpoint(&self.target, &mut breakpoints.breakpoint_infos, id);
-        }
-
-        let mut result = vec![];
-        for exc_name in &args.filters {
-            if let Some(bp) = self.set_exception_breakpoint(exc_name) {
-                let bp_info =
-                    self.register_breakpoint(bp, BreakpointKind::Exception(exc_name.into()), None, None, None);
-                let (bp_id, response) = {
-                    let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info))
-                };
-                result.push(response);
-                breakpoints.breakpoint_infos.insert(bp_id, bp_info);
-            }
-        }
-        for filter in &args.filter_options {
-            if let Some(bp) = self.set_exception_breakpoint(&filter.filter_id) {
-                let bp_info = self.register_breakpoint(
-                    bp,
-                    BreakpointKind::Exception(filter.filter_id.clone()),
-                    filter.condition.as_deref(),
-                    None,
-                    None,
-                );
-                let (bp_id, response) = {
-                    let bp_info = bp_info.lock().unwrap();
-                    (bp_info.id, self.make_bp_response(&bp_info))
-                };
-                result.push(response);
-                breakpoints.breakpoint_infos.insert(bp_id, bp_info);
-            }
-        }
-        Ok(SetExceptionBreakpointsResponseBody { breakpoints: result })
+            .map(|filter_id| BreakpointRequest {
+                key: filter_id.clone(),
+                condition: None,
+                hit_condition: None,
+                log_message: None,
+            })
+            .chain(args.filter_options.iter().map(|filter| BreakpointRequest {
+                key: filter.filter_id.clone(),
+                condition: filter.condition.as_deref(),
+                hit_condition: None,
+                log_message: None,
+            }));
+        let mut breakpoints = self.breakpoints.borrow_mut();
+        let breakpoints = self.update_breakpoints(
+            &mut breakpoints,
+            BreakpointKind::Exception,
+            requested,
+            |filter_id| self.set_exception_breakpoint(filter_id),
+        );
+        Ok(SetExceptionBreakpointsResponseBody { breakpoints })
     }
 
     pub(super) fn get_exception_filters() -> &'static [ExceptionBreakpointsFilter] {
@@ -519,18 +507,19 @@ impl DebugSession {
         }
     }
 
-    fn register_breakpoint(
+    fn configure_breakpoint(
         &self,
-        bp: SBBreakpoint,
-        kind: BreakpointKind,
+        bp_info: &Arc<Mutex<BreakpointInfo>>,
         condition: Option<&str>,
         hit_condition: Option<&str>,
         log_message: Option<&str>,
-    ) -> Arc<Mutex<BreakpointInfo>> {
+    ) {
         fn empty2none(s: Option<&str>) -> Option<&str> {
             s.map(str::trim).filter(|s| !s.is_empty())
         }
 
+        let bp = bp_info.lock().unwrap().breakpoint.clone();
+        bp.set_condition("");
         let py_condition = empty2none(condition).and_then(|condition| {
             let prepared = match PreparedExpression::prepare(
                 condition,
@@ -548,7 +537,6 @@ impl DebugSession {
                 bp.set_condition(expr);
                 None
             } else {
-                bp.set_condition(""); // In case native condition was already set
                 Some(prepared)
             }
         });
@@ -571,14 +559,7 @@ impl DebugSession {
             }
         });
 
-        let bp_info = BreakpointInfo {
-            id: bp.id(),
-            breakpoint: bp,
-            kind,
-            hit_condition: hit_condition,
-            hit_count: 0,
-            exclusions: Vec::new(),
-        };
+        bp_info.lock().unwrap().hit_condition = hit_condition;
 
         let is_logpoint = logpoint.is_some();
         let dap_session = self.dap_session.clone();
@@ -591,10 +572,9 @@ impl DebugSession {
             })));
         };
 
-        let bp_info = Arc::new(Mutex::new(bp_info));
-        let weak_bp_info = Arc::downgrade(&bp_info);
+        let weak_bp_info = Arc::downgrade(bp_info);
 
-        bp_info.lock().unwrap().breakpoint.set_callback(move |_process, thread, location| {
+        bp.set_callback(move |_process, thread, location| {
             debug!("Callback for breakpoint location {:?}", location);
 
             let bp_info = weak_bp_info.upgrade().expect("BreakpointInfo");
@@ -639,7 +619,7 @@ impl DebugSession {
                 }
             }
 
-            //
+            // Handle logpoints
             if let Some((template, value_formatter)) = &logpoint {
                 match template.render(&thread.frame_at_index(0), value_formatter) {
                     Ok(output) => console_message("console", output),
@@ -650,8 +630,6 @@ impl DebugSession {
 
             true
         });
-
-        bp_info
     }
 
     // Generates a DAP Breakpoint from a registered breakpoint.
@@ -667,8 +645,8 @@ impl DebugSession {
             return response;
         }
 
-        match &info.kind {
-            BreakpointKind::Source | BreakpointKind::Function => {
+        match &info.key.kind {
+            BreakpointKind::Source(_) | BreakpointKind::Function => {
                 if let Some(line_entry) = bp.location_at_index(0).address().line_entry() {
                     let file_path = line_entry.file_spec().path();
                     response.source = Some(Source {
@@ -679,7 +657,7 @@ impl DebugSession {
                     response.line = Some(line_entry.line() as i64);
                 }
             }
-            BreakpointKind::Disassembly => {
+            BreakpointKind::Disassembly(_) | BreakpointKind::LegacyDisassembly(_) => {
                 let address = bp.location_at_index(0).address().load_address(&self.target);
                 if let Ok(dasm) = self.disasm_ranges.from_address(address) {
                     response.line = Some(dasm.line_num_by_address(address) as i64);
@@ -698,7 +676,7 @@ impl DebugSession {
                 let address = bp.location_at_index(0).address().load_address(&self.target);
                 response.instruction_reference = Some(format!("0x{:X}", address));
             }
-            BreakpointKind::Exception(_) => {}
+            BreakpointKind::Exception => {}
         }
         response
     }
@@ -710,8 +688,9 @@ impl DebugSession {
 
         if event_type.intersects(BreakpointEventType::Removed) {
             bp.clear_callback();
-            if breakpoints.breakpoint_infos.remove(&bp.id()).is_some() {
-                breakpoints.forget_id(bp.id());
+            if let Some(info) = breakpoints.by_id.remove(&bp.id()) {
+                let key = info.lock().unwrap().key.clone();
+                breakpoints.by_key.remove(&key);
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "removed".into(),
                     breakpoint: Breakpoint {
@@ -721,7 +700,7 @@ impl DebugSession {
                 }));
             }
         } else if event_type.intersects(BreakpointEventType::LocationsAdded | BreakpointEventType::LocationsResolved) {
-            if let Some(info) = breakpoints.breakpoint_infos.get(&bp.id()) {
+            if let Some(info) = breakpoints.by_id.get(&bp.id()) {
                 let response = self.make_bp_response(&info.lock().unwrap());
                 self.send_event(EventBody::breakpoint(BreakpointEventBody {
                     reason: "changed".into(),
@@ -743,13 +722,15 @@ impl DebugSession {
             bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
         };
         let breakpoints = self.breakpoints.borrow();
-        let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp_id) else {
+        let Some(bp_info) = breakpoints.by_id.get(&bp_id) else {
             bail!(blame_user(str_error("Could not locate symbol for this stack frame.")));
         };
         let mut bp_info = bp_info.lock().unwrap();
         bp_info.exclusions.push(symbol.clone());
 
-        let (site_id, label) = if let BreakpointKind::Exception(exc_name) = &bp_info.kind {
+        let (site_id, label) = if let (BreakpointKind::Exception, BreakpointLocation::Name(exc_name)) =
+            (&bp_info.key.kind, &bp_info.key.location)
+        {
             let filter = DebugSession::get_exception_filters().iter().find(|f| f.filter == *exc_name);
             (Either::Second(exc_name.clone()), filter.unwrap().label.clone())
         } else {
@@ -773,7 +754,7 @@ impl DebugSession {
 
     pub(super) fn handle_set_excluded_callers(&mut self, args: SetExcludedCallersRequest) -> Result<(), Error> {
         let breakpoints = self.breakpoints.borrow();
-        for bp_info in breakpoints.breakpoint_infos.values() {
+        for bp_info in breakpoints.by_id.values() {
             let mut bp_info = bp_info.lock().unwrap();
             bp_info.exclusions.clear();
         }
@@ -781,15 +762,17 @@ impl DebugSession {
             match exclusion.site_id {
                 Either::First(bp_id) => {
                     let bp_id = bp_id as BreakpointID;
-                    if let Some(bp_info) = breakpoints.breakpoint_infos.get(&bp_id) {
+                    if let Some(bp_info) = breakpoints.by_id.get(&bp_id) {
                         let mut bp_info = bp_info.lock().unwrap();
                         bp_info.exclusions.push(exclusion.symbol);
                     }
                 }
                 Either::Second(exc_name) => {
-                    for bp_info in breakpoints.breakpoint_infos.values() {
+                    for bp_info in breakpoints.by_id.values() {
                         let mut bp_info = bp_info.lock().unwrap();
-                        if let BreakpointKind::Exception(exc_name2) = &bp_info.kind {
+                        if let (BreakpointKind::Exception, BreakpointLocation::Name(exc_name2)) =
+                            (&bp_info.key.kind, &bp_info.key.location)
+                        {
                             if &exc_name == exc_name2 {
                                 bp_info.exclusions.push(exclusion.symbol.clone());
                             }

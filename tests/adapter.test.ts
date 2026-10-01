@@ -246,48 +246,78 @@ function generateSuite(triple: string) {
                 assert.ok(events.every(event => event.body.breakpoint.id == id));
             });
 
-            test('adapterData breakpoints are replaced by repeated requests', async function () {
-                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
-                let source = { adapterData: { start: 0x1000, end: 0x1004, lineOffsets: [4] } };
-                let request = { source, breakpoints: [{ line: 3 }] };
-                let first = await ds.setBreakpointsRequest(request);
-                let second = await ds.setBreakpointsRequest(request);
-                assert.equal(second.body.breakpoints[0].id, first.body.breakpoints[0].id);
-
-                await ds.setBreakpointsRequest({ source, breakpoints: [] });
-                let third = await ds.setBreakpointsRequest(request);
-                assert.notEqual(third.body.breakpoints[0].id, first.body.breakpoints[0].id);
-            });
-
-            test('replacing breakpoint sets retires old IDs', async function () {
+            test('breakpoint sets reuse and retire IDs', async function () {
                 await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, stopOnEntry: true });
                 let events: any[] = [];
                 ds.on('breakpoint', event => events.push(event));
                 let verifyReplacement = async (set: () => Promise<any>, clear: () => Promise<any>) => {
-                    let first = (await set()).body.breakpoints[0].id;
+                    let first = (await set()).body.breakpoints.map((bp: any) => bp.id);
+                    let second = (await set()).body.breakpoints.map((bp: any) => bp.id);
+                    assert.deepEqual(second, first);
+                    assert.equal(new Set(first).size, first.length);
+
                     await clear();
-                    let second = (await set()).body.breakpoints[0].id;
-                    assert.notEqual(second, first);
+                    let third = (await set()).body.breakpoints.map((bp: any) => bp.id);
+                    assert.equal(third.length, first.length);
+                    for (let i = 0; i < first.length; ++i) {
+                        assert.notEqual(third[i], first[i]);
+                    }
+                    return third;
                 };
 
                 let source = { path: debuggeeSource };
-                let sourceBreakpoints = [{ line: findMarker(debuggeeSource, '#BP1') }];
-                await verifyReplacement(
+                let line = findMarker(debuggeeSource, '#BP1');
+                let sourceBreakpoints = [{ line, column: 1 }, { line, column: 2 }];
+                let sourceIds = await verifyReplacement(
                     () => ds.setBreakpointsRequest({ source, breakpoints: sourceBreakpoints }),
                     () => ds.setBreakpointsRequest({ source, breakpoints: [] })
                 );
+
+                let otherSource = { path: debuggeeTypes };
+                let otherBreakpoints = [{ line: findMarker(debuggeeTypes, '#BP3') }];
+                await ds.setBreakpointsRequest({ source: otherSource, breakpoints: otherBreakpoints });
+                let sourceAgain = await ds.setBreakpointsRequest({ source, breakpoints: sourceBreakpoints });
+                assert.deepEqual(sourceAgain.body.breakpoints.map((bp: any) => bp.id), sourceIds);
+                await ds.setBreakpointsRequest({ source: otherSource, breakpoints: [] });
+
+                let legacySource = { adapterData: { start: 0x1000, end: 0x1004, lineOffsets: [4] } };
+                let legacyIds = await verifyReplacement(
+                    () => ds.setBreakpointsRequest({ source: legacySource, breakpoints: [{ line: 3 }] }),
+                    () => ds.setBreakpointsRequest({ source: legacySource, breakpoints: [] })
+                );
+
+                let otherLegacySource = { adapterData: { start: 0x2000, end: 0x2004, lineOffsets: [4] } };
+                await ds.setBreakpointsRequest({ source: otherLegacySource, breakpoints: [{ line: 3 }] });
+                let legacyAgain = await ds.setBreakpointsRequest({ source: legacySource, breakpoints: [{ line: 3 }] });
+                assert.deepEqual(legacyAgain.body.breakpoints.map((bp: any) => bp.id), legacyIds);
+                await ds.setBreakpointsRequest({ source: otherLegacySource, breakpoints: [] });
+
+                let repeated = await ds.setBreakpointsRequest({
+                    source: legacySource,
+                    breakpoints: [{ line: 3 }, { line: 99 }, { line: 3 }]
+                });
+                let returned = repeated.body.breakpoints;
+                assert.equal(returned.length, 3);
+                assert.equal(returned[0].id, returned[2].id);
+                assert.equal(returned[1].verified, false);
+                assert.notEqual(returned[1].id, undefined);
+                await ds.setBreakpointsRequest({ source: legacySource, breakpoints: [] });
+
                 await verifyReplacement(
                     () => ds.setFunctionBreakpointsRequest({ breakpoints: [{ name: 'main' }] }),
                     () => ds.setFunctionBreakpointsRequest({ breakpoints: [] })
                 );
+
                 await verifyReplacement(
                     () => ds.send('setInstructionBreakpoints', { breakpoints: [{ instructionReference: '0x1000' }] }),
                     () => ds.send('setInstructionBreakpoints', { breakpoints: [] })
                 );
+
                 await verifyReplacement(
                     () => ds.setExceptionBreakpointsRequest({ filters: ['cpp_throw'] }),
                     () => ds.setExceptionBreakpointsRequest({ filters: [] })
                 );
+
                 await asyncTimer(100);
                 assert.ok(events.every(event => event.body.reason != 'removed'));
             });
@@ -698,6 +728,36 @@ function generateSuite(triple: string) {
                 let frameId = await ds.getTopFrameId(stoppedEvent.body.threadId);
                 let localsRef = await ds.getFrameLocalsRef(frameId);
                 await ds.compareVariables(localsRef, { i: 5 });
+            });
+
+            test('updating a breakpoint preserves its hit count', async function () {
+                await ds.launchAndWaitForStop({ name: this.test.title, program: debuggee, args: ['vars'], stopOnEntry: true });
+                let line = findMarker(debuggeeTypes, '#BP3');
+                let source = { path: debuggeeTypes };
+                let first = await ds.setBreakpointsRequest({
+                    source,
+                    breakpoints: [{ line, hitCondition: '3' }]
+                });
+
+                let stopped = ds.waitForStopEvent();
+                await ds.continueRequest({ threadId: 0 });
+                let event = await stopped;
+                let frameId = await ds.getTopFrameId(event.body.threadId);
+                let localsRef = await ds.getFrameLocalsRef(frameId);
+                await ds.compareVariables(localsRef, { i: 2 });
+
+                let second = await ds.setBreakpointsRequest({
+                    source,
+                    breakpoints: [{ line, condition: '/nat i >= 0', hitCondition: '3' }]
+                });
+                assert.equal(second.body.breakpoints[0].id, first.body.breakpoints[0].id);
+
+                stopped = ds.waitForStopEvent();
+                await ds.continueRequest({ threadId: event.body.threadId });
+                event = await stopped;
+                frameId = await ds.getTopFrameId(event.body.threadId);
+                localsRef = await ds.getFrameLocalsRef(frameId);
+                await ds.compareVariables(localsRef, { i: 3 });
             });
 
             test('logpoints interpolate and filter without stopping', async function () {

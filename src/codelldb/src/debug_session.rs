@@ -241,7 +241,6 @@ impl DebugSession {
                 })
                 .await;
 
-
             // There shouldn't be any other references at this point.
             if shared_session.ref_count() > 1 {
                 error!("shared_session.ref_count={}", shared_session.ref_count());

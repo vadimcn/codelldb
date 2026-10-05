@@ -480,6 +480,19 @@ Use launch configuration with `target create -c <core path>` command:
 }
 ```
 
+If debug symbols are missing, or stack traces are empty, then specify the original executable file and a sysroot directory:
+
+```jsonc
+{
+    "name": "Core dump",
+    "type": "lldb",
+    "request": "attach",
+    "initCommands": ["settings append target.exec-search-paths .../target-sysroot/usr/lib"],
+    "targetCreateCommands": ["target create .../executable-file --core .../core-file.1234"],
+    "processCreateCommands": []
+}
+```
+
 ## Source Path Remapping
 Source path remapping is helpful when the program's source code is located in a different directory than it was
 at build time (for example, if a build server was used).

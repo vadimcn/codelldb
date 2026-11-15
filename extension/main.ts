@@ -287,10 +287,6 @@ class Extension implements DebugAdapterDescriptorFactory {
             debugConfig.request = 'launch';
         }
 
-        if (typeof debugConfig.args == 'string') {
-            debugConfig.args = stringArgv(debugConfig.args);
-        }
-
         debugConfig.relativePathBase = debugConfig.relativePathBase || folder?.uri.fsPath || workspace.rootPath;
         debugConfig._adapterSettings = this.settingsManager.getAdapterSettings(folder);
 
@@ -302,6 +298,10 @@ class Extension implements DebugAdapterDescriptorFactory {
         debugConfig: DebugConfiguration,
         cancellation?: CancellationToken
     ): Promise<DebugConfiguration | undefined | null> {
+        if (typeof debugConfig.args == 'string') {
+            debugConfig.args = stringArgv(debugConfig.args);
+        }
+
         if (debugConfig.cargo) {
             let cargo = new Cargo(folder, cancellation);
             let launcher = path.join(this.context.extensionPath, 'bin', 'codelldb-launch');

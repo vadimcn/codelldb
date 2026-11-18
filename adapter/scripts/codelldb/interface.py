@@ -411,12 +411,23 @@ def nat_eval(sbframe, expr):
                 break
     if not val.IsValid():
         val = sbframe.GetValueForVariablePath(expr)
+    if not val.IsValid() and is_out_of_scope_local(sbframe, expr):
+        # The expression evaluator would not be able to resolve it either, and on some targets
+        # (e.g. Rust on Windows/MSVC) LLDB crashes while trying to.
+        raise Exception(f'"{expr}" is not in scope at this location')
     if not val.IsValid():
         val = sbframe.EvaluateExpression(expr)
         err = val.GetError()
         if err.Fail():
             raise Exception(err.GetCString())
     return Value(val)
+
+
+def is_out_of_scope_local(sbframe: lldb.SBFrame, name: str) -> bool:
+    '''Returns True if `name` is a local variable or argument of the frame's function that is not
+    in scope at the current location, for example because its declaration hasn't been executed yet.'''
+    variables = sbframe.GetVariables(True, True, False, False)  # arguments, locals, statics, in_scope_only
+    return any(var.GetName() == name for var in variables)
 
 
 def get_instance_dict(debugger: lldb.SBDebugger) -> dict:

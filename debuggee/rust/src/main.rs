@@ -27,6 +27,7 @@ fn main() {
             strings();
             maps();
             misc();
+            out_of_scope();
             step_in();
         }
     }

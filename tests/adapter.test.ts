@@ -779,6 +779,43 @@ function generateSuite(triple: string) {
             });
         })
 
+        suite('Rust expressions', () => {
+            // https://github.com/vadimcn/codelldb/issues/1426
+            test('hover on a variable before its declaration', async function () {
+                let bpLine = findMarker(rustDebuggeeSource, '#BP_out_of_scope');
+                let stoppedEvent = await ds.launchAndWaitForStop(
+                    { name: this.test.title, program: rustDebuggee, sourceLanguages: ['rust'] },
+                    () => ds.setBreakpoint(rustDebuggeeSource, bpLine)
+                );
+                let threadId = stoppedEvent.body.threadId;
+                let frameId = await ds.getTopFrameId(threadId);
+
+                // `part` has not been declared yet.  With PDB debug info LLDB considers it out of scope,
+                // and evaluating it must produce an error rather than take down the adapter.
+                // (With DWARF, the variable is in scope for the whole block, so the result is not checked.)
+                let evaluatePart = ds.evaluateRequest({ expression: 'part', frameId: frameId, context: 'hover' });
+                if (triple.endsWith('pc-windows-msvc')) {
+                    await assert.rejects(evaluatePart, /not in scope/);
+                } else {
+                    await evaluatePart.catch(() => { });
+                }
+
+                // The session must still be alive.
+                let response2 = await ds.evaluateRequest({ expression: 'owned', frameId: frameId, context: 'hover' });
+                assert.ok(response2.success);
+                assert.ok(response2.body.result.includes('hi there'), response2.body.result);
+
+                // After stepping over the declaration, `part` evaluates normally.
+                let waitForStopAsync = ds.waitForStopEvent();
+                await ds.nextRequest({ threadId: threadId });
+                await waitForStopAsync;
+                frameId = await ds.getTopFrameId(threadId);
+                let response3 = await ds.evaluateRequest({ expression: 'part', frameId: frameId, context: 'hover' });
+                assert.ok(response3.success);
+                assert.ok(response3.body.result.includes('hi'), response3.body.result);
+            });
+        });
+
         if (!triple.endsWith('pc-windows-msvc'))
             suite('Rust tests', () => {
                 test('rust primitives', async function () {

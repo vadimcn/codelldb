@@ -277,6 +277,12 @@ pub fn misc() {
     println!("---");
 }
 
+pub fn out_of_scope() {
+    let owned = String::from("hi there");
+    let part: &str = &owned[0..2]; // #BP_out_of_scope
+    println!("{part}");
+}
+
 pub fn step_in() {
     let even = (0..10).filter(|x| x % 2 == 0).collect::<Vec<_>>();
     println!("---");
